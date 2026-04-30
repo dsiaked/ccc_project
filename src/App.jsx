@@ -24,14 +24,21 @@ export default function App() {
   });
 
   const [activePopup, setActivePopup] = useState(null);
-  // 예시:
   // { type: 'map', id: 'heart' }
   // { type: 'qr', id: 'heart' }  
+
   
   const [showCompleted, setShowCompleted] = useState(false);
+  const [completedPopupSeen, setCompletedPopupSeen] = useState(() => {
+    return localStorage.getItem('completedPopupSeen') === 'true';
+  });
+
+  const [toast, setToast] = useState('');
 
   const discoveredCount = Object.values(symbols).filter(Boolean).length;
 
+
+  
   useEffect(() => {
     localStorage.setItem('symbols', JSON.stringify(symbols));
   }, [symbols]);
@@ -64,31 +71,45 @@ export default function App() {
     }
   }, []);
 
-  //WHEN -> 4개 해금 완료
+  // WHEN -> 4개 해금 완료
   useEffect(() => {
-    if (discoveredCount === 4 && !showCompleted) {
-      const timer = setTimeout(() => {
+    if (
+      discoveredCount === 4 &&
+      !completedPopupSeen &&
+      activePopup === null
+    ) {
+      const timerId = setTimeout(() => {
         setShowCompleted(true);
+        setCompletedPopupSeen(true);
+        localStorage.setItem('completedPopupSeen', 'true');
       }, 500);
 
-      return () => clearTimeout(timer);
+      return () => clearTimeout(timerId);
     }
-  }, [discoveredCount, showCompleted]);
+  }, [discoveredCount, completedPopupSeen, activePopup]);
 
   const handleMapSymbolClick = (id) => {
-    if (symbols[id]) {
-      // 이미 발견된 경우 → qr 타입
-      setActivePopup({
-        type: 'qr',
-        id,
-      });
-    } else {
-      // 아직 발견 안 된 경우 → map 타입
       setActivePopup({
         type: 'map',
         id,
       });
+  }
+    
+  const handleSymbolCardClick = (id) => {
+    if (!symbols[id]) {
+      setToast('아직 발견하지 못한 심볼이에요 🔒');
+
+      setTimeout(() => {
+        setToast('');
+      }, 1500);
+
+      return;
     }
+
+    setActivePopup({
+      type: 'qr',
+      id,
+    });
   };
 
   const closePopup = () => {
@@ -110,7 +131,7 @@ export default function App() {
             </div>
           </div>
 
-          <SymbolCards symbols={symbols} onCardClick={handleMapSymbolClick} />
+          <SymbolCards symbols={symbols} onCardClick={handleSymbolCardClick} />
         </div>
       </div>
 
@@ -125,6 +146,22 @@ export default function App() {
       {showCompleted && (
         <CompletedPopup onClose={() => setShowCompleted(false)} />
       )}
+
+      {discoveredCount === 4 && (
+        <button
+          onClick={() => setShowCompleted(true)}
+          className="mt-4 px-4 py-2 bg-purple-700 text-white rounded"
+        >
+          완료 팝업 다시 보기
+        </button>
+      )}
+
+      {toast && (
+        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 bg-black/80 text-white px-4 py-2 rounded-full text-sm shadow-lg animate-fade-in-out">
+          {toast}
+        </div>
+      )}
     </div>
+    
   );
 }

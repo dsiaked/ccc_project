@@ -28,12 +28,25 @@ export default function CompletedPopup({ onClose }) {
           특별한 선물이 기다리고 있어요! 🎁✨
         </p>
         
-        <button 
-          onClick={onClose}
-          className="w-full bg-gradient-to-r from-purple-700 to-purple-500 text-white rounded-full py-4 text-xl shadow-[0_8px_20px_rgba(107,33,168,0.3)] hover:opacity-90 transition-all active:scale-[0.98] font-medium"
-        >
-          확인 🎊
-        </button>
+        <div className="w-full flex gap-3">
+          {/* 확인 버튼 */}
+          <button 
+            onClick={onClose}
+            className="flex-1 bg-gray-200 text-gray-700 rounded-full py-4 text-lg shadow hover:bg-gray-300 transition-all active:scale-[0.98] font-medium"
+          >
+            닫기
+          </button>
+
+          {/* 구글폼 이동 버튼 */}
+          <a
+            hrefㄴ="https://forms.gle/여기에링크"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex-1 text-center bg-gradient-to-r from-purple-700 to-purple-500 text-white rounded-full py-4 text-lg shadow-[0_8px_20px_rgba(107,33,168,0.3)] hover:opacity-90 transition-all active:scale-[0.98] font-medium"
+          >
+            참여하기 🎁
+          </a>
+        </div>
       </div>
       
       {/* Confetti effects */}
