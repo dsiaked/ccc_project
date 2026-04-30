@@ -4,77 +4,72 @@ import MapArea from './components/MapArea';
 import SymbolCards from './components/SymbolCards';
 import Popup from './components/Popup';
 import CompletedPopup from './components/CompletedPopup';
+import { symbolData } from './data/symbolData';
 
-const INITIAL_SYMBOLS = {
-  heart: false,
-  cross: false,
-  divide: false,
-  question: false,
-};
+const INITIAL_SYMBOLS = Object.keys(symbolData).reduce((acc, id) => {
+  acc[id] = false;
+  return acc;
+}, {});
+
+const TOTAL_SYMBOLS = Object.keys(INITIAL_SYMBOLS).length;
 
 export default function App() {
   const [symbols, setSymbols] = useState(() => {
-  const savedSymbols = localStorage.getItem('symbols');
+    const savedSymbols = localStorage.getItem('symbols');
 
-    if (savedSymbols) {
-      return JSON.parse(savedSymbols);
+    if (!savedSymbols) return INITIAL_SYMBOLS;
+
+    try {
+      return {
+        ...INITIAL_SYMBOLS,
+        ...JSON.parse(savedSymbols),
+      };
+    } catch {
+      return INITIAL_SYMBOLS;
     }
-
-    return INITIAL_SYMBOLS;
   });
 
   const [activePopup, setActivePopup] = useState(null);
-  // { type: 'map', id: 'heart' }
-  // { type: 'qr', id: 'heart' }  
-
-  
   const [showCompleted, setShowCompleted] = useState(false);
   const [completedPopupSeen, setCompletedPopupSeen] = useState(() => {
     return localStorage.getItem('completedPopupSeen') === 'true';
   });
-
   const [toast, setToast] = useState('');
 
   const discoveredCount = Object.values(symbols).filter(Boolean).length;
 
-
-  
   useEffect(() => {
     localStorage.setItem('symbols', JSON.stringify(symbols));
   }, [symbols]);
 
-  //WHEN -> QR로 사이트 접속 (ex: http://localhost:5173/?symbol=cross)
- 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const symbol = params.get('symbol');
 
-    if (
-      symbol &&
-      Object.prototype.hasOwnProperty.call(INITIAL_SYMBOLS, symbol)
-    ) {
-      setSymbols(prev => {
-        if (prev[symbol]) return prev;
-
-        return {
-          ...prev,
-          [symbol]: true,
-        };
-      });
-
-      setActivePopup({
-        type: 'qr',
-        id: symbol,
-      });
-
-      window.history.replaceState({}, '', window.location.pathname);
+    if (!symbol || !Object.prototype.hasOwnProperty.call(INITIAL_SYMBOLS, symbol)) {
+      return;
     }
+
+    setSymbols(prev => {
+      if (prev[symbol]) return prev;
+
+      return {
+        ...prev,
+        [symbol]: true,
+      };
+    });
+
+    setActivePopup({
+      type: 'qr',
+      id: symbol,
+    });
+
+    window.history.replaceState({}, '', window.location.pathname);
   }, []);
 
-  // WHEN -> 4개 해금 완료
   useEffect(() => {
     if (
-      discoveredCount === 4 &&
+      discoveredCount === TOTAL_SYMBOLS &&
       !completedPopupSeen &&
       activePopup === null
     ) {
@@ -88,14 +83,14 @@ export default function App() {
     }
   }, [discoveredCount, completedPopupSeen, activePopup]);
 
-  const handleMapSymbolClick = (id) => {
-      setActivePopup({
-        type: 'map',
-        id,
-      });
-  }
-    
-  const handleSymbolCardClick = (id) => {
+  const handleMapSymbolClick = id => {
+    setActivePopup({
+      type: 'map',
+      id,
+    });
+  };
+
+  const handleSymbolCardClick = id => {
     if (!symbols[id]) {
       setToast('아직 발견하지 못한 심볼이에요 🔒');
 
@@ -121,8 +116,9 @@ export default function App() {
       <div className="flex-1 overflow-y-auto scroll-container pb-10">
         <Header discoveredCount={discoveredCount} />
 
-        <div className="px-6 pb-6"> 
-          <MapArea symbols={symbols} onSymbolClick={handleMapSymbolClick} />          </div>
+        <div className="px-6 pb-6">
+          <MapArea symbols={symbols} onSymbolClick={handleMapSymbolClick} />
+        </div>
 
         <div className="px-6 pt-6">
           <div className="flex justify-center mb-5">
@@ -139,6 +135,7 @@ export default function App() {
         <Popup
           id={activePopup.id}
           type={activePopup.type}
+          discovered={symbols[activePopup.id]}
           onClose={closePopup}
         />
       )}
@@ -147,10 +144,10 @@ export default function App() {
         <CompletedPopup onClose={() => setShowCompleted(false)} />
       )}
 
-      {discoveredCount === 4 && (
+      {discoveredCount === TOTAL_SYMBOLS && (
         <button
           onClick={() => setShowCompleted(true)}
-          className="mt-4 px-4 py-2 bg-purple-700 text-white rounded"
+          className="fixed bottom-6 right-6 px-4 py-2 bg-purple-700 text-white rounded-full shadow-lg"
         >
           완료 팝업 다시 보기
         </button>
@@ -162,6 +159,5 @@ export default function App() {
         </div>
       )}
     </div>
-    
   );
 }

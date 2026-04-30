@@ -1,38 +1,20 @@
 import React from 'react';
-import { X, Lock, MapPin, Heart, Cross, Divide, Sparkles } from 'lucide-react';
+import { X, Lock, MapPin, CheckCircle, Sparkles } from 'lucide-react';
+import { symbolData } from '../data/symbolData';
 
-const mapData = {
-  heart: {
-    title: '하트',
-    icon: <Heart className="w-10 h-10 text-pink-400" />,
-    hint: '따뜻한 색이 빛나는 곳을 찾아보세요',
-  },
-  cross: {
-    title: '십자가',
-    icon: <Cross className="w-10 h-10 text-gray-500" />,
-    hint: '높은 곳, 빛이 드는 방향을 주목하세요',
-  },
-  divide: {
-    title: '나누기',
-    icon: <Divide className="w-10 h-10 text-blue-400" />,
-    hint: '차분하고 시원한 분위기의 공간입니다',
-  },
-  question: {
-    title: '특별 심볼',
-    icon: <Sparkles className="w-10 h-10 text-yellow-400" />,
-    hint: '가장 특별한 곳에 숨겨져 있습니다',
-  },
-};
+export default function MapPopup({ id, discovered, onClose }) {
+  const symbol = symbolData[id];
 
-export default function MapPopup({ id, onClose }) {
-  const data = mapData[id];
-  if (!data) return null;
+  if (!symbol) return null;
+
+  const Icon = symbol.Icon;
+  const mapStateData = discovered
+    ? symbol.map.discovered
+    : symbol.map.undiscovered;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-6">
       <div className="bg-white w-full max-w-sm rounded-[28px] p-6 shadow-xl relative">
-
-        {/* 닫기 */}
         <button
           onClick={onClose}
           className="absolute top-4 right-4 w-9 h-9 bg-gray-100 rounded-full flex items-center justify-center"
@@ -40,32 +22,73 @@ export default function MapPopup({ id, onClose }) {
           <X className="w-5 h-5 text-gray-600" />
         </button>
 
-        {/* 아이콘 */}
         <div className="flex flex-col items-center mt-4 mb-6">
-          <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-            <Lock className="w-8 h-8 text-gray-400" />
+          <div
+            className={`
+              w-20 h-20 rounded-full flex items-center justify-center mb-4 relative
+              ${
+                discovered
+                  ? 'bg-purple-50 border-[3px] border-purple-400 shadow-[0_0_18px_rgba(147,51,234,0.35)]'
+                  : 'bg-gray-100 border border-gray-200'
+              }
+            `}
+          >
+            <Icon
+              className={
+                discovered
+                  ? symbol.iconClass
+                  : 'w-12 h-12 text-gray-400'
+              }
+            />
+
+            <div className="absolute -bottom-1 -right-1 w-8 h-8 bg-white rounded-full border border-gray-200 flex items-center justify-center shadow-sm">
+              {discovered ? (
+                <CheckCircle className="w-5 h-5 text-purple-600" />
+              ) : (
+                <Lock className="w-4 h-4 text-gray-400" />
+              )}
+            </div>
           </div>
 
           <h2 className="text-2xl text-gray-700 mb-2">
-            {data.title}
+            {mapStateData.title}
           </h2>
 
-          <p className="text-gray-400 text-sm">
-            아직 발견하지 못했어요
+          <p
+            className={`
+              text-sm text-center leading-relaxed
+              ${discovered ? 'text-purple-600' : 'text-gray-400'}
+            `}
+          >
+            {mapStateData.desc}
           </p>
         </div>
 
-        {/* 힌트 */}
-        <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 mb-6">
-          <div className="flex items-center gap-2 mb-2">
-            <MapPin className="w-4 h-4 text-purple-500" />
-            <span className="text-sm text-gray-600">힌트</span>
+        {!discovered && (
+          <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 mb-6">
+            <div className="flex items-center gap-2 mb-2">
+              <MapPin className="w-4 h-4 text-purple-500" />
+              <span className="text-sm text-gray-600">힌트</span>
+            </div>
+
+            <p className="text-gray-700 text-sm leading-relaxed">
+              {mapStateData.hint}
+            </p>
           </div>
+        )}
 
-          <p className="text-gray-700 text-sm">
-            {data.hint}
-          </p>
-        </div>
+        {discovered && (
+          <div className="bg-purple-50 p-4 rounded-xl border border-purple-100 mb-6">
+            <div className="flex items-center gap-2 mb-2">
+              <Sparkles className="w-4 h-4 text-purple-600" />
+              <span className="text-sm text-purple-700">발견 메시지</span>
+            </div>
+
+            <p className="text-purple-700 text-sm leading-relaxed font-medium">
+              {mapStateData.message}
+            </p>
+          </div>
+        )}
 
         <button
           onClick={onClose}
