@@ -14,7 +14,6 @@ export default function KyminPopup({ onClose }) {
   const [newContent, setNewContent] = useState('');
 
   useEffect(() => {
-    if (!showCommentModal) return;
     setLoadingComments(true);
 
     // 1.5초 무한 로딩 방지 타임아웃 설정 (오프라인이거나 Firebase 로딩이 지연되면 먼저 UI를 열어줌)
@@ -55,7 +54,7 @@ export default function KyminPopup({ onClose }) {
       clearTimeout(timeoutId);
       unsubscribe();
     };
-  }, [showCommentModal]);
+  }, []);
 
   // 댓글 작성 기능
   const handleAddComment = async (e) => {
@@ -282,10 +281,14 @@ export default function KyminPopup({ onClose }) {
                 </span>
                 <button
                   onClick={() => setShowCommentModal(true)}
-                  className="flex items-center justify-center w-8 h-8 rounded-full bg-rose-50 border border-rose-100 hover:bg-rose-100/50 text-[#fa5c5c] cursor-pointer transition-all active:scale-95 shadow-sm"
+                  className="relative flex items-center justify-center w-16 h-16 rounded-full bg-rose-50 border-2 border-rose-100 hover:bg-rose-100/50 text-[#fa5c5c] cursor-pointer transition-all active:scale-95 shadow-md animate-in fade-in duration-300"
                   title="감상평 남기기"
                 >
-                  <MessageSquare className="w-4 h-4" />
+                  <MessageSquare className="w-8 h-8" />
+                  {/* 댓글 수 배지 */}
+                  <span className="absolute -top-1 -right-1 flex h-6 min-w-[24px] px-1.5 items-center justify-center rounded-full bg-red-500 text-white text-xs font-bold shadow-sm border border-white">
+                    {comments.length}
+                  </span>
                 </button>
               </div>
               

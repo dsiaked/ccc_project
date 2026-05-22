@@ -15,7 +15,6 @@ export default function DivideKyeomjunPopup({ onClose }) {
 
   // 실시간 댓글 목록 Firestore 구독
   useEffect(() => {
-    if (!showCommentModal) return;
     setLoadingComments(true);
 
     // 1.5초 무한 로딩 방지 타임아웃 설정
@@ -55,7 +54,7 @@ export default function DivideKyeomjunPopup({ onClose }) {
       clearTimeout(timeoutId);
       unsubscribe();
     };
-  }, [showCommentModal]);
+  }, []);
 
   // 댓글 작성 기능
   const handleAddComment = async (e) => {
@@ -278,10 +277,14 @@ export default function DivideKyeomjunPopup({ onClose }) {
                 </span>
                 <button
                   onClick={() => setShowCommentModal(true)}
-                  className="flex items-center justify-center w-8 h-8 rounded-full bg-orange-50 border border-orange-100 hover:bg-orange-100/50 text-[#f97316] cursor-pointer transition-all active:scale-95 shadow-sm animate-in fade-in duration-300"
+                  className="relative flex items-center justify-center w-16 h-16 rounded-full bg-orange-50 border-2 border-orange-100 hover:bg-orange-100/50 text-[#f97316] cursor-pointer transition-all active:scale-95 shadow-md animate-in fade-in duration-300"
                   title="감상평 남기기"
                 >
-                  <MessageSquare className="w-4 h-4" />
+                  <MessageSquare className="w-8 h-8" />
+                  {/* 댓글 수 배지 */}
+                  <span className="absolute -top-1 -right-1 flex h-6 min-w-[24px] px-1.5 items-center justify-center rounded-full bg-red-500 text-white text-xs font-bold shadow-sm border border-white">
+                    {comments.length}
+                  </span>
                 </button>
               </div>
 
