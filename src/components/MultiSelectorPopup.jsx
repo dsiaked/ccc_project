@@ -1,0 +1,118 @@
+import React from 'react';
+import { X, Lock, Heart, Divide, Sparkles } from 'lucide-react';
+
+const ARTIST_LIST = {
+  heart: [
+    { key: 'heart_kymin', name: '김규민', color: '#ff8b8b', borderColor: '#ff9d9d', type: 'heart' },
+    { key: 'heart_yewon', name: '손예원', color: '#ff8b8b', borderColor: '#ff9d9d', type: 'heart' },
+    { key: 'heart_eunhye', name: '김은혜', color: '#ff8b8b', borderColor: '#ff9d9d', type: 'heart' },
+    { key: 'heart_jihoon', name: '홍지훈', color: '#ff8b8b', borderColor: '#ff9d9d', type: 'heart' }
+  ],
+  divide: [
+    { key: 'divide_kyeomjun', name: '서겸준', color: '#fb923c', borderColor: '#ffedd5', type: 'divide' },
+    { key: 'divide_yewon', name: '손예원', color: '#fb923c', borderColor: '#ffedd5', type: 'divide' }
+  ]
+};
+
+export default function MultiSelectorPopup({ id, symbols, onClose, onSelectArtist }) {
+  const artists = ARTIST_LIST[id] || [];
+  const categoryLabel = id === 'heart' ? '하트' : '나누기';
+  
+  const totalCount = artists.length;
+  const discoveredCount = artists.filter(a => symbols[a.key]).length;
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-6 animate-fade-in">
+      <div className="w-full max-w-sm bg-white/95 rounded-[32px] border-[3px] border-[#F8CFD0] shadow-[0_20px_50px_rgba(248,207,208,0.4)] overflow-hidden relative p-6 flex flex-col items-center">
+        
+        {/* Close Button */}
+        <button 
+          onClick={onClose}
+          className="absolute top-5 right-5 w-8 h-8 bg-gray-100 hover:bg-gray-200 transition-colors rounded-full flex items-center justify-center text-gray-500 hover:text-gray-800"
+        >
+          <X className="w-4 h-4" />
+        </button>
+
+        {/* Header Icon */}
+        <div className="w-14 h-14 bg-[#FFE2E2] border-2 border-white rounded-2xl flex items-center justify-center shadow-md mb-4 animate-bounce">
+          {id === 'heart' ? (
+            <Heart className="w-7 h-7 text-pink-500 fill-pink-500" />
+          ) : (
+            <Divide className="w-7 h-7 text-blue-500 stroke-[2.5]" />
+          )}
+        </div>
+
+        {/* Title */}
+        <h3 className="font-['Cafe24_Ssurround'] font-bold text-2xl text-gray-800 text-center mb-1">
+          {categoryLabel} 심볼 작품 리스트
+        </h3>
+        
+        {/* Progress Badge */}
+        <div className="bg-[#FFE2E2]/60 border border-[#F8CFD0]/80 rounded-full px-3 py-1 flex items-center gap-1.5 mb-6 text-sm">
+          <Sparkles className="w-3.5 h-3.5 text-pink-500" />
+          <span className="text-pink-700 font-medium">수집 진행도: {discoveredCount}/{totalCount}</span>
+        </div>
+
+        {/* Grid List */}
+        <div className={`w-full grid ${id === 'heart' ? 'grid-cols-2' : 'grid-cols-1'} gap-4 mb-3`}>
+          {artists.map((artist) => {
+            const isDiscovered = symbols[artist.key];
+            
+            return (
+              <div
+                key={artist.key}
+                onClick={() => isDiscovered && onSelectArtist(artist.key)}
+                className={`relative rounded-[24px] border-2 p-4 flex flex-col items-center justify-center transition-all ${
+                  isDiscovered 
+                    ? 'bg-white border-[#F8CFD0] shadow-md cursor-pointer hover:scale-105 active:scale-95' 
+                    : 'bg-gray-50/50 border-gray-200/80 cursor-not-allowed select-none'
+                }`}
+              >
+                {/* Artist Symbol Circle */}
+                <div 
+                  className={`w-12 h-12 rounded-full flex items-center justify-center bg-white border-[1.8px] shadow-sm mb-2 transition-all ${
+                    isDiscovered ? '' : 'filter grayscale opacity-45'
+                  }`}
+                  style={{ 
+                    borderColor: isDiscovered ? artist.borderColor : '#d1d5db',
+                    color: isDiscovered ? artist.color : '#9ca3af'
+                  }}
+                >
+                  {artist.type === 'heart' ? (
+                    <Heart className="w-5 h-5 fill-current" />
+                  ) : (
+                    <Divide className="w-5 h-5 stroke-[2.5]" />
+                  )}
+                </div>
+
+                {/* Artist Name */}
+                <span className={`font-['Cafe24_Ssurround'] font-bold text-base transition-colors ${
+                  isDiscovered ? 'text-gray-800' : 'text-gray-400'
+                }`}>
+                  {artist.name} 작가
+                </span>
+
+                {/* Lock Overlay for Undiscovered Artists */}
+                {!isDiscovered && (
+                  <div className="absolute inset-0 bg-white/40 backdrop-blur-[1px] rounded-[22px] flex items-center justify-center">
+                    <div className="w-8 h-8 bg-white border border-gray-200 rounded-full flex items-center justify-center shadow-md">
+                      <Lock className="w-4 h-4 text-gray-400" />
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        <p className="text-xs text-gray-400 text-center mt-2 leading-relaxed">
+          {id === 'heart' 
+            ? '현장 QR을 스캔하여 4가지의 다양한 하트 작품들을 해금해 보세요!'
+            : '현장 QR을 스캔하여 2가지의 따뜻한 나누기 작품들을 해금해 보세요!'
+          }
+        </p>
+
+      </div>
+    </div>
+  );
+}
