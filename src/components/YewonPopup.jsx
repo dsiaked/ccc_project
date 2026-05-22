@@ -378,77 +378,49 @@ export default function YewonPopup({ onClose }) {
                 <div className="bg-rose-300 h-px w-[31px] my-6 flex-none" />
 
                 {/* 본문 서사: 손예원 작가 수필 (온점 하나도 누락 없이 100% 반영) */}
-                <div className="text-left text-[14px] leading-[1.85] text-gray-700 space-y-5 tracking-wide font-readable-sans select-text">
-                  <p className="text-gray-800 font-medium">사랑이란 늘 내 편의를 뒤로하고</p>
-                  <p className="text-gray-800 font-medium">내가 먼저 움직여야 하는 일이라 믿었다.</p>
-                  <p className="text-gray-800">상대의 마음을 얻기 위해 다가가는 수고로움이</p>
-                  <p className="text-gray-800">관계의 당연한 조건이라 생각했기 때문이다.</p>
+                <div className="text-left text-[14.5px] leading-[1.85] text-gray-700 space-y-5 tracking-wide font-readable-sans select-text break-keep">
+                  <p className="text-gray-800 font-medium">사랑이란 늘 내 편의를 뒤로하고 내가 먼저 움직여야 하는 일이라 믿었다. 상대의 마음을 얻기 위해 다가가는 수고로움이 관계의 당연한 조건이라 생각했기 때문이다.</p>
 
                   <div className="h-1" />
-                  <p>그래서 누군가를 소중히 여길수록 더 분주해졌고,</p>
-                  <p>내가 더 많이 노력해야만 사랑이 온전히 전해질 수 있다고</p>
-                  <p>확신했다.</p>
+                  <p>그래서 누군가를 소중히 여길수록 더 분주해졌고, 내가 더 많이 노력해야만 사랑이 온전히 전해질 수 있다고 확신했다.</p>
 
                   <div className="h-1" />
-                  <p>하지만 어느 순간부터 이런 방식이 점차 버겁게 느껴졌다.</p>
-                  <p>내가 보낸 마음이 상대에게 닿을지,</p>
-                  <p>다시 내게 사랑으로 돌아올지 전혀 알 수 없었기 때문이다.</p>
+                  <p>하지만 어느 순간부터 이런 방식이 점차 버겁게 느껴졌다. 내가 보낸 마음이 상대에게 닿을지, 다시 내게 사랑으로 돌아올지 전혀 알 수 없었기 때문이다.</p>
 
                   <div className="h-1" />
-                  <p className="font-bold text-rose-600">불안감에 휩싸인 채 매번 무모한 도전을 하듯</p>
-                  <p className="font-bold text-rose-600">마음을 쏟아부었지만,</p>
-                  <p className="font-bold text-rose-600">대답 없는 문 앞에서 노크를 반복하던 나는</p>
-                  <p className="font-bold text-rose-600">조금씩 지쳐가고 있었다.</p>
+                  <p className="font-bold text-rose-600">불안감에 휩싸인 채 매번 무모한 도전을 하듯 마음을 쏟아부었지만, 대답 없는 문 앞에서 노크를 반복하던 나는 조금씩 지쳐가고 있었다.</p>
 
                   <div className="py-2 text-rose-300 text-center flex justify-center gap-1 select-none font-bold">
                     <span>.</span><span>.</span><span>.</span>
                   </div>
 
-                  <p>그러던 어느 저녁, 문득 노크 소리가 들려왔다.</p>
-                  <p>내가 애타게 두드리던 문에서 들려온 소리인 줄 알았으나,</p>
-                  <p className="font-bold text-rose-700">정작 소리가 들려온 곳은</p>
-                  <p className="font-bold text-rose-700">내가 등 돌리고 서 있던 나의 문 앞이었다.</p>
+                  <p>그러던 어느 저녁, 문득 노크 소리가 들려왔다. 내가 애타게 두드리던 문에서 들려온 소리인 줄 알았으나, <span className="font-bold text-rose-700">정작 소리가 들려온 곳은 내가 등 돌리고 서 있던 나의 문 앞이었다.</span></p>
 
                   <div className="h-1" />
-                  <p>찰나의 실망이 지나간 자리에 낯선 울림이 남았다.</p>
-                  <p>늘 누군가에게 닿기 위해 멀리 나가는 사람이었는데,</p>
-                  <p>정작 내 문을 두드리는 소리가 이토록 가깝고 선명하다는 사실이</p>
-                  <p>새삼스럽게 다가온 것이다.</p>
+                  <p>찰나의 실망이 지나간 자리에 낯선 울림이 남았다. 늘 누군가에게 닿기 위해 멀리 나가는 사람이었는데, 정작 내 문을 두드리는 소리가 이토록 가깝고 선명하다는 사실이 새삼스럽게 다가온 것이다.</p>
 
                   <div className="h-1" />
-                  <p>그제야 돌아보게 되었다.</p>
-                  <p>나는 왜 늘 누군가의 문을 두드리기 위해서만 애를 썼을까.</p>
-                  <p>정작 내 문 뒤에서 들려오는 소리에는</p>
-                  <p>왜 단 한 번도 귀를 기울이지 않았을까.</p>
+                  <p>그제야 돌아보게 되었다. 나는 왜 늘 누군가의 문을 두드리기 위해서만 애를 썼을까. 정작 내 문 뒤에서 들려오는 소리에는 왜 단 한 번도 귀를 기울이지 않았을까.</p>
 
                   {/* 인용/강조 구절 */}
                   <div className="pl-3.5 border-l-2 border-rose-300 text-[12.5px] text-gray-800 leading-relaxed bg-[#fffafa] p-4 rounded-3xl border border-rose-100">
-                    내가 누군가에게 닿으려 온 힘을 쏟는 동안에도,<br />
-                    내 문 밖에는 하염없이 나를 기다리며 노크하는 존재가 있었음을.
+                    내가 누군가에게 닿으려 온 힘을 쏟는 동안에도, 내 문 밖에는 하염없이 나를 기다리며 노크하는 존재가 있었음을.
                   </div>
 
                   <div className="py-2 text-rose-300 text-center flex justify-center gap-1 select-none font-bold">
                     <span>.</span><span>.</span><span>.</span>
                   </div>
 
-                  <p>사랑은 내가 억지로 만들어내는 성과가 아니었다.</p>
-                  <p>오히려 내가 보지 못했던 곳에서</p>
-                  <p>이미 나를 향해 와 있던 깊은 마음들을</p>
-                  <p>발견하는 일에 더 가까웠다.</p>
+                  <p>사랑은 내가 억지로 만들어내는 성과가 아니었다. 오히려 내가 보지 못했던 곳에서 이미 나를 향해 와 있던 깊은 마음들을 발견하는 일에 더 가까웠다.</p>
 
                   <div className="h-1" />
-                  <p className="font-semibold text-rose-600">내가 노력해서 얻으려 했던 사랑보다,</p>
-                  <p className="font-semibold text-rose-600">아무런 조건 없이 내 문 앞에서 나를 기다려온</p>
-                  <p className="font-semibold text-rose-600">그 사랑이 비교할 수 없을 만큼 더 컸던 것이다.</p>
+                  <p className="font-semibold text-rose-600">내가 노력해서 얻으려 했던 사랑보다, 아무런 조건 없이 내 문 앞에서 나를 기다려온 그 사랑이 비교할 수 없을 만큼 더 컸던 것이다.</p>
 
                   <div className="h-1" />
-                  <p>이제는 억지로 누군가의 문을 두드리는 일을 멈추려 한다.</p>
-                  <p>대신 고개를 돌려 내 마음의 문 밖에서 나를 부르고 있는</p>
-                  <p>그 존재의 목소리에 집중해 보려 한다.</p>
+                  <p>이제는 억지로 누군가의 문을 두드리는 일을 멈추려 한다. 대신 고개를 돌려 내 마음의 문 밖에서 나를 부르고 있는 그 존재의 목소리에 집중해 보려 한다.</p>
 
                   <div className="h-1" />
-                  <p>애쓰지 않아도 이미 도착해 있는 사랑을 확인하는 것만으로도,</p>
-                  <p>마음은 이전과 비교할 수 없는 평안을 얻는다.</p>
+                  <p>애쓰지 않아도 이미 도착해 있는 사랑을 확인하는 것만으로도, 마음은 이전과 비교할 수 없는 평안을 얻는다.</p>
 
                   {/* 대답 상자: 손예원 작가 수필 최종 구절 */}
                   <div className="my-6 border border-rose-150 bg-[#fff5f5] py-5 px-3.5 rounded-3xl font-sentiment text-[14.5px] leading-relaxed text-[#c93b3b] text-center shadow-sm">

@@ -376,14 +376,14 @@ export default function DivideKyeomjunPopup({ onClose }) {
                 <div className="bg-orange-300 h-px w-[31px] my-5 flex-none" />
 
                 {/* 본문 서사: 서겸준 작가 수필 (온점 하나도 누락 없이 100% 반영) */}
-                <div className="text-left text-[14px] leading-[1.85] text-gray-700 space-y-5 tracking-wide font-readable-sans select-text">
+                <div className="text-left text-[14.5px] leading-[1.85] text-gray-700 space-y-5 tracking-wide font-readable-sans select-text break-keep">
 
                   <p className="text-gray-800 font-semibold leading-relaxed">
                     욕심은 불타는 본능에 날뛰는 시정마.
                   </p>
                   <p className="text-gray-700 pl-2 border-l border-orange-200">
                     자유라는 명목 아래서 이 시정마는 또 다른 감옥을 세워요.<br />
-                    감옥 안에서 ‘히히’웃다가 울어요.
+                    감옥 안에서 ‘히히’ 웃다가 울어요.
                   </p>
 
                   <div className="h-0.5" />
@@ -404,7 +404,7 @@ export default function DivideKyeomjunPopup({ onClose }) {
 
                   <div className="h-0.5" />
                   <p className="font-medium text-orange-700">
-                    ‘벌벌’ 떠는 입술사이로 눈물이 짭잘하게 스며옵니다.
+                    ‘벌벌’ 떠는 입술 사이로 눈물이 짭조름하게 스며옵니다.
                   </p>
 
                   {/* 대답 상자: 서겸준 작가 수필 세가지 은유 요약 */}

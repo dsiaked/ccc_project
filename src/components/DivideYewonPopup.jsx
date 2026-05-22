@@ -375,45 +375,32 @@ export default function DivideYewonPopup({ onClose }) {
                 <div className="bg-orange-300 h-px w-[31px] my-6 flex-none" />
 
                 {/* 본문 서사: 손예원 작가 수필 (온점 하나도 누락 없이 100% 반영) */}
-                <div className="text-left text-[14px] leading-[1.85] text-gray-700 space-y-5 tracking-wide font-readable-sans select-text">
+                <div className="text-left text-[14.5px] leading-[1.85] text-gray-700 space-y-5 tracking-wide font-readable-sans select-text break-keep">
                   <p className="text-gray-800 font-medium">저는 오늘도 꽤 괜찮은 하루를 보냈습니다.</p>
                   <p className="text-gray-800 font-medium">해야 할 일을 해내고, 사람들과 웃으며 하루를 잘 지나왔습니다.</p>
-                  <p className="text-gray-800">그런데 이상하게도, 하루가 끝날수록 마음 한쪽이 더 비어 있는</p>
-                  <p className="text-gray-800">느낌이 듭니다. 분명 열심히 채우며 살고 있었는데,</p>
-                  <p className="text-gray-800">왜 자꾸 비어가는 걸까요.</p>
+                  <p className="text-gray-800">그런데 이상하게도, 하루가 끝날수록 마음 한쪽이 더 비어 있는 느낌이 듭니다. 분명 열심히 채우며 살고 있었는데, 왜 자꾸 비어가는 걸까요.</p>
                   
                   <div className="h-1" />
                   <p className="font-bold text-orange-600">어느 순간부터 저는 조용히 선을 긋고 있었습니다.</p>
                   <p className="font-bold text-orange-600">상처받지 않기 위해, 흔들리지 않기 위해 시작된 일이었습니다.</p>
-                  <p className="text-gray-800">하지만 그 선은 점점 단단해졌고, 어느새 가시처럼 돋아나기</p>
-                  <p className="text-gray-800">시작했습니다. 가까이 오는 모든 것들을 자연스럽게</p>
-                  <p className="text-gray-800">밀어내고 있었습니다.</p>
+                  <p className="text-gray-800">하지만 그 선은 점점 단단해졌고, 어느새 가시처럼 돋아나기 시작했습니다. 가까이 오는 모든 것들을 자연스럽게 밀어내고 있었습니다.</p>
                   
                   <div className="h-1" />
-                  <p>그 가시는 저를 지켜주었습니다.</p>
-                  <p className="font-semibold text-orange-700">덜 다치고, 덜 흔들리게 해주었습니다.</p>
-                  <p>그러나 동시에 다른 것들도 함께 막히기 시작했습니다.</p>
-                  <p>가시는 보호막이면서도 벽이 되었고, 그 벽은 점점 더 넓어져</p>
-                  <p>세상과 타인, 그리고 저 자신까지 나누어 놓고 있었습니다.</p>
+                  <p>그 가시는 저를 지켜주었습니다. <span className="font-semibold text-orange-700">덜 다치고, 덜 흔들리게 해주었습니다.</span></p>
+                  <p>그러나 동시에 다른 것들도 함께 막히기 시작했습니다. 가시는 보호막이면서도 벽이 되었고, 그 벽은 점점 더 넓어져 세상과 타인, 그리고 저 자신까지 나누어 놓고 있었습니다.</p>
                   
                   <div className="h-1" />
-                  <p>그래서인지 아무리 채우려 해도 채워지지 않는 느낌이 들었습니다.</p>
-                  <p>정작 중요한 무언가만 빠져 있는 기분이었습니다.</p>
+                  <p>그래서인지 아무리 채우려 해도 채워지지 않는 느낌이 들었습니다. 정작 중요한 무언가만 빠져 있는 기분이었습니다.</p>
 
                   <div className="py-2 text-orange-300 text-center flex justify-center gap-1 select-none font-bold">
                     <span>.</span><span>.</span><span>.</span>
                   </div>
                   
-                  <p>어느날 문득 가시를 바라보니, 나누어진 그 틈 사이에서</p>
-                  <p>작은 꽃 하나가 피어나 있었습니다.</p>
-                  <p>이상하게도 그 꽃은 가시를 밀어내지도, 피하지도 않았습니다.</p>
-                  <p>그저 가시 틈 사이를 아무렇지 않게 채우고 있었습니다.</p>
+                  <p>어느날 문득 가시를 바라보니, 나누어진 그 틈 사이에서 작은 꽃 하나가 피어나 있었습니다.</p>
+                  <p>이상하게도 그 꽃은 가시를 밀어내지도, 피하지도 않았습니다. 그저 가시 틈 사이를 아무렇지 않게 채우고 있었습니다.</p>
                   
                   <div className="h-1" />
-                  <p>그제야 조금 알 것 같았습니다.</p>
-                  <p>이 공허는 모두 채워야 사라지는 것이 아니라,</p>
-                  <p className="font-semibold text-orange-600">나누어져 있던 자리 사이로,</p>
-                  <p className="font-semibold text-orange-600">조용히 이어지고 있던 무언가를 인식할 때 사라진다는 것을요.</p>
+                  <p>그제야 조금 알 것 같았습니다. 이 공허는 모두 채워야 사라지는 것이 아니라, <span className="font-semibold text-orange-600">나누어져 있던 자리 사이로, 조용히 이어지고 있던 무언가를 인식할 때 사라진다는 것을요.</span></p>
 
                   <div className="h-1" />
                   <p>그리고 그 꽃의 의미를, 늦게야 알아차렸습니다.</p>

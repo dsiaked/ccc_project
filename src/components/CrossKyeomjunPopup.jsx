@@ -396,7 +396,7 @@ export default function CrossKyeomjunPopup({ onClose }) {
                 <div className="bg-[#4caf50] h-px w-[31px] my-5 flex-none" />
 
                 {/* 본문 서사: 서겸준 작가 십자가 수필 (온점 하나도 누락 없이 100% 반영) */}
-                <div className="text-left text-[14px] leading-[1.85] text-gray-700 space-y-5 tracking-wide font-readable-sans select-text">
+                <div className="text-left text-[14.5px] leading-[1.85] text-gray-700 space-y-5 tracking-wide font-readable-sans select-text break-keep">
 
                   <p className="text-gray-800 font-semibold leading-relaxed">
                     사람 속에 있는 세 가지, 그로 인해 흐르던 눈물이 쌓여 만들어진 검정색 못.
@@ -414,7 +414,7 @@ export default function CrossKyeomjunPopup({ onClose }) {
                   </p>
 
                   <p className="text-gray-700 pl-2 border-l border-green-200">
-                    괴롭게 하는 것은 괴롭게 하는 것으로 사망은 사망으로 하지만 사망을 사랑으로 대신할 수 있는 우주 밖의 원리에 의해 사망은 죽었고 결국 어린양은 사망의 붙잠음을 벗어났죠.
+                    괴롭게 하는 것은 괴롭게 하는 것으로 사망은 사망으로 하지만 사망을 사랑으로 대신할 수 있는 우주 밖의 원리에 의해 사망은 죽었고 결국 어린양은 사망의 붙잡음을 벗어났죠.
                   </p>
 
                   <p className="text-gray-700 pl-2 border-l border-green-200 font-medium">
@@ -422,7 +422,7 @@ export default function CrossKyeomjunPopup({ onClose }) {
                   </p>
 
                   <p className="text-gray-700 pl-2 border-l border-green-200">
-                    어린양은 나를 나는 어린양을 어린양이 사랑하는 당신을 어린양이 사랑하는 내가 서로 사랑하는 나라에서 흘리는 눈물은 희고 행복한 눈물일 거에요.
+                    어린양은 나를, 나는 어린양을, 어린양이 사랑하는 당신을, 어린양이 사랑하는 내가 서로 사랑하는 나라에서 흘리는 눈물은 희고 행복한 눈물일 거에요.
                   </p>
 
                   {/* 대답 상자: 서겸준 작가 수필 세가지 은유 요약 */}

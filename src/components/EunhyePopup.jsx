@@ -378,38 +378,29 @@ export default function EunhyePopup({ onClose }) {
                 <div className="bg-rose-300 h-px w-[31px] my-6 flex-none" />
 
                 {/* 피그마 1:1 본문 서사: [폰트 가독성 대격변] Pretendard 특화 및 자간/행간 최적화 적용 */}
-                <div className="text-left text-[14px] leading-[1.85] text-gray-700 space-y-5 tracking-wide font-readable-sans select-text">
-                  <p className="text-gray-800">나는 사람을 믿지 않는다.</p>
-                  <p className="text-gray-800">내가 아끼는 사람들은 모두 떠나간다.</p>
+                <div className="text-left text-[14.5px] leading-[1.85] text-gray-700 space-y-5 tracking-wide font-readable-sans select-text break-keep">
+                  <p className="text-gray-800">나는 사람을 믿지 않는다. 내가 아끼는 사람들은 모두 떠나간다.</p>
 
                   <div className="h-1" />
-                  <p>어린 시절을 함께 보낸 친구,</p>
-                  <p className="font-bold text-rose-600">누구보다 사랑했던 연인,</p>
-                  <p>절대 변하지 않을 것이라 확신했던 모든 관계들이</p>
-                  <p>매일 조금씩 흐려지는 것이 두렵다.</p>
+                  <p>어린 시절을 함께 보낸 친구, <span className="font-bold text-rose-600">누구보다 사랑했던 연인</span>, 절대 변하지 않을 것이라 확신했던 모든 관계들이 매일 조금씩 흐려지는 것이 두렵다.</p>
 
                   <div className="h-1" />
-                  <p>그래서 앞으로</p>
-                  <p>진짜 내 마음을 열지 않기로 다짐했다.</p>
+                  <p>그래서 앞으로 진짜 내 마음을 열지 않기로 다짐했다.</p>
 
                   <div className="h-1" />
-                  <p className="font-semibold text-rose-600">메말라버린 이 세상에</p>
-                  <p className="font-semibold text-rose-600">변치 않는 사랑은 없다고 나는 확신한다.</p>
+                  <p className="font-semibold text-rose-600">메말라버린 이 세상에 변치 않는 사랑은 없다고 나는 확신한다.</p>
 
                   <div className="h-1" />
-                  <p>친구도, 가족도,</p>
-                  <p>그 무엇도 언젠가는 사라질 것들.</p>
+                  <p>친구도, 가족도, 그 무엇도 언젠가는 사라질 것들.</p>
 
                   <div className="h-1" />
-                  <p>인생은 여전히 혼자다.</p>
-                  <p>나는 앞으로도 혼자일 것이다.</p>
+                  <p>인생은 여전히 혼자다. 나는 앞으로도 혼자일 것이다.</p>
 
                   <div className="py-2 text-rose-300 text-center flex justify-center gap-1 select-none font-bold">
                     <span>.</span><span>.</span><span>.</span>
                   </div>
 
-                  <p>어느 날 캠퍼스에서 아주 우연히,</p>
-                  <p className="font-bold text-rose-700">낯선 존재를 마주했다.</p>
+                  <p>어느 날 캠퍼스에서 아주 우연히, <span className="font-bold text-rose-700">낯선 존재를 마주했다.</span></p>
 
                   <div className="h-1" />
                   <p>새로운 관계를 받아들이고 싶지 않았다.</p>
@@ -422,14 +413,11 @@ export default function EunhyePopup({ onClose }) {
 
                   <div className="h-1" />
                   <p className="italic text-gray-800">
-                    “같이 이야기 나누지 않을래?<br />
-                    &nbsp;&nbsp;항상 기다리고 있을게.”
+                    “같이 이야기 나누지 않을래? 항상 기다리고 있을게.”
                   </p>
 
                   <div className="h-1" />
-                  <p>나는 가시 돋친 말로 대꾸했다.</p>
-                  <p>그러면 곧 질려서 떨어져 나가겠지.</p>
-                  <p>모두가 그랬듯이.</p>
+                  <p>나는 가시 돋친 말로 대꾸했다. 그러면 곧 질려서 떨어져 나가겠지. 모두가 그랬듯이.</p>
 
                   <div className="h-1" />
                   <p className="pl-3 border-l-2 border-rose-200 text-[12.5px] italic text-rose-950 leading-relaxed bg-[#fff5f5] p-3.5 rounded-2xl border border-rose-100">
@@ -440,27 +428,19 @@ export default function EunhyePopup({ onClose }) {
                   </p>
 
                   <div className="h-1" />
-                  <p>밀어내고,</p>
-                  <p>밀어내고,</p>
-
-                  <div className="h-1" />
-                  <p>또 밀어냈다.</p>
+                  <p>밀어내고, 밀어내고, 또 밀어냈다.</p>
 
                   <div className="py-2 text-rose-300 text-center flex justify-center gap-1 select-none font-bold">
                     <span>.</span><span>.</span><span>.</span>
                   </div>
 
-                  <p>일 년쯤 지났을 때,</p>
-                  <p>그는 여전히 그 자리에서 나를 바라보고 있었다.</p>
+                  <p>일 년쯤 지났을 때, 그는 여전히 그 자리에서 나를 바라보고 있었다.</p>
 
                   <div className="h-1" />
-                  <p>얼음장같이 식어버린 내 손을 감싸 안고</p>
-                  <p>아무 말 없이 나를 바라보고 있었다.</p>
+                  <p>얼음장같이 식어버린 내 손을 감싸 안고 아무 말 없이 나를 바라보고 있었다.</p>
 
                   <div className="h-1" />
-                  <p>지독하게 화를 내며 돌아섰던 순간에도,</p>
-                  <p>밤새 술을 마시며 연락을 꺼버린 순간에도,</p>
-                  <p>시험공부를 하느라 무시했던 순간에도,</p>
+                  <p>지독하게 화를 내며 돌아섰던 순간에도, 밤새 술을 마시며 연락을 꺼버린 순간에도, 시험공부를 하느라 무시했던 순간에도,</p>
 
                   <div className="h-1" />
                   <p className="font-bold text-rose-600">기다리고, 기다리고, 또 기다리고 있었다.</p>
