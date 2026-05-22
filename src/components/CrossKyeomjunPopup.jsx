@@ -254,9 +254,9 @@ export default function CrossKyeomjunPopup({ onClose }) {
 
             {/* 3. 글자 배치 (피그마 1:1 절대좌표 이식 및 서겸준 작가 사양 적용) */}
             <div className="relative z-10 w-full h-full">
-              {/* SYMBLE3 : CROSS */}
+              {/* SYMBOL3 : CROSS */}
               <span className="absolute left-[29px] top-[31px] text-[15px] tracking-[1.92px] font-medium text-[#2d3a2e] font-readable-sans">
-                SYMBLE3 : CROSS
+                SYMBOL3 : CROSS
               </span>
 
               {/* Rectangle 362 (상단 얇은 가로선) */}
@@ -314,12 +314,12 @@ export default function CrossKyeomjunPopup({ onClose }) {
                 <p className="mt-0.5">중앙동아리 CCC</p>
               </div>
 
-              {/* NEXT PAGE 버튼: 우측 하단 둥근 캡슐 */}
+              {/* NEXT 버튼: 우측 하단 둥근 캡슐 */}
               <button
                 onClick={() => setStep(2)}
                 className="absolute right-[25px] bottom-[35px] w-[140px] h-[47px] bg-gradient-to-r from-[#4caf50] to-[#66bb6a] text-white rounded-[24px] flex items-center justify-between pl-6 pr-5 hover:opacity-90 transition-all duration-200 active:scale-[0.96] shadow-[0_4px_15px_rgba(76,175,80,0.25)] cursor-pointer font-readable-sans"
               >
-                <span className="text-[13px] tracking-[1.68px] font-bold">NEXT PAGE</span>
+                <span className="text-[13px] tracking-[1.68px] font-bold">NEXT</span>
                 <ArrowRight className="w-4 h-4 text-white" />
               </button>
             </div>
@@ -378,7 +378,7 @@ export default function CrossKyeomjunPopup({ onClose }) {
               {/* 상단 띠지 */}
               <div className="relative z-10 flex justify-between items-center pb-6 font-readable-sans">
                 <span className="text-[10px] tracking-[1.2px] font-bold text-[#2e7d32]">
-                  SYMBLE3 : CROSS
+                  SYMBOL3 : CROSS
                 </span>
                 <div className="w-[100px] h-[0.5px] bg-[#c3dec6]" />
               </div>
