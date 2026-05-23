@@ -71,7 +71,7 @@ export default function MapPopup({ id, discovered, onClose }) {
               <span className="text-sm text-gray-600">힌트</span>
             </div>
 
-            <p className="text-gray-700 text-sm leading-relaxed">
+            <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-line">
               {mapStateData.hint}
             </p>
           </div>

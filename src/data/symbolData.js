@@ -11,7 +11,7 @@ export const symbolData = {
       undiscovered: {
         title: '김규민의 숨겨진 하트',
         desc: '김규민 작가가 숨겨놓은 따뜻한 사랑의 심볼이에요.',
-        hint: '따뜻한 빛이 드는 첫 번째 전시 구역을 찾아보세요.',
+        hint: '벤치에 앉아 옆을 바라보면',
       },
       discovered: {
         title: '발견된 규민의 하트 💖',
@@ -38,7 +38,7 @@ export const symbolData = {
       undiscovered: {
         title: '손예원의 숨겨진 하트',
         desc: '손예원 작가가 숨겨놓은 다정다감한 하트 심볼이에요.',
-        hint: '전시장의 가장 평온하고 푸른 구역 근처를 찾아보세요.',
+        hint: '잔디 위 벤치, 노크',
       },
       discovered: {
         title: '발견된 예원의 하트 💕',
@@ -65,7 +65,7 @@ export const symbolData = {
       undiscovered: {
         title: '김은혜의 숨겨진 하트',
         desc: '김은혜 작가가 숨겨놓은 깊고 견고한 하트 심볼이에요.',
-        hint: '깊은 묵상과 평화가 깃드는 공간 주변을 살펴보세요.',
+        hint: '위치 힌트 : 붕어방 벤치 근처\n작품 힌트 : 안아줄게요',
       },
       discovered: {
         title: '발견된 은혜의 하트 💝',
@@ -119,7 +119,7 @@ export const symbolData = {
       undiscovered: {
         title: '서겸준의 숨겨진 나누기',
         desc: '서겸준 작가가 숨겨놓은 푸근한 나눔의 심볼이에요.',
-        hint: '시원한 물줄기가 흐르는 푸른 강변 근처를 주목해보세요.',
+        hint: '나무, 나뭇가지에 걸린 동물들',
       },
       discovered: {
         title: '발견된 겸준의 나누기 💙',
@@ -146,7 +146,7 @@ export const symbolData = {
       undiscovered: {
         title: '손예원의 숨겨진 나누기',
         desc: '손예원 작가가 숨겨놓은 부드러운 나눔의 심볼이에요.',
-        hint: '지도의 가장 아래쪽, 은은한 주황빛이 감도는 곳을 찾아보세요.',
+        hint: '물가 근처 벤치, 뾰족한',
       },
       discovered: {
         title: '발견된 예원의 나누기 🤝',
@@ -173,7 +173,7 @@ export const symbolData = {
       undiscovered: {
         title: '숨겨진 십자가',
         desc: '서겸준 작가가 배치한 믿음과 희망의 십자가 심볼이에요.',
-        hint: '하늘과 가장 가까운 지도의 상단 연녹색 구역을 주목하세요.',
+        hint: '위치 힌트: 나뭇가지에 매달린 동물들\n작품 힌트: 흰색과 검은색',
       },
       discovered: {
         title: '발견된 겸준의 십자가 🌟',

@@ -46,16 +46,16 @@ export default function SymbolCards({ symbols, onCardClick, isQuestionUnlocked }
             return (
               <div 
                 key={card.id} 
-                className="w-full aspect-[0.9] border-[3.5px] border-dashed border-gray-200 rounded-[24px] bg-white shadow-sm overflow-hidden relative cursor-pointer"
+                className="w-full aspect-[0.78] border-[3.5px] border-dashed border-gray-200 rounded-[24px] bg-white shadow-sm overflow-hidden relative cursor-pointer"
                 onClick={() => onCardClick(card.id)}
               >
-                <div className="absolute top-0 left-0 w-full h-[60%] bg-gray-50 flex flex-col items-center justify-center">
+                <div className="absolute top-0 left-0 w-full h-[55%] bg-gray-50 flex flex-col items-center justify-center">
                   <span className="text-4xl opacity-50">❓</span>
                 </div>
-                <div className="absolute top-[45%] left-1/2 -translate-x-1/2 w-14 h-14 bg-white rounded-full border-[2.5px] border-gray-200 flex items-center justify-center shadow-md">
-                  <Lock className="w-6 h-6 text-gray-400" />
+                <div className="absolute top-[38%] left-1/2 -translate-x-1/2 w-12 h-12 bg-white rounded-full border-[2.5px] border-gray-200 flex items-center justify-center shadow-md">
+                  <Lock className="w-5 h-5 text-gray-400" />
                 </div>
-                <div className="absolute bottom-4 left-4 flex flex-col gap-1.5">
+                <div className="absolute bottom-3 left-4 flex flex-col gap-1.5">
                   <span className="text-gray-400 text-lg">{card.label}</span>
                   <div className="bg-gray-100 border-[1.5px] border-gray-300 rounded-full px-2.5 py-0.5 flex items-center gap-1.5 w-fit">
                     <div className="w-2.5 h-2.5 rounded-full bg-gray-400" />
@@ -69,16 +69,16 @@ export default function SymbolCards({ symbols, onCardClick, isQuestionUnlocked }
             return (
               <div 
                 key={card.id} 
-                className="w-full aspect-[0.9] border-[3.5px] border-solid border-sky-300 rounded-[24px] bg-sky-50/20 shadow-md overflow-hidden relative cursor-pointer transition-transform hover:scale-105"
+                className="w-full aspect-[0.78] border-[3.5px] border-solid border-sky-300 rounded-[24px] bg-sky-50/20 shadow-md overflow-hidden relative cursor-pointer transition-transform hover:scale-105"
                 onClick={() => onCardClick(card.id)}
               >
-                <div className="absolute top-0 left-0 w-full h-[60%] bg-sky-50 flex items-center justify-center">
+                <div className="absolute top-0 left-0 w-full h-[55%] bg-sky-50 flex items-center justify-center">
                   <span className="text-4xl font-bold text-sky-400/80 animate-pulse select-none font-['Cafe24_Ssurround']">?</span>
                 </div>
-                <div className="absolute top-[45%] left-1/2 -translate-x-1/2 w-14 h-14 bg-white rounded-full border-[2.5px] border-sky-300 flex items-center justify-center shadow-md">
-                  <Unlock className="w-6 h-6 text-sky-600 animate-bounce" />
+                <div className="absolute top-[38%] left-1/2 -translate-x-1/2 w-12 h-12 bg-white rounded-full border-[2.5px] border-sky-300 flex items-center justify-center shadow-md">
+                  <Unlock className="w-5 h-5 text-sky-600 animate-bounce" />
                 </div>
-                <div className="absolute bottom-4 left-4 flex flex-col gap-1.5">
+                <div className="absolute bottom-3 left-4 flex flex-col gap-1.5">
                   <span className="text-sky-800 text-lg">{card.label}</span>
                   <div className="bg-sky-50 border-[1.5px] border-sky-200 rounded-full px-2.5 py-0.5 flex items-center gap-1.5 w-fit">
                     <span className="relative flex h-2.5 w-2.5">
@@ -95,16 +95,16 @@ export default function SymbolCards({ symbols, onCardClick, isQuestionUnlocked }
             return (
               <div 
                 key={card.id} 
-                className="w-full aspect-[0.9] border-[3.5px] border-solid border-gray-200 rounded-[24px] bg-white shadow-md overflow-hidden relative cursor-pointer transition-transform hover:scale-105"
+                className="w-full aspect-[0.78] border-[3.5px] border-solid border-gray-200 rounded-[24px] bg-white shadow-md overflow-hidden relative cursor-pointer transition-transform hover:scale-105"
                 onClick={() => onCardClick(card.id)}
               >
-                <div className="absolute top-0 left-0 w-full h-[60%] bg-purple-50 flex items-center justify-center">
+                <div className="absolute top-0 left-0 w-full h-[55%] bg-purple-50 flex items-center justify-center">
                   {card.icon}
                 </div>
-                <div className="absolute top-[45%] left-1/2 -translate-x-1/2 w-14 h-14 bg-white rounded-full border-[2.5px] border-gray-200 flex items-center justify-center shadow-md">
-                  <Unlock className="w-6 h-6 text-purple-600" />
+                <div className="absolute top-[38%] left-1/2 -translate-x-1/2 w-12 h-12 bg-white rounded-full border-[2.5px] border-gray-200 flex items-center justify-center shadow-md">
+                  <Unlock className="w-5 h-5 text-purple-600" />
                 </div>
-                <div className="absolute bottom-4 left-4 flex flex-col gap-1.5">
+                <div className="absolute bottom-3 left-4 flex flex-col gap-1.5">
                   <span className="text-gray-800 text-lg">{card.label}</span>
                   <div className="bg-purple-50 border-[1.5px] border-purple-200 rounded-full px-2.5 py-0.5 flex items-center gap-1.5 w-fit">
                     <div className="w-2.5 h-2.5 rounded-full bg-purple-600" />
@@ -120,16 +120,16 @@ export default function SymbolCards({ symbols, onCardClick, isQuestionUnlocked }
           return (
             <div 
               key={card.id} 
-              className="w-full aspect-[0.9] border-[3.5px] border-dashed border-gray-200 rounded-[24px] bg-white shadow-sm overflow-hidden relative cursor-pointer"
+              className="w-full aspect-[0.78] border-[3.5px] border-dashed border-gray-200 rounded-[24px] bg-white shadow-sm overflow-hidden relative cursor-pointer"
               onClick={() => onCardClick(card.id)}
             >
-              <div className="absolute top-0 left-0 w-full h-[60%] bg-gray-50 flex flex-col items-center justify-center">
+              <div className="absolute top-0 left-0 w-full h-[55%] bg-gray-50 flex flex-col items-center justify-center">
                 <span className="text-4xl opacity-50">❓</span>
               </div>
-              <div className="absolute top-[45%] left-1/2 -translate-x-1/2 w-14 h-14 bg-white rounded-full border-[2.5px] border-gray-200 flex items-center justify-center shadow-md">
-                <Lock className="w-6 h-6 text-gray-400" />
+              <div className="absolute top-[38%] left-1/2 -translate-x-1/2 w-12 h-12 bg-white rounded-full border-[2.5px] border-gray-200 flex items-center justify-center shadow-md">
+                <Lock className="w-5 h-5 text-gray-400" />
               </div>
-              <div className="absolute bottom-4 left-4 flex flex-col gap-1.5">
+              <div className="absolute bottom-3 left-4 flex flex-col gap-1.5">
                 <span className="text-gray-400 text-lg">{card.label}</span>
                 <div className="bg-gray-100 border-[1.5px] border-gray-300 rounded-full px-2.5 py-0.5 flex items-center gap-1.5 w-fit">
                   <div className="w-2.5 h-2.5 rounded-full bg-gray-400" />
@@ -143,16 +143,16 @@ export default function SymbolCards({ symbols, onCardClick, isQuestionUnlocked }
         return (
           <div 
             key={card.id} 
-            className="w-full aspect-[0.9] border-[3.5px] border-solid border-gray-200 rounded-[24px] bg-white shadow-md overflow-hidden relative cursor-pointer transition-transform hover:scale-105"
+            className="w-full aspect-[0.78] border-[3.5px] border-solid border-gray-200 rounded-[24px] bg-white shadow-md overflow-hidden relative cursor-pointer transition-transform hover:scale-105"
             onClick={() => onCardClick(card.id)}
           >
-            <div className="absolute top-0 left-0 w-full h-[60%] bg-purple-50 flex items-center justify-center">
+            <div className="absolute top-0 left-0 w-full h-[55%] bg-purple-50 flex items-center justify-center">
               {card.icon}
             </div>
-            <div className="absolute top-[45%] left-1/2 -translate-x-1/2 w-14 h-14 bg-white rounded-full border-[2.5px] border-gray-200 flex items-center justify-center shadow-md">
-              <Unlock className="w-6 h-6 text-purple-600" />
+            <div className="absolute top-[38%] left-1/2 -translate-x-1/2 w-12 h-12 bg-white rounded-full border-[2.5px] border-gray-200 flex items-center justify-center shadow-md">
+              <Unlock className="w-5 h-5 text-purple-600" />
             </div>
-            <div className="absolute bottom-4 left-4 flex flex-col gap-1.5">
+            <div className="absolute bottom-3 left-4 flex flex-col gap-1.5">
               <span className="text-gray-800 text-lg">{card.label}</span>
               <div className="bg-purple-50 border-[1.5px] border-purple-200 rounded-full px-2.5 py-0.5 flex items-center gap-1.5 w-fit">
                 <div className="w-2.5 h-2.5 rounded-full bg-purple-600" />

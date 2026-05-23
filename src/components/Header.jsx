@@ -4,9 +4,13 @@ import { Sparkles } from 'lucide-react';
 export default function Header({ discoveredCount }) {
   return (
     <div className="w-full pt-8 px-6 pb-6 flex flex-col gap-6">
-      <h1 className="text-4xl text-slate-800 text-center tracking-tight">
-        붕어방 심볼 작품 투어
-      </h1>
+      <div className="flex flex-col items-center justify-center gap-1.5">
+        <span className="text-xs uppercase tracking-[0.25em] text-purple-600 font-bold">Exhibition Tour</span>
+        <h1 className="text-3xl font-black text-center tracking-tight bg-gradient-to-r from-purple-800 via-pink-600 to-indigo-700 bg-clip-text text-transparent drop-shadow-sm font-['Cafe24_Ssurround']">
+          붕어방 심볼 작품 투어
+        </h1>
+        <div className="w-14 h-[3px] bg-gradient-to-r from-purple-600 via-pink-500 to-indigo-500 rounded-full mt-1.5" />
+      </div>
       
       <div className="flex flex-col gap-3">
         <div className="flex items-center justify-between h-11">

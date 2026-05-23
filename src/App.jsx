@@ -57,9 +57,25 @@ export default function App() {
                           (isCrossDiscovered ? 1 : 0) + 
                           (isQuestionDiscovered ? 1 : 0);
 
-  // 1. URL 쿼리 파라미터를 통한 즉시 해금 (로컬 상태에 선반영 및 하위 호환 처리)
+  // 1. URL 쿼리 파라미터를 통한 즉시 해금 및 리셋 처리
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    const isResetRequested = params.get('reset') === 'true';
+
+    if (isResetRequested) {
+      localStorage.clear();
+      localStorage.setItem('symbols', JSON.stringify(INITIAL_SYMBOLS));
+      localStorage.setItem('needReset', 'true'); // Firebase 세션 로드 완료 시 클라우드 리셋을 처리하기 위한 플래그
+      setSymbols(INITIAL_SYMBOLS);
+      setToast('로컬 및 서버 데이터 초기화 중... 🔄');
+      
+      setTimeout(() => {
+        setToast('');
+        window.location.href = window.location.pathname; // 쿼리 파라미터를 깔끔하게 제거하고 새로고침
+      }, 1200);
+      return;
+    }
+
     let symbol = params.get('symbol');
 
     if (symbol) {
@@ -102,6 +118,18 @@ export default function App() {
 
         // Firestore에서 사용자 해금 데이터 로드
         const userDocRef = doc(db, 'users', uid);
+
+        // 🔄 로컬에서 요청된 초기화(리셋) 플래그가 있는 경우 클라우드 및 로컬스토리지 강제 초기화 진행
+        if (localStorage.getItem('needReset') === 'true') {
+          await setDoc(userDocRef, { symbols: INITIAL_SYMBOLS });
+          localStorage.removeItem('needReset');
+          localStorage.removeItem('completedPopupSeen');
+          localStorage.setItem('completedPopupSeen', 'false');
+          setCompletedPopupSeen(false);
+          setSymbols(INITIAL_SYMBOLS);
+          return;
+        }
+
         const userDocSnap = await getDoc(userDocRef);
 
         if (userDocSnap.exists()) {

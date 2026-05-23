@@ -103,7 +103,7 @@ export default function EunhyePopup({ onClose }) {
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-0 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-0 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300 overflow-x-hidden touch-pan-y">
       {/* 스타일 태그 삽입: 몽환적인 플로팅 하트 및 피그마 전용 서체 애니메이션 정의 */}
       <style>{`
         @keyframes float-up {
@@ -152,7 +152,7 @@ export default function EunhyePopup({ onClose }) {
       `}</style>
 
       {/* 팝업 모달 몸체: Figma iPhone 17-23의 웅장한 가로-세로 뷰포트 비율을 1:1 복원하는 360x780px 고정형 카드 */}
-      <div className="relative w-[360px] h-[780px] max-h-[92vh] rounded-[32px] overflow-hidden flex flex-col shadow-[0_25px_60px_rgba(0,0,0,0.18)] border border-gray-100 bg-white animate-in zoom-in-95 duration-300">
+      <div className="relative w-[360px] h-[780px] max-h-[92vh] rounded-[32px] overflow-hidden flex flex-col shadow-[0_25px_60px_rgba(0,0,0,0.18)] border border-gray-100 bg-white animate-in zoom-in-95 duration-300 touch-pan-y">
 
         {/* Step 1: 피그마 iPhone 17-23 1:1 완벽 절대 좌표 복원 */}
         {step === 1 && (
@@ -246,12 +246,12 @@ export default function EunhyePopup({ onClose }) {
               <div className="absolute left-[29px] top-[64px] w-[35px] h-[1.5px] bg-[#e2cece]" />
 
               {/* 2026.05.26/06.02 */}
-              <div className="absolute right-[25px] top-[31px] text-[10px] text-[#4a3b3b] tracking-[1.2px] text-right font-readable-sans">
+              <div className="absolute right-[25px] top-[58px] text-[10px] text-[#4a3b3b] tracking-[1.2px] text-right font-readable-sans">
                 2026.05.26/06.02
               </div>
 
               {/* 과기대 붕어방 */}
-              <div className="absolute right-[25px] top-[44px] text-[10px] text-[#4a3b3b] tracking-[1.2px] text-right font-readable-sans">
+              <div className="absolute right-[25px] top-[71px] text-[10px] text-[#4a3b3b] tracking-[1.2px] text-right font-readable-sans">
                 과기대 붕어방
               </div>
 
@@ -317,7 +317,7 @@ export default function EunhyePopup({ onClose }) {
 
         {/* Step 2: 피그마 1:1 디테일 완벽 복원 + 화이트-레드 감성 반전 테마 (iPhone 17 - 24 기반) */}
         {step === 2 && (
-          <div className="relative flex-1 flex flex-col bg-gradient-to-b from-[#ffffff] via-[#fffbfb] to-[#ffebeb] text-gray-800 overflow-y-auto popup-body-scroll select-none">
+          <div className="relative flex-1 flex flex-col bg-gradient-to-b from-[#ffffff] via-[#fffbfb] to-[#ffebeb] text-gray-800 overflow-y-auto overflow-x-hidden popup-body-scroll select-none touch-pan-y">
 
             {/* 전체 높이를 확보하여 피그마의 웅장한 크기 비율을 시각적 왜곡 없이 보존 */}
             <div className="relative w-full flex flex-col p-6 pb-8 min-h-[1200px]">
