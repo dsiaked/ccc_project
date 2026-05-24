@@ -1,0 +1,17 @@
+.appContainer {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  width: 100%;
+  max-width: 480px; /* Mobile first, but centered on larger screens */
+  margin: 0 auto;
+  position: relative;
+  background-color: var(--color-bg-white);
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.05);
+}
+
+.mainContent {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}

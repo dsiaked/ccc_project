@@ -1,0 +1,749 @@
+.pageContainer {
+  min-height: 100vh;
+  background: #f3f4f6;
+  display: flex;
+  flex-direction: column;
+}
+
+.main {
+  flex: 1;
+  max-width: 1400px;
+  margin: 0 auto;
+  width: 100%;
+  padding: 20px;
+  padding-top: 100px;
+}
+
+.header {
+  margin-bottom: 32px;
+}
+
+.header h1 {
+  font-size: 32px;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0 0 8px;
+}
+
+.header p {
+  font-size: 14px;
+  color: #666666;
+  margin: 0;
+}
+
+.metricsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.metric {
+  background: white;
+  border-radius: 8px;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+}
+
+.metricIcon {
+  width: 56px;
+  height: 56px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.metricLabel {
+  font-size: 12px;
+  color: #888888;
+  margin: 0 0 8px;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.metricValue {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0;
+}
+
+.section {
+  background: white;
+  border-radius: 8px;
+  padding: 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+}
+
+.section h2 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0 0 20px;
+}
+
+.statsTable {
+  overflow-x: auto;
+}
+
+.statsTable table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.statsTable thead {
+  background: #f9fafb;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.statsTable th {
+  padding: 12px 16px;
+  text-align: left;
+  font-weight: 600;
+  color: #666666;
+  text-transform: uppercase;
+  font-size: 12px;
+}
+
+.statsTable td {
+  padding: 12px 16px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.statsTable tbody tr:hover {
+  background: #f9fafb;
+}
+
+.stationName {
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.rank1 {
+  background: #dbeafe;
+  color: #0284c7;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.rank2 {
+  background: #fef3c7;
+  color: #b45309;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.rank3 {
+  background: #fee2e2;
+  color: #991b1b;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.total {
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.barContainer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bar {
+  height: 8px;
+  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+  border-radius: 4px;
+  min-width: 40px;
+}
+
+.percentage {
+  font-size: 12px;
+  color: #888888;
+  font-weight: 600;
+  min-width: 40px;
+  text-align: right;
+}
+
+.paymentStats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+}
+
+.paymentStat {
+  background: #f9fafb;
+  padding: 20px;
+  border-radius: 8px;
+  border-left: 4px solid #e5e7eb;
+  text-align: center;
+}
+
+.statLabel {
+  font-size: 12px;
+  color: #888888;
+  margin: 0 0 8px;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.statNumber {
+  font-size: 28px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.actionGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 16px;
+}
+
+.actionCard {
+  background: white;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 24px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.actionCard:hover {
+  border-color: #667eea;
+  background: #f9fafb;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.1);
+  transform: translateY(-2px);
+}
+
+.actionIcon {
+  font-size: 40px;
+  margin-bottom: 12px;
+}
+
+.actionCard h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0 0 8px;
+}
+
+.actionCard p {
+  font-size: 13px;
+  color: #888888;
+  margin: 0;
+}
+
+/* 필터 그리드 */
+
+.adminFilterGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.adminFilterField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.adminFilterField label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #667085;
+  text-transform: uppercase;
+}
+
+.adminFilterField select,
+.adminFilterField input {
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid #d0d5dd;
+  border-radius: 8px;
+  font-size: 14px;
+  outline: none;
+  font-family: inherit;
+}
+
+.adminFilterField select:focus,
+.adminFilterField input:focus {
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.adminFilterField select:disabled {
+  background-color: #f3f4f6;
+  color: #9ca3af;
+  cursor: not-allowed;
+}
+
+.adminSearchActionRow {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.currentCampusAdminBox {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  padding: 16px;
+  background: #f9fafb;
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+.currentCampusAdminBox strong {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: #667085;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.currentCampusAdminBox p {
+  margin: 0;
+  font-size: 14px;
+  color: #1f2937;
+  font-weight: 500;
+}
+
+/* 캠퍼스 관리자 권한 관리 */
+/* ============================= */
+/* 캠퍼스 관리자 권한 관리 */
+/* ============================= */
+
+.adminManagerHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 18px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid #eaecf0;
+}
+
+.adminManagerHeader h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+  color: #101828;
+}
+
+.adminManagerHeader p {
+  margin: 8px 0 0;
+  color: #667085;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* 관리자 필터 카드 */
+.adminFilterPanel {
+  padding: 18px;
+  border: 1px solid #eaecf0;
+  border-radius: 16px;
+  background: #f9fafb;
+  margin-bottom: 16px;
+}
+
+.adminFilterGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.adminFilterField {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.adminFilterField label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #344054;
+}
+
+.adminFilterField select,
+.adminFilterField input {
+  height: 44px;
+  padding: 0 12px;
+  border: 1px solid #d0d5dd;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #101828;
+  font-size: 14px;
+  outline: none;
+  font-family: inherit;
+}
+
+.adminFilterField select:focus,
+.adminFilterField input:focus {
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.12);
+}
+
+.adminFilterField select:disabled {
+  background-color: #f2f4f7;
+  color: #98a2b3;
+  cursor: not-allowed;
+}
+
+.adminSearchActionRow {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.adminSearchButton {
+  min-width: 120px;
+  height: 44px;
+  border: none;
+  border-radius: 12px;
+  background: #667eea;
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.adminSearchButton:hover {
+  background: #5a67d8;
+  transform: translateY(-1px);
+}
+
+.adminSearchButton:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* 선택 상태 요약 박스 */
+.currentCampusAdminBox {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  padding: 16px;
+  background: #eef4ff;
+  border: 1px solid #c7d7fe;
+  border-radius: 16px;
+  margin-bottom: 16px;
+}
+
+.currentCampusAdminBox strong {
+  display: block;
+  font-size: 12px;
+  font-weight: 800;
+  color: #344054;
+  margin-bottom: 6px;
+}
+
+.currentCampusAdminBox p {
+  margin: 0;
+  font-size: 14px;
+  color: #101828;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+/* 상태 메시지 */
+.adminErrorText {
+  padding: 12px 14px;
+  margin: 12px 0 0;
+  border-radius: 12px;
+  background: #fef3f2;
+  color: #b42318;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.adminSuccessText {
+  padding: 12px 14px;
+  margin: 12px 0 0;
+  border-radius: 12px;
+  background: #ecfdf3;
+  color: #027a48;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+/* 유저 목록 */
+.adminUserList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.adminUserCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid #eaecf0;
+  border-radius: 18px;
+  background: #ffffff;
+  transition: all 0.2s ease;
+}
+
+.adminUserCard:hover {
+  border-color: #c7d7fe;
+  box-shadow: 0 8px 20px rgba(16, 24, 40, 0.06);
+  transform: translateY(-1px);
+}
+
+.adminUserInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.adminUserMainRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.adminUserMainRow strong {
+  font-size: 16px;
+  font-weight: 800;
+  color: #101828;
+}
+
+.globalAdminBadge,
+.campusAdminBadge,
+.currentCampusAdminBadge,
+.normalUserBadge {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.globalAdminBadge {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.campusAdminBadge {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.currentCampusAdminBadge {
+  background: #e0e7ff;
+  color: #3730a3;
+}
+
+.normalUserBadge {
+  background: #f2f4f7;
+  color: #667085;
+}
+
+.adminUserMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 13px;
+  color: #667085;
+}
+
+.adminUserMeta span {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: #f9fafb;
+  border: 1px solid #eaecf0;
+}
+
+.adminUserAction {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.assignAdminButton,
+.removeAdminButton,
+.disabledAdminButton {
+  min-width: 112px;
+  height: 42px;
+  border: none;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 800;
+  font-family: inherit;
+}
+
+.assignAdminButton {
+  background: #667eea;
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.assignAdminButton:hover {
+  background: #5a67d8;
+}
+
+.assignAdminButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.removeAdminButton {
+  background: #fee4e2;
+  color: #b42318;
+  cursor: pointer;
+}
+
+.removeAdminButton:hover {
+  background: #fecaca;
+}
+
+.removeAdminButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.disabledAdminButton {
+  background: #f2f4f7;
+  color: #667085;
+  cursor: not-allowed;
+}
+
+/* 반응형 */
+@media (max-width: 900px) {
+  .adminFilterGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .currentCampusAdminBox {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .adminManagerHeader {
+    flex-direction: column;
+  }
+
+  .adminFilterGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .adminSearchActionRow {
+    justify-content: stretch;
+  }
+
+  .adminSearchButton {
+    width: 100%;
+  }
+
+  .adminUserCard {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .adminUserAction {
+    width: 100%;
+  }
+
+  .assignAdminButton,
+  .removeAdminButton,
+  .disabledAdminButton {
+    width: 100%;
+  }
+}
+
+.adminFilterField input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.transferStatusBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 76px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.transferStatusPending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.transferStatusSent {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.transferStatusConfirmed {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.confirmedTransferRow {
+  background: #f0fdf4;
+}
+
+.transferActionStack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.revertTransferButton {
+  border: 1px solid #f97316;
+  background: #fff7ed;
+  color: #c2410c;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.revertTransferButton:hover {
+  background: #ffedd5;
+}
+
+.revertTransferButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

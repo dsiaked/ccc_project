@@ -1,0 +1,267 @@
+.pageContainer {
+  min-height: 100vh;
+  background: #f8fafc;
+}
+
+.main {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 48px 20px 80px;
+}
+
+.headerContent {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.iconCircle {
+  width: 72px;
+  height: 72px;
+  margin: 0 auto 20px;
+  border-radius: 50%;
+  background: #2563eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.title {
+  margin: 0;
+  font-size: 32px;
+  font-weight: 800;
+  color: #101828;
+}
+
+.subtitle {
+  margin: 12px 0 0;
+  font-size: 16px;
+  color: #667085;
+  line-height: 1.6;
+}
+
+.ticketCard,
+.emptyCard {
+  background: #ffffff;
+  border-radius: 24px;
+  padding: 32px;
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.08);
+  border: 1px solid #e4e7ec;
+}
+
+.ticketHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  align-items: flex-start;
+}
+
+.badge {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #2563eb;
+  letter-spacing: 0.08em;
+}
+
+.ticketTitle {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 800;
+  color: #101828;
+}
+
+.requestedStatusBox,
+.confirmedStatusBox {
+  margin-top: 24px;
+  padding: 16px 18px;
+  border-radius: 14px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.requestedStatusBox {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+
+.confirmedStatusBox {
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+
+.divider {
+  height: 1px;
+  background: #e4e7ec;
+  margin: 28px 0;
+}
+
+.infoList {
+  display: grid;
+  gap: 18px;
+}
+
+.infoItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 16px;
+  background: #f9fafb;
+  border-radius: 16px;
+}
+
+.label {
+  margin: 0 0 4px;
+  font-size: 13px;
+  color: #667085;
+}
+
+.value {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 800;
+  color: #101828;
+}
+
+.subValue {
+  margin: 4px 0 0;
+  color: #667085;
+  font-size: 14px;
+}
+
+.preferenceList {
+  display: grid;
+  gap: 8px;
+}
+
+.preferenceItem {
+  display: grid;
+  gap: 3px;
+}
+
+.preferenceItem strong {
+  color: #2563eb;
+  font-size: 13px;
+}
+
+.preferenceItem span {
+  color: #101828;
+  font-weight: 800;
+  font-size: 16px;
+}
+
+.preferenceItem small {
+  color: #667085;
+  font-size: 13px;
+}
+
+.noticeBox {
+  margin-top: 28px;
+  padding: 18px;
+  border-radius: 16px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.noticeBox p {
+  margin: 0;
+}
+
+.confirmedTicketBox {
+  margin-top: 28px;
+  padding: 24px;
+  border-radius: 20px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+}
+
+.confirmedTicketBox h3 {
+  margin: 0 0 18px;
+  font-size: 22px;
+  color: #166534;
+}
+
+.confirmedGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 18px;
+}
+
+.managerNote {
+  margin-top: 18px;
+  padding: 14px;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #166534;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.buttonGroup {
+  display: flex;
+  gap: 12px;
+  margin-top: 28px;
+}
+
+.primaryButton,
+.secondaryButton {
+  flex: 1;
+  border: none;
+  border-radius: 14px;
+  padding: 14px 18px;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.primaryButton {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.secondaryButton {
+  background: #f2f4f7;
+  color: #344054;
+}
+
+.emptyCard {
+  text-align: center;
+}
+
+.emptyTitle {
+  margin: 18px 0 8px;
+  font-size: 24px;
+  color: #101828;
+}
+
+.emptyText {
+  margin: 0 0 24px;
+  color: #667085;
+  line-height: 1.6;
+}
+
+@media (max-width: 640px) {
+  .main {
+    padding: 36px 16px 64px;
+  }
+
+  .ticketCard,
+  .emptyCard {
+    padding: 24px;
+  }
+
+  .title {
+    font-size: 28px;
+  }
+
+  .buttonGroup {
+    flex-direction: column;
+  }
+
+  .confirmedGrid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,0 +1,437 @@
+.pageContainer {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  flex-direction: column;
+}
+
+.main {
+  flex: 1;
+  max-width: 900px;
+  margin: 0 auto;
+  width: 100%;
+  padding: 20px;
+  padding-top: 100px;
+}
+
+.backButton {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.95);
+  border: none;
+  padding: 10px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  color: #333;
+  font-weight: 500;
+  margin-bottom: 24px;
+  transition: all 0.2s ease;
+}
+
+.backButton:hover {
+  background: white;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transform: translateX(-2px);
+}
+
+.headerSection {
+  text-align: center;
+  margin-bottom: 40px;
+}
+
+.iconContainer {
+  width: 80px;
+  height: 80px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 20px;
+  backdrop-filter: blur(10px);
+}
+
+.title {
+  font-size: 32px;
+  font-weight: 700;
+  color: white;
+  margin: 0 0 8px;
+}
+
+.subtitle {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.8);
+  margin: 0;
+}
+
+.ticketContainer {
+  background: white;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+  margin-bottom: 24px;
+}
+
+.ticketTop {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 32px 24px;
+  color: white;
+}
+
+.busNumberSection,
+.seatSection {
+  text-align: center;
+}
+
+.label {
+  font-size: 12px;
+  font-weight: 500;
+  opacity: 0.9;
+  margin: 0 0 8px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.busNumber,
+.seatNumber {
+  font-size: 40px;
+  font-weight: 700;
+  margin: 0;
+  line-height: 1;
+}
+
+.divider {
+  height: 1px;
+  background: #e5e7eb;
+}
+
+.ticketMiddle {
+  padding: 24px;
+  background: #f9fafb;
+}
+
+.infoRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.infoRow:last-child {
+  margin-bottom: 0;
+}
+
+.infoBlock,
+.infoBlockFull {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 12px;
+  background: white;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+}
+
+.infoBlockFull {
+  grid-column: 1 / -1;
+}
+
+.infoLabel {
+  font-size: 12px;
+  color: #666666;
+  margin: 0 0 4px;
+  font-weight: 500;
+}
+
+.infoValue {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0;
+}
+
+.infoSubValue {
+  font-size: 12px;
+  color: #888888;
+  margin: 4px 0 0;
+}
+
+.ticketBottom {
+  padding: 24px;
+  border-top: 1px solid #e5e7eb;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.passengerInfo {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.passengerLabel {
+  font-size: 12px;
+  color: #666666;
+  margin: 0 0 4px;
+  font-weight: 500;
+}
+
+.passengerName,
+.passengerPhone {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0;
+}
+
+.additionalInfo {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.additionalInfo h3 {
+  margin: 0 0 16px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.infoGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.infoItem {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  background: #f9fafb;
+  border-radius: 8px;
+}
+
+.itemLabel {
+  font-size: 12px;
+  color: #666666;
+  font-weight: 500;
+}
+
+.itemValue {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.notice {
+  background: rgba(234, 88, 12, 0.1);
+  border: 2px solid #ea580c;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 24px;
+  display: flex;
+  gap: 16px;
+}
+
+.noticeTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: #ea580c;
+  margin: 0 0 8px;
+}
+
+.noticeList {
+  margin: 0;
+  padding-left: 20px;
+  list-style: disc;
+}
+
+.noticeList li {
+  font-size: 13px;
+  color: #666666;
+  line-height: 1.6;
+  margin-bottom: 6px;
+}
+
+.noticeList li:last-child {
+  margin-bottom: 0;
+}
+
+.buttonGroup {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.primaryButton {
+  flex: 1;
+  min-width: 140px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  padding: 14px 24px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.primaryButton:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(102, 126, 234, 0.3);
+}
+
+.primaryButton:active {
+  transform: translateY(0);
+}
+
+.secondaryButton {
+  flex: 1;
+  min-width: 140px;
+  background: white;
+  color: #667eea;
+  border: 2px solid #667eea;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.secondaryButton:hover {
+  background: #f3f4f6;
+  transform: translateY(-2px);
+}
+
+.secondaryButton:active {
+  transform: translateY(0);
+}
+
+.loadingContainer,
+.emptyContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  background: white;
+  border-radius: 12px;
+  padding: 60px 24px;
+  text-align: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.emptyContainer h2 {
+  font-size: 22px;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0;
+}
+
+.emptyContainer p {
+  font-size: 14px;
+  color: #666666;
+  margin: 0 0 24px;
+}
+
+@media (max-width: 768px) {
+  .main {
+    padding: 16px;
+    padding-top: 80px;
+  }
+
+  .headerSection {
+    margin-bottom: 28px;
+  }
+
+  .title {
+    font-size: 24px;
+  }
+
+  .iconContainer {
+    width: 64px;
+    height: 64px;
+  }
+
+  .ticketTop {
+    grid-template-columns: 1fr 1fr;
+    padding: 24px 16px;
+  }
+
+  .busNumber,
+  .seatNumber {
+    font-size: 32px;
+  }
+
+  .ticketMiddle {
+    padding: 16px;
+  }
+
+  .ticketBottom {
+    grid-template-columns: 1fr;
+    gap: 16px;
+    padding: 16px;
+  }
+
+  .infoRow {
+    grid-template-columns: 1fr;
+  }
+
+  .infoGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .notice {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .buttonGroup {
+    gap: 10px;
+  }
+
+  .primaryButton,
+  .secondaryButton {
+    min-width: auto;
+  }
+}
+
+@media print {
+  .pageContainer {
+    background: white;
+  }
+
+  .main {
+    max-width: 100%;
+    padding: 0;
+    padding-top: 0;
+  }
+
+  .backButton,
+  .notice,
+  .buttonGroup,
+  .additionalInfo {
+    display: none;
+  }
+
+  .ticketContainer {
+    box-shadow: none;
+    border: 1px solid #ddd;
+    page-break-inside: avoid;
+  }
+
+  .headerSection {
+    margin-bottom: 20px;
+    page-break-inside: avoid;
+  }
+}

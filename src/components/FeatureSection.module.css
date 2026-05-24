@@ -1,0 +1,286 @@
+.section {
+  width: 100%;
+  padding: 24px 20px 40px;
+}
+
+.container {
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.card {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  border: 0;
+  border-radius: 28px;
+  padding: 24px;
+  text-align: left;
+  cursor: pointer;
+  background:
+    radial-gradient(circle at top left, rgba(59, 130, 246, 0.22), transparent 34%),
+    linear-gradient(135deg, #0f172a 0%, #1e293b 52%, #2563eb 100%);
+  color: #ffffff;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.24);
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.card::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: -14px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #f8fafc;
+  transform: translateY(-50%);
+}
+
+.card::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: -14px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #f8fafc;
+  transform: translateY(-50%);
+}
+
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 30px 70px rgba(15, 23, 42, 0.32);
+}
+
+.card:active {
+  transform: translateY(-1px);
+}
+
+.topArea {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.iconContainer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 58px;
+  height: 58px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.18);
+  backdrop-filter: blur(10px);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+}
+
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  backdrop-filter: blur(10px);
+}
+
+.confirmedBadge {
+  color: #dcfce7;
+  background: rgba(22, 163, 74, 0.22);
+  box-shadow: inset 0 0 0 1px rgba(187, 247, 208, 0.26);
+}
+
+.requestedBadge {
+  color: #fef3c7;
+  background: rgba(245, 158, 11, 0.22);
+  box-shadow: inset 0 0 0 1px rgba(253, 230, 138, 0.28);
+}
+
+.emptyBadge {
+  color: #e0f2fe;
+  background: rgba(14, 165, 233, 0.22);
+  box-shadow: inset 0 0 0 1px rgba(186, 230, 253, 0.26);
+}
+
+.content {
+  position: relative;
+  z-index: 1;
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  color: #bfdbfe;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.title {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 900;
+  letter-spacing: -0.04em;
+}
+
+.description {
+  margin: 10px 0 0;
+  color: #dbeafe;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.ticketPreview {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 10px;
+  margin-top: 24px;
+  padding: 18px;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(12px);
+}
+
+.infoRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.22);
+}
+
+.infoRow:last-of-type {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.infoRow span {
+  flex-shrink: 0;
+  color: #bfdbfe;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.infoRow strong {
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 800;
+  text-align: right;
+}
+
+.confirmedBox {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 8px;
+  padding: 14px;
+  border-radius: 16px;
+  background: rgba(34, 197, 94, 0.18);
+  box-shadow: inset 0 0 0 1px rgba(187, 247, 208, 0.22);
+}
+
+.confirmedBox span {
+  color: #bbf7d0;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.confirmedBox strong {
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.emptyBox {
+  position: relative;
+  z-index: 1;
+  margin-top: 24px;
+  padding: 18px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16);
+}
+
+.emptyBox p {
+  margin: 0;
+  color: #dbeafe;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.bottomArea {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 24px;
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+@media (max-width: 640px) {
+  .section {
+    padding: 20px 16px 32px;
+  }
+
+  .card {
+    border-radius: 24px;
+    padding: 22px;
+  }
+
+  .topArea {
+    margin-bottom: 24px;
+  }
+
+  .iconContainer {
+    width: 52px;
+    height: 52px;
+    border-radius: 18px;
+  }
+
+  .title {
+    font-size: 24px;
+  }
+
+  .description {
+    font-size: 14px;
+  }
+
+  .ticketPreview {
+    padding: 16px;
+  }
+
+  .infoRow {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .infoRow strong {
+    text-align: left;
+  }
+
+  .confirmedBox {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+}
