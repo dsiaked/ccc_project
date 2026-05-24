@@ -398,13 +398,13 @@ export default function JihoonPopup({ onClose }) {
                     <span>.</span><span>.</span><span>.</span>
                   </div>
 
-                  <p>햇살이 내려앉을 때마다 유리병 속 하트들은 따뜻하게 빛났다. <span className="font-bold text-rose-600">마치 그 안에 담긴 말들이 이제는 괜찮다고, 괜찮아질 거라고 조용히 속삭이는 것처럼.</span></p>
+                  <p>햇살이 내려앉을 때마다 유리병 속 하트들은 따뜻하게 빛났다. <span className="font-bold text-gray-900">마치 그 안에 담긴 말들이 이제는 괜찮다고, 괜찮아질 거라고 조용히 속삭이는 것처럼.</span></p>
 
                   <div className="h-1" />
                   <p>지나가던 사람들 중 누군가는 잠시 멈춰 서서 그 병을 바라봤다. 그리고 이유 없이 마음이 조금 가벼워졌다.</p>
 
                   <div className="h-1" />
-                  <p>아마도 그건, 그 안의 말들이 특별해서가 아니라 <span className="font-semibold text-rose-700">누군가가 누군가를 위해 이만큼 마음을 접어 넣었다는 사실 때문일 것이다.</span></p>
+                  <p>아마도 그건, 그 안의 말들이 특별해서가 아니라 <span className="font-semibold text-gray-900">누군가가 누군가를 위해 이만큼 마음을 접어 넣었다는 사실 때문일 것이다.</span></p>
 
                   {/* 인용/강조 구절 */}
                   <div className="pl-3.5 border-l-2 border-rose-300 text-[12.5px] text-gray-800 leading-relaxed bg-[#fffafa] p-4 rounded-3xl border border-rose-100">

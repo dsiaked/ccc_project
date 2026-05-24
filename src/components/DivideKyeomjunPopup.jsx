@@ -403,7 +403,7 @@ export default function DivideKyeomjunPopup({ onClose }) {
                   </p>
 
                   <div className="h-0.5" />
-                  <p className="font-medium text-orange-700">
+                  <p className="font-medium text-gray-900">
                     ‘벌벌’ 떠는 입술 사이로 눈물이 짭조름하게 스며옵니다.
                   </p>
 

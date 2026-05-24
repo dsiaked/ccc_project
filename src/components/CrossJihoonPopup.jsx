@@ -435,7 +435,7 @@ export default function CrossJihoonPopup({ onClose }) {
                   </p>
 
                   <div className="h-1" />
-                  <p className="font-bold text-green-600">
+                  <p className="font-bold text-gray-900">
                     사람들은 이해하지 못했다.<br />
                     “왜 저런 걸 그렇게까지 지키는 거야?”
                   </p>
@@ -450,7 +450,7 @@ export default function CrossJihoonPopup({ onClose }) {
                   </p>
 
                   <div className="h-1" />
-                  <p className="font-semibold text-green-600">
+                  <p className="font-semibold text-gray-900">
                     그래서 유리에 남은 상처들은 실패의 흔적이 아니었다.<br />
                     그건 보잘것없다고 여겨진 것들을 끝까지 지켜내려 했던 시간의 흔적이었다.
                   </p>

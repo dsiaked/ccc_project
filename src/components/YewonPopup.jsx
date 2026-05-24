@@ -409,7 +409,7 @@ export default function YewonPopup({ onClose }) {
                   </p>
 
                   <div className="h-1" />
-                  <p className="font-bold text-rose-600">
+                  <p className="font-bold text-gray-900">
                     그러나 노크 소리가 너무<br />
                     작았는지 응답은 없고,<br />
                     내가 지쳐 포기하기 직전입니다.
@@ -443,7 +443,7 @@ export default function YewonPopup({ onClose }) {
                   </p>
 
                   <div className="h-1" />
-                  <p className="font-semibold text-rose-700">
+                  <p className="font-semibold text-gray-900">
                     기쁠 때도, 지칠 때도, 내가 어떤 모습일지라도<br />
                     문을 여는 순간 언제나<br />
                     사랑으로 맞이해 줄 이가 있다면요.
@@ -461,7 +461,7 @@ export default function YewonPopup({ onClose }) {
                   </p>
 
                   <div className="h-1" />
-                  <p className="font-semibold text-rose-600">
+                  <p className="font-semibold text-gray-900">
                     내가 노력해서 이루려 했던 사랑보다,<br />
                     아무런 조건 없이 나를 기다려온 그 사랑이<br />
                     더 깊고 소중하다는 생각이 듭니다.

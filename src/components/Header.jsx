@@ -5,11 +5,11 @@ export default function Header({ discoveredCount }) {
   return (
     <div className="w-full pt-8 px-6 pb-6 flex flex-col gap-6">
       <div className="flex flex-col items-center justify-center gap-1.5">
-        <span className="text-xs uppercase tracking-[0.25em] text-purple-600 font-bold">Exhibition Tour</span>
-        <h1 className="text-3xl font-black text-center tracking-tight bg-gradient-to-r from-purple-800 via-pink-600 to-indigo-700 bg-clip-text text-transparent drop-shadow-sm font-['Cafe24_Ssurround']">
+        <span className="text-[10px] uppercase tracking-[0.3em] text-indigo-600 font-bold">Exhibition Tour</span>
+        <h1 className="text-[28px] font-black text-center tracking-tight bg-gradient-to-r from-slate-950 via-indigo-950 to-slate-800 bg-clip-text text-transparent font-['Cafe24_Ssurround']">
           붕어방 심볼 작품 투어
         </h1>
-        <div className="w-14 h-[3px] bg-gradient-to-r from-purple-600 via-pink-500 to-indigo-500 rounded-full mt-1.5" />
+        <div className="w-10 h-[3px] bg-indigo-600 rounded-full mt-1.5" />
       </div>
       
       <div className="flex flex-col gap-3">

@@ -387,7 +387,7 @@ export default function DivideYewonPopup({ onClose }) {
                   </p>
                   
                   <div className="h-1" />
-                  <p className="font-bold text-orange-600">
+                  <p className="font-bold text-gray-900">
                     어느 순간부터 세상과 나 가운데<br />
                     보이지 않는 선이 존재합니다.<br />
                     그 선 안에서는 마음을 지킬 수 있습니다.<br />

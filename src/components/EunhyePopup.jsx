@@ -382,13 +382,13 @@ export default function EunhyePopup({ onClose }) {
                   <p className="text-gray-800">나는 사람을 믿지 않는다. 내가 아끼는 사람들은 모두 떠나간다.</p>
 
                   <div className="h-1" />
-                  <p>어린 시절을 함께 보낸 친구, <span className="font-bold text-rose-600">누구보다 사랑했던 연인</span>, 절대 변하지 않을 것이라 확신했던 모든 관계들이 매일 조금씩 흐려지는 것이 두렵다.</p>
+                  <p>어린 시절을 함께 보낸 친구, <span className="font-bold text-gray-900">누구보다 사랑했던 연인</span>, 절대 변하지 않을 것이라 확신했던 모든 관계들이 매일 조금씩 흐려지는 것이 두렵다.</p>
 
                   <div className="h-1" />
                   <p>그래서 앞으로 진짜 내 마음을 열지 않기로 다짐했다.</p>
 
                   <div className="h-1" />
-                  <p className="font-semibold text-rose-600">메말라버린 이 세상에 변치 않는 사랑은 없다고 나는 확신한다.</p>
+                  <p className="font-semibold text-gray-900">메말라버린 이 세상에 변치 않는 사랑은 없다고 나는 확신한다.</p>
 
                   <div className="h-1" />
                   <p>친구도, 가족도, 그 무엇도 언젠가는 사라질 것들.</p>
@@ -400,7 +400,7 @@ export default function EunhyePopup({ onClose }) {
                     <span>.</span><span>.</span><span>.</span>
                   </div>
 
-                  <p>어느 날 캠퍼스에서 아주 우연히, <span className="font-bold text-rose-700">낯선 존재를 마주했다.</span></p>
+                  <p>어느 날 캠퍼스에서 아주 우연히, <span className="font-bold text-gray-900">낯선 존재를 마주했다.</span></p>
 
                   <div className="h-1" />
                   <p>새로운 관계를 받아들이고 싶지 않았다.</p>
@@ -443,7 +443,7 @@ export default function EunhyePopup({ onClose }) {
                   <p>지독하게 화를 내며 돌아섰던 순간에도, 밤새 술을 마시며 연락을 꺼버린 순간에도, 시험공부를 하느라 무시했던 순간에도,</p>
 
                   <div className="h-1" />
-                  <p className="font-bold text-rose-600">기다리고, 기다리고, 또 기다리고 있었다.</p>
+                  <p className="font-bold text-gray-900">기다리고, 기다리고, 또 기다리고 있었다.</p>
 
                   <div className="h-1" />
                   <p className="text-gray-800">화가 치밀어오르고, 이상하게 마음이 슬펐다.</p>
@@ -473,11 +473,11 @@ export default function EunhyePopup({ onClose }) {
                   </div>
 
                   <div className="h-2" />
-                  <p className="text-[14px] font-bold text-rose-600">눈물을 쏟았다.</p>
-                  <p className="text-[14px] font-bold text-rose-600">그제야 인정할 수밖에 없었다.</p>
+                  <p className="text-[14px] font-bold text-gray-900">눈물을 쏟았다.</p>
+                  <p className="text-[14px] font-bold text-gray-900">그제야 인정할 수밖에 없었다.</p>
 
                   <div className="h-3" />
-                  <p className="font-sentiment text-[18px] text-rose-950 font-bold tracking-[2.5px] mt-4 text-center">
+                  <p className="font-sentiment text-[18px] text-gray-900 font-bold tracking-[2.5px] mt-4 text-center">
                     나는 너무나 외로웠다.
                   </p>
                 </div>
