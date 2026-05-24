@@ -190,6 +190,33 @@ export const symbolData = {
     },
   },
 
+  cross_jihoon: {
+    category: 'cross',
+    artist: '홍지훈',
+    title: '홍지훈의 십자가',
+    Icon: Cross,
+    iconClass: 'w-12 h-12 text-gray-700',
+    map: {
+      undiscovered: {
+        title: '숨겨진 십자가',
+        desc: '홍지훈 작가가 배치한 소중한 십자가 심볼이에요.',
+        hint: '버려진 것들 속에 남겨진 누군가의 시간과 온기',
+      },
+      discovered: {
+        title: '발견된 지훈의 십자가 🌟',
+        desc: '홍지훈 작가의 십자가 심볼을 성공적으로 해금했어요!',
+        message: '세상이 가치 없다고 말하는 것들조차, 누군가에게는 아주 소중할 수 있습니다.',
+      },
+    },
+    qr: {
+      title: '홍지훈 - 십자가',
+      desc: '상처 대신에 남겨진 것',
+      meaning: '유리에 남은 상처들은 실패의 흔적이 아니었습니다. 그건 보잘것없다고 여겨진 것들을 끝까지 지켜내려 했던 시간의 흔적였습니다.',
+      location: '김규민 작가의 하트 작품 왼쪽 위',
+      message: '세상이 가치 없다고 말하는 것들조차, 누군가에게는 아주 소중할 수 있습니다.',
+    },
+  },
+
   question: {
     category: 'question',
     artist: '특별 심볼',

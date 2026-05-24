@@ -46,7 +46,7 @@ export default function App() {
   // 1개 이상 해금 시 해당 카테고리 발견 완료로 판정
   const isHeartDiscovered = symbols.heart_kymin || symbols.heart_yewon || symbols.heart_eunhye || symbols.heart_jihoon;
   const isDivideDiscovered = symbols.divide_kyeomjun || symbols.divide_yewon;
-  const isCrossDiscovered = symbols.cross;
+  const isCrossDiscovered = symbols.cross || symbols.cross_jihoon;
   const isQuestionDiscovered = symbols.question;
 
   // 특별 심볼 해금 조건: 3가지 심볼이 모두 최소 1개 이상 해금되었을 때
@@ -247,6 +247,7 @@ export default function App() {
     const isCategoryDiscovered = 
       id === 'heart' ? isHeartDiscovered :
       id === 'divide' ? isDivideDiscovered :
+      id === 'cross' ? isCrossDiscovered :
       symbols[id];
 
     if (!isCategoryDiscovered) {
@@ -259,15 +260,15 @@ export default function App() {
       return;
     }
 
-    if (id === 'heart' || id === 'divide') {
+    if (id === 'heart' || id === 'divide' || id === 'cross') {
       setActivePopup({
         type: 'multi',
-        id, // 'heart' 또는 'divide'
+        id, // 'heart', 'divide' 또는 'cross'
       });
     } else {
       setActivePopup({
         type: 'qr',
-        id, // 'cross' 또는 'question'
+        id, // 'question'
       });
     }
   };

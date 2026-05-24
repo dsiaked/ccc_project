@@ -29,6 +29,17 @@ const MAP_PINS = [
     borderColor: '#ff9d9d',
   },
   {
+    id: 'cross_jihoon',
+    label: '홍지훈',
+    type: 'cross',
+    pinTop: '18.52%',
+    pinLeft: '36.23%',
+    textTop: '19.76%',
+    textLeft: '28.00%',
+    color: '#84cc16', // 피그마 초록 십자가 테마 색상 적용
+    borderColor: '#bef264',
+  },
+  {
     id: 'cross',
     label: '서겸준',
     type: 'cross',

@@ -9,6 +9,7 @@ import JihoonPopup from './JihoonPopup';
 import DivideYewonPopup from './DivideYewonPopup';
 import DivideKyeomjunPopup from './DivideKyeomjunPopup';
 import CrossKyeomjunPopup from './CrossKyeomjunPopup';
+import CrossJihoonPopup from './CrossJihoonPopup';
 import QuestionGuidePopup from './QuestionGuidePopup';
 
 export default function Popup({ id, type, symbols, discovered, onClose }) {
@@ -36,6 +37,9 @@ export default function Popup({ id, type, symbols, discovered, onClose }) {
     }
     if (selectedArtist === 'cross') {
       return <CrossKyeomjunPopup onClose={() => setSelectedArtist(null)} />;
+    }
+    if (selectedArtist === 'cross_jihoon') {
+      return <CrossJihoonPopup onClose={() => setSelectedArtist(null)} />;
     }
     return <QrPopup id={selectedArtist} onClose={() => setSelectedArtist(null)} />;
   }
@@ -71,6 +75,9 @@ export default function Popup({ id, type, symbols, discovered, onClose }) {
     }
     if (id === 'cross') {
       return <CrossKyeomjunPopup onClose={onClose} />;
+    }
+    if (id === 'cross_jihoon') {
+      return <CrossJihoonPopup onClose={onClose} />;
     }
     return <QrPopup id={id} onClose={onClose} />;
   }

@@ -31,6 +31,9 @@ export default function SymbolCards({ symbols, onCardClick, isQuestionUnlocked }
     if (id === 'divide') {
       return symbols.divide_kyeomjun || symbols.divide_yewon;
     }
+    if (id === 'cross') {
+      return symbols.cross || symbols.cross_jihoon;
+    }
     return symbols[id];
   };
 

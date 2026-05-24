@@ -1,6 +1,21 @@
 import React from 'react';
 import { X, Lock, Heart, Divide, Sparkles } from 'lucide-react';
 
+const CustomCrossIcon = ({ className = "w-5 h-5", color = "currentColor", strokeWidth = "2.5" }) => (
+  <svg 
+    viewBox="0 0 24 24" 
+    fill="none" 
+    stroke={color} 
+    strokeWidth={strokeWidth} 
+    strokeLinecap="round" 
+    strokeLinejoin="round" 
+    className={className}
+  >
+    <line x1="12" y1="2.5" x2="12" y2="21.5" />
+    <line x1="6.5" y1="8" x2="17.5" y2="8" />
+  </svg>
+);
+
 const ARTIST_LIST = {
   heart: [
     { key: 'heart_kymin', name: '김규민', color: '#ff8b8b', borderColor: '#ff9d9d', type: 'heart' },
@@ -11,12 +26,16 @@ const ARTIST_LIST = {
   divide: [
     { key: 'divide_kyeomjun', name: '서겸준', color: '#fb923c', borderColor: '#ffedd5', type: 'divide' },
     { key: 'divide_yewon', name: '손예원', color: '#fb923c', borderColor: '#ffedd5', type: 'divide' }
+  ],
+  cross: [
+    { key: 'cross', name: '서겸준', color: '#84cc16', borderColor: '#bef264', type: 'cross' },
+    { key: 'cross_jihoon', name: '홍지훈', color: '#84cc16', borderColor: '#bef264', type: 'cross' }
   ]
 };
 
 export default function MultiSelectorPopup({ id, symbols, onClose, onSelectArtist }) {
   const artists = ARTIST_LIST[id] || [];
-  const categoryLabel = id === 'heart' ? '하트' : '나누기';
+  const categoryLabel = id === 'heart' ? '하트' : id === 'divide' ? '나누기' : '십자가';
   
   const totalCount = artists.length;
   const discoveredCount = artists.filter(a => symbols[a.key]).length;
@@ -37,8 +56,10 @@ export default function MultiSelectorPopup({ id, symbols, onClose, onSelectArtis
         <div className="w-14 h-14 bg-[#FFE2E2] border-2 border-white rounded-2xl flex items-center justify-center shadow-md mb-4 animate-bounce">
           {id === 'heart' ? (
             <Heart className="w-7 h-7 text-pink-500 fill-pink-500" />
-          ) : (
+          ) : id === 'divide' ? (
             <Divide className="w-7 h-7 text-blue-500 stroke-[2.5]" />
+          ) : (
+            <CustomCrossIcon className="w-7 h-7 text-emerald-500" strokeWidth="3" />
           )}
         </div>
 
@@ -80,8 +101,10 @@ export default function MultiSelectorPopup({ id, symbols, onClose, onSelectArtis
                 >
                   {artist.type === 'heart' ? (
                     <Heart className="w-5 h-5 fill-current" />
-                  ) : (
+                  ) : artist.type === 'divide' ? (
                     <Divide className="w-5 h-5 stroke-[2.5]" />
+                  ) : (
+                    <CustomCrossIcon className="w-5 h-5" color="currentColor" strokeWidth="3" />
                   )}
                 </div>
 
@@ -108,7 +131,9 @@ export default function MultiSelectorPopup({ id, symbols, onClose, onSelectArtis
         <p className="text-xs text-gray-400 text-center mt-2 leading-relaxed">
           {id === 'heart' 
             ? '현장 QR을 스캔하여 4가지의 다양한 하트 작품들을 해금해 보세요!'
-            : '현장 QR을 스캔하여 2가지의 따뜻한 나누기 작품들을 해금해 보세요!'
+            : id === 'divide'
+            ? '현장 QR을 스캔하여 2가지의 따뜻한 나누기 작품들을 해금해 보세요!'
+            : '현장 QR을 스캔하여 2가지의 은혜로운 십자가 작품들을 해금해 보세요!'
           }
         </p>
 
