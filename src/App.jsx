@@ -309,7 +309,7 @@ export default function App() {
         <div className="px-6 pt-6">
           <div className="flex justify-center mb-5">
             <div className="bg-white border-[2.8px] border-purple-800 rounded-full px-8 py-3 shadow-[0_4px_12px_rgba(107,33,168,0.15)]">
-              <h2 className="text-purple-800 text-2xl">심볼 설명 카드</h2>
+              <h2 className="text-purple-800 text-2xl">작품 설명 카드</h2>
             </div>
           </div>
 
