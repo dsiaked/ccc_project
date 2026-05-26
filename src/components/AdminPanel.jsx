@@ -1,14 +1,19 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { collection, getDocs, onSnapshot } from 'firebase/firestore';
 import {
   AlertCircle,
   ArrowLeft,
+  BarChart3,
   CheckCircle2,
-  Clipboard,
+  Copy,
   ExternalLink,
+  Link2,
+  MapPinned,
   MessageSquareText,
   RefreshCw,
+  RotateCcw,
   Save,
+  Search,
   ShieldAlert,
   Users,
 } from 'lucide-react';
@@ -17,20 +22,20 @@ import { symbolData } from '../data/symbolData';
 import MapArea, { DEFAULT_MAP_PINS } from './MapArea';
 
 const adminLinks = [
-  { label: '관리자 대시보드', path: '/admin-panel', desc: '관리자 화면으로 이동합니다.' },
+  { label: '관리자 대시보드', path: '/admin-panel', desc: '기록 확인과 지도 핀 위치를 관리합니다.' },
   { label: '전체 작품 열기', path: '/admin', desc: '하트, 나누기, 십자가 작품을 모두 엽니다.' },
-  { label: '하트 작품 열기', path: '/admin/heart', desc: '하트 카테고리 작품을 엽니다.' },
-  { label: '나누기 작품 열기', path: '/admin/divide', desc: '나누기 카테고리 작품을 엽니다.' },
-  { label: '십자가 작품 열기', path: '/admin/cross', desc: '십자가 카테고리 작품을 엽니다.' },
-  { label: '기본 3개 열기', path: '/unlock/basic', desc: '하트, 나누기, 십자가 대표 작품을 하나씩 엽니다.' },
-  { label: '투어 소감 페이지', path: '/?symbol=question', desc: '상품 부스 QR 진입 페이지입니다.' },
+  { label: '하트 작품 열기', path: '/admin/heart', desc: '하트 카테고리 작품만 엽니다.' },
+  { label: '나누기 작품 열기', path: '/admin/divide', desc: '나누기 카테고리 작품만 엽니다.' },
+  { label: '십자가 작품 열기', path: '/admin/cross', desc: '십자가 카테고리 작품만 엽니다.' },
+  { label: '기본 3개 열기', path: '/unlock/basic', desc: '각 카테고리 대표 작품 1개씩 엽니다.' },
+  { label: '물음표 QR 페이지', path: '/?symbol=question', desc: '마지막 참여 페이지로 진입합니다.' },
   { label: '방문 기록 초기화', path: '/?reset=true', desc: '현재 기기의 발견 상태를 초기화합니다.' },
 ];
 
 const recordTabs = [
-  { id: 'visitors', label: '방문자', icon: Users },
+  { id: 'visitors', label: '방문', icon: Users },
   { id: 'comments', label: '댓글', icon: MessageSquareText },
-  { id: 'feedbacks', label: '소감', icon: Clipboard },
+  { id: 'feedbacks', label: '피드백', icon: BarChart3 },
 ];
 
 const symbolOrder = Object.keys(symbolData);
@@ -55,7 +60,7 @@ const formatDate = value => {
 };
 
 const getSymbolLabel = id => {
-  if (id === 'question') return '상품 부스';
+  if (id === 'question') return '물음표 부스';
   const symbol = symbolData[id];
   return symbol?.qr?.title || symbol?.title || id;
 };
@@ -66,6 +71,8 @@ const getViewedSymbols = symbols => (
     .map(id => ({ id, label: getSymbolLabel(id) }))
 );
 
+const normalizeSearchText = value => String(value || '').toLowerCase().trim();
+
 export default function AdminPanel({ onBack }) {
   const [pins, setPins] = useState(DEFAULT_MAP_PINS);
   const [isSaving, setIsSaving] = useState(false);
@@ -75,19 +82,20 @@ export default function AdminPanel({ onBack }) {
   const [comments, setComments] = useState([]);
   const [feedbacks, setFeedbacks] = useState([]);
   const [activeTab, setActiveTab] = useState('visitors');
+  const [searchQuery, setSearchQuery] = useState('');
   const [notification, setNotification] = useState({ message: '', type: '' });
   const [recordError, setRecordError] = useState('');
 
   const baseUrl = window.location.origin;
 
-  const showNotification = (message, type = 'success') => {
+  const showNotification = useCallback((message, type = 'success') => {
     setNotification({ message, type });
     window.setTimeout(() => {
       setNotification({ message: '', type: '' });
     }, 2800);
-  };
+  }, []);
 
-  const loadPins = async () => {
+  const loadPins = useCallback(async () => {
     setIsLoadingPins(true);
     try {
       const pinsDocRef = doc(db, 'settings', 'map_pins');
@@ -109,9 +117,9 @@ export default function AdminPanel({ onBack }) {
     } finally {
       setIsLoadingPins(false);
     }
-  };
+  }, [showNotification]);
 
-  const loadVisitors = async () => {
+  const loadVisitors = useCallback(async () => {
     setIsLoadingVisitors(true);
     try {
       const snapshot = await getDocs(collection(db, 'users'));
@@ -129,16 +137,18 @@ export default function AdminPanel({ onBack }) {
         .sort((a, b) => getTimestamp(b.updatedAt) - getTimestamp(a.updatedAt));
       setVisitors(nextVisitors);
     } catch (err) {
-      console.error('방문자 기록 로드 실패:', err);
-      setRecordError('방문자 기록을 불러오지 못했습니다. Firestore 읽기 권한을 확인해 주세요.');
+      console.error('방문 기록 로드 실패:', err);
+      setRecordError('방문 기록을 불러오지 못했습니다. Firestore 읽기 권한을 확인해 주세요.');
     } finally {
       setIsLoadingVisitors(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    loadPins();
-    loadVisitors();
+    const initialLoadId = window.setTimeout(() => {
+      loadPins();
+      loadVisitors();
+    }, 0);
 
     const unsubscribeComments = onSnapshot(
       collection(db, 'comments'),
@@ -163,16 +173,17 @@ export default function AdminPanel({ onBack }) {
         setFeedbacks(nextFeedbacks);
       },
       err => {
-        console.error('소감 기록 로드 실패:', err);
-        setRecordError('소감 기록을 불러오지 못했습니다. Firestore 읽기 권한을 확인해 주세요.');
+        console.error('피드백 기록 로드 실패:', err);
+        setRecordError('피드백 기록을 불러오지 못했습니다. Firestore 읽기 권한을 확인해 주세요.');
       },
     );
 
     return () => {
+      window.clearTimeout(initialLoadId);
       unsubscribeComments();
       unsubscribeFeedbacks();
     };
-  }, []);
+  }, [loadPins, loadVisitors]);
 
   const stats = useMemo(() => {
     const visitorsWithAnySymbol = visitors.filter(visitor => visitor.viewedSymbols.length > 0).length;
@@ -185,13 +196,50 @@ export default function AdminPanel({ onBack }) {
     }).length;
 
     return [
-      { label: '방문 기록', value: visitors.length, desc: '기기별 방문자 기록' },
-      { label: '작품 본 사람', value: visitorsWithAnySymbol, desc: '1개 이상 본 방문자' },
-      { label: '3개 심볼 완료', value: completedVisitors, desc: '하트, 나누기, 십자가 완료' },
+      { label: '방문 기록', value: visitors.length, desc: '기기별 누적 방문' },
+      { label: '작품 발견', value: visitorsWithAnySymbol, desc: '1개 이상 발견' },
+      { label: '3분류 완료', value: completedVisitors, desc: '하트, 나누기, 십자가' },
       { label: '댓글', value: comments.length, desc: '작품 팝업 댓글' },
-      { label: '투어 소감', value: feedbacks.length, desc: '상품 부스 QR 제출' },
+      { label: '피드백', value: feedbacks.length, desc: '참여 페이지 제출' },
     ];
   }, [comments.length, feedbacks.length, visitors]);
+
+  const tabCounts = {
+    visitors: visitors.length,
+    comments: comments.length,
+    feedbacks: feedbacks.length,
+  };
+
+  const filteredVisitors = useMemo(() => {
+    const query = normalizeSearchText(searchQuery);
+    if (!query) return visitors;
+    return visitors.filter(visitor => {
+      const target = [
+        visitor.id,
+        formatDate(visitor.updatedAt),
+        visitor.viewedSymbols.map(symbol => symbol.label).join(' '),
+      ].join(' ');
+      return normalizeSearchText(target).includes(query);
+    });
+  }, [searchQuery, visitors]);
+
+  const filteredComments = useMemo(() => {
+    const query = normalizeSearchText(searchQuery);
+    if (!query) return comments;
+    return comments.filter(comment => {
+      const target = [comment.name, comment.content, getSymbolLabel(comment.symbolId), formatDate(comment.createdAt)].join(' ');
+      return normalizeSearchText(target).includes(query);
+    });
+  }, [comments, searchQuery]);
+
+  const filteredFeedbacks = useMemo(() => {
+    const query = normalizeSearchText(searchQuery);
+    if (!query) return feedbacks;
+    return feedbacks.filter(feedback => {
+      const target = [feedback.name, feedback.feedback, formatDate(feedback.createdAt)].join(' ');
+      return normalizeSearchText(target).includes(query);
+    });
+  }, [feedbacks, searchQuery]);
 
   const handlePinMove = (id, newLeft, newTop) => {
     setPins(prevPins =>
@@ -232,7 +280,7 @@ export default function AdminPanel({ onBack }) {
   const handleCopy = async path => {
     try {
       await navigator.clipboard.writeText(`${baseUrl}${path}`);
-      showNotification('관리자 주소를 복사했습니다.');
+      showNotification('주소를 복사했습니다.');
     } catch {
       showNotification('주소 복사에 실패했습니다.', 'error');
     }
@@ -244,109 +292,198 @@ export default function AdminPanel({ onBack }) {
   );
 
   return (
-    <div className="w-full min-h-screen bg-slate-950 text-slate-100 font-['Jua'] overflow-y-auto pb-12">
-      <header className="sticky top-0 z-50 border-b border-slate-800 bg-slate-950/90 px-5 py-4 backdrop-blur-md">
-        <div className="mx-auto flex w-full max-w-[335px] flex-col gap-3">
-          <div className="flex items-center justify-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-indigo-500/30 bg-indigo-500/10">
-              <ShieldAlert className="h-5 w-5 text-indigo-300" />
+    <div className="min-h-screen w-full overflow-y-auto bg-slate-950 text-slate-100 font-['Jua']">
+      <header className="sticky top-0 z-50 border-b border-slate-800 bg-slate-950/95 px-4 py-3 backdrop-blur">
+        <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-cyan-400/30 bg-cyan-400/10">
+              <ShieldAlert className="h-5 w-5 text-cyan-200" />
             </div>
-            <h1 className="text-lg font-bold tracking-wide text-white">작품 투어 관리자</h1>
+            <div className="min-w-0">
+              <h1 className="truncate text-xl font-bold text-white">작품 투어 관리자</h1>
+              <p className="text-xs text-slate-400">방문 기록, 피드백, 지도 핀을 한곳에서 확인합니다.</p>
+            </div>
           </div>
 
-          <div className="flex items-center justify-between gap-3">
-          <button
-            onClick={onBack}
-            className="flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-4 py-2 text-sm text-slate-300 transition-all active:scale-95"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            돌아가기
-          </button>
-
-          <button
-            onClick={loadVisitors}
-            className="flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-4 py-2 text-sm text-slate-300 transition-all active:scale-95"
-          >
-            <RefreshCw className={`h-4 w-4 ${isLoadingVisitors ? 'animate-spin' : ''}`} />
-            새로고침
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onBack}
+              className="flex h-10 items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-3 text-sm text-slate-200 transition active:scale-95"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              돌아가기
+            </button>
+            <button
+              type="button"
+              onClick={loadVisitors}
+              className="flex h-10 items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-3 text-sm text-slate-200 transition active:scale-95"
+            >
+              <RefreshCw className={`h-4 w-4 ${isLoadingVisitors ? 'animate-spin' : ''}`} />
+              새로고침
+            </button>
           </div>
         </div>
       </header>
 
-      <main className="mx-auto flex w-full max-w-[375px] flex-col gap-7 px-5 py-7">
-        <section className="grid grid-cols-2 gap-3">
-          {stats.map(item => (
-            <div key={item.label} className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4 shadow-xl">
-              <p className="text-xs text-slate-400">{item.label}</p>
-              <strong className="mt-2 block text-3xl text-white">{item.value}</strong>
-              <p className="mt-2 text-[11px] leading-snug text-slate-500">{item.desc}</p>
-            </div>
-          ))}
-        </section>
-
-        <section className="rounded-3xl border border-slate-800 bg-slate-900/55 p-5 shadow-2xl">
-          <div className="mb-4 flex items-center justify-between gap-4">
-            <div>
-              <h2 className="text-xl font-bold text-white">관리자 주소</h2>
-              <p className="mt-1 text-sm text-slate-400">운영 중 바로 열어야 하는 주소를 한곳에 모았습니다.</p>
-            </div>
-          </div>
-
-          <div className="grid gap-3">
-            {adminLinks.map(link => (
-              <div key={link.path} className="rounded-2xl border border-slate-800 bg-slate-950/55 p-4">
-                <div className="flex flex-col gap-3">
-                  <div className="min-w-0">
-                    <p className="font-bold text-slate-100">{link.label}</p>
-                    <p className="mt-1 text-xs leading-relaxed text-slate-400">{link.desc}</p>
-                    <code className="mt-2 block break-all rounded-lg bg-slate-900 px-2.5 py-1.5 text-xs text-indigo-200">
-                      {baseUrl}{link.path}
-                    </code>
-                  </div>
-                  <div className="flex justify-end gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleCopy(link.path)}
-                      className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-700 bg-slate-900 text-slate-300 active:scale-95"
-                      aria-label={`${link.label} 복사`}
-                    >
-                      <Clipboard className="h-4 w-4" />
-                    </button>
-                    <a
-                      href={link.path}
-                      className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-700 bg-slate-900 text-slate-300 active:scale-95"
-                      aria-label={`${link.label} 열기`}
-                    >
-                      <ExternalLink className="h-4 w-4" />
-                    </a>
-                  </div>
-                </div>
+      <main className="mx-auto grid w-full max-w-6xl gap-5 px-4 py-5 lg:grid-cols-[1fr_360px]">
+        <div className="grid gap-5">
+          <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            {stats.map(item => (
+              <div key={item.label} className="rounded-lg border border-slate-800 bg-slate-900/70 p-4">
+                <p className="text-xs text-slate-400">{item.label}</p>
+                <strong className="mt-2 block text-3xl text-white">{item.value}</strong>
+                <p className="mt-1 text-xs leading-snug text-slate-500">{item.desc}</p>
               </div>
             ))}
-          </div>
-        </section>
+          </section>
 
-        <section className="grid gap-6">
-          <div className="rounded-3xl border border-slate-800 bg-slate-900/55 p-5 shadow-2xl">
-            <div className="mb-4 flex items-center justify-between gap-4">
+          <section className="rounded-lg border border-slate-800 bg-slate-900/55 p-4">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h2 className="text-xl font-bold text-white">지도 핀 위치</h2>
-                <p className="mt-1 text-sm text-slate-400">핀을 드래그한 뒤 저장하면 관람자 화면에 반영됩니다.</p>
+                <h2 className="text-lg font-bold text-white">관리 기록</h2>
+                <p className="mt-1 text-sm text-slate-400">방문자별 발견 현황과 제출된 댓글, 피드백을 확인합니다.</p>
               </div>
-              <button
-                onClick={handleSave}
-                disabled={isSaving || isLoadingPins}
-                className="flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-bold text-white shadow-lg shadow-indigo-600/20 transition-all active:scale-95 disabled:opacity-40"
-              >
-                {isSaving ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                저장
-              </button>
+              <div className="relative w-full sm:w-72">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                <input
+                  value={searchQuery}
+                  onChange={event => setSearchQuery(event.target.value)}
+                  placeholder="이름, 작품, 내용 검색"
+                  className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950 pl-9 pr-3 text-sm text-slate-100 outline-none transition placeholder:text-slate-600 focus:border-cyan-400"
+                />
+              </div>
+            </div>
+
+            <div className="mb-4 flex rounded-lg border border-slate-800 bg-slate-950/70 p-1">
+              {recordTabs.map(tab => {
+                const Icon = tab.icon;
+                const isActive = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setActiveTab(tab.id)}
+                    className={[
+                      'flex min-h-10 flex-1 items-center justify-center gap-2 rounded-md px-2 text-sm transition',
+                      isActive ? 'bg-white text-slate-950' : 'text-slate-400 hover:text-slate-100',
+                    ].join(' ')}
+                  >
+                    <Icon className="h-4 w-4" />
+                    <span>{tab.label}</span>
+                    <span className={isActive ? 'text-slate-600' : 'text-slate-500'}>{tabCounts[tab.id]}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {recordError && (
+              <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                {recordError}
+              </div>
+            )}
+
+            {activeTab === 'visitors' && (
+              <div className="grid gap-3">
+                {isLoadingVisitors ? (
+                  <EmptyState icon={RefreshCw} title="방문 기록을 불러오는 중입니다." spinning />
+                ) : filteredVisitors.length === 0 ? (
+                  <EmptyState icon={Users} title="표시할 방문 기록이 없습니다." />
+                ) : (
+                  filteredVisitors.map(visitor => (
+                    <article key={visitor.id} className="rounded-lg border border-slate-800 bg-slate-950/55 p-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-bold text-slate-100">방문자 {visitor.id.slice(0, 8)}</p>
+                          <p className="mt-1 text-xs text-slate-500">최근 갱신 {formatDate(visitor.updatedAt)}</p>
+                        </div>
+                        <span className="rounded-full bg-cyan-500/10 px-2.5 py-1 text-xs text-cyan-200">
+                          {visitor.viewedSymbols.length}개 발견
+                        </span>
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {visitor.viewedSymbols.length > 0 ? (
+                          visitor.viewedSymbols.map(symbol => (
+                            <span key={symbol.id} className="rounded-full border border-slate-700 bg-slate-900 px-2.5 py-1 text-xs text-slate-300">
+                              {symbol.label}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-sm text-slate-500">아직 발견한 작품이 없습니다.</span>
+                        )}
+                      </div>
+                    </article>
+                  ))
+                )}
+              </div>
+            )}
+
+            {activeTab === 'comments' && (
+              <RecordList
+                records={filteredComments}
+                emptyTitle="표시할 작품 댓글이 없습니다."
+                renderItem={comment => (
+                  <RecordCard
+                    key={comment.id}
+                    title={comment.name || '이름 없음'}
+                    meta={`${getSymbolLabel(comment.symbolId)} / ${formatDate(comment.createdAt)}`}
+                    body={comment.content}
+                  />
+                )}
+              />
+            )}
+
+            {activeTab === 'feedbacks' && (
+              <RecordList
+                records={filteredFeedbacks}
+                emptyTitle="표시할 투어 피드백이 없습니다."
+                renderItem={feedback => (
+                  <RecordCard
+                    key={feedback.id}
+                    title={feedback.name || '익명'}
+                    meta={formatDate(feedback.createdAt)}
+                    body={feedback.feedback}
+                  />
+                )}
+              />
+            )}
+          </section>
+
+          <section className="rounded-lg border border-slate-800 bg-slate-900/55 p-4">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="flex items-center gap-2 text-lg font-bold text-white">
+                  <MapPinned className="h-5 w-5 text-cyan-200" />
+                  지도 핀 위치
+                </h2>
+                <p className="mt-1 text-sm text-slate-400">핀을 드래그한 뒤 저장하면 방문자 화면에 반영됩니다.</p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleReset}
+                  disabled={isLoadingPins}
+                  className="flex h-10 items-center gap-2 rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-slate-200 transition active:scale-95 disabled:opacity-40"
+                >
+                  <RotateCcw className="h-4 w-4" />
+                  기본값
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={isSaving || isLoadingPins}
+                  className="flex h-10 items-center gap-2 rounded-lg bg-cyan-500 px-3 text-sm font-bold text-slate-950 transition active:scale-95 disabled:opacity-40"
+                >
+                  {isSaving ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                  저장
+                </button>
+              </div>
             </div>
 
             {isLoadingPins ? (
-              <div className="flex aspect-[345/324] items-center justify-center rounded-2xl bg-slate-950/60">
-                <RefreshCw className="h-7 w-7 animate-spin text-indigo-300" />
+              <div className="flex aspect-[345/324] items-center justify-center rounded-lg bg-slate-950/60">
+                <RefreshCw className="h-7 w-7 animate-spin text-cyan-300" />
               </div>
             ) : (
               <MapArea
@@ -358,142 +495,68 @@ export default function AdminPanel({ onBack }) {
                 pins={pins}
               />
             )}
-          </div>
+          </section>
+        </div>
 
-          <aside className="flex flex-col gap-4">
-            <div className="rounded-3xl border border-slate-800 bg-slate-900/55 p-5 shadow-2xl">
-              <h3 className="mb-4 text-base font-bold text-white">핀 좌표</h3>
-              <div className="max-h-[430px] space-y-2 overflow-y-auto pr-1">
-                {pins.map(pin => (
-                  <div key={pin.id} className="rounded-xl border border-slate-800 bg-slate-950/55 px-3 py-2.5">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="truncate text-sm text-slate-200">{pin.label || getSymbolLabel(pin.id)}</span>
-                      <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[10px] text-slate-400">{pin.type}</span>
-                    </div>
-                    <div className="mt-1 font-mono text-xs text-indigo-300">
-                      L {pin.pinLeft} / T {pin.pinTop}
-                    </div>
+        <aside className="grid content-start gap-5">
+          <section className="rounded-lg border border-slate-800 bg-slate-900/55 p-4">
+            <h2 className="flex items-center gap-2 text-lg font-bold text-white">
+              <Link2 className="h-5 w-5 text-cyan-200" />
+              운영 링크
+            </h2>
+            <div className="mt-4 grid gap-3">
+              {adminLinks.map(link => (
+                <div key={link.path} className="rounded-lg border border-slate-800 bg-slate-950/55 p-3">
+                  <p className="font-bold text-slate-100">{link.label}</p>
+                  <p className="mt-1 text-xs leading-relaxed text-slate-400">{link.desc}</p>
+                  <code className="mt-2 block break-all rounded-md bg-slate-900 px-2.5 py-1.5 text-xs text-cyan-200">
+                    {baseUrl}{link.path}
+                  </code>
+                  <div className="mt-3 flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleCopy(link.path)}
+                      className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-700 bg-slate-900 text-slate-300 transition active:scale-95"
+                      aria-label={`${link.label} 복사`}
+                    >
+                      <Copy className="h-4 w-4" />
+                    </button>
+                    <a
+                      href={link.path}
+                      className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-700 bg-slate-900 text-slate-300 transition active:scale-95"
+                      aria-label={`${link.label} 열기`}
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                    </a>
                   </div>
-                ))}
-              </div>
+                </div>
+              ))}
             </div>
+          </section>
 
-            <button
-              onClick={handleReset}
-              disabled={isLoadingPins}
-              className="rounded-2xl border border-slate-800 bg-slate-900 py-3.5 font-bold text-slate-300 transition-all active:scale-95 disabled:opacity-40"
-            >
-              기본 위치로 되돌리기
-            </button>
-          </aside>
-        </section>
-
-        <section className="rounded-3xl border border-slate-800 bg-slate-900/55 p-5 shadow-2xl">
-          <div className="mb-4 flex flex-col gap-4">
-            <div>
-              <h2 className="text-xl font-bold text-white">관람 기록</h2>
-              <p className="mt-1 text-sm text-slate-400">작품을 본 사람, 작품 댓글, 투어 소감을 확인합니다.</p>
+          <section className="rounded-lg border border-slate-800 bg-slate-900/55 p-4">
+            <h2 className="text-lg font-bold text-white">핀 좌표</h2>
+            <div className="mt-4 max-h-[460px] space-y-2 overflow-y-auto pr-1">
+              {pins.map(pin => (
+                <div key={pin.id} className="rounded-lg border border-slate-800 bg-slate-950/55 px-3 py-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="truncate text-sm text-slate-200">{pin.label || getSymbolLabel(pin.id)}</span>
+                    <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[10px] text-slate-400">{pin.type}</span>
+                  </div>
+                  <div className="mt-1 font-mono text-xs text-cyan-300">
+                    L {pin.pinLeft} / T {pin.pinTop}
+                  </div>
+                </div>
+              ))}
             </div>
-            <div className="flex rounded-2xl border border-slate-800 bg-slate-950/70 p-1">
-              {recordTabs.map(tab => {
-                const Icon = tab.icon;
-                const isActive = activeTab === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => setActiveTab(tab.id)}
-                    className={[
-                      'flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm transition-all',
-                      isActive ? 'bg-white text-slate-950' : 'text-slate-400',
-                    ].join(' ')}
-                  >
-                    <Icon className="h-4 w-4" />
-                    {tab.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {recordError && (
-            <div className="mb-4 flex items-center gap-2 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
-              <AlertCircle className="h-4 w-4" />
-              {recordError}
-            </div>
-          )}
-
-          {activeTab === 'visitors' && (
-            <div className="space-y-3">
-              {isLoadingVisitors ? (
-                <EmptyState icon={RefreshCw} title="방문자 기록을 불러오는 중" spinning />
-              ) : visitors.length === 0 ? (
-                <EmptyState icon={Users} title="아직 방문자 기록이 없습니다." />
-              ) : (
-                visitors.map(visitor => (
-                  <article key={visitor.id} className="rounded-2xl border border-slate-800 bg-slate-950/55 p-4">
-                    <div className="flex flex-col gap-2">
-                      <div>
-                        <p className="text-sm font-bold text-slate-100">방문자 {visitor.id.slice(0, 8)}</p>
-                        <p className="mt-1 text-xs text-slate-500">최근 갱신 {formatDate(visitor.updatedAt)}</p>
-                      </div>
-                      <span className="w-fit rounded-full bg-indigo-500/10 px-2.5 py-1 text-xs text-indigo-200">
-                        {visitor.viewedSymbols.length}개 기록
-                      </span>
-                    </div>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {visitor.viewedSymbols.length > 0 ? (
-                        visitor.viewedSymbols.map(symbol => (
-                          <span key={symbol.id} className="rounded-full border border-slate-700 bg-slate-900 px-2.5 py-1 text-xs text-slate-300">
-                            {symbol.label}
-                          </span>
-                        ))
-                      ) : (
-                        <span className="text-sm text-slate-500">아직 본 작품이 없습니다.</span>
-                      )}
-                    </div>
-                  </article>
-                ))
-              )}
-            </div>
-          )}
-
-          {activeTab === 'comments' && (
-            <RecordList
-              records={comments}
-              emptyTitle="아직 작품 댓글이 없습니다."
-              renderItem={comment => (
-                <RecordCard
-                  key={comment.id}
-                  title={comment.name || '이름 없음'}
-                  meta={`${getSymbolLabel(comment.symbolId)} · ${formatDate(comment.createdAt)}`}
-                  body={comment.content}
-                />
-              )}
-            />
-          )}
-
-          {activeTab === 'feedbacks' && (
-            <RecordList
-              records={feedbacks}
-              emptyTitle="아직 투어 소감이 없습니다."
-              renderItem={feedback => (
-                <RecordCard
-                  key={feedback.id}
-                  title={feedback.name || '익명'}
-                  meta={formatDate(feedback.createdAt)}
-                  body={feedback.feedback}
-                />
-              )}
-            />
-          )}
-        </section>
+          </section>
+        </aside>
       </main>
 
       {notification.message && (
         <div
           className={[
-            'fixed bottom-8 left-1/2 z-[100] flex -translate-x-1/2 items-center gap-2.5 rounded-2xl border px-5 py-3 shadow-2xl backdrop-blur-xl',
+            'fixed bottom-6 left-1/2 z-[100] flex max-w-[calc(100%-32px)] -translate-x-1/2 items-center gap-2 rounded-lg border px-4 py-3 shadow-2xl backdrop-blur',
             notification.type === 'success'
               ? 'border-emerald-500/30 bg-emerald-950/90 text-emerald-200'
               : notification.type === 'warning'
@@ -501,7 +564,7 @@ export default function AdminPanel({ onBack }) {
                 : 'border-rose-500/30 bg-rose-950/90 text-rose-200',
           ].join(' ')}
         >
-          {notification.type === 'success' ? <CheckCircle2 className="h-5 w-5" /> : <AlertCircle className="h-5 w-5" />}
+          {notification.type === 'success' ? <CheckCircle2 className="h-5 w-5 shrink-0" /> : <AlertCircle className="h-5 w-5 shrink-0" />}
           <span className="text-sm">{notification.message}</span>
         </div>
       )}
@@ -509,10 +572,12 @@ export default function AdminPanel({ onBack }) {
   );
 }
 
-function EmptyState({ icon: Icon, title, spinning = false }) {
+function EmptyState({ icon, title, spinning = false }) {
   return (
-    <div className="flex min-h-[170px] flex-col items-center justify-center rounded-2xl border border-dashed border-slate-800 bg-slate-950/40 text-center">
-      <Icon className={`mb-3 h-7 w-7 text-slate-500 ${spinning ? 'animate-spin' : ''}`} />
+    <div className="flex min-h-[170px] flex-col items-center justify-center rounded-lg border border-dashed border-slate-800 bg-slate-950/40 px-4 text-center">
+      {React.createElement(icon, {
+        className: `mb-3 h-7 w-7 text-slate-500 ${spinning ? 'animate-spin' : ''}`,
+      })}
       <p className="text-sm text-slate-400">{title}</p>
     </div>
   );
@@ -528,12 +593,10 @@ function RecordList({ records, emptyTitle, renderItem }) {
 
 function RecordCard({ title, meta, body }) {
   return (
-    <article className="rounded-2xl border border-slate-800 bg-slate-950/55 p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="truncate font-bold text-slate-100">{title}</p>
-          <p className="mt-1 text-xs text-slate-500">{meta}</p>
-        </div>
+    <article className="rounded-lg border border-slate-800 bg-slate-950/55 p-4">
+      <div className="min-w-0">
+        <p className="truncate font-bold text-slate-100">{title}</p>
+        <p className="mt-1 text-xs text-slate-500">{meta}</p>
       </div>
       <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-300">
         {body || '내용 없음'}

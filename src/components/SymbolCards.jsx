@@ -188,14 +188,14 @@ export default function SymbolCards({ symbols, onCardClick, isQuestionUnlocked }
 
             <div
               className={[
-                'absolute top-[38%] left-1/2 -translate-x-1/2 w-11 h-11 bg-white rounded-full border-2 flex items-center justify-center shadow-sm',
+                'absolute top-[38%] left-1/2 -translate-x-1/2 w-9 h-9 bg-white rounded-full border-2 flex items-center justify-center shadow-sm',
                 isLocked ? 'border-slate-200' : accent.border,
               ].join(' ')}
             >
               {isLocked ? (
-                <Lock className="w-5 h-5 text-slate-400" />
+                <Lock className="w-4 h-4 text-slate-400" />
               ) : (
-                <Unlock className={`w-5 h-5 ${accent.text} ${isReady ? 'animate-bounce' : ''}`} />
+                <Unlock className={`w-4 h-4 ${accent.text} ${isReady ? 'animate-bounce' : ''}`} />
               )}
             </div>
 
