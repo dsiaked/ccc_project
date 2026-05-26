@@ -350,7 +350,7 @@ export default function App() {
   const handleMapSymbolClick = id => {
     if (id === 'question') {
       if (!isQuestionUnlocked) {
-        setToast('나머지 3개의 심볼을 해금해야 할 거 같다... 🔒');
+        setToast('하트, 나누기, 십자가를 모으면 상품 부스 안내가 열려요.');
         setTimeout(() => {
           setToast('');
         }, 2000);
@@ -373,7 +373,7 @@ export default function App() {
   const handleSymbolCardClick = id => {
     if (id === 'question') {
       if (!isQuestionUnlocked) {
-        setToast('나머지 3개의 심볼을 해금해야 할 거 같다... 🔒');
+        setToast('하트, 나누기, 십자가를 모으면 상품 부스 안내가 열려요.');
         setTimeout(() => {
           setToast('');
         }, 2000);
