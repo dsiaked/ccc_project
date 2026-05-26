@@ -10,6 +10,8 @@ body {
   justify-content: center;
   align-items: center;
   min-height: 100vh;
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 
 #root {

@@ -473,11 +473,11 @@ export default function CrossKyeomjunPopup({ onClose }) {
                   </p>
 
                   <p className="text-gray-700 pl-2 border-l border-green-200">
-                    내 유익을 위해 창조되지 않은 초록 풀밭 위 흰 어린양이 아무도 찾아주지 않는 암흑속에서 나를 괴롭게 하는 검정색 못에 손과 발이 묶인 채 나 대신 울고 있었어요.
+                    내 유익을 위해 창조되지 않은 초록 풀밭 위 흰 어린양이 아무도 찾아주지 않는 암흑 속에서 나를 괴롭게 하는 검정색 못에 손과 발이 묶인 채 나 대신 울고 있었어요.
                   </p>
 
                   <p className="text-gray-700 pl-2 border-l border-green-200">
-                    괴롭게 하는 것은 괴롭게 하는 것으로 사망은 사망으로 하지만 사망을 사랑으로 대신할 수 있는 우주 밖의 원리에 의해 사망은 죽었고 결국 어린양은 사망의 붙잡음을 벗어났죠.
+                    괴롭게 하는 것은 괴롭게 하는 것으로, 사망은 사망으로. 하지만 사망을 사랑으로 대신할 수 있는 우주 밖의 원리에 의해 사망은 죽었고 결국 어린양은 사망의 붙잡음을 벗어났죠.
                   </p>
 
                   <p className="text-gray-700 pl-2 border-l border-green-200 font-medium">
@@ -485,7 +485,7 @@ export default function CrossKyeomjunPopup({ onClose }) {
                   </p>
 
                   <p className="text-gray-700 pl-2 border-l border-green-200">
-                    어린양은 나를, 나는 어린양을, 어린양이 사랑하는 당신을, 어린양이 사랑하는 내가 서로 사랑하는 나라에서 흘리는 눈물은 희고 행복한 눈물일 거에요.
+                    어린양은 나를, 나는 어린양을, 어린양이 사랑하는 당신을, 어린양이 사랑하는 내가 서로 사랑하는 나라에서 흘리는 눈물은 희고 행복한 눈물일 거예요.
                   </p>
 
                   {/* 대답 상자: 서겸준 작가 수필 세가지 은유 요약 */}

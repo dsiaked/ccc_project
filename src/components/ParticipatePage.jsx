@@ -97,20 +97,22 @@ export default function ParticipatePage({ onBack }) {
           </span>
         </header>
 
-        <section className="mb-7">
-          <div className="w-16 h-16 rounded-[22px] bg-sky-100 border-2 border-white flex items-center justify-center mb-5 shadow-sm">
-            <MessageSquareText className="w-8 h-8 text-sky-600" />
-          </div>
-          <h1 className="text-[31px] leading-tight text-slate-950 font-black mb-3">
-            작품 투어 소감을
-            <br />
-            남겨주세요
-          </h1>
-          <p className="text-slate-600 text-[16px] leading-7">
-            붕어방 작품 투어를 둘러본 느낌을 짧게 적어 주세요. 좋았던 작품, 기억에 남은 순간,
-            다음 사람에게 전하고 싶은 말 모두 괜찮아요.
-          </p>
-        </section>
+        {status !== 'submitted' && (
+          <section className="mb-7">
+            <div className="w-16 h-16 rounded-[22px] bg-sky-100 border-2 border-white flex items-center justify-center mb-5 shadow-sm">
+              <MessageSquareText className="w-8 h-8 text-sky-600" />
+            </div>
+            <h1 className="text-[31px] leading-tight text-slate-950 font-black mb-3">
+              여행의 마지막
+              <br />
+              질문
+            </h1>
+            <p className="text-slate-600 text-[16px] leading-7">
+              오늘 만난 작품 중 마음에 오래 남은 장면을 적어 주세요. 짧은 한 줄이어도,
+              다음 여행자에게는 또 하나의 질문이 될 수 있어요.
+            </p>
+          </section>
+        )}
 
         {status !== 'submitted' && (
           <section className="mb-5 rounded-[24px] border border-sky-100 bg-white/80 p-4 shadow-[0_10px_24px_rgba(14,165,233,0.08)]">
@@ -143,27 +145,56 @@ export default function ParticipatePage({ onBack }) {
         )}
 
         {status === 'submitted' ? (
-          <section className="mt-auto rounded-[26px] border border-emerald-100 bg-white p-6 shadow-[0_16px_32px_rgba(15,23,42,0.08)]">
-            <div className="w-14 h-14 rounded-2xl bg-emerald-50 flex items-center justify-center mb-5">
-              <CheckCircle2 className="w-8 h-8 text-emerald-500" />
+          <section className="mt-auto overflow-hidden rounded-[30px] border border-emerald-100 bg-white shadow-[0_18px_40px_rgba(15,23,42,0.10)]">
+            <div className="bg-gradient-to-b from-emerald-50 via-white to-white px-6 pb-5 pt-7 text-center">
+              <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-[24px] border border-emerald-100 bg-white text-emerald-500 shadow-[0_12px_26px_rgba(16,185,129,0.16)]">
+                <CheckCircle2 className="w-8 h-8" />
+              </div>
+              <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.24em] text-emerald-600">
+                Journey Note
+              </p>
+              <h2 className="text-[26px] leading-tight text-slate-950 mb-3">
+                당신의 문장이
+                <br />
+                여행에 남았어요
+              </h2>
+              <p className="text-slate-600 text-sm leading-6">
+                오늘 지나온 작품과 마음을 함께 모아둘게요. 남겨 준 소감도 누군가에게는
+                작은 질문이 될 수 있습니다.
+              </p>
             </div>
-            <h2 className="text-2xl text-slate-950 mb-2">소감이 제출됐어요</h2>
-            <p className="text-slate-600 text-sm leading-6 mb-5">
-              함께 남겨 준 마음까지 작품 투어의 일부로 잘 간직할게요.
-            </p>
-            <button
-              type="button"
-              onClick={onBack}
-              className="w-full h-14 rounded-full bg-slate-950 text-white text-base shadow-[0_10px_24px_rgba(15,23,42,0.22)] active:scale-[0.98] transition"
-            >
-              홈으로 돌아가기
-            </button>
+            <div className="px-6 pb-6">
+              <div className="mb-5 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
+                <p className="mb-2 text-[12px] text-slate-500">오늘의 여행</p>
+                <div className="flex flex-wrap gap-2">
+                  {['하트', '나누기', '십자가', '물음표'].map(item => (
+                    <span key={item} className="rounded-full bg-white px-3 py-1.5 text-[12px] text-slate-700 shadow-sm">
+                      {item}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={onBack}
+                className="w-full h-14 rounded-full bg-slate-950 text-white text-base shadow-[0_10px_24px_rgba(15,23,42,0.22)] active:scale-[0.98] transition"
+              >
+                처음으로 돌아가기
+              </button>
+            </div>
           </section>
         ) : (
-          <form
-            onSubmit={handleSubmit}
-            className="mt-auto border border-sky-100 rounded-[26px] p-5 bg-white/90 shadow-[0_16px_32px_rgba(14,165,233,0.12)]"
-          >
+          <form onSubmit={handleSubmit} className="mt-auto flex flex-col gap-4">
+            <section className="rounded-[24px] border border-sky-100 bg-white/85 p-4 shadow-[0_10px_24px_rgba(14,165,233,0.08)]">
+              <p className="mb-3 text-[13px] text-sky-700">무엇을 적을지 고민된다면</p>
+              <div className="space-y-2 text-[14px] leading-6 text-slate-700">
+                <p>가장 오래 머문 작품은 무엇이었나요?</p>
+                <p>하트, 나누기, 십자가 중 나에게 가장 가까웠던 심볼은 무엇인가요?</p>
+                <p>오늘 가져가고 싶은 한 문장은 무엇인가요?</p>
+              </div>
+            </section>
+
+            <section className="border border-sky-100 rounded-[26px] p-5 bg-white/90 shadow-[0_16px_32px_rgba(14,165,233,0.12)]">
             <label className="block text-sm text-slate-700 mb-2" htmlFor="feedback-name">
               이름 또는 닉네임
             </label>
@@ -216,6 +247,7 @@ export default function ParticipatePage({ onBack }) {
                 </>
               )}
             </button>
+            </section>
           </form>
         )}
       </div>

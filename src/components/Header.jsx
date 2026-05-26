@@ -129,7 +129,7 @@ export default function Header({ discoveredCount, announcement }) {
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-emerald-600 shadow-sm">
                 <Gift className="h-4 w-4" />
               </div>
-              <p className="text-[13px] leading-relaxed text-emerald-800">
+              <p className="min-w-0 text-[13px] leading-relaxed text-emerald-800">
                 세 가지 심볼을 모두 확인했어요. 상품 부스에서 작품 설명을 다시 보고 이벤트에 참여해 주세요.
               </p>
             </div>

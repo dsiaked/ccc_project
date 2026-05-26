@@ -103,7 +103,7 @@ export default function SymbolCards({ symbols, onCardClick, isQuestionUnlocked, 
           const isQuestionPending = card.id === 'question' && isLocked;
           const isQuestionReady = card.id === 'question' && isReady;
           const isQuestionDone = card.id === 'question' && state === 'discovered';
-          const displayLabel = isQuestionDone ? '상품 부스' : card.label;
+          const displayLabel = isQuestionDone ? '물음표' : card.label;
 
           if (isQuestionPending) {
             return (
@@ -181,7 +181,13 @@ export default function SymbolCards({ symbols, onCardClick, isQuestionUnlocked, 
               onClick={() => onCardClick(card.id)}
             >
               <div className={`flex h-[62px] w-full shrink-0 items-center justify-center ${isLocked ? 'bg-slate-50' : isQuestionDone ? 'bg-sky-50' : accent.panel}`}>
-                {isLocked ? <Search className="h-7 w-7 text-slate-300" /> : isQuestionDone ? <Gift className="h-8 w-8 text-sky-600" /> : card.icon}
+                {isLocked ? (
+                  <Search className="h-7 w-7 text-slate-300" />
+                ) : isQuestionDone ? (
+                  <span className="select-none font-['Cafe24_Ssurround'] text-4xl font-bold text-sky-600">?</span>
+                ) : (
+                  card.icon
+                )}
               </div>
 
               <div
@@ -193,7 +199,7 @@ export default function SymbolCards({ symbols, onCardClick, isQuestionUnlocked, 
                 {isLocked ? (
                   <Lock className="h-4 w-4 text-slate-400" />
                 ) : isQuestionDone ? (
-                  <MapPin className="h-4 w-4 text-sky-600" />
+                  <span className="font-['Cafe24_Ssurround'] text-[15px] font-bold leading-none text-sky-600">?</span>
                 ) : (
                   <Unlock className={`h-4 w-4 ${accent.text} ${isReady ? 'animate-bounce' : ''}`} />
                 )}
@@ -211,7 +217,7 @@ export default function SymbolCards({ symbols, onCardClick, isQuestionUnlocked, 
                 >
                   <span className={`h-2 w-2 shrink-0 rounded-full ${isLocked ? 'bg-slate-400' : isQuestionDone ? 'bg-sky-500' : accent.dot} ${isReady ? 'animate-pulse' : ''}`} />
                   <span className={`mt-0.5 max-w-[68px] truncate whitespace-nowrap text-[10px] ${isLocked ? 'text-slate-500' : isQuestionDone ? 'text-sky-700' : accent.text}`}>
-                    {isLocked ? '미발견' : isReady ? '위치 확인' : '발견 완료'}
+                    {isLocked ? '미발견' : isReady ? '위치 확인' : isQuestionDone ? '질문 완료' : '발견 완료'}
                   </span>
                 </div>
               </div>
@@ -227,15 +233,10 @@ export default function SymbolCards({ symbols, onCardClick, isQuestionUnlocked, 
               <MessageSquareText className="h-5 w-5" />
             </div>
             <div>
-              <h3 className="text-[17px] leading-tight text-slate-950">여행자 소감</h3>
+              <h3 className="text-[17px] leading-tight text-slate-950">여행자들의 소감</h3>
               <p className="text-[12px] leading-snug text-slate-500">여행자들이 남긴 소감을 함께 둘러보세요</p>
             </div>
           </div>
-          {featuredFeedbacks.length > 0 && (
-            <span className="rounded-full bg-sky-50 px-2.5 py-1 text-[11px] text-sky-700">
-              {featuredFeedbacks.length}개
-            </span>
-          )}
         </div>
 
         {featuredFeedbacks.length === 0 ? (
