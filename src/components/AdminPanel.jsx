@@ -38,6 +38,7 @@ const adminLinks = [
 const recordTabs = [
   { id: 'visitors', label: '발견 기록', icon: Users },
   { id: 'appOnly', label: '접속만', icon: BarChart3 },
+  { id: 'artworks', label: '작품별', icon: MapPinned },
   { id: 'comments', label: '댓글', icon: MessageSquareText },
   { id: 'feedbacks', label: '소감', icon: Megaphone },
 ];
@@ -68,6 +69,13 @@ const getSymbolLabel = id => {
   const symbol = symbolData[id];
   return symbol?.qr?.title || symbol?.title || id;
 };
+
+const getCategoryLabel = category => ({
+  heart: '하트',
+  divide: '나누기',
+  cross: '십자가',
+  question: '물음표',
+}[category] || category || '기타');
 
 const getViewedSymbols = symbols => (
   symbolOrder
@@ -229,6 +237,26 @@ export default function AdminPanel({ onBack }) {
     [visitors],
   );
 
+  const discoveryCountDistribution = useMemo(() => {
+    const counts = visitorRecords.reduce((acc, visitor) => {
+      const discoveredCount = visitor.viewedSymbols.length;
+      acc[discoveredCount] = (acc[discoveredCount] || 0) + 1;
+      return acc;
+    }, {});
+    const maxVisitors = Math.max(0, ...Object.values(counts));
+
+    return Array.from({ length: symbolOrder.length }, (_, index) => {
+      const count = index + 1;
+      const visitorsForCount = counts[count] || 0;
+
+      return {
+        count,
+        visitors: visitorsForCount,
+        percent: maxVisitors ? Math.max(8, Math.round((visitorsForCount / maxVisitors) * 100)) : 0,
+      };
+    }).filter(item => item.visitors > 0);
+  }, [visitorRecords]);
+
   const appOnlyVisitorRecords = useMemo(
     () => visitors.filter(visitor => visitor.viewedSymbols.length === 0),
     [visitors],
@@ -247,19 +275,37 @@ export default function AdminPanel({ onBack }) {
 
   const publishedFeedbackCount = feedbacks.filter(feedback => feedback.isPublished).length;
   const hiddenFeedbackCount = feedbacks.length - publishedFeedbackCount;
+  const publishedCommentCount = comments.filter(comment => comment.isPublished).length;
+  const hiddenCommentCount = comments.length - publishedCommentCount;
 
   const stats = [
-    { label: '발견 방문', value: visitorRecords.length, desc: 'QR을 1개 이상 발견' },
+    { label: '발견 방문', value: visitorRecords.length, desc: 'QR을 1개 이상 발견', chart: discoveryCountDistribution },
     { label: '접속만', value: appOnlyVisitorRecords.length, desc: '아직 QR 발견 없음' },
     { label: '3분류 완료', value: completedVisitors, desc: '하트, 나누기, 십자가' },
-    { label: '공개 소감', value: publishedFeedbackCount, desc: '방문자 화면 노출' },
-    { label: '검토 대기', value: hiddenFeedbackCount, desc: '비공개 소감' },
+    {
+      label: '소감',
+      value: feedbacks.length,
+      desc: '참여 페이지 제출',
+      breakdown: [
+        { label: '공개', value: publishedFeedbackCount, tone: 'text-cyan-200' },
+        { label: '비공개', value: hiddenFeedbackCount, tone: 'text-amber-200' },
+      ],
+    },
+    {
+      label: '댓글',
+      value: comments.length,
+      desc: '작품별 감상 댓글',
+      breakdown: [
+        { label: '공개', value: publishedCommentCount, tone: 'text-cyan-200' },
+        { label: '비공개', value: hiddenCommentCount, tone: 'text-amber-200' },
+      ],
+    },
   ];
 
   const tabCounts = {
     visitors: visitorRecords.length,
     appOnly: appOnlyVisitorRecords.length,
-    comments: comments.length,
+    comments: `${publishedCommentCount}/${comments.length}`,
     feedbacks: feedbacks.length,
   };
 
@@ -289,7 +335,13 @@ export default function AdminPanel({ onBack }) {
     const query = normalizeSearchText(searchQuery);
     if (!query) return comments;
     return comments.filter(comment => {
-      const target = [comment.name, comment.content, getSymbolLabel(comment.symbolId), formatDate(comment.createdAt)].join(' ');
+      const target = [
+        comment.name,
+        comment.content,
+        getSymbolLabel(comment.symbolId),
+        comment.isPublished ? '공개' : '비공개',
+        formatDate(comment.createdAt),
+      ].join(' ');
       return normalizeSearchText(target).includes(query);
     });
   }, [comments, searchQuery]);
@@ -406,6 +458,22 @@ export default function AdminPanel({ onBack }) {
     }
   };
 
+  const handleToggleCommentPublish = async comment => {
+    try {
+      await updateDoc(doc(db, 'comments', comment.id), {
+        isPublished: !comment.isPublished,
+      });
+      showNotification(
+        comment.isPublished
+          ? '방문자 화면에서 작품 댓글을 숨겼습니다.'
+          : '방문자 화면에 작품 댓글을 공개했습니다.',
+      );
+    } catch (err) {
+      console.error('댓글 공개 상태 변경 실패:', err);
+      showNotification('댓글 공개 상태를 변경하지 못했습니다.', 'error');
+    }
+  };
+
   const handleRefreshAll = () => {
     loadVisitors();
     loadPins();
@@ -457,9 +525,38 @@ export default function AdminPanel({ onBack }) {
           <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
             {stats.map(item => (
               <div key={item.label} className="rounded-lg border border-slate-800 bg-slate-900/70 p-4">
-                <p className="text-xs text-slate-400">{item.label}</p>
-                <strong className="mt-2 block text-3xl text-white">{item.value}</strong>
-                <p className="mt-1 text-xs leading-snug text-slate-500">{item.desc}</p>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs text-slate-400">{item.label}</p>
+                    <strong className="mt-2 block text-3xl text-white">{item.value}</strong>
+                  </div>
+                  {item.breakdown && (
+                    <div className="grid gap-1 text-right">
+                      {item.breakdown.map(detail => (
+                        <span key={detail.label} className={`text-xs ${detail.tone}`}>
+                          {detail.label} {detail.value}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <p className="mt-2 text-xs leading-snug text-slate-500">{item.desc}</p>
+                {item.chart?.length > 0 && (
+                  <div className="mt-3 grid gap-2">
+                    {item.chart.map(row => (
+                      <div key={row.count} className="grid grid-cols-[34px_1fr_34px] items-center gap-2 text-[11px] text-slate-400">
+                        <span>{row.count}개</span>
+                        <div className="h-2 overflow-hidden rounded-full bg-slate-800">
+                          <div
+                            className="h-full rounded-full bg-cyan-300"
+                            style={{ width: `${row.percent}%` }}
+                          />
+                        </div>
+                        <span className="text-right text-slate-300">{row.visitors}명</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
           </section>
@@ -537,6 +634,22 @@ export default function AdminPanel({ onBack }) {
                     title={comment.name || '이름 없음'}
                     meta={`${getSymbolLabel(comment.symbolId)} / ${formatDate(comment.createdAt)}`}
                     body={comment.content}
+                    badge={comment.isPublished ? '공개 중' : '비공개'}
+                    action={
+                      <button
+                        type="button"
+                        onClick={() => handleToggleCommentPublish(comment)}
+                        className={[
+                          'flex h-9 items-center gap-1.5 rounded-lg border px-3 text-xs font-bold transition active:scale-95',
+                          comment.isPublished
+                            ? 'border-cyan-400/30 bg-cyan-400/10 text-cyan-200'
+                            : 'border-slate-700 bg-slate-900 text-slate-300',
+                        ].join(' ')}
+                      >
+                        {comment.isPublished ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        {comment.isPublished ? '숨기기' : '공개'}
+                      </button>
+                    }
                   />
                 )}
               />

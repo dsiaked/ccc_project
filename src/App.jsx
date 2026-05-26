@@ -210,7 +210,10 @@ export default function App() {
 
   useEffect(() => (
     onSnapshot(
-      collection(db, 'comments'),
+      query(
+        collection(db, 'comments'),
+        where('isPublished', '==', true),
+      ),
       snapshot => {
         const nextComments = snapshot.docs
           .map(commentDoc => {

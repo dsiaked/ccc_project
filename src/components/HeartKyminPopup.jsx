@@ -81,6 +81,7 @@ export default function HeartKyminPopup({ onClose }) {
         name: newName.trim(),
         content: newContent.trim(),
         clientId,
+        isPublished: false,
         createdAt: serverTimestamp()
       });
       setNewContent('');
@@ -501,19 +502,19 @@ export default function HeartKyminPopup({ onClose }) {
                 {/* BACK 버튼 */}
                 <button
                   onClick={() => setStep(1)}
-                  className="w-[112px] h-[52px] bg-white border border-gray-200 text-gray-700 rounded-[26px] flex items-center justify-center gap-1.5 hover:bg-gray-50 transition-all duration-200 active:scale-[0.96] cursor-pointer shadow-sm font-bold"
+                  className="w-[96px] h-[52px] bg-white border border-gray-200 text-gray-600 rounded-[26px] flex items-center justify-center gap-1.5 hover:bg-gray-50 transition-all duration-200 active:scale-[0.96] cursor-pointer shadow-sm font-bold"
                 >
-                  <ArrowLeft className="w-3.5 h-3.5 text-gray-500" />
-                  <span className="text-[13px] tracking-[1.68px]">BACK</span>
+                  <ArrowLeft className="w-3.5 h-3.5 text-gray-400" />
+                  <span className="text-[12px] tracking-[1.2px]">BACK</span>
                 </button>
                 
                 {/* NEXT (확인 완료) 버튼 */}
                 <button
                   onClick={() => setShowCommentModal(true)}
-                  className="w-[112px] h-[52px] bg-[var(--heart-accent)] text-white rounded-[26px] flex items-center justify-center gap-1 hover:opacity-90 transition-all duration-200 active:scale-[0.96] shadow-[0_4px_12px_rgba(250,92,92,0.2)] cursor-pointer font-bold"
+                  className="flex-1 min-w-[176px] h-[52px] bg-[var(--heart-accent)] text-white rounded-[26px] flex items-center justify-center gap-2 hover:opacity-90 transition-all duration-200 active:scale-[0.96] shadow-[0_8px_18px_rgba(250,92,92,0.26)] cursor-pointer font-bold"
                 >
-                  <span className="text-[11px] tracking-[0.4px]">감상평 남기기</span>
-                  <Check className="w-4 h-4" />
+                  <span className="text-[13px] tracking-[0.2px]">감상평 남기기</span>
+                  <Check className="w-[18px] h-[18px]" />
                 </button>
                 <button
                   type="button"

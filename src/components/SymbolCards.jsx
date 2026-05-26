@@ -262,16 +262,16 @@ export default function SymbolCards({ symbols, onCardClick, isQuestionUnlocked, 
             <p className="text-sm text-slate-500">아직 공개된 소감이 없습니다.</p>
           </div>
         ) : (
-          <div className="grid max-h-[336px] gap-3 overflow-y-auto pr-1 scroll-container">
+          <div className="grid max-h-[300px] gap-2.5 overflow-y-auto pr-1 scroll-container">
             {featuredFeedbacks.map(feedback => {
               const feedbackTime = formatFeedbackTime(feedback.createdAt);
 
               return (
                 <article key={feedback.id} className="rounded-2xl border border-sky-100 bg-sky-50/60 px-4 py-3 text-left">
-                  <p className="line-clamp-3 whitespace-pre-wrap break-words text-[14px] leading-5 text-slate-700">
+                  <p className="whitespace-pre-wrap break-words text-[14px] leading-5 text-slate-700">
                     {feedback.feedback}
                   </p>
-                  <div className="mt-2 flex items-center justify-between gap-3 text-[12px] text-slate-500">
+                  <div className="mt-2 flex items-center justify-between gap-3 text-[12px] leading-none text-slate-500">
                     <span className="min-w-0 truncate">{feedback.name || '익명'}</span>
                     {feedback.sourceLabel && (
                       <span className="shrink-0 rounded-full bg-white/80 px-2 py-0.5 text-[10px] text-sky-600">
