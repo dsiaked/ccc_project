@@ -34,16 +34,47 @@ const ARTIST_LIST = {
   ]
 };
 
+const CATEGORY_THEMES = {
+  heart: {
+    panel: 'border-[#F8CFD0] shadow-[0_20px_50px_rgba(248,207,208,0.4)]',
+    iconWrap: 'bg-[#FFE2E2]',
+    icon: 'text-pink-500 fill-pink-500',
+    badge: 'bg-[#FFE2E2]/60 border-[#F8CFD0]/80',
+    badgeIcon: 'text-pink-500',
+    badgeText: 'text-pink-700',
+    card: 'border-[#F8CFD0]',
+  },
+  divide: {
+    panel: 'border-orange-200 shadow-[0_20px_50px_rgba(251,146,60,0.26)]',
+    iconWrap: 'bg-orange-50',
+    icon: 'text-orange-500',
+    badge: 'bg-orange-50 border-orange-200',
+    badgeIcon: 'text-orange-500',
+    badgeText: 'text-orange-700',
+    card: 'border-orange-200',
+  },
+  cross: {
+    panel: 'border-lime-200 shadow-[0_20px_50px_rgba(132,204,22,0.24)]',
+    iconWrap: 'bg-lime-50',
+    icon: 'text-lime-600',
+    badge: 'bg-lime-50 border-lime-200',
+    badgeIcon: 'text-lime-600',
+    badgeText: 'text-lime-700',
+    card: 'border-lime-200',
+  },
+};
+
 export default function MultiSelectorPopup({ id, symbols, onClose, onSelectArtist }) {
   const artists = ARTIST_LIST[id] || [];
   const categoryLabel = id === 'heart' ? '하트' : id === 'divide' ? '나누기' : '십자가';
+  const theme = CATEGORY_THEMES[id] || CATEGORY_THEMES.heart;
   
   const totalCount = artists.length;
   const discoveredCount = artists.filter(a => symbols[a.key]).length;
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-6 animate-fade-in">
-      <div className="w-full max-w-sm bg-white/95 rounded-[32px] border-[3px] border-[#F8CFD0] shadow-[0_20px_50px_rgba(248,207,208,0.4)] overflow-hidden relative p-6 flex flex-col items-center">
+      <div className={`w-full max-w-sm bg-white/95 rounded-[32px] border-[3px] ${theme.panel} overflow-hidden relative p-6 flex flex-col items-center`}>
         
         {/* Close Button */}
         <button 
@@ -54,13 +85,13 @@ export default function MultiSelectorPopup({ id, symbols, onClose, onSelectArtis
         </button>
 
         {/* Header Icon */}
-        <div className="w-14 h-14 bg-[#FFE2E2] border-2 border-white rounded-2xl flex items-center justify-center shadow-md mb-4 animate-bounce">
+        <div className={`w-14 h-14 ${theme.iconWrap} border-2 border-white rounded-2xl flex items-center justify-center shadow-md mb-4 animate-bounce`}>
           {id === 'heart' ? (
-            <Heart className="w-7 h-7 text-pink-500 fill-pink-500" />
+            <Heart className={`w-7 h-7 ${theme.icon}`} />
           ) : id === 'divide' ? (
-            <Divide className="w-7 h-7 text-blue-500 stroke-[2.5]" />
+            <Divide className={`w-7 h-7 ${theme.icon} stroke-[2.5]`} />
           ) : (
-            <CustomCrossIcon className="w-7 h-7 text-emerald-500" strokeWidth="3" />
+            <CustomCrossIcon className={`w-7 h-7 ${theme.icon}`} strokeWidth="3" />
           )}
         </div>
 
@@ -70,9 +101,9 @@ export default function MultiSelectorPopup({ id, symbols, onClose, onSelectArtis
         </h3>
         
         {/* Progress Badge */}
-        <div className="bg-[#FFE2E2]/60 border border-[#F8CFD0]/80 rounded-full px-3 py-1 flex items-center gap-1.5 mb-6 text-sm">
-          <Sparkles className="w-3.5 h-3.5 text-pink-500" />
-          <span className="text-pink-700 font-medium">수집 진행도: {discoveredCount}/{totalCount}</span>
+        <div className={`border rounded-full px-3 py-1 flex items-center gap-1.5 mb-6 text-sm ${theme.badge}`}>
+          <Sparkles className={`w-3.5 h-3.5 ${theme.badgeIcon}`} />
+          <span className={`${theme.badgeText} font-medium`}>수집 진행도: {discoveredCount}/{totalCount}</span>
         </div>
 
         {/* Grid List */}
@@ -86,7 +117,7 @@ export default function MultiSelectorPopup({ id, symbols, onClose, onSelectArtis
                 onClick={() => isDiscovered && onSelectArtist(artist.key)}
                 className={`relative rounded-[24px] border-2 p-4 flex flex-col items-center justify-center transition-all ${
                   isDiscovered 
-                    ? 'bg-white border-[#F8CFD0] shadow-md cursor-pointer hover:scale-105 active:scale-95' 
+                    ? `bg-white ${theme.card} shadow-md cursor-pointer hover:scale-105 active:scale-95` 
                     : 'bg-gray-50/50 border-gray-200/80 cursor-not-allowed select-none'
                 }`}
               >

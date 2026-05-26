@@ -603,7 +603,7 @@ export default function App() {
     window.clearTimeout(highlightTimerRef.current);
     highlightTimerRef.current = window.setTimeout(() => {
       setHighlightedPinId(null);
-    }, 3200);
+    }, 6200);
   };
 
   const closePopup = () => {

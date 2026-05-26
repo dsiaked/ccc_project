@@ -43,11 +43,11 @@ export default function CrossKyeomjunPopup({ onClose }) {
 
   const artistId = 'cross_kyeomjun';
 
-  // ?ㅼ떆媛??볤? 紐⑸줉 Firestore 援щ룆
+  // 실시간 댓글 목록 Firestore 구독
   useEffect(() => {
     setLoadingComments(true);
 
-    // 1.5珥?臾댄븳 濡쒕뵫 諛⑹? ??꾩븘???ㅼ젙
+    // 1.5초 무한 로딩 방지 타임아웃 설정
     const timeoutId = setTimeout(() => {
       setLoadingComments(false);
     }, 1500);
@@ -64,7 +64,7 @@ export default function CrossKyeomjunPopup({ onClose }) {
         list.push({ id: doc.id, ...doc.data() });
       });
 
-      // ?대씪?댁뼵???⑥뿉???덉쟾?섍쾶 理쒖떊???뺣젹
+      // 클라이언트 단에서 안전하게 최신순 정렬
       list.sort((a, b) => {
         const timeA = a.createdAt?.seconds || (a.createdAt instanceof Date ? a.createdAt.getTime() / 1000 : 0);
         const timeB = b.createdAt?.seconds || (b.createdAt instanceof Date ? b.createdAt.getTime() / 1000 : 0);
@@ -75,7 +75,7 @@ export default function CrossKyeomjunPopup({ onClose }) {
       setLoadingComments(false);
     }, (error) => {
       clearTimeout(timeoutId);
-      console.error("?볤? 濡쒕뱶 ?ㅽ뙣 (?덉쟾 ??묒쑝濡?鍮?紐⑸줉 ?泥?:", error);
+      console.error("댓글 로드 실패 (안전 대응으로 빈 목록 대체):", error);
       setComments([]);
       setLoadingComments(false);
     });
@@ -86,7 +86,7 @@ export default function CrossKyeomjunPopup({ onClose }) {
     };
   }, []);
 
-  // ?볤? ?묒꽦 湲곕뒫
+  // 댓글 작성 기능
   const handleAddComment = async (e) => {
     e.preventDefault();
     if (!newName.trim() || !newContent.trim()) return;
@@ -102,7 +102,7 @@ export default function CrossKyeomjunPopup({ onClose }) {
       setNewContent('');
       localStorage.setItem('comment_author_name', newName.trim());
     } catch (error) {
-      console.error("?볤? ?깅줉 ?ㅽ뙣:", error);
+      console.error("댓글 등록 실패:", error);
     }
   };
   const startEditComment = (comment) => {
@@ -129,14 +129,14 @@ export default function CrossKyeomjunPopup({ onClose }) {
       });
       cancelEditComment();
     } catch (error) {
-      console.error("?볤? ?섏젙 ?ㅽ뙣:", error);
+      console.error("댓글 수정 실패:", error);
     }
   };
 
   const handleDeleteComment = async (commentId) => {
     const comment = comments.find((item) => item.id === commentId);
     if (!comment || !isOwnComment(comment)) return;
-    if (!window.confirm('??媛먯긽?됱쓣 ??젣?좉퉴??')) return;
+    if (!window.confirm('이 감상평을 삭제할까요?')) return;
 
     try {
       await deleteDoc(doc(db, 'comments', commentId));
@@ -144,7 +144,7 @@ export default function CrossKyeomjunPopup({ onClose }) {
         cancelEditComment();
       }
     } catch (error) {
-      console.error("?볤? ??젣 ?ㅽ뙣:", error);
+      console.error("댓글 삭제 실패:", error);
     }
   };
 
@@ -156,8 +156,8 @@ export default function CrossKyeomjunPopup({ onClose }) {
     return comment.name?.trim() === newName.trim() && newName.trim().length > 0;
   };
 
-  // ?볤? ?묒꽦 ?쒓컙 ?щ㎎??
-    const formatCommentDate = (createdAt) => {
+  // 댓글 작성 시간 포맷팅
+  const formatCommentDate = (createdAt) => {
     if (!createdAt) return '방금 전';
     const date = createdAt.toDate ? createdAt.toDate() : new Date(createdAt);
     const now = new Date();
@@ -172,7 +172,8 @@ export default function CrossKyeomjunPopup({ onClose }) {
 
     return date.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
   };
-  // 紐쏀솚?곸씤 ?⑸궇由щ뒗 珥덈줉????옄媛 ?낆옄 ?곗씠???뺤쓽 (?붿씠??洹몃┛ ?뚮쭏猷?
+
+  // 몽환적인 흩날리는 초록색 십자가 입자 데이터 정의 (화이트-그린 테마룩)
   const floatingParticles = [
     { id: 1, size: 20, left: '12%', delay: '0s', duration: '9s', opacity: 0.16 },
     { id: 2, size: 32, left: '78%', delay: '1.5s', duration: '11s', opacity: 0.14 },
@@ -184,7 +185,7 @@ export default function CrossKyeomjunPopup({ onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-0 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300 overflow-x-hidden touch-pan-y">
-      {/* ?ㅽ????쒓렇 ?쎌엯: 紐쏀솚?곸씤 ?뚮줈???뚰떚??諛??쇨렇留??꾩슜 ?쒖껜 ?좊땲硫붿씠???뺤쓽 */}
+      {/* 스타일 태그 삽입: 몽환적인 플로팅 파티클 및 피그마 전용 서체 애니메이션 정의 */}
       <style>{`
         @keyframes float-up {
           0% {
@@ -212,7 +213,7 @@ export default function CrossKyeomjunPopup({ onClose }) {
         .font-readable-sans {
           font-family: 'Jua', sans-serif;
         }
-        /* ?앹뾽 ?꾩껜 諛붾뵒 而ㅼ뒪? ?ㅽ겕濡??ㅽ???*/
+        /* 팝업 전체 바디 커스텀 스크롤 스타일 */
         .popup-body-scroll::-webkit-scrollbar {
           width: 5px;
         }
@@ -230,14 +231,14 @@ export default function CrossKyeomjunPopup({ onClose }) {
         }
       `}</style>
 
-      {/* ?앹뾽 紐⑤떖 紐몄껜: Figma iPhone 17-14??媛濡??몃줈 酉고룷??鍮꾩쑉??1:1 蹂듭썝?섎뒗 360x780px 怨좎젙??移대뱶 */}
+      {/* 팝업 모달 몸체: Figma iPhone 17-14의 가로-세로 뷰포트 비율을 1:1 복원하는 360x780px 고정형 카드 */}
       <div className="relative w-[360px] h-[780px] max-h-[92vh] rounded-[32px] overflow-hidden flex flex-col shadow-[0_25px_60px_rgba(0,0,0,0.18)] border border-gray-100 bg-white animate-in zoom-in-95 duration-300 touch-pan-y">
 
-        {/* Step 1: ?쇨렇留?iPhone 17-14 1:1 ?꾨꼍 ?덈? 醫뚰몴 蹂듭썝 */}
+        {/* Step 1: 피그마 iPhone 17-14 1:1 완벽 절대 좌표 복원 */}
         {step === 1 && (
           <div className="relative flex-1 bg-gradient-to-b from-[#ffffff] via-[#f7faf8] to-[#eef7f0] text-gray-800 overflow-hidden select-none">
 
-            {/* 1. ?쇨렇留?湲고븯?숈쟻 ?꾪삎 諛곌꼍??0.9諛곗쑉 ?꾨꼍 ?ы쁽 (洹몃┛ ?ㅻ━吏???뚮쭏) */}
+            {/* 1. 피그마 기하학적 도형 배경들 0.9배율 완벽 재현 (그린 오리지널 테마) */}
             <div className="absolute inset-0 pointer-events-none z-[1] overflow-hidden">
               {/* Radial gradient background box 1 */}
               <div
@@ -281,7 +282,7 @@ export default function CrossKyeomjunPopup({ onClose }) {
               />
             </div>
 
-            {/* ?⑸궇由щ뒗 ?뚯뒪??洹몃┛ ??옄媛 ?뚰떚??*/}
+            {/* 흩날리는 파스텔 그린 십자가 파티클 */}
             <div className="absolute inset-0 overflow-hidden pointer-events-none z-[2]">
               {floatingParticles.map((part) => (
                 <div
@@ -300,28 +301,28 @@ export default function CrossKyeomjunPopup({ onClose }) {
               ))}
             </div>
 
-            {/* 2. ?쇨렇留??먯궛 ?대?吏??諛곗튂 (??옄媛 湲고샇 ?ㅻ（?ｌ쑝濡??쇱튂) */}
+            {/* 2. 피그마 자산 이미지들 배치 (십자가 기호 실루엣으로 일치) */}
             <div className="absolute inset-0 pointer-events-none z-[3]">
-              {/* ?먯궛 4 3 (??옄媛 ?ㅻ（??1) */}
+              {/* 자산 4 3 (십자가 실루엣 1) */}
               <CustomCrossIcon className="absolute left-[180px] top-[70px] w-[50px] h-[48px]" color="#6ee7b7" strokeWidth="2" style={{ opacity: 0.2 }} />
-              {/* ?먯궛 4 2 (??옄媛 ?ㅻ（??2) */}
+              {/* 자산 4 2 (십자가 실루엣 2) */}
               <CustomCrossIcon className="absolute left-[256px] top-[155px] w-[76px] h-[71px]" color="#6ee7b7" strokeWidth="2.2" style={{ opacity: 0.15 }} />
-              {/* ?먯궛 4 4 (??옄媛 ?ㅻ（??3) */}
+              {/* 자산 4 4 (십자가 실루엣 3) */}
               <CustomCrossIcon className="absolute left-[10px] bottom-[20px] w-[50px] h-[48px]" color="#6ee7b7" strokeWidth="2" style={{ opacity: 0.2 }} />
-              {/* ?먯궛 4 1 (?곗륫 ?????옄媛 ?ㅻ（?? */}
+              {/* 자산 4 1 (우측 대형 십자가 실루엣) */}
               <div className="absolute left-[132px] top-[448px] w-[225px] h-[212px] rotate-[10deg] opacity-20">
                 <CustomCrossIcon className="w-full h-full" color="#6ee7b7" strokeWidth="2.5" />
               </div>
             </div>
 
-            {/* 3. 湲??諛곗튂 (?쇨렇留?1:1 ?덈?醫뚰몴 ?댁떇 諛??쒓껴以 ?묎? ?ъ뼇 ?곸슜) */}
+            {/* 3. 글자 배치 (피그마 1:1 절대좌표 이식 및 서겸준 작가 사양 적용) */}
             <div className="relative z-10 w-full h-full">
               {/* SYMBOL3 : CROSS */}
               <span className="absolute left-[29px] top-[31px] text-[15px] tracking-[1.92px] font-medium text-[#2d3a2e] font-readable-sans">
                 SYMBOL3 : CROSS
               </span>
 
-              {/* Rectangle 362 (?곷떒 ?뉗? 媛濡쒖꽑) */}
+              {/* Rectangle 362 (상단 얇은 가로선) */}
               <div className="absolute left-[29px] top-[64px] w-[35px] h-[1.5px] bg-[#c3dec6]" />
 
               {/* 2026.05.26/06.02 */}
@@ -329,33 +330,33 @@ export default function CrossKyeomjunPopup({ onClose }) {
                 2026.05.26/06.02
               </div>
 
-              {/* 怨쇨린? 遺뺤뼱諛?*/}
+              {/* 과기대 붕어방 */}
               <div className="absolute right-[25px] top-[71px] text-[10px] text-[#2d3a2e] tracking-[1.2px] text-right font-readable-sans">
-                怨쇨린? 遺뺤뼱諛?
+                과기대 붕어방
               </div>
 
-              {/* ???媛먯꽦 臾멸뎄: ?쒓껴以 ?묎? (iPhone 17 - 14) ?쇨렇留?諛곗튂 諛?洹몃┛/李⑥퐳 ?⑥씪??*/}
+              {/* 대형 감성 문구: 서겸준 작가 (iPhone 17 - 14) 피그마 배치 및 그린/차콜 단일화 */}
               <div className="absolute left-[29px] top-[91px] w-[310px] text-left">
                 <div className="text-[32px] leading-[1.24] text-[#2d3a2e] tracking-[1.2px] font-sentiment font-normal">
-                  <p>?덈Ъ???볦뿬</p>
-                  <p>믿음으로 다시 일어서는 빛</p>
-                  <div className="h-[18px]" /> {/* ?쇨렇留??ㅻ━吏??鍮?以?媛꾧꺽 ?뺣? 蹂듭썝 */}
-                  <p>?щ쭩????좏븷</p>
-                  <p>???덈뒗 ?щ옉</p>
+                  <p>눈물이 쌓여</p>
+                  <p>만들어진 검은 못</p>
+                  <div className="h-[18px]" /> {/* 피그마 오리지널 빈 줄 간격 정밀 복원 */}
+                  <p>사망을 대신할</p>
+                  <p>수 있는 사랑</p>
                   <div className="h-[18px]" />
-                  <p>?щ쭩???닿릿</p>
-                  <p>소망을 바라봅니다</p>
+                  <p>사망을 이긴</p>
+                  <p>흰 어린양</p>
                 </div>
               </div>
 
-              {/* ?섎떒 ?묎? ?뚭컻 ?곸뿭 */}
-              {/* Rectangle 358 (?묎? ??媛濡쒖꽑) */}
+              {/* 하단 작가 소개 영역 */}
+              {/* Rectangle 358 (작가 위 가로선) */}
               <div className="absolute left-[26px] top-[475px] w-[35px] h-[1.5px] bg-[#c3dec6]" />
 
-              {/* ARTIST. ?쒓껴以 諛??볤? ?대え吏 踰꾪듉 */}
+              {/* ARTIST. 서겸준 및 댓글 이모지 버튼 */}
               <div className="absolute left-[26px] right-[25px] top-[492px] flex items-center justify-between">
                 <span className="text-[15px] tracking-[1.92px] font-medium text-[#2d3a2e] font-readable-sans">
-                  ARTIST. ?쒓껴以
+                  ARTIST. 서겸준
                 </span>
                 <button
                   onClick={() => setShowCommentModal(true)}
@@ -363,20 +364,20 @@ export default function CrossKyeomjunPopup({ onClose }) {
                   title="감상평 남기기"
                 >
                   <MessageSquare className="w-8 h-8" />
-                  {/* ?볤? ??諛곗? */}
+                  {/* 댓글 수 배지 */}
                   <span className="absolute -top-1 -right-1 flex h-6 min-w-[24px] px-1.5 items-center justify-center rounded-full bg-red-500 text-white text-xs font-bold shadow-sm border border-white">
                     {comments.length}
                   </span>
                 </button>
               </div>
 
-              {/* ?쒖슱怨쇳븰湲곗닠??숆탳 以묒븰?숈븘由?CCC */}
+              {/* 서울과학기술대학교 중앙동아리 CCC */}
               <div className="absolute left-[25px] top-[530px] text-[10px] tracking-[1.2px] text-[#2d3a2e] leading-normal font-readable-sans">
-                <p>?쒖슱怨쇳븰湲곗닠??숆탳</p>
-                <p className="mt-0.5">以묒븰?숈븘由?CCC</p>
+                <p>서울과학기술대학교</p>
+                <p className="mt-0.5">중앙동아리 CCC</p>
               </div>
 
-              {/* NEXT 踰꾪듉: ?곗륫 ?섎떒 ?κ렐 罹≪뒓 */}
+              {/* NEXT 버튼: 우측 하단 둥근 캡슐 */}
               <button
                 onClick={() => setStep(2)}
                 className="absolute right-[25px] bottom-[35px] w-[140px] h-[47px] bg-gradient-to-r from-[#4caf50] to-[#66bb6a] text-white rounded-[24px] flex items-center justify-between pl-6 pr-5 hover:opacity-90 transition-all duration-200 active:scale-[0.96] shadow-[0_4px_15px_rgba(76,175,80,0.25)] cursor-pointer font-readable-sans"
@@ -386,7 +387,7 @@ export default function CrossKyeomjunPopup({ onClose }) {
               </button>
             </div>
 
-            {/* ?リ린 X 踰꾪듉 */}
+            {/* 닫기 X 버튼 */}
             <button
               onClick={onClose}
               className="absolute top-4 right-4 z-20 w-8 h-8 bg-gray-100/80 hover:bg-gray-200/80 text-gray-500 rounded-full flex items-center justify-center backdrop-blur-sm transition-colors border border-gray-200"
@@ -396,14 +397,14 @@ export default function CrossKyeomjunPopup({ onClose }) {
           </div>
         )}
 
-        {/* Step 2: ?쇨렇留?iPhone 17-16 湲곕컲 ?뷀뀒???꾨꼍 蹂듭썝 (??옄媛 ?쒓껴以 ?묎? ?섑븘 ?쒖궗 ?곸슜) */}
+        {/* Step 2: 피그마 iPhone 17-16 기반 디테일 완벽 복원 (십자가 서겸준 작가 수필 서사 적용) */}
         {step === 2 && (
           <div className="relative flex-1 flex flex-col bg-gradient-to-b from-[#ffffff] via-[#f7faf8] to-[#eef7f0] text-gray-800 overflow-y-auto overflow-x-hidden popup-body-scroll select-none touch-pan-y">
 
-            {/* ?꾩껜 ?믪씠瑜??뺣낫?섏뿬 ?쇨렇留덉쓽 鍮꾩쑉??蹂댁〈 */}
+            {/* 전체 높이를 확보하여 피그마의 비율을 보존 */}
             <div className="relative w-full flex flex-col p-6 pb-8 min-h-[780px]">
 
-              {/* ???섍쾶 洹몃씪?곗씠?섏쑝濡??쇱???珥덈줉鍮?愿묒썝 ?ㅻ쾭?덉씠 */}
+              {/* 은은하게 그라데이션으로 퍼지는 초록빛 광원 오버레이 */}
               <div
                 className="absolute inset-0 pointer-events-none opacity-[0.02] mix-blend-multiply"
                 style={{ backgroundImage: "linear-gradient(206.325deg, rgba(76, 175, 80, 0) 14.004%, rgb(46, 125, 50) 80.929%)" }}
@@ -413,7 +414,7 @@ export default function CrossKyeomjunPopup({ onClose }) {
                 style={{ backgroundImage: "linear-gradient(147.794deg, rgba(76, 175, 80, 0) 34.559%, rgb(200, 230, 201) 100.79%)" }}
               />
 
-              {/* ?⑸궇由щ뒗 珥덈줉鍮???옄媛 ?뚰떚??*/}
+              {/* 흩날리는 초록빛 십자가 파티클 */}
               <div className="absolute inset-0 overflow-hidden pointer-events-none z-[1]">
                 {floatingParticles.map((part) => (
                   <div
@@ -432,12 +433,12 @@ export default function CrossKyeomjunPopup({ onClose }) {
                 ))}
               </div>
 
-              {/* ?곗륫 ?곷떒 ??옄媛 ?μ떇 (?ㅻ쾭?덉씠) */}
+              {/* 우측 상단 십자가 장식 (오버레이) */}
               <div className="absolute top-[5px] right-[-10px] w-64 h-60 opacity-30 pointer-events-none z-[2] animate-pulse">
                 <CustomCrossIcon className="w-full h-full" color="#a7f3d0" strokeWidth="2.5" style={{ opacity: 0.3 }} />
               </div>
 
-              {/* ?곷떒 ?좎? */}
+              {/* 상단 띠지 */}
               <div className="relative z-10 flex justify-between items-center pb-6 font-readable-sans">
                 <span className="text-[10px] tracking-[1.2px] font-bold text-[#2e7d32]">
                   SYMBOL3 : CROSS
@@ -445,59 +446,60 @@ export default function CrossKyeomjunPopup({ onClose }) {
                 <div className="w-[100px] h-[0.5px] bg-[#c3dec6]" />
               </div>
 
-              {/* 移대뱶 諛곌꼍 */}
+              {/* 카드 배경 */}
               <div className="relative z-10 flex-1 flex flex-col bg-white/80 backdrop-blur-md rounded-[20px] border border-green-100 p-7 shadow-[0_8px_32px_rgba(0,0,0,0.03)]">
 
-                {/* ?ㅻ뱶?쇱씤 ??댄?: "寃?뺤깋 紐산낵 ???대┛?? */}
+                {/* 헤드라인 타이틀: "검정색 못과 흰 어린양" */}
                 <div className="text-left font-sentiment text-[28px] leading-[1.2] text-[#2e7d32] tracking-[1px] font-bold mt-2 select-text">
-                  <p>寃?뺤깋 紐산낵</p>
-                  <p>소망의 빛</p>
+                  <p>검정색 못과</p>
+                  <p>흰 어린양</p>
                 </div>
 
-                {/* ?뉗? 媛濡쒖꽑 */}
+                {/* 얇은 가로선 */}
                 <div className="bg-[#4caf50] h-px w-[31px] my-5 flex-none" />
 
-                {/* 蹂몃Ц ?쒖궗: ?쒓껴以 ?묎? ??옄媛 ?섑븘 (?⑥젏 ?섎굹???꾨씫 ?놁씠 100% 諛섏쁺) */}
+                {/* 본문 서사: 서겸준 작가 십자가 수필 (온점 하나도 누락 없이 100% 반영) */}
                 <div className="text-left text-[14.5px] leading-[1.85] text-gray-700 space-y-5 tracking-wide font-readable-sans select-text break-keep">
 
                   <p className="text-gray-800 font-semibold leading-relaxed">
-                    ?щ엺 ?띿뿉 ?덈뒗 ??媛吏, 洹몃줈 ?명빐 ?먮Ⅴ???덈Ъ???볦뿬 留뚮뱾?댁쭊 寃?뺤깋 紐?
+                    사람 속에 있는 세 가지, 그로 인해 흐르던 눈물이 쌓여 만들어진 검정색 못.
                   </p>
                   <p className="text-gray-700 pl-2 border-l border-green-200">
-                    ??紐살? 紐살쓣 留뚮뱺 ?댁뿉寃?諛뺥엳?? ?щ쭩?쇰줈 ?媛瑜?移섎윭???섎뒗 ?먮━ ?꾨옒??
-                  </p>
-
-                  <p className="text-gray-700 pl-2 border-l border-green-200">
-                    ?ㅺ??ㅻ뒗, 留됱쓣 ???녿뒗 ?щ쭩 ?욎뿉???대? 異⑸텇??愿대줈???섎궇??踰꾪떚怨??덈뒗 ?뚮쭩?대씪??鍮쏆씠 ?ㅼ? ?딅뒗 怨녹뿉??
+                    이 못은 못을 만든 이에게 박히는, 사망으로 대가를 치러야 하는 원리 아래서.
                   </p>
 
                   <p className="text-gray-700 pl-2 border-l border-green-200">
-                    ???좎씡???꾪빐 李쎌“?섏? ?딆? 珥덈줉 ?諛??????대┛?묒씠 ?꾨Т??李얠븘二쇱? ?딅뒗 ?뷀쓳?띿뿉???섎? 愿대∼寃??섎뒗 寃?뺤깋 紐살뿉 ?먭낵 諛쒖씠 臾띠씤 梨???????멸퀬 ?덉뿀?댁슂.
+                    다가오는, 막을 수 없는 사망 앞에서 이미 충분히 괴로운 나날을 버티고 있는 소망이라는 빛이 들지 않는 곳에서
                   </p>
 
                   <p className="text-gray-700 pl-2 border-l border-green-200">
-                    愿대∼寃??섎뒗 寃껋? 愿대∼寃??섎뒗 寃껋쑝濡??щ쭩? ?щ쭩?쇰줈 ?섏?留??щ쭩???щ옉?쇰줈 ??좏븷 ???덈뒗 ?곗＜ 諛뽰쓽 ?먮━???섑빐 ?щ쭩? 二쎌뿀怨?寃곌뎅 ?대┛?묒? ?щ쭩??遺숈옟?뚯쓣 踰쀬뼱?ъ짛.
+                    내 유익을 위해 창조되지 않은 초록 풀밭 위 흰 어린양이 아무도 찾아주지 않는 암흑속에서 나를 괴롭게 하는 검정색 못에 손과 발이 묶인 채 나 대신 울고 있었어요.
+                  </p>
+
+                  <p className="text-gray-700 pl-2 border-l border-green-200">
+                    괴롭게 하는 것은 괴롭게 하는 것으로 사망은 사망으로 하지만 사망을 사랑으로 대신할 수 있는 우주 밖의 원리에 의해 사망은 죽었고 결국 어린양은 사망의 붙잡음을 벗어났죠.
                   </p>
 
                   <p className="text-gray-700 pl-2 border-l border-green-200 font-medium">
-                    ?섎? 李뚮Ⅴ??紐산낵 ?곸쿂???산린??源⑤걮?섏뿬吏怨??섎룄 ?대┛?묒쿂???좎씠 ?녿떎 湲곕줉?섏뿀?댁슂.
+                    나를 찌르던 못과 상처는 씻기어 깨끗하여지고 나도 어린양처럼 흠이 없다 기록되었어요.
                   </p>
 
                   <p className="text-gray-700 pl-2 border-l border-green-200">
-                    ?대┛?묒? ?섎?, ?섎뒗 ?대┛?묒쓣, ?대┛?묒씠 ?щ옉?섎뒗 ?뱀떊?? ?대┛?묒씠 ?щ옉?섎뒗 ?닿? ?쒕줈 ?щ옉?섎뒗 ?섎씪?먯꽌 ?섎━???덈Ъ? ?ш퀬 ?됰났???덈Ъ??嫄곗뿉??
+                    어린양은 나를, 나는 어린양을, 어린양이 사랑하는 당신을, 어린양이 사랑하는 내가 서로 사랑하는 나라에서 흘리는 눈물은 희고 행복한 눈물일 거에요.
                   </p>
 
-                  {/* ????곸옄: ?쒓껴以 ?묎? ?섑븘 ?멸?吏 ????붿빟 */}
+                  {/* 대답 상자: 서겸준 작가 수필 세가지 은유 요약 */}
                   <div className="my-6 border border-green-150 bg-[#f1faf2] py-5 px-3.5 rounded-3xl font-sentiment text-[14.5px] leading-relaxed text-[#2e7d32] text-center shadow-sm">
-                    <p className="font-bold text-[#2d6630]">?쒓눼濡?쾶 ?섎뒗 寃껋? 愿대∼寃??섎뒗 寃껋쑝濡?</p>
-                    <p className="font-bold text-[#2d6630]">?щ쭩? ?щ쭩?쇰줈. ?섏?留??щ쭩???щ옉?쇰줈</p>
-                    <p className="font-bold text-[#2d6630]">소망을 품고 일어서는 마음.</p>
+                    <p className="font-bold text-[#2d6630]">“괴롭게 하는 것은 괴롭게 하는 것으로,</p>
+                    <p className="font-bold text-[#2d6630]">사망은 사망으로. 하지만 사망을 사랑으로</p>
+                    <p className="font-bold text-[#2d6630]">대신할 수 있는 우주 밖의 원리.”</p>
                   </div>
 
                 </div>
               </div>
 
               <div className="relative z-10 flex flex-wrap justify-center gap-3 mt-8 flex-none font-readable-sans">
+                {/* BACK 버튼 */}
                 <button
                   onClick={() => setStep(1)}
                   className="w-[112px] h-[52px] bg-white border border-gray-200 text-gray-700 rounded-[26px] flex items-center justify-center gap-1.5 hover:bg-gray-50 transition-all duration-200 active:scale-[0.96] cursor-pointer shadow-sm font-bold"
@@ -524,7 +526,7 @@ export default function CrossKyeomjunPopup({ onClose }) {
 
             </div>
 
-            {/* ?リ린 X 踰꾪듉 */}
+            {/* 닫기 X 버튼 */}
             <button
               onClick={onClose}
               className="absolute top-4 right-4 z-20 w-8 h-8 bg-gray-100/80 hover:bg-gray-200/80 text-gray-500 rounded-full flex items-center justify-center backdrop-blur-sm transition-colors border border-gray-200"
@@ -534,14 +536,14 @@ export default function CrossKyeomjunPopup({ onClose }) {
           </div>
         )}
 
-        {/* ?볤? 紐⑤떖 */}
+        {/* 댓글 모달 */}
         {showCommentModal && (
           <div className="absolute inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-[2px] animate-in fade-in duration-200">
             <div className="relative w-[310px] h-[520px] rounded-[24px] bg-white border border-emerald-100 flex flex-col p-5 shadow-2xl animate-in zoom-in-95 duration-200">
-              {/* ?ㅻ뜑 */}
+              {/* 헤더 */}
               <div className="flex justify-between items-center pb-3 border-b border-gray-100">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-lg font-bold text-emerald-500 font-sentiment">媛먯긽???④린湲??뮠</span>
+                  <span className="text-lg font-bold text-emerald-500 font-sentiment">감상평 남기기 💬</span>
                   <span className="bg-emerald-100 text-emerald-600 text-xs px-2 py-0.5 rounded-full font-bold">{comments.length}</span>
                 </div>
                 <button
@@ -552,19 +554,19 @@ export default function CrossKyeomjunPopup({ onClose }) {
                 </button>
               </div>
 
-              {/* ?볤? 由ъ뒪??*/}
+              {/* 댓글 리스트 */}
               <div className="flex-1 overflow-y-auto popup-body-scroll my-3 pr-1 space-y-3 select-text">
                 {loadingComments ? (
                   <div className="h-full flex flex-col items-center justify-center text-gray-400 text-xs gap-2 py-10">
                     <div className="w-6 h-6 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
-                    <span>媛먯긽?됱쓣 遺덈윭?ㅻ뒗 以?..</span>
+                    <span>감상평을 불러오는 중...</span>
                   </div>
                 ) : comments.length === 0 ? (
                   <div className="h-full flex flex-col items-center justify-center text-gray-400 text-xs py-10 text-center leading-relaxed animate-in fade-in duration-300">
-                    <span className="text-3xl mb-2">?럥</span>
-                    <span className="font-bold text-gray-600 text-sm">泥?媛먯긽?됱쓣 ?④꺼蹂댁꽭??</span>
-                    <span className="opacity-70 mt-1">?꾩쭅 ?묒꽦??媛먯긽?됱씠 ?놁뒿?덈떎.</span>
-                    <span className="opacity-60 mt-0.5">첫 감상평으로 작품을 채워주세요.</span>
+                    <span className="text-3xl mb-2">🎈</span>
+                    <span className="font-bold text-gray-600 text-sm">첫 감상평을 남겨보세요!</span>
+                    <span className="opacity-70 mt-1">아직 작성된 감상평이 없습니다.</span>
+                    <span className="opacity-60 mt-0.5">따뜻한 첫 마디로 작품을 채워주세요 ✨</span>
                   </div>
                 ) : (
                   comments.map((comment) => {
@@ -583,7 +585,7 @@ export default function CrossKyeomjunPopup({ onClose }) {
                                 type="button"
                                 onClick={() => startEditComment(comment)}
                                 className="w-6 h-6 rounded-full bg-white/80 border border-gray-100 text-gray-400 hover:text-gray-700 flex items-center justify-center transition-colors cursor-pointer"
-                                title="?섏젙"
+                                title="수정"
                               >
                                 <Pencil className="w-3 h-3" />
                               </button>
@@ -591,7 +593,7 @@ export default function CrossKyeomjunPopup({ onClose }) {
                                 type="button"
                                 onClick={() => handleDeleteComment(comment.id)}
                                 className="w-6 h-6 rounded-full bg-white/80 border border-gray-100 text-gray-400 hover:text-red-500 hover:border-red-100 flex items-center justify-center transition-colors cursor-pointer"
-                                title="??젣"
+                                title="삭제"
                               >
                                 <Trash2 className="w-3 h-3" />
                               </button>
@@ -615,7 +617,7 @@ export default function CrossKyeomjunPopup({ onClose }) {
                               onClick={cancelEditComment}
                               className="h-7 px-3 rounded-full border border-gray-200 bg-white text-[11px] font-bold text-gray-500 hover:bg-gray-50 cursor-pointer"
                             >
-                              痍⑥냼
+                              취소
                             </button>
                             <button
                               type="button"
@@ -623,7 +625,7 @@ export default function CrossKyeomjunPopup({ onClose }) {
                               disabled={!editContent.trim()}
                               className="h-7 px-3 rounded-full bg-gray-800 disabled:bg-gray-300 text-[11px] font-bold text-white cursor-pointer"
                             >
-                              ???
+                              저장
                             </button>
                           </div>
                         </div>
@@ -636,11 +638,11 @@ export default function CrossKyeomjunPopup({ onClose }) {
                 )}
               </div>
 
-              {/* ?볤? ??*/}
+              {/* 댓글 폼 */}
               <form onSubmit={handleAddComment} className="flex flex-col gap-2 border-t border-gray-100 pt-3 mt-auto">
                 <input
                   type="text"
-                  placeholder="?묒꽦???대쫫 (?됰꽕??"
+                  placeholder="작성자 이름 (닉네임)"
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
                   maxLength={10}
@@ -649,7 +651,7 @@ export default function CrossKyeomjunPopup({ onClose }) {
                 />
                 <div className="relative">
                   <textarea
-                    placeholder="?곕쑜??媛먯긽?됱쓣 ?④꺼二쇱꽭?? (理쒕? 100??"
+                    placeholder="따뜻한 감상평을 남겨주세요! (최대 100자)"
                     value={newContent}
                     onChange={(e) => setNewContent(e.target.value)}
                     maxLength={100}

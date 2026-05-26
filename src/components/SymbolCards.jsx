@@ -227,8 +227,8 @@ export default function SymbolCards({ symbols, onCardClick, isQuestionUnlocked, 
               <MessageSquareText className="h-5 w-5" />
             </div>
             <div>
-              <h3 className="text-[17px] leading-tight text-slate-950">참가자 소감</h3>
-              <p className="text-[12px] leading-snug text-slate-500">관리자가 공개한 소감만 보여요</p>
+              <h3 className="text-[17px] leading-tight text-slate-950">여행자 소감</h3>
+              <p className="text-[12px] leading-snug text-slate-500">여행자들이 남긴 소감을 함께 둘러보세요</p>
             </div>
           </div>
           {featuredFeedbacks.length > 0 && (

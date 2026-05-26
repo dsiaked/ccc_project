@@ -216,7 +216,7 @@ body.admin-shell #root {
 }
 
 .map-pin-highlight {
-  animation: map-pin-highlight 1.05s ease-in-out 3;
+  animation: map-pin-highlight 1.2s ease-in-out 5;
 }
 
 .map-pin-button-highlight::after {
@@ -227,5 +227,5 @@ body.admin-shell #root {
   border: 2px solid rgba(14, 165, 233, 0.75);
   background: rgba(186, 230, 253, 0.28);
   pointer-events: none;
-  animation: map-pin-highlight-ring 1.05s ease-out 3;
+  animation: map-pin-highlight-ring 1.2s ease-out 5;
 }
