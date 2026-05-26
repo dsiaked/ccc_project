@@ -21,7 +21,8 @@ const ARTIST_LIST = {
     { key: 'heart_kymin', name: '김규민', color: '#ff8b8b', borderColor: '#ff9d9d', type: 'heart' },
     { key: 'heart_yewon', name: '손예원', color: '#ff8b8b', borderColor: '#ff9d9d', type: 'heart' },
     { key: 'heart_eunhye', name: '김은혜', color: '#ff8b8b', borderColor: '#ff9d9d', type: 'heart' },
-    { key: 'heart_jihoon', name: '홍지훈', color: '#ff8b8b', borderColor: '#ff9d9d', type: 'heart' }
+    { key: 'heart_jihoon', name: '홍지훈', color: '#ff8b8b', borderColor: '#ff9d9d', type: 'heart' },
+    { key: 'heart_eunchae', name: '이은채', color: '#ff8b8b', borderColor: '#ff9d9d', type: 'heart' }
   ],
   divide: [
     { key: 'divide_kyeomjun', name: '서겸준', color: '#fb923c', borderColor: '#ffedd5', type: 'divide' },
@@ -130,7 +131,7 @@ export default function MultiSelectorPopup({ id, symbols, onClose, onSelectArtis
 
         <p className="text-xs text-gray-400 text-center mt-2 leading-relaxed">
           {id === 'heart' 
-            ? '현장 QR을 스캔하여 4가지의 다양한 하트 작품들을 해금해 보세요!'
+            ? '현장 QR을 스캔하여 5가지의 다양한 하트 작품들을 해금해 보세요!'
             : id === 'divide'
             ? '현장 QR을 스캔하여 2가지의 따뜻한 나누기 작품들을 해금해 보세요!'
             : '현장 QR을 스캔하여 2가지의 은혜로운 십자가 작품들을 해금해 보세요!'

@@ -1,14 +1,15 @@
 import React, { useRef, useState, useEffect } from 'react';
 import Header from './components/Header';
-import MapArea from './components/MapArea';
+import MapArea, { DEFAULT_MAP_PINS } from './components/MapArea';
 import SymbolCards from './components/SymbolCards';
 import Popup from './components/Popup';
 import ParticipatePage from './components/ParticipatePage';
+import AdminPanel from './components/AdminPanel';
 import { symbolData } from './data/symbolData';
 
 // Firebase imports
 import { auth, db, signInAnonymously, doc, getDoc, setDoc } from './firebase';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, Shield } from 'lucide-react';
 
 const INITIAL_SYMBOLS = Object.keys(symbolData).reduce((acc, id) => {
   acc[id] = false;
@@ -21,7 +22,7 @@ const UNLOCKED_SYMBOLS = Object.keys(symbolData).reduce((acc, id) => {
 }, {});
 
 const ADMIN_UNLOCK_CATEGORIES = {
-  heart: ['heart_kymin', 'heart_yewon', 'heart_eunhye', 'heart_jihoon'],
+  heart: ['heart_kymin', 'heart_yewon', 'heart_eunhye', 'heart_jihoon', 'heart_eunchae'],
   divide: ['divide_kyeomjun', 'divide_yewon'],
   cross: ['cross', 'cross_jihoon'],
 };
@@ -88,8 +89,13 @@ const resolveQrSymbol = value => {
 
 export default function App() {
   const [page, setPage] = useState(() => {
-    return window.location.pathname === '/participate' ? 'participate' : 'home';
+    const path = window.location.pathname;
+    if (path === '/participate') return 'participate';
+    if (path === '/admin-panel') return 'admin-panel';
+    return 'home';
   });
+
+  const [pins, setPins] = useState(DEFAULT_MAP_PINS);
 
   const [symbols, setSymbols] = useState(() => {
     const savedSymbols = localStorage.getItem('symbols');
@@ -113,7 +119,7 @@ export default function App() {
   );
 
   // 1개 이상 해금 시 해당 카테고리 발견 완료로 판정
-  const isHeartDiscovered = symbols.heart_kymin || symbols.heart_yewon || symbols.heart_eunhye || symbols.heart_jihoon;
+  const isHeartDiscovered = symbols.heart_kymin || symbols.heart_yewon || symbols.heart_eunhye || symbols.heart_jihoon || symbols.heart_eunchae;
   const isDivideDiscovered = symbols.divide_kyeomjun || symbols.divide_yewon;
   const isCrossDiscovered = symbols.cross || symbols.cross_jihoon;
   const isQuestionDiscovered = symbols.question;
@@ -265,6 +271,24 @@ export default function App() {
         const uid = userCredential.user.uid;
         setUserId(uid);
 
+        // 🔄 지도 핀(심볼) 위치 데이터 동적 로드
+        try {
+          const pinsDocRef = doc(db, 'settings', 'map_pins');
+          const pinsDocSnap = await getDoc(pinsDocRef);
+          if (pinsDocSnap.exists()) {
+            const cloudPins = pinsDocSnap.data().pins;
+            if (Array.isArray(cloudPins) && cloudPins.length > 0) {
+              const mergedPins = DEFAULT_MAP_PINS.map(defaultPin => {
+                const cloudMatch = cloudPins.find(cp => cp.id === defaultPin.id);
+                return cloudMatch ? { ...defaultPin, ...cloudMatch } : defaultPin;
+              });
+              setPins(mergedPins);
+            }
+          }
+        } catch (pinError) {
+          console.error('심볼 위치(pins) 데이터를 로드하는 중 에러 발생:', pinError);
+        }
+
         // Firestore에서 사용자 해금 데이터 로드
         const userDocRef = doc(db, 'users', uid);
 
@@ -282,23 +306,20 @@ export default function App() {
           const cloudData = userDocSnap.data();
           const cloudSymbols = cloudData.symbols || {};
 
-          // 로컬 데이터와 클라우드 데이터의 영리한 병합 (OR 논리합)
+          // 로컬 데이터와 클라우드 데이터의 영리한 병합 (OR 논리합 + 불필요 리렌더 방지 얕은 비교)
           setSymbols(prev => {
             const merged = {};
+            let isChanged = false;
             for (const key of Object.keys(INITIAL_SYMBOLS)) {
-              merged[key] = !!(prev[key] || cloudSymbols[key]);
+              const val = !!(prev[key] || cloudSymbols[key]);
+              if (prev[key] !== val) isChanged = true;
+              merged[key] = val;
             }
-            // 병합 완료된 최신 데이터를 다시 클라우드 및 로컬스토리지에 반영
-            setDoc(userDocRef, { symbols: merged }, { merge: true });
-            localStorage.setItem('symbols', JSON.stringify(merged));
-            return merged;
+            return isChanged ? merged : prev;
           });
         } else {
-          // 최초 접속 사용자: 현재 로컬의 해금 데이터를 Firestore에 백업 등록
-          setSymbols(current => {
-            setDoc(userDocRef, { symbols: current });
-            return current;
-          });
+          // 최초 접속 사용자: 로컬의 데이터를 유지하며, 아래 useEffect가 자동으로 클라우드에 백업하게 둠
+          setSymbols(current => current);
         }
       } catch (error) {
         console.error('Firebase Auth/Firestore 동기화 중 에러 발생:', error);
@@ -424,9 +445,17 @@ export default function App() {
     window.history.pushState({}, '', '/');
   };
 
+  const openAdminPanel = () => {
+    setPage('admin-panel');
+    window.history.pushState({}, '', '/admin-panel');
+  };
+
   useEffect(() => {
     const handlePopState = () => {
-      setPage(window.location.pathname === '/participate' ? 'participate' : 'home');
+      const path = window.location.pathname;
+      if (path === '/participate') setPage('participate');
+      else if (path === '/admin-panel') setPage('admin-panel');
+      else setPage('home');
     };
 
     window.addEventListener('popstate', handlePopState);
@@ -435,6 +464,10 @@ export default function App() {
 
   if (page === 'participate') {
     return <ParticipatePage onBack={openHomePage} />;
+  }
+
+  if (page === 'admin-panel') {
+    return <AdminPanel onBack={openHomePage} />;
   }
 
   return (
@@ -472,6 +505,7 @@ export default function App() {
             symbols={symbols} 
             onSymbolClick={handleMapSymbolClick} 
             isQuestionUnlocked={isQuestionUnlocked}
+            pins={pins}
           />
         </div>
 

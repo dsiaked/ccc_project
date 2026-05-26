@@ -82,6 +82,33 @@ export const symbolData = {
     },
   },
 
+  heart_eunchae: {
+    category: 'heart',
+    artist: '이은채',
+    title: '이은채의 하트',
+    Icon: Heart,
+    iconClass: 'w-12 h-12 text-pink-500',
+    map: {
+      undiscovered: {
+        title: '이은채의 숨겨진 하트',
+        desc: '이은채 작가가 배치한 작고 연약한 하트 심볼이에요.',
+        hint: '양 머리 모양을 찾아보세요!',
+      },
+      discovered: {
+        title: '발견된 은채의 하트 🐑💖',
+        desc: '이은채 작가의 사랑스러운 하트 심볼을 성공적으로 해금했어요!',
+        message: '작고 연약한 대상을 소중히 보듬고 품으시는 하나님의 무조건적인 애정입니다.',
+      },
+    },
+    qr: {
+      title: '이은채 - 하트',
+      desc: '연약한 대상을 소중히 품어 안으시는 다정한 사랑의 작품입니다.',
+      meaning: '작품 〈Little Lamb〉은 양의 부드럽고 둥근 조형미를 통해 귀여운 대상에게 느끼는 본능적인 보호 본능과 예수님이 우리를 사랑하시는 그 다정한 시선을 조화롭게 노래합니다.',
+      location: '전시장 우측 미술관 구역',
+      message: '존재 자체를 완전한 사랑으로 아끼시는 주님의 품을 기억하세요.',
+    },
+  },
+
   heart_jihoon: {
     category: 'heart',
     artist: '홍지훈',

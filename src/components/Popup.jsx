@@ -3,6 +3,7 @@ import MapPopup from './MapPopup';
 import QrPopup from './QrPopup';
 import MultiSelectorPopup from './MultiSelectorPopup';
 import EunhyePopup from './EunhyePopup';
+import EunchaePopup from './EunchaePopup';
 import KyminPopup from './KyminPopup';
 import YewonPopup from './YewonPopup';
 import JihoonPopup from './JihoonPopup';
@@ -19,6 +20,9 @@ export default function Popup({ id, type, symbols, discovered, onClose }) {
   if (selectedArtist) {
     if (selectedArtist === 'heart_eunhye') {
       return <EunhyePopup onClose={() => setSelectedArtist(null)} />;
+    }
+    if (selectedArtist === 'heart_eunchae') {
+      return <EunchaePopup onClose={() => setSelectedArtist(null)} />;
     }
     if (selectedArtist === 'heart_kymin') {
       return <KyminPopup onClose={() => setSelectedArtist(null)} />;
@@ -57,6 +61,9 @@ export default function Popup({ id, type, symbols, discovered, onClose }) {
   if (type === 'qr') {
     if (id === 'heart_eunhye') {
       return <EunhyePopup onClose={onClose} />;
+    }
+    if (id === 'heart_eunchae') {
+      return <EunchaePopup onClose={onClose} />;
     }
     if (id === 'heart_kymin') {
       return <KyminPopup onClose={onClose} />;
