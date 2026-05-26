@@ -36,9 +36,10 @@ const adminLinks = [
 ];
 
 const recordTabs = [
-  { id: 'visitors', label: '방문', icon: Users },
+  { id: 'visitors', label: '발견 기록', icon: Users },
+  { id: 'appOnly', label: '접속만', icon: BarChart3 },
   { id: 'comments', label: '댓글', icon: MessageSquareText },
-  { id: 'feedbacks', label: '피드백', icon: BarChart3 },
+  { id: 'feedbacks', label: '소감', icon: Megaphone },
 ];
 
 const symbolOrder = Object.keys(symbolData);
@@ -211,8 +212,8 @@ export default function AdminPanel({ onBack }) {
         setFeedbacks(nextFeedbacks);
       },
       err => {
-        console.error('피드백 기록 로드 실패:', err);
-        setRecordError('피드백 기록을 불러오지 못했습니다. Firestore 읽기 권한을 확인해 주세요.');
+        console.error('소감 기록 로드 실패:', err);
+        setRecordError('소감 기록을 불러오지 못했습니다. Firestore 읽기 권한을 확인해 주세요.');
       },
     );
 
@@ -222,26 +223,6 @@ export default function AdminPanel({ onBack }) {
       unsubscribeFeedbacks();
     };
   }, [loadAnnouncement, loadPins, loadVisitors]);
-
-  const stats = useMemo(() => {
-    const visitorsWithAnySymbol = visitors.filter(visitor => visitor.viewedSymbols.length > 0).length;
-    const appOnlyVisitors = visitors.length - visitorsWithAnySymbol;
-    const completedVisitors = visitors.filter(visitor => {
-      const symbols = visitor.symbols || {};
-      const hasHeart = symbols.heart_kymin || symbols.heart_yewon || symbols.heart_eunhye || symbols.heart_jihoon || symbols.heart_eunchae;
-      const hasDivide = symbols.divide_kyeomjun || symbols.divide_yewon;
-      const hasCross = symbols.cross || symbols.cross_jihoon;
-      return hasHeart && hasDivide && hasCross;
-    }).length;
-
-    return [
-      { label: '작품 발견', value: visitorsWithAnySymbol, desc: '1개 이상 발견' },
-      { label: '접속만 있음', value: appOnlyVisitors, desc: 'QR 발견 없음' },
-      { label: '3분류 완료', value: completedVisitors, desc: '하트, 나누기, 십자가' },
-      { label: '댓글', value: comments.length, desc: '작품 팝업 댓글' },
-      { label: '피드백', value: feedbacks.length, desc: '참여 페이지 제출' },
-    ];
-  }, [comments.length, feedbacks.length, visitors]);
 
   const visitorRecords = useMemo(
     () => visitors.filter(visitor => visitor.viewedSymbols.length > 0),
@@ -253,8 +234,31 @@ export default function AdminPanel({ onBack }) {
     [visitors],
   );
 
+  const completedVisitors = useMemo(
+    () => visitors.filter(visitor => {
+      const symbols = visitor.symbols || {};
+      const hasHeart = symbols.heart_kymin || symbols.heart_yewon || symbols.heart_eunhye || symbols.heart_jihoon || symbols.heart_eunchae;
+      const hasDivide = symbols.divide_kyeomjun || symbols.divide_yewon;
+      const hasCross = symbols.cross || symbols.cross_jihoon;
+      return hasHeart && hasDivide && hasCross;
+    }).length,
+    [visitors],
+  );
+
+  const publishedFeedbackCount = feedbacks.filter(feedback => feedback.isPublished).length;
+  const hiddenFeedbackCount = feedbacks.length - publishedFeedbackCount;
+
+  const stats = [
+    { label: '발견 방문', value: visitorRecords.length, desc: 'QR을 1개 이상 발견' },
+    { label: '접속만', value: appOnlyVisitorRecords.length, desc: '아직 QR 발견 없음' },
+    { label: '3분류 완료', value: completedVisitors, desc: '하트, 나누기, 십자가' },
+    { label: '공개 소감', value: publishedFeedbackCount, desc: '방문자 화면 노출' },
+    { label: '검토 대기', value: hiddenFeedbackCount, desc: '비공개 소감' },
+  ];
+
   const tabCounts = {
     visitors: visitorRecords.length,
+    appOnly: appOnlyVisitorRecords.length,
     comments: comments.length,
     feedbacks: feedbacks.length,
   };
@@ -294,7 +298,7 @@ export default function AdminPanel({ onBack }) {
     const query = normalizeSearchText(searchQuery);
     if (!query) return feedbacks;
     return feedbacks.filter(feedback => {
-      const target = [feedback.name, feedback.feedback, formatDate(feedback.createdAt)].join(' ');
+      const target = [feedback.name, feedback.feedback, feedback.isPublished ? '공개' : '비공개', formatDate(feedback.createdAt)].join(' ');
       return normalizeSearchText(target).includes(query);
     });
   }, [feedbacks, searchQuery]);
@@ -397,9 +401,15 @@ export default function AdminPanel({ onBack }) {
           : '방문자 화면에 소감을 공개했습니다.',
       );
     } catch (err) {
-      console.error('피드백 공개 상태 변경 실패:', err);
+      console.error('소감 공개 상태 변경 실패:', err);
       showNotification('소감 공개 상태를 변경하지 못했습니다.', 'error');
     }
+  };
+
+  const handleRefreshAll = () => {
+    loadVisitors();
+    loadPins();
+    loadAnnouncement();
   };
 
   const mockSymbols = useMemo(
@@ -408,16 +418,16 @@ export default function AdminPanel({ onBack }) {
   );
 
   return (
-    <div className="min-h-screen w-full overflow-y-auto bg-slate-950 text-slate-100 font-['Jua']">
+    <div className="min-h-screen w-full bg-slate-950 text-slate-100 font-['Jua']">
       <header className="sticky top-0 z-50 border-b border-slate-800 bg-slate-950/95 px-4 py-3 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-3">
+        <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-cyan-400/30 bg-cyan-400/10">
               <ShieldAlert className="h-5 w-5 text-cyan-200" />
             </div>
             <div className="min-w-0">
               <h1 className="truncate text-xl font-bold text-white">작품 투어 관리자</h1>
-              <p className="text-xs text-slate-400">방문 기록, 피드백, 지도 핀을 한곳에서 확인합니다.</p>
+              <p className="text-xs text-slate-400">운영 현황, 소감 공개, 공지, 지도 핀을 관리합니다.</p>
             </div>
           </div>
 
@@ -432,18 +442,18 @@ export default function AdminPanel({ onBack }) {
             </button>
             <button
               type="button"
-              onClick={loadVisitors}
+              onClick={handleRefreshAll}
               className="flex h-10 items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-3 text-sm text-slate-200 transition active:scale-95"
             >
-              <RefreshCw className={`h-4 w-4 ${isLoadingVisitors ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`h-4 w-4 ${isLoadingVisitors || isLoadingPins ? 'animate-spin' : ''}`} />
               새로고침
             </button>
           </div>
         </div>
       </header>
 
-      <main className="mx-auto grid w-full max-w-6xl gap-5 px-4 py-5 lg:grid-cols-[1fr_360px]">
-        <div className="grid gap-5">
+      <main className="mx-auto grid w-full max-w-7xl gap-5 px-4 py-5 xl:grid-cols-[1fr_380px]">
+        <div className="grid content-start gap-5">
           <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
             {stats.map(item => (
               <div key={item.label} className="rounded-lg border border-slate-800 bg-slate-900/70 p-4">
@@ -457,77 +467,21 @@ export default function AdminPanel({ onBack }) {
           <section className="rounded-lg border border-slate-800 bg-slate-900/55 p-4">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h2 className="flex items-center gap-2 text-lg font-bold text-white">
-                  <Megaphone className="h-5 w-5 text-amber-200" />
-                  상단 공지
-                </h2>
-                <p className="mt-1 text-sm text-slate-400">방문자 화면 맨 위에 보여줄 공지를 작성합니다.</p>
+                <h2 className="text-lg font-bold text-white">기록 관리</h2>
+                <p className="mt-1 text-sm text-slate-400">검색 후 탭을 전환해 방문, 댓글, 소감을 빠르게 확인합니다.</p>
               </div>
-              <label className="flex h-10 items-center gap-2 rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-slate-200">
-                <input
-                  type="checkbox"
-                  name="isActive"
-                  checked={announcementDraft.isActive}
-                  onChange={handleAnnouncementChange}
-                  className="h-4 w-4 accent-cyan-400"
-                  disabled={isLoadingAnnouncement || isSavingAnnouncement}
-                />
-                노출
-              </label>
-            </div>
-
-            <div className="grid gap-3">
-              <input
-                name="title"
-                value={announcementDraft.title}
-                onChange={handleAnnouncementChange}
-                placeholder="공지 제목"
-                className="h-11 rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-slate-100 outline-none transition placeholder:text-slate-600 focus:border-cyan-400"
-                disabled={isLoadingAnnouncement || isSavingAnnouncement}
-              />
-              <textarea
-                name="message"
-                value={announcementDraft.message}
-                onChange={handleAnnouncementChange}
-                placeholder="예: 오늘 오후 3시에 상품 부스 운영이 시작됩니다."
-                className="min-h-24 resize-y rounded-lg border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm leading-relaxed text-slate-100 outline-none transition placeholder:text-slate-600 focus:border-cyan-400"
-                disabled={isLoadingAnnouncement || isSavingAnnouncement}
-              />
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <p className="text-xs text-slate-500">
-                  노출을 끄면 내용은 저장되어도 방문자 화면에는 보이지 않습니다.
-                </p>
-                <button
-                  type="button"
-                  onClick={handleSaveAnnouncement}
-                  disabled={isLoadingAnnouncement || isSavingAnnouncement}
-                  className="flex h-10 items-center gap-2 rounded-lg bg-amber-300 px-3 text-sm font-bold text-slate-950 transition active:scale-95 disabled:opacity-40"
-                >
-                  {isSavingAnnouncement ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                  공지 저장
-                </button>
-              </div>
-            </div>
-          </section>
-
-          <section className="rounded-lg border border-slate-800 bg-slate-900/55 p-4">
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-bold text-white">관리 기록</h2>
-                <p className="mt-1 text-sm text-slate-400">방문자별 발견 현황과 제출된 댓글, 피드백을 확인합니다.</p>
-              </div>
-              <div className="relative w-full sm:w-72">
+              <div className="relative w-full sm:w-80">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
                 <input
                   value={searchQuery}
                   onChange={event => setSearchQuery(event.target.value)}
-                  placeholder="이름, 작품, 내용 검색"
+                  placeholder="방문자, 이름, 작품, 내용 검색"
                   className="h-10 w-full rounded-lg border border-slate-700 bg-slate-950 pl-9 pr-3 text-sm text-slate-100 outline-none transition placeholder:text-slate-600 focus:border-cyan-400"
                 />
               </div>
             </div>
 
-            <div className="mb-4 flex rounded-lg border border-slate-800 bg-slate-950/70 p-1">
+            <div className="mb-4 grid grid-cols-2 gap-1 rounded-lg border border-slate-800 bg-slate-950/70 p-1 md:grid-cols-4">
               {recordTabs.map(tab => {
                 const Icon = tab.icon;
                 const isActive = activeTab === tab.id;
@@ -537,7 +491,7 @@ export default function AdminPanel({ onBack }) {
                     type="button"
                     onClick={() => setActiveTab(tab.id)}
                     className={[
-                      'flex min-h-10 flex-1 items-center justify-center gap-2 rounded-md px-2 text-sm transition',
+                      'flex min-h-10 items-center justify-center gap-2 rounded-md px-2 text-sm transition',
                       isActive ? 'bg-white text-slate-950' : 'text-slate-400 hover:text-slate-100',
                     ].join(' ')}
                   >
@@ -557,50 +511,20 @@ export default function AdminPanel({ onBack }) {
             )}
 
             {activeTab === 'visitors' && (
-              <div className="grid gap-3">
-                {isLoadingVisitors ? (
-                  <EmptyState icon={RefreshCw} title="방문 기록을 불러오는 중입니다." spinning />
-                ) : filteredVisitors.length === 0 ? (
-                  <EmptyState icon={Users} title="표시할 작품 발견 기록이 없습니다." />
-                ) : (
-                  filteredVisitors.map(visitor => (
-                    <article key={visitor.id} className="rounded-lg border border-slate-800 bg-slate-950/55 p-4">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-bold text-slate-100">방문자 {visitor.id.slice(0, 8)}</p>
-                          <p className="mt-1 text-xs text-slate-500">최근 갱신 {formatDate(visitor.updatedAt)}</p>
-                        </div>
-                        <span className="rounded-full bg-cyan-500/10 px-2.5 py-1 text-xs text-cyan-200">
-                          {visitor.viewedSymbols.length}개 발견
-                        </span>
-                      </div>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {visitor.viewedSymbols.map(symbol => (
-                          <span key={symbol.id} className="rounded-full border border-slate-700 bg-slate-900 px-2.5 py-1 text-xs text-slate-300">
-                            {symbol.label}
-                          </span>
-                        ))}
-                      </div>
-                    </article>
-                  ))
-                )}
+              <VisitorList
+                isLoading={isLoadingVisitors}
+                visitors={filteredVisitors}
+                emptyTitle="표시할 발견 기록이 없습니다."
+              />
+            )}
 
-                {!isLoadingVisitors && filteredAppOnlyVisitors.length > 0 && (
-                  <details className="rounded-lg border border-slate-800 bg-slate-950/35">
-                    <summary className="cursor-pointer px-4 py-3 text-sm text-slate-400 marker:text-slate-500">
-                      접속만 있는 기록 {filteredAppOnlyVisitors.length}개 보기
-                    </summary>
-                    <div className="grid gap-2 border-t border-slate-800 px-4 py-3">
-                      {filteredAppOnlyVisitors.map(visitor => (
-                        <div key={visitor.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-800 bg-slate-900/45 px-3 py-2">
-                          <span className="text-sm text-slate-300">방문자 {visitor.id.slice(0, 8)}</span>
-                          <span className="text-xs text-slate-500">최근 갱신 {formatDate(visitor.updatedAt)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </details>
-                )}
-              </div>
+            {activeTab === 'appOnly' && (
+              <VisitorList
+                isLoading={isLoadingVisitors}
+                visitors={filteredAppOnlyVisitors}
+                emptyTitle="접속만 한 방문자가 없습니다."
+                appOnly
+              />
             )}
 
             {activeTab === 'comments' && (
@@ -621,7 +545,7 @@ export default function AdminPanel({ onBack }) {
             {activeTab === 'feedbacks' && (
               <RecordList
                 records={filteredFeedbacks}
-                emptyTitle="표시할 투어 피드백이 없습니다."
+                emptyTitle="표시할 투어 소감이 없습니다."
                 renderItem={feedback => (
                   <RecordCard
                     key={feedback.id}
@@ -698,13 +622,64 @@ export default function AdminPanel({ onBack }) {
           </section>
         </div>
 
-        <aside className="grid content-start gap-5">
+        <aside className="grid content-start gap-5 xl:sticky xl:top-[76px]">
+          <section className="rounded-lg border border-slate-800 bg-slate-900/55 p-4">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <h2 className="flex items-center gap-2 text-lg font-bold text-white">
+                  <Megaphone className="h-5 w-5 text-amber-200" />
+                  상단 공지
+                </h2>
+                <p className="mt-1 text-sm text-slate-400">방문자 화면 상단에 안내를 노출합니다.</p>
+              </div>
+              <label className="flex h-9 items-center gap-2 rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-slate-200">
+                <input
+                  type="checkbox"
+                  name="isActive"
+                  checked={announcementDraft.isActive}
+                  onChange={handleAnnouncementChange}
+                  className="h-4 w-4 accent-cyan-400"
+                  disabled={isLoadingAnnouncement || isSavingAnnouncement}
+                />
+                노출
+              </label>
+            </div>
+
+            <div className="grid gap-3">
+              <input
+                name="title"
+                value={announcementDraft.title}
+                onChange={handleAnnouncementChange}
+                placeholder="공지 제목"
+                className="h-11 rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-slate-100 outline-none transition placeholder:text-slate-600 focus:border-cyan-400"
+                disabled={isLoadingAnnouncement || isSavingAnnouncement}
+              />
+              <textarea
+                name="message"
+                value={announcementDraft.message}
+                onChange={handleAnnouncementChange}
+                placeholder="예: 오늘 오후 3시에 상품 부스 운영이 시작됩니다."
+                className="min-h-24 resize-y rounded-lg border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm leading-relaxed text-slate-100 outline-none transition placeholder:text-slate-600 focus:border-cyan-400"
+                disabled={isLoadingAnnouncement || isSavingAnnouncement}
+              />
+              <button
+                type="button"
+                onClick={handleSaveAnnouncement}
+                disabled={isLoadingAnnouncement || isSavingAnnouncement}
+                className="flex h-10 items-center justify-center gap-2 rounded-lg bg-amber-300 px-3 text-sm font-bold text-slate-950 transition active:scale-95 disabled:opacity-40"
+              >
+                {isSavingAnnouncement ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                공지 저장
+              </button>
+            </div>
+          </section>
+
           <section className="rounded-lg border border-slate-800 bg-slate-900/55 p-4">
             <h2 className="flex items-center gap-2 text-lg font-bold text-white">
               <Link2 className="h-5 w-5 text-cyan-200" />
               운영 링크
             </h2>
-            <div className="mt-4 grid gap-3">
+            <div className="mt-4 grid max-h-[520px] gap-3 overflow-y-auto pr-1">
               {adminLinks.map(link => (
                 <div key={link.path} className="rounded-lg border border-slate-800 bg-slate-950/55 p-3">
                   <p className="font-bold text-slate-100">{link.label}</p>
@@ -736,7 +711,7 @@ export default function AdminPanel({ onBack }) {
 
           <section className="rounded-lg border border-slate-800 bg-slate-900/55 p-4">
             <h2 className="text-lg font-bold text-white">핀 좌표</h2>
-            <div className="mt-4 max-h-[460px] space-y-2 overflow-y-auto pr-1">
+            <div className="mt-4 max-h-[360px] space-y-2 overflow-y-auto pr-1">
               {pins.map(pin => (
                 <div key={pin.id} className="rounded-lg border border-slate-800 bg-slate-950/55 px-3 py-2.5">
                   <div className="flex items-center justify-between gap-2">
@@ -768,6 +743,46 @@ export default function AdminPanel({ onBack }) {
           <span className="text-sm">{notification.message}</span>
         </div>
       )}
+    </div>
+  );
+}
+
+function VisitorList({ isLoading, visitors, emptyTitle, appOnly = false }) {
+  if (isLoading) {
+    return <EmptyState icon={RefreshCw} title="방문 기록을 불러오는 중입니다." spinning />;
+  }
+
+  if (visitors.length === 0) {
+    return <EmptyState icon={Users} title={emptyTitle} />;
+  }
+
+  return (
+    <div className="grid gap-3">
+      {visitors.map(visitor => (
+        <article key={visitor.id} className="rounded-lg border border-slate-800 bg-slate-950/55 p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-bold text-slate-100">방문자 {visitor.id.slice(0, 8)}</p>
+              <p className="mt-1 text-xs text-slate-500">최근 갱신 {formatDate(visitor.updatedAt)}</p>
+            </div>
+            <span className="rounded-full bg-cyan-500/10 px-2.5 py-1 text-xs text-cyan-200">
+              {appOnly ? '접속만 있음' : `${visitor.viewedSymbols.length}개 발견`}
+            </span>
+          </div>
+
+          {appOnly ? (
+            <p className="mt-3 text-sm text-slate-500">아직 발견한 작품이 없습니다.</p>
+          ) : (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {visitor.viewedSymbols.map(symbol => (
+                <span key={symbol.id} className="rounded-full border border-slate-700 bg-slate-900 px-2.5 py-1 text-xs text-slate-300">
+                  {symbol.label}
+                </span>
+              ))}
+            </div>
+          )}
+        </article>
+      ))}
     </div>
   );
 }

@@ -1,7 +1,27 @@
 import React, { useState } from 'react';
 import { ArrowLeft, CheckCircle2, MessageSquareText, Send, Sparkles } from 'lucide-react';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
-import { db } from '../firebase';
+import { auth, db, signInAnonymously } from '../firebase';
+
+const FEEDBACK_AUTH_TIMEOUT_MS = 6000;
+const FEEDBACK_SUBMIT_TIMEOUT_MS = 8000;
+
+const withTimeout = (promise, timeoutMs, label) => (
+  Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      window.setTimeout(() => {
+        reject(new Error(`${label} timed out`));
+      }, timeoutMs);
+    }),
+  ])
+);
+
+const ensureFeedbackAuth = async () => {
+  if (auth.currentUser) return auth.currentUser;
+  const userCredential = await signInAnonymously(auth);
+  return userCredential.user;
+};
 
 export default function ParticipatePage({ onBack }) {
   const [name, setName] = useState(() => localStorage.getItem('tour_feedback_name') || '');
@@ -26,20 +46,37 @@ export default function ParticipatePage({ onBack }) {
     setErrorMessage('');
 
     try {
-      await addDoc(collection(db, 'tour_feedbacks'), {
-        name: trimmedName || '익명',
-        feedback: trimmedFeedback,
-        isPublished: false,
-        createdAt: serverTimestamp(),
-        source: 'question_qr',
-      });
+      await withTimeout(
+        ensureFeedbackAuth(),
+        FEEDBACK_AUTH_TIMEOUT_MS,
+        'Feedback auth',
+      );
+      await withTimeout(
+        addDoc(collection(db, 'tour_feedbacks'), {
+          name: trimmedName || '익명',
+          feedback: trimmedFeedback,
+          isPublished: false,
+          createdAt: serverTimestamp(),
+          source: 'question_qr',
+        }),
+        FEEDBACK_SUBMIT_TIMEOUT_MS,
+        'Feedback submit',
+      );
       localStorage.setItem('tour_feedback_name', trimmedName);
       setFeedback('');
       setStatus('submitted');
     } catch (error) {
       console.error('작품 투어 소감 저장 중 에러 발생:', error);
       setStatus('idle');
-      setErrorMessage('저장에 실패했어요. 잠시 후 다시 시도해 주세요.');
+      const isTimeoutError = error?.message?.includes('timed out');
+      const isPermissionError = error?.code === 'permission-denied';
+      setErrorMessage(
+        isTimeoutError
+          ? '네트워크 연결이 불안정해 제출 시간이 초과됐어요. 잠시 후 다시 시도해 주세요.'
+          : isPermissionError
+            ? '제출 권한 확인에 실패했어요. 새로고침 후 다시 시도해 주세요.'
+            : '저장에 실패했어요. 잠시 후 다시 시도해 주세요.',
+      );
     }
   };
 
