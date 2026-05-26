@@ -246,11 +246,6 @@ export default function SymbolCards({ symbols, onCardClick, isQuestionUnlocked, 
               <p className="text-[12px] leading-snug text-slate-500">함께 남긴 투어의 순간을 모았어요</p>
             </div>
           </div>
-          {featuredFeedbacks.length > 0 && (
-            <span className="rounded-full bg-sky-50 px-2.5 py-1 text-[11px] text-sky-700">
-              {featuredFeedbacks.length}개
-            </span>
-          )}
         </div>
 
         {featuredFeedbacks.length === 0 ? (
@@ -258,10 +253,10 @@ export default function SymbolCards({ symbols, onCardClick, isQuestionUnlocked, 
             <p className="text-sm text-slate-500">아직 작성된 소감이 없습니다.</p>
           </div>
         ) : (
-          <div className="grid gap-3">
+          <div className="grid max-h-[568px] gap-3 overflow-y-auto pr-1 scroll-container">
             {featuredFeedbacks.map(feedback => (
-              <article key={feedback.id} className="rounded-2xl border border-sky-100 bg-sky-50/60 px-4 py-3 text-left">
-                <p className="line-clamp-4 whitespace-pre-wrap break-words text-[14px] leading-6 text-slate-700">
+              <article key={feedback.id} className="min-h-[104px] rounded-2xl border border-sky-100 bg-sky-50/60 px-4 py-3 text-left">
+                <p className="line-clamp-3 whitespace-pre-wrap break-words text-[14px] leading-6 text-slate-700">
                   {feedback.feedback}
                 </p>
                 <p className="mt-2 truncate text-[12px] text-slate-500">

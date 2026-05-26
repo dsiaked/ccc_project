@@ -184,8 +184,7 @@ export default function App() {
       snapshot => {
         const nextFeedbacks = snapshot.docs
           .map(feedbackDoc => ({ id: feedbackDoc.id, ...feedbackDoc.data() }))
-          .sort((a, b) => getTimestamp(b.createdAt) - getTimestamp(a.createdAt))
-          .slice(0, 6);
+          .sort((a, b) => getTimestamp(b.createdAt) - getTimestamp(a.createdAt));
         setPublishedFeedbacks(nextFeedbacks);
       },
       error => {
