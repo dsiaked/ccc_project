@@ -200,7 +200,7 @@ export const symbolData = {
       undiscovered: {
         title: '숨겨진 십자가',
         desc: '홍지훈 작가가 배치한 소중한 십자가 심볼이에요.',
-        hint: '버려진 것들 속에 남겨진 누군가의 시간과 온기',
+        hint: '하찮은 것을 소중히 담아 존재 가치를 지키는 사람',
       },
       discovered: {
         title: '발견된 지훈의 십자가 🌟',
