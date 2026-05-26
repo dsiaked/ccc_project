@@ -236,6 +236,18 @@ export default function MapArea({ symbols, onSymbolClick, isQuestionUnlocked, zo
     const mapElement = mapRef.current;
     if (!mapElement) return undefined;
 
+    const getClampedPanForSize = (nextPan, nextZoom, nextMapSize) => {
+      if (nextZoom <= 1) return { x: 0, y: 0 };
+
+      const maxX = (nextMapSize.width * (nextZoom - 1)) / 2;
+      const maxY = (nextMapSize.height * (nextZoom - 1)) / 2;
+
+      return {
+        x: clamp(nextPan.x, -maxX, maxX),
+        y: clamp(nextPan.y, -maxY, maxY),
+      };
+    };
+
     const updateScale = () => {
       const { width, height } = mapElement.getBoundingClientRect();
       const nextMapSize = { width, height };
@@ -247,7 +259,7 @@ export default function MapArea({ symbols, onSymbolClick, isQuestionUnlocked, zo
           : nextMapSize
       ));
       setPan(currentPan => {
-        const nextPan = getClampedPan(currentPan, viewZoom, nextMapSize);
+        const nextPan = getClampedPanForSize(currentPan, viewZoom, nextMapSize);
         return currentPan.x === nextPan.x && currentPan.y === nextPan.y ? currentPan : nextPan;
       });
     };
@@ -262,7 +274,7 @@ export default function MapArea({ symbols, onSymbolClick, isQuestionUnlocked, zo
     const observer = new ResizeObserver(updateScale);
     observer.observe(mapElement);
     return () => observer.disconnect();
-  }, [getClampedPan, viewZoom]);
+  }, [viewZoom]);
 
   const handlePointerDown = event => {
     if (viewZoom <= 1 || isInteractiveControl(event.target)) return;
