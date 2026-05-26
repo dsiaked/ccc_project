@@ -23,7 +23,7 @@ const CustomCrossIcon = ({ size = 14, color = "currentColor", strokeWidth = "3" 
   </svg>
 );
 
-const MAP_PINS = [
+export const DEFAULT_MAP_PINS = [
   {
     id: 'heart_kymin',
     label: '김규민',
@@ -33,6 +33,17 @@ const MAP_PINS = [
     textTop: '28.4%',
     textLeft: '35.36%',
     color: '#ff8b8b', // 피그마 핑크 하트
+    borderColor: '#ff9d9d',
+  },
+  {
+    id: 'heart_eunchae',
+    label: '이은채',
+    type: 'heart',
+    pinTop: '15.0%',
+    pinLeft: '80.0%',
+    textTop: '15.0%',
+    textLeft: '70.0%',
+    color: '#ff8b8b',
     borderColor: '#ff9d9d',
   },
   {
@@ -123,7 +134,7 @@ const MAP_PINS = [
   }
 ];
 
-export default function MapArea({ symbols, onSymbolClick, isQuestionUnlocked, zoom = 1 }) {
+export default function MapArea({ symbols, onSymbolClick, isQuestionUnlocked, zoom = 1, pins = DEFAULT_MAP_PINS, editable = false, onPinMove }) {
   const mapRef = useRef(null);
   const dragRef = useRef(null);
   const [mapScale, setMapScale] = useState(1);
@@ -141,6 +152,53 @@ export default function MapArea({ symbols, onSymbolClick, isQuestionUnlocked, zo
     border: Math.max(1.5, 2 * pinScale),
     shadowY: Math.max(2, 2 * pinScale),
     shadowBlur: Math.max(5, 5 * pinScale),
+  };
+
+  const handlePinPointerDown = (event, id) => {
+    if (!editable) return;
+    event.stopPropagation();
+    event.preventDefault();
+
+    const mapElement = mapRef.current;
+    if (!mapElement) return;
+
+    // 포인터 캡처 활성화로 맵 밖으로 나가도 드래그 유지
+    event.currentTarget.setPointerCapture(event.pointerId);
+
+    const handlePointerMove = (moveEvent) => {
+      const rect = mapElement.getBoundingClientRect();
+      
+      // 마우스 위치 (rect 내 상대 좌표)
+      const mouseX = moveEvent.clientX - rect.left;
+      const mouseY = moveEvent.clientY - rect.top;
+
+      // 줌(scale) 및 패닝(translate) 오프셋 보정 계산
+      // transform: translate(pan.x, pan.y) scale(viewZoom) origin: center center
+      const centerX = rect.width / 2;
+      const centerY = rect.height / 2;
+
+      const correctedX = (mouseX - centerX - pan.x) / viewZoom + centerX;
+      const correctedY = (mouseY - centerY - pan.y) / viewZoom + centerY;
+
+      // 백분율 좌표 계산
+      const leftPercent = clamp((correctedX / rect.width) * 100, 0, 100).toFixed(2) + '%';
+      const topPercent = clamp((correctedY / rect.height) * 100, 0, 100).toFixed(2) + '%';
+
+      if (onPinMove) {
+        onPinMove(id, leftPercent, topPercent);
+      }
+    };
+
+    const handlePointerUp = (upEvent) => {
+      try {
+        upEvent.currentTarget?.releasePointerCapture(upEvent.pointerId);
+      } catch (e) {}
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+    };
+
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
   };
 
   const getClampedPan = useCallback((nextPan, nextZoom = viewZoom, nextMapSize = mapSize) => {
@@ -295,7 +353,6 @@ export default function MapArea({ symbols, onSymbolClick, isQuestionUnlocked, zo
         )}
         */}
         
-        {/* 원형 핀 마커 */}
         <button
           type="button"
           aria-label={`${type} symbol`}
@@ -308,7 +365,10 @@ export default function MapArea({ symbols, onSymbolClick, isQuestionUnlocked, zo
             transform: 'translate(-50%, -50%)',
             zIndex: 20
           }}
-          onClick={() => onSymbolClick(id)}
+          onClick={() => {
+            if (!editable) onSymbolClick(id);
+          }}
+          onPointerDown={(e) => handlePinPointerDown(e, id)}
         >
           <div className="relative">
             {/* 원형 테두리 */}
@@ -464,7 +524,7 @@ export default function MapArea({ symbols, onSymbolClick, isQuestionUnlocked, zo
         <div className="absolute inset-0 bg-[linear-gradient(rgba(107,33,168,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(107,33,168,0.02)_1px,transparent_1px)] bg-[size:40px_40px] pointer-events-none" />
 
         {/* Markers (피그마 맵 레이아웃과 일치하는 원형 심볼 및 아티스트 이름 핀 목록) */}
-        {MAP_PINS.map(renderFigmaPin)}
+        {pins.map(renderFigmaPin)}
       </div>
 
       <div className="absolute top-3 right-3 z-30 flex flex-col gap-2" data-map-control="true">
