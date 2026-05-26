@@ -506,7 +506,7 @@ export default function DivideYewonPopup({ onClose }) {
               </div>
 
               {/* 하단 제어 버튼: 112px X 52px 둥근 캡슐 */}
-              <div className="relative z-10 flex justify-center gap-6 mt-8 flex-none font-readable-sans">
+              <div className="relative z-10 flex flex-wrap justify-center gap-3 mt-8 flex-none font-readable-sans">
                 {/* BACK 버튼 */}
                 <button
                   onClick={() => setStep(1)}
@@ -518,11 +518,18 @@ export default function DivideYewonPopup({ onClose }) {
                 
                 {/* NEXT (확인 완료) 버튼 */}
                 <button
-                  onClick={onClose}
+                  onClick={() => setShowCommentModal(true)}
                   className="w-[112px] h-[52px] bg-gradient-to-r from-[#f7883e] to-[#ff9069] text-white rounded-[26px] flex items-center justify-center gap-1 hover:opacity-90 transition-all duration-200 active:scale-[0.96] shadow-[0_4px_12px_rgba(247,136,62,0.2)] cursor-pointer font-bold"
                 >
-                  <span className="text-[13px] tracking-[1.68px]">NEXT</span>
+                  <span className="text-[11px] tracking-[0.4px]">감상평 남기기</span>
                   <Check className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="w-full h-[46px] bg-white border border-gray-200 text-gray-700 rounded-[23px] flex items-center justify-center hover:bg-gray-50 transition-all duration-200 active:scale-[0.98] cursor-pointer shadow-sm font-bold"
+                >
+                  <span className="text-[13px] tracking-[0.4px]">다음 작품 보러 가기</span>
                 </button>
               </div>
 

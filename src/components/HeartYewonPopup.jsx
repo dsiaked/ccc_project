@@ -12,7 +12,7 @@ const getCommentClientId = () => {
   return newId;
 };
 
-export default function EunchaePopup({ onClose }) {
+export default function HeartYewonPopup({ onClose }) {
   const [step, setStep] = useState(1);
   const [showCommentModal, setShowCommentModal] = useState(false);
   const [comments, setComments] = useState([]);
@@ -36,7 +36,7 @@ export default function EunchaePopup({ onClose }) {
 
     const q = query(
       collection(db, 'comments'),
-      where('artistId', '==', 'heart_eunchae')
+      where('artistId', '==', 'heart_yewon')
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -75,7 +75,7 @@ export default function EunchaePopup({ onClose }) {
 
     try {
       await addDoc(collection(db, 'comments'), {
-        artistId: 'heart_eunchae',
+        artistId: 'heart_yewon',
         name: newName.trim(),
         content: newContent.trim(),
         clientId,
@@ -87,7 +87,6 @@ export default function EunchaePopup({ onClose }) {
       console.error("댓글 등록 실패:", error);
     }
   };
-
   const startEditComment = (comment) => {
     if (!isOwnComment(comment)) return;
 
@@ -168,6 +167,7 @@ export default function EunchaePopup({ onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-0 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300 overflow-x-hidden touch-pan-y">
+      {/* 스타일 태그 삽입: 몽환적인 플로팅 하트 및 피그마 전용 서체 애니메이션 정의 */}
       <style>{`
         @keyframes float-up {
           0% {
@@ -195,6 +195,7 @@ export default function EunchaePopup({ onClose }) {
         .font-readable-sans {
           font-family: 'Jua', sans-serif;
         }
+        /* 팝업 전체 바디 커스텀 스크롤 스타일 */
         .popup-body-scroll::-webkit-scrollbar {
           width: 5px;
         }
@@ -212,21 +213,58 @@ export default function EunchaePopup({ onClose }) {
         }
       `}</style>
 
-      {/* 팝업 모달 몸체 */}
+      {/* 팝업 모달 몸체: Figma iPhone 17-26의 가로-세로 뷰포트 비율을 1:1 복원하는 360x780px 고정형 카드 */}
       <div className="relative w-[360px] h-[780px] max-h-[92vh] rounded-[32px] overflow-hidden flex flex-col shadow-[0_25px_60px_rgba(0,0,0,0.18)] border border-gray-100 bg-white animate-in zoom-in-95 duration-300 touch-pan-y">
 
-        {/* Step 1: 첫 번째 팝업창 (감성 인트로) */}
+        {/* Step 1: 피그마 iPhone 17-26 1:1 완벽 절대 좌표 복원 */}
         {step === 1 && (
           <div className="relative flex-1 bg-gradient-to-b from-[#ffffff] via-[#fffbfb] to-[#fff0f0] text-gray-800 overflow-hidden select-none">
 
-            {/* 기하학적 백그라운드 디자인 */}
+            {/* 1. 피그마 기하학적 도형 배경들 0.9배율 완벽 재현 */}
             <div className="absolute inset-0 pointer-events-none z-[1] overflow-hidden">
-              <div className="absolute w-[232px] h-[230px] rounded-[20px] left-[150px] top-[103px] opacity-[0.08]" style={{ backgroundImage: "linear-gradient(to bottom, #fa5c5c, #f8cfd0)" }} />
-              <div className="absolute w-[143px] h-[142px] rounded-bl-[20px] rounded-br-[20px] rounded-tl-[20px] left-[219px] top-0 opacity-[0.06]" style={{ backgroundImage: "linear-gradient(to bottom, #fa5c5c, #ffedd5)" }} />
-              <div className="absolute w-[73px] h-[254px] rounded-[20px] left-[242px] top-[281px] opacity-[0.05]" style={{ backgroundImage: "linear-gradient(to bottom, #fa5c5c, #f8cfd0)" }} />
+              {/* Radial gradient background box 1 */}
+              <div
+                className="absolute w-[232px] h-[230px] rounded-[20px] left-[150px] top-[103px] opacity-[0.08]"
+                style={{ backgroundImage: "linear-gradient(to bottom, #fa5c5c, #f8cfd0)" }}
+              />
+              {/* Radial gradient background box 2 */}
+              <div
+                className="absolute w-[143px] h-[142px] rounded-bl-[20px] rounded-br-[20px] rounded-tl-[20px] left-[219px] top-0 opacity-[0.06]"
+                style={{ backgroundImage: "linear-gradient(to bottom, #fa5c5c, #ffedd5)" }}
+              />
+              {/* Radial gradient background box 3 */}
+              <div
+                className="absolute w-[73px] h-[254px] rounded-[20px] left-[242px] top-[281px] opacity-[0.05]"
+                style={{ backgroundImage: "linear-gradient(to bottom, #fa5c5c, #f8cfd0)" }}
+              />
+              {/* Radial gradient background box 4 */}
+              <div
+                className="absolute w-[82px] h-[230px] rounded-[20px] left-[291px] top-[176px] opacity-[0.08]"
+                style={{ backgroundImage: "linear-gradient(to bottom, #fa5c5c, #f8cfd0)" }}
+              />
+              {/* Radial gradient background box 5 */}
+              <div
+                className="absolute w-[137px] h-[230px] rounded-[20px] left-[276px] top-[448px] opacity-[0.07]"
+                style={{ backgroundImage: "linear-gradient(to bottom, #fa5c5c, #ffffff)" }}
+              />
+              {/* Radial gradient background box 6 */}
+              <div
+                className="absolute w-[141px] h-[269px] rounded-[20px] left-[208px] top-[574px] opacity-[0.08]"
+                style={{ backgroundImage: "linear-gradient(to bottom, #fa5c5c, #f8cfd0)" }}
+              />
+              {/* Radial gradient background box 7 */}
+              <div
+                className="absolute w-[68px] h-[269px] rounded-[20px] left-[15px] top-[631px] opacity-[0.06]"
+                style={{ backgroundImage: "linear-gradient(to bottom, #fa5c5c, #f8cfd0)" }}
+              />
+              {/* Radial gradient background box 8 */}
+              <div
+                className="absolute w-[147px] h-[49px] rounded-[20px] left-[130px] top-[365px] opacity-[0.08]"
+                style={{ backgroundImage: "linear-gradient(to bottom, #fa5c5c, #f8cfd0)" }}
+              />
             </div>
 
-            {/* 하트 파티클 */}
+            {/* 흩날리는 파스텔 핑크 하트 파티클 */}
             <div className="absolute inset-0 overflow-hidden pointer-events-none z-[2]">
               {floatingHearts.map((heart) => (
                 <div
@@ -245,67 +283,93 @@ export default function EunchaePopup({ onClose }) {
               ))}
             </div>
 
-            {/* 메인 텍스트 및 라벨 */}
+            {/* 2. 피그마 자산 이미지들 배치 (은은한 실루엣 하트로 일치) */}
+            <div className="absolute inset-0 pointer-events-none z-[3]">
+              {/* 자산 1 3 (하트 실루엣 1) */}
+              <Heart className="absolute left-[180px] top-[70px] w-[50px] h-[48px] text-rose-300/20 fill-rose-100/10" />
+              {/* 자산 1 2 (하트 실루엣 2) */}
+              <Heart className="absolute left-[256px] top-[155px] w-[76px] h-[71px] text-rose-300/15 fill-rose-100/8" />
+              {/* 자산 1 4 (하트 실루엣 3) */}
+              <Heart className="absolute left-[10px] bottom-[20px] w-[50px] h-[48px] text-rose-300/20 fill-rose-100/10" />
+              {/* 자산 1 1 (우측 대형 하트 실루엣) */}
+              <div className="absolute left-[132px] top-[448px] w-[225px] h-[212px] rotate-[5.89deg] opacity-25">
+                <Heart className="w-full h-full text-rose-300/30 fill-rose-100/15" />
+              </div>
+            </div>
+
+            {/* 3. 글자 배치 (피그마 1:1 절대좌표 이식 및 손예원 작가 사양 적용) */}
             <div className="relative z-10 w-full h-full">
+              {/* SYMBOL1 : HEART */}
               <span className="absolute left-[29px] top-[31px] text-[15px] tracking-[1.92px] font-medium text-[#4a3b3b] font-readable-sans">
-                SYMBOL : HEART
+                SYMBOL1 : HEART
               </span>
 
+              {/* Rectangle 361 (상단 얇은 가로선) */}
               <div className="absolute left-[29px] top-[64px] w-[35px] h-[1.5px] bg-[#e2cece]" />
 
+              {/* 2026.05.26/06.02 */}
               <div className="absolute right-[25px] top-[58px] text-[10px] text-[#4a3b3b] tracking-[1.2px] text-right font-readable-sans">
                 2026.05.26/06.02
               </div>
 
+              {/* 과기대 붕어방 */}
               <div className="absolute right-[25px] top-[71px] text-[10px] text-[#4a3b3b] tracking-[1.2px] text-right font-readable-sans">
-                과기대 미술관
+                과기대 붕어방
               </div>
 
-              {/* 작품 명으로 감성 인트로 구성 */}
-              <div className="absolute left-[29px] top-[110px] w-[310px] text-left">
-                <h1 className="text-[36px] font-bold text-rose-500 tracking-wide font-sentiment mb-6 select-text">
-                  〈Little Lamb〉
-                </h1>
-                <div className="text-[20px] leading-[1.6] text-[#4a3b3b] font-sentiment font-normal break-keep">
-                  <p>작고 둥근 몸짓,</p>
-                  <p>보호하고 아껴주고 싶은</p>
-                  <p>연약함을 온전히 품어 안으시는</p>
-                  <p className="font-bold text-rose-500">예수님의 다정한 시선 🐑</p>
+              {/* 대형 감성 문구: 손예원 작가 (iPhone 17 - 26) 피그마 배치 및 색감/두께 단일화 */}
+              <div className="absolute left-[29px] top-[91px] w-[310px] text-left">
+                <div className="text-[34px] leading-[1.22] text-[#4a3b3b] tracking-[1.5px] font-sentiment font-normal">
+                  <p>간절히</p>
+                  <p>두드리던</p>
+                  <p>사랑보다,</p>
+                  <div className="h-[18px]" /> {/* 피그마 오리지널 빈 줄 간격 정밀 복원 */}
+                  <p>이미</p>
+                  <p>내 문을</p>
+                  <p>두드리고 있던</p>
+                  <p>사랑이 더 컸음을</p>
                 </div>
               </div>
 
-              {/* 아티스트 정보 하단 배치 */}
+              {/* 하단 작가 소개 영역 */}
+              {/* Rectangle 358 (작가 위 가로선) */}
               <div className="absolute left-[26px] top-[475px] w-[35px] h-[1.5px] bg-[#e2cece]" />
 
+              {/* ARTIST. 손예원 및 댓글 이모지 버튼 */}
               <div className="absolute left-[26px] right-[25px] top-[492px] flex items-center justify-between">
                 <span className="text-[15px] tracking-[1.92px] font-medium text-[#4a3b3b] font-readable-sans">
-                  ARTIST. 이은채
+                  ARTIST. 손예원
                 </span>
                 <button
                   onClick={() => setShowCommentModal(true)}
-                  className="relative flex items-center justify-center w-16 h-16 rounded-full bg-rose-50 border-2 border-rose-100 hover:bg-rose-100/50 text-[#fa5c5c] cursor-pointer transition-all active:scale-95 shadow-md animate-in fade-in"
+                  className="relative flex items-center justify-center w-16 h-16 rounded-full bg-rose-50 border-2 border-rose-100 hover:bg-rose-100/50 text-[#fa5c5c] cursor-pointer transition-all active:scale-95 shadow-md animate-in fade-in duration-300"
+                  title="감상평 남기기"
                 >
                   <MessageSquare className="w-8 h-8" />
+                  {/* 댓글 수 배지 */}
                   <span className="absolute -top-1 -right-1 flex h-6 min-w-[24px] px-1.5 items-center justify-center rounded-full bg-red-500 text-white text-xs font-bold shadow-sm border border-white">
                     {comments.length}
                   </span>
                 </button>
               </div>
 
+              {/* 서울과학기술대학교 중앙동아리 CCC */}
               <div className="absolute left-[25px] top-[530px] text-[10px] tracking-[1.2px] text-[#4a3b3b] leading-normal font-readable-sans">
                 <p>서울과학기술대학교</p>
                 <p className="mt-0.5">중앙동아리 CCC</p>
               </div>
 
+              {/* NEXT PAGE 버튼: 우측 하단 둥근 캡슐 */}
               <button
                 onClick={() => setStep(2)}
-                className="absolute right-[25px] bottom-[35px] w-[140px] h-[47px] bg-gradient-to-r from-[#fa5c5c] to-[#ff7b7b] text-white rounded-[24px] flex items-center justify-between pl-6 pr-5 hover:opacity-90 transition-all active:scale-[0.96] shadow-[0_4px_15px_rgba(250,92,92,0.25)] cursor-pointer font-readable-sans"
+                className="absolute right-[25px] bottom-[35px] w-[140px] h-[47px] bg-gradient-to-r from-[#fa5c5c] to-[#ff7b7b] text-white rounded-[24px] flex items-center justify-between pl-6 pr-5 hover:opacity-90 transition-all duration-200 active:scale-[0.96] shadow-[0_4px_15px_rgba(250,92,92,0.25)] cursor-pointer font-readable-sans"
               >
                 <span className="text-[13px] tracking-[1.68px] font-bold">NEXT</span>
                 <ArrowRight className="w-4 h-4 text-white" />
               </button>
             </div>
 
+            {/* 닫기 X 버튼 */}
             <button
               onClick={onClose}
               className="absolute top-4 right-4 z-20 w-8 h-8 bg-gray-100/80 hover:bg-gray-200/80 text-gray-500 rounded-full flex items-center justify-center backdrop-blur-sm transition-colors border border-gray-200"
@@ -315,81 +379,198 @@ export default function EunchaePopup({ onClose }) {
           </div>
         )}
 
-        {/* Step 2: 두 번째 팝업창 (작품 상세 설명 본문) */}
+        {/* Step 2: 피그마 iPhone 17-27 기반 디테일 완벽 복원 (손예원 작가 수필 서사 적용) */}
         {step === 2 && (
           <div className="relative flex-1 flex flex-col bg-gradient-to-b from-[#ffffff] via-[#fffbfb] to-[#ffebeb] text-gray-800 overflow-y-auto overflow-x-hidden popup-body-scroll select-none touch-pan-y">
-            <div className="relative w-full flex flex-col p-6 pb-8 min-h-[960px]">
 
-              <div className="absolute top-[5px] right-[-10px] w-64 h-60 opacity-40 pointer-events-none z-[2] mix-blend-normal">
+            {/* 전체 높이를 확보하여 피그마의 비율을 보존 */}
+            <div className="relative w-full flex flex-col p-6 pb-8 min-h-[1250px]">
+
+              {/* 은은하게 그라데이션으로 퍼지는 로즈빛 광원 오버레이 */}
+              <div
+                className="absolute inset-0 pointer-events-none opacity-[0.02] mix-blend-multiply"
+                style={{ backgroundImage: "linear-gradient(206.325deg, rgba(248, 33, 33, 0) 14.004%, rgb(183, 26, 26) 80.929%)" }}
+              />
+              <div
+                className="absolute inset-0 pointer-events-none opacity-40 mix-blend-overlay"
+                style={{ backgroundImage: "linear-gradient(147.794deg, rgba(248, 33, 33, 0) 34.559%, rgb(254, 229, 180) 100.79%)" }}
+              />
+
+              {/* 흩날리는 핑크빛 하트 파티클 */}
+              <div className="absolute inset-0 overflow-hidden pointer-events-none z-[1]">
+                {floatingHearts.map((heart) => (
+                  <div
+                    key={heart.id}
+                    className="absolute bottom-0 animate-float"
+                    style={{
+                      left: heart.left,
+                      '--dur': heart.duration,
+                      '--delay': heart.delay,
+                      '--op': heart.opacity * 1.2,
+                      fontSize: `${heart.size}px`,
+                    }}
+                  >
+                    <Heart className="fill-rose-400/10 text-transparent" style={{ width: heart.size, height: heart.size }} />
+                  </div>
+                ))}
+              </div>
+
+              {/* 우측 상단 하트 장식 (오버레이) */}
+              <div className="absolute top-[5px] right-[-10px] w-64 h-60 opacity-40 pointer-events-none z-[2] mix-blend-normal animate-pulse">
                 <Heart className="w-full h-full text-rose-200/40 fill-rose-100/15" />
               </div>
 
-              {/* 상단 헤더 */}
+              {/* 상단 띠지 */}
               <div className="relative z-10 flex justify-between items-center pb-6 font-readable-sans">
                 <span className="text-[10px] tracking-[1.2px] font-bold text-rose-500">
-                  SYMBOL : HEART
+                  SYMBOL1 : HEART
                 </span>
                 <div className="w-[100px] h-[0.5px] bg-rose-200" />
               </div>
 
-              {/* 작품 설명 카드 몸체 */}
-              <div className="relative z-10 flex-1 flex flex-col bg-white/90 backdrop-blur-md rounded-[24px] border border-rose-100 p-6 sm:p-7 shadow-[0_8px_32px_rgba(0,0,0,0.03)]">
-                
-                {/* 작품 제목 */}
-                <div className="text-left font-sentiment text-[32px] leading-[1.2] text-rose-500 tracking-[1.5px] font-bold mt-2 select-text">
-                  〈Little Lamb〉
+              {/* 카드 배경 */}
+              <div className="relative z-10 flex-1 flex flex-col bg-white/80 backdrop-blur-md rounded-[20px] border border-rose-100 p-7 shadow-[0_8px_32px_rgba(0,0,0,0.03)]">
+
+                {/* 헤드라인 타이틀: "문 너머의 사랑" */}
+                <div className="text-left font-sentiment text-[36px] leading-[1.15] text-rose-500 tracking-[5.88px] font-bold mt-2 select-text">
+                  <p>문 너머의</p>
+                  <p>사랑</p>
                 </div>
-                
-                <div className="bg-rose-300 h-px w-[31px] my-5 flex-none" />
 
-                {/* 사용자가 작성 요청한 3문단 작품 설명 본문 - font-sans와 leading-relaxed 적용으로 가독성 극대화 */}
-                <div className="text-left text-[14px] sm:text-[14.5px] leading-[1.9] text-gray-700 space-y-6 tracking-wide font-sans select-text break-keep">
-                  
-                  {/* 1문단 */}
-                  <p className="text-gray-600">
-                    <span className="font-bold text-gray-900 text-base">〈Little Lamb〉</span>은 인간이 귀여움을 느끼는 방식에서 출발한 작업이다. 사람들은 자신과 닮은 존재에게 감정을 이입하고 의인화하며 귀여움을 느낀다. 작은 몸집과 둥근 형태 짧은 팔다리처럼 본능적으로 귀엽다고 느끼는 요소들은 대상을 보호하고 싶고 아껴주고 싶은 감정을 자연스럽게 불러일으킨다. 나는 이러한 감정 안에 <span className="font-semibold text-rose-500">예수님이 인간을 바라보시는 사랑과 닮은 부분</span>이 있다고 느꼈다. 연약한 존재를 먼저 품고 아끼시는 마음 말이다.
+                {/* 얇은 가로선 */}
+                <div className="bg-rose-300 h-px w-[31px] my-6 flex-none" />
+
+                {/* 본문 서사: 손예원 작가 수필 (온점 하나도 누락 없이 100% 반영) */}
+                <div className="text-left text-[14.5px] leading-[1.85] text-gray-700 space-y-5 tracking-wide font-readable-sans select-text break-keep">
+                  <p className="text-gray-800 font-medium">사랑이란 무엇일까요.</p>
+
+                  <div className="h-1" />
+                  <p className="text-gray-800">
+                    많은 사람들의 마음의 문이<br />
+                    닫혀 있는 요즘입니다.
                   </p>
 
-                  {/* 2문단 */}
-                  <p className="text-gray-600">
-                    작품은 양의 형상을 통해 이러한 귀여움의 요소들을 조형적으로 드러낸다. 둥글고 작은 몸 비율과 모여 있는 발의 자세 그리고 단순화된 얼굴은 연약하고 순한 인상을 강조한다. 몸통은 크기가 다른 알루미늄 피스들을 반복적으로 용접해 <span className="font-medium text-gray-800">양털처럼 부드러운 덩어리감</span>을 만들었고 얼굴과 발은 적동을 망치로 직접 성형해 손의 흔적과 유기적인 감각이 느껴지도록 했다. 차갑고 단단한 금속 재료를 사용했지만 전체적으로는 부드럽고 사랑스러운 인상이 느껴지도록 구성했다.
+                  <div className="h-1" />
+                  <p className="text-gray-800">
+                    어느샌가 타인으로부터<br />
+                    스스로를 지키는 것이<br />
+                    사랑의 힘을 뛰어넘은 것 같습니다.
                   </p>
 
-                  {/* 3문단 - 더욱 고급스러운 가스모피즘 핑크 베일 박스로 리팩토링 */}
-                  <div className="bg-rose-50/30 border border-rose-100/50 p-5 rounded-[24px] shadow-[0_4px_15px_rgba(250,92,92,0.02)] relative overflow-hidden">
-                    <div className="absolute top-0 right-0 w-16 h-16 opacity-5 pointer-events-none">
-                      <Heart className="w-full h-full text-rose-500 fill-rose-500" />
-                    </div>
-                    <span className="inline-block text-xl mb-2 select-none">🐑</span>
-                    <p className="text-gray-700 leading-[1.85]">
-                      성경에서 양은 예수님과 그를 따르는 사람들을 상징한다. 관람자가 이 작은 양을 바라보며 자연스럽게 느끼는 애정과 보호하고 싶은 마음을 통해 <span className="font-bold text-rose-600">연약한 존재를 먼저 품고 아끼시는 사랑</span>을 떠올리기를 바랐다. 이 작업은 귀여운 대상을 마주할 때 판단보다 애정이 먼저 일어나는 감각을 통해 존재 자체를 사랑으로 바라보는 시선을 이야기한다.
-                    </p>
+                  <div className="h-1" />
+                  <p className="text-gray-800">
+                    저도 꾹 닫힌 마음의 소유자지만<br />
+                    사랑의 소중함은 아직 한켠에<br />
+                    미미하게 존재합니다.
+                  </p>
+
+                  <div className="h-1" />
+                  <p className="text-gray-800">
+                    이 미약한 소망을 가지고<br />
+                    사람들의 닫힌 문을 두드리기 위해<br />
+                    나름의 노력을 쏟아붓고 있습니다.
+                  </p>
+
+                  <div className="h-1" />
+                  <p className="font-bold text-gray-900">
+                    그러나 노크 소리가 너무<br />
+                    작았는지 응답은 없고,<br />
+                    내가 지쳐 포기하기 직전입니다.
+                  </p>
+
+                  <div className="py-2 text-rose-300 text-center flex justify-center gap-1 select-none font-bold">
+                    <span>.</span><span>.</span><span>.</span>
+                  </div>
+
+                  <p className="text-gray-800">
+                    누군가 내 마음의 문을<br />
+                    두드리는 소리를<br />
+                    들어보신 적 있으신가요.
+                  </p>
+
+                  <div className="h-1" />
+                  <p className="text-gray-800">
+                    지친 사람에게 그 소리는<br />
+                    소음일 뿐입니다.<br />
+                    궁금은 하더라도, 나아갈 목적과<br />
+                    힘이 없으면 우리는 굳이<br />
+                    마음의 문을 열지 않습니다.
+                  </p>
+
+                  <div className="h-1" />
+                  <p className="text-gray-800">
+                    그러나 나의 전 일생 동안<br />
+                    지치지 않고 하염없이<br />
+                    문을 두드리는 사람이<br />
+                    있다면 우리는 문을 열게 될까요.
+                  </p>
+
+                  <div className="h-1" />
+                  <p className="font-semibold text-gray-900">
+                    기쁠 때도, 지칠 때도, 내가 어떤 모습일지라도<br />
+                    문을 여는 순간 언제나<br />
+                    사랑으로 맞이해 줄 이가 있다면요.
+                  </p>
+
+                  <div className="py-2 text-rose-300 text-center flex justify-center gap-1 select-none font-bold">
+                    <span>.</span><span>.</span><span>.</span>
+                  </div>
+
+                  <p className="text-gray-800">
+                    어쩌면 사랑은<br />
+                    애써 만들어 내는 것이 아니라,<br />
+                    이미 내 문 앞에 와 있던 마음을<br />
+                    알아차리는 일인지도 모릅니다.
+                  </p>
+
+                  <div className="h-1" />
+                  <p className="font-semibold text-gray-900">
+                    내가 노력해서 이루려 했던 사랑보다,<br />
+                    아무런 조건 없이 나를 기다려온 그 사랑이<br />
+                    더 깊고 소중하다는 생각이 듭니다.
+                  </p>
+
+                  {/* 대답 상자: 손예원 작가 수필 최종 구절 */}
+                  <div className="my-6 border border-rose-150 bg-[#fff5f5] py-5 px-3.5 rounded-3xl font-sentiment text-[14.5px] leading-relaxed text-[#c93b3b] text-center shadow-sm">
+                    <p className="font-bold text-[#b92c2c]">문을 열기만 하면</p>
+                    <p className="font-bold text-[#b92c2c]">영원한 사랑을 얻을 수 있다는데</p>
+                    <p className="font-bold text-[#b92c2c]">당신은 그 문을 열 건가요?</p>
                   </div>
 
                 </div>
               </div>
 
-              {/* 하단 네비게이션 */}
-              <div className="relative z-10 flex justify-center gap-6 mt-8 flex-none font-readable-sans">
+              {/* 하단 제어 버튼: 112px X 52px 둥근 캡슐 */}
+              <div className="relative z-10 flex flex-wrap justify-center gap-3 mt-8 flex-none font-readable-sans">
+                {/* BACK 버튼 */}
                 <button
                   onClick={() => setStep(1)}
-                  className="w-[112px] h-[52px] bg-white border border-gray-200 text-gray-700 rounded-[26px] flex items-center justify-center gap-1.5 hover:bg-gray-50 transition-all active:scale-[0.96] cursor-pointer shadow-sm font-bold"
+                  className="w-[112px] h-[52px] bg-white border border-gray-200 text-gray-700 rounded-[26px] flex items-center justify-center gap-1.5 hover:bg-gray-50 transition-all duration-200 active:scale-[0.96] cursor-pointer shadow-sm font-bold"
                 >
                   <ArrowLeft className="w-3.5 h-3.5 text-gray-500" />
                   <span className="text-[13px] tracking-[1.68px]">BACK</span>
                 </button>
 
+                {/* NEXT (확인 완료) 버튼 */}
                 <button
-                  onClick={onClose}
-                  className="w-[112px] h-[52px] bg-gradient-to-r from-[#fa5c5c] to-[#ff7b7b] text-white rounded-[26px] flex items-center justify-center gap-1 hover:opacity-90 transition-all active:scale-[0.96] shadow-[0_4px_12px_rgba(250,92,92,0.2)] cursor-pointer font-bold"
+                  onClick={() => setShowCommentModal(true)}
+                  className="w-[112px] h-[52px] bg-gradient-to-r from-[#fa5c5c] to-[#ff7b7b] text-white rounded-[26px] flex items-center justify-center gap-1 hover:opacity-90 transition-all duration-200 active:scale-[0.96] shadow-[0_4px_12px_rgba(250,92,92,0.2)] cursor-pointer font-bold"
                 >
-                  <span className="text-[13px] tracking-[1.68px]">NEXT</span>
+                  <span className="text-[11px] tracking-[0.4px]">감상평 남기기</span>
                   <Check className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="w-full h-[46px] bg-white border border-gray-200 text-gray-700 rounded-[23px] flex items-center justify-center hover:bg-gray-50 transition-all duration-200 active:scale-[0.98] cursor-pointer shadow-sm font-bold"
+                >
+                  <span className="text-[13px] tracking-[0.4px]">다음 작품 보러 가기</span>
                 </button>
               </div>
 
             </div>
 
+            {/* 닫기 X 버튼 */}
             <button
               onClick={onClose}
               className="absolute top-4 right-4 z-20 w-8 h-8 bg-gray-100/80 hover:bg-gray-200/80 text-gray-500 rounded-full flex items-center justify-center backdrop-blur-sm transition-colors border border-gray-200"
@@ -405,6 +586,7 @@ export default function EunchaePopup({ onClose }) {
       {showCommentModal && (
         <div className="absolute inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-[2px] animate-in fade-in duration-200">
           <div className="relative w-[310px] h-[520px] rounded-[24px] bg-white border border-rose-100 flex flex-col p-5 shadow-2xl animate-in zoom-in-95 duration-200">
+            {/* 헤더 */}
             <div className="flex justify-between items-center pb-3 border-b border-gray-100">
               <div className="flex items-center gap-1.5">
                 <span className="text-lg font-bold text-rose-500 font-sentiment">감상평 남기기 💬</span>
@@ -418,6 +600,7 @@ export default function EunchaePopup({ onClose }) {
               </button>
             </div>
 
+            {/* 댓글 리스트 */}
             <div className="flex-1 overflow-y-auto popup-body-scroll my-3 pr-1 space-y-3 select-text">
               {loadingComments ? (
                 <div className="h-full flex flex-col items-center justify-center text-gray-400 text-xs gap-2 py-10">
@@ -425,10 +608,11 @@ export default function EunchaePopup({ onClose }) {
                   <span>감상평을 불러오는 중...</span>
                 </div>
               ) : comments.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center text-gray-400 text-xs py-10 text-center leading-relaxed">
+                <div className="h-full flex flex-col items-center justify-center text-gray-400 text-xs py-10 text-center leading-relaxed animate-in fade-in duration-300">
                   <span className="text-3xl mb-2">🎈</span>
                   <span className="font-bold text-gray-600 text-sm">첫 감상평을 남겨보세요!</span>
                   <span className="opacity-70 mt-1">아직 작성된 감상평이 없습니다.</span>
+                  <span className="opacity-60 mt-0.5">따뜻한 첫 마디로 작품을 채워주세요 ✨</span>
                 </div>
               ) : (
                 comments.map((comment) => {
@@ -447,6 +631,7 @@ export default function EunchaePopup({ onClose }) {
                                 type="button"
                                 onClick={() => startEditComment(comment)}
                                 className="w-6 h-6 rounded-full bg-white/80 border border-gray-100 text-gray-400 hover:text-gray-700 flex items-center justify-center transition-colors cursor-pointer"
+                                title="수정"
                               >
                                 <Pencil className="w-3 h-3" />
                               </button>
@@ -454,6 +639,7 @@ export default function EunchaePopup({ onClose }) {
                                 type="button"
                                 onClick={() => handleDeleteComment(comment.id)}
                                 className="w-6 h-6 rounded-full bg-white/80 border border-gray-100 text-gray-400 hover:text-red-500 hover:border-red-100 flex items-center justify-center transition-colors cursor-pointer"
+                                title="삭제"
                               >
                                 <Trash2 className="w-3 h-3" />
                               </button>
@@ -498,6 +684,7 @@ export default function EunchaePopup({ onClose }) {
               )}
             </div>
 
+            {/* 댓글 폼 */}
             <form onSubmit={handleAddComment} className="flex flex-col gap-2 border-t border-gray-100 pt-3 mt-auto">
               <input
                 type="text"

@@ -2,11 +2,11 @@ import React, { useState } from 'react';
 import MapPopup from './MapPopup';
 import QrPopup from './QrPopup';
 import MultiSelectorPopup from './MultiSelectorPopup';
-import EunhyePopup from './EunhyePopup';
-import EunchaePopup from './EunchaePopup';
-import KyminPopup from './KyminPopup';
-import YewonPopup from './YewonPopup';
-import JihoonPopup from './JihoonPopup';
+import HeartEunhyePopup from './HeartEunhyePopup';
+import HeartEunchaePopup from './HeartEunchaePopup';
+import HeartKyminPopup from './HeartKyminPopup';
+import HeartYewonPopup from './HeartYewonPopup';
+import HeartJihoonPopup from './HeartJihoonPopup';
 import DivideYewonPopup from './DivideYewonPopup';
 import DivideKyeomjunPopup from './DivideKyeomjunPopup';
 import CrossKyeomjunPopup from './CrossKyeomjunPopup';
@@ -19,19 +19,19 @@ export default function Popup({ id, type, symbols, discovered, onClose }) {
   // 아티스트 상세 팝업이 덮어씌워진 상태 (뒤로가기 시 다시 멀티 리스트로 회귀)
   if (selectedArtist) {
     if (selectedArtist === 'heart_eunhye') {
-      return <EunhyePopup onClose={() => setSelectedArtist(null)} />;
+      return <HeartEunhyePopup onClose={() => setSelectedArtist(null)} />;
     }
     if (selectedArtist === 'heart_eunchae') {
-      return <EunchaePopup onClose={() => setSelectedArtist(null)} />;
+      return <HeartEunchaePopup onClose={() => setSelectedArtist(null)} />;
     }
     if (selectedArtist === 'heart_kymin') {
-      return <KyminPopup onClose={() => setSelectedArtist(null)} />;
+      return <HeartKyminPopup onClose={() => setSelectedArtist(null)} />;
     }
     if (selectedArtist === 'heart_yewon') {
-      return <YewonPopup onClose={() => setSelectedArtist(null)} />;
+      return <HeartYewonPopup onClose={() => setSelectedArtist(null)} />;
     }
     if (selectedArtist === 'heart_jihoon') {
-      return <JihoonPopup onClose={() => setSelectedArtist(null)} />;
+      return <HeartJihoonPopup onClose={() => setSelectedArtist(null)} />;
     }
     if (selectedArtist === 'divide_yewon') {
       return <DivideYewonPopup onClose={() => setSelectedArtist(null)} />;
@@ -60,19 +60,19 @@ export default function Popup({ id, type, symbols, discovered, onClose }) {
 
   if (type === 'qr') {
     if (id === 'heart_eunhye') {
-      return <EunhyePopup onClose={onClose} />;
+      return <HeartEunhyePopup onClose={onClose} />;
     }
     if (id === 'heart_eunchae') {
-      return <EunchaePopup onClose={onClose} />;
+      return <HeartEunchaePopup onClose={onClose} />;
     }
     if (id === 'heart_kymin') {
-      return <KyminPopup onClose={onClose} />;
+      return <HeartKyminPopup onClose={onClose} />;
     }
     if (id === 'heart_yewon') {
-      return <YewonPopup onClose={onClose} />;
+      return <HeartYewonPopup onClose={onClose} />;
     }
     if (id === 'heart_jihoon') {
-      return <JihoonPopup onClose={onClose} />;
+      return <HeartJihoonPopup onClose={onClose} />;
     }
     if (id === 'divide_yewon') {
       return <DivideYewonPopup onClose={onClose} />;

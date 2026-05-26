@@ -12,7 +12,7 @@ const getCommentClientId = () => {
   return newId;
 };
 
-export default function EunhyePopup({ onClose }) {
+export default function HeartJihoonPopup({ onClose }) {
   const [step, setStep] = useState(1);
   const [showCommentModal, setShowCommentModal] = useState(false);
   const [comments, setComments] = useState([]);
@@ -36,7 +36,7 @@ export default function EunhyePopup({ onClose }) {
 
     const q = query(
       collection(db, 'comments'),
-      where('artistId', '==', 'heart_eunhye')
+      where('artistId', '==', 'heart_jihoon')
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -75,7 +75,7 @@ export default function EunhyePopup({ onClose }) {
 
     try {
       await addDoc(collection(db, 'comments'), {
-        artistId: 'heart_eunhye',
+        artistId: 'heart_jihoon',
         name: newName.trim(),
         content: newContent.trim(),
         clientId,
@@ -192,7 +192,6 @@ export default function EunhyePopup({ onClose }) {
         .font-sentiment {
           font-family: 'Jua', sans-serif;
         }
-        /* [ROLLBACK] 원래의 주아 폰트로 일괄 원복 */
         .font-readable-sans {
           font-family: 'Jua', sans-serif;
         }
@@ -214,14 +213,14 @@ export default function EunhyePopup({ onClose }) {
         }
       `}</style>
 
-      {/* 팝업 모달 몸체: Figma iPhone 17-23의 웅장한 가로-세로 뷰포트 비율을 1:1 복원하는 360x780px 고정형 카드 */}
+      {/* 팝업 모달 몸체: Figma iPhone 17-5의 가로-세로 뷰포트 비율을 1:1 복원하는 360x780px 고정형 카드 */}
       <div className="relative w-[360px] h-[780px] max-h-[92vh] rounded-[32px] overflow-hidden flex flex-col shadow-[0_25px_60px_rgba(0,0,0,0.18)] border border-gray-100 bg-white animate-in zoom-in-95 duration-300 touch-pan-y">
 
-        {/* Step 1: 피그마 iPhone 17-23 1:1 완벽 절대 좌표 복원 */}
+        {/* Step 1: 피그마 iPhone 17-5 1:1 완벽 절대 좌표 복원 */}
         {step === 1 && (
           <div className="relative flex-1 bg-gradient-to-b from-[#ffffff] via-[#fffbfb] to-[#fff0f0] text-gray-800 overflow-hidden select-none">
 
-            {/* 1. 피그마 기하학적 도형 배경들 0.9배율 완벽 재현 (화이트-벚꽃핑크 감성에 어울리는 은은한 불투명도 적용) */}
+            {/* 1. 피그마 기하학적 도형 배경들 0.9배율 완벽 재현 */}
             <div className="absolute inset-0 pointer-events-none z-[1] overflow-hidden">
               {/* Radial gradient background box 1 */}
               <div
@@ -284,7 +283,7 @@ export default function EunhyePopup({ onClose }) {
               ))}
             </div>
 
-            {/* 2. 피그마 자산 이미지들 배치 (은은한 실루엣 하트로) */}
+            {/* 2. 피그마 자산 이미지들 배치 (은은한 실루엣 하트로 일치) */}
             <div className="absolute inset-0 pointer-events-none z-[3]">
               {/* 자산 1 3 (하트 실루엣 1) */}
               <Heart className="absolute left-[180px] top-[70px] w-[50px] h-[48px] text-rose-300/20 fill-rose-100/10" />
@@ -298,7 +297,7 @@ export default function EunhyePopup({ onClose }) {
               </div>
             </div>
 
-            {/* 3. 글자 배치 (피그마 1:1 절대좌표 이식) */}
+            {/* 3. 글자 배치 (피그마 1:1 절대좌표 이식 및 홍지훈 작가 사양 적용) */}
             <div className="relative z-10 w-full h-full">
               {/* SYMBOL1 : HEART */}
               <span className="absolute left-[29px] top-[31px] text-[15px] tracking-[1.92px] font-medium text-[#4a3b3b] font-readable-sans">
@@ -318,15 +317,17 @@ export default function EunhyePopup({ onClose }) {
                 과기대 붕어방
               </div>
 
-              {/* 대형 감성 문구: 피그마의 웅장한 크기와 줄 바꿈, 위치 완벽 복원 (두께 낮춤, 색감 원톤 단일화) */}
+              {/* 대형 감성 문구: 홍지훈 작가 (iPhone 17 - 5) 피그마 배치 및 색감/두께 단일화 */}
               <div className="absolute left-[29px] top-[91px] w-[310px] text-left">
                 <div className="text-[34px] leading-[1.22] text-[#4a3b3b] tracking-[1.5px] font-sentiment font-normal">
-                  <p>사랑을</p>
-                  <p>믿지 않는 내가,</p>
-                  <div className="h-[18px]" />
-                  <p>사랑 앞에</p>
-                  <p>흔들리기</p>
-                  <p>시작하는 이야기</p>
+                  <p>말하지</p>
+                  <p>못한</p>
+                  <p>사랑과 위로를</p>
+                  <p>접어 넣었어</p>
+                  <div className="h-[18px]" /> {/* 피그마 오리지널 빈 줄 간격 정밀 복원 */}
+                  <p>혹시 네가</p>
+                  <p>오늘 조금</p>
+                  <p>힘들었을까 봐</p>
                 </div>
               </div>
 
@@ -334,10 +335,10 @@ export default function EunhyePopup({ onClose }) {
               {/* Rectangle 358 (작가 위 가로선) */}
               <div className="absolute left-[26px] top-[475px] w-[35px] h-[1.5px] bg-[#e2cece]" />
 
-              {/* ARTIST. 김은혜 및 댓글 이모지 버튼 */}
+              {/* ARTIST. 홍지훈 및 댓글 이모지 버튼 */}
               <div className="absolute left-[26px] right-[25px] top-[492px] flex items-center justify-between">
                 <span className="text-[15px] tracking-[1.92px] font-medium text-[#4a3b3b] font-readable-sans">
-                  ARTIST. 김은혜
+                  ARTIST. 홍지훈
                 </span>
                 <button
                   onClick={() => setShowCommentModal(true)}
@@ -358,7 +359,7 @@ export default function EunhyePopup({ onClose }) {
                 <p className="mt-0.5">중앙동아리 CCC</p>
               </div>
 
-              {/* NEXT 버튼: 피그마의 우측 하단 둥근 캡슐로 완벽 구현 */}
+              {/* NEXT PAGE 버튼: 우측 하단 둥근 캡슐 */}
               <button
                 onClick={() => setStep(2)}
                 className="absolute right-[25px] bottom-[35px] w-[140px] h-[47px] bg-gradient-to-r from-[#fa5c5c] to-[#ff7b7b] text-white rounded-[24px] flex items-center justify-between pl-6 pr-5 hover:opacity-90 transition-all duration-200 active:scale-[0.96] shadow-[0_4px_15px_rgba(250,92,92,0.25)] cursor-pointer font-readable-sans"
@@ -378,12 +379,12 @@ export default function EunhyePopup({ onClose }) {
           </div>
         )}
 
-        {/* Step 2: 피그마 1:1 디테일 완벽 복원 + 화이트-레드 감성 반전 테마 (iPhone 17 - 24 기반) */}
+        {/* Step 2: 피그마 iPhone 17-12 기반 디테일 완벽 복원 (홍지훈 작가 수필 서사 적용) */}
         {step === 2 && (
           <div className="relative flex-1 flex flex-col bg-gradient-to-b from-[#ffffff] via-[#fffbfb] to-[#ffebeb] text-gray-800 overflow-y-auto overflow-x-hidden popup-body-scroll select-none touch-pan-y">
 
-            {/* 전체 높이를 확보하여 피그마의 웅장한 크기 비율을 시각적 왜곡 없이 보존 */}
-            <div className="relative w-full flex flex-col p-6 pb-8 min-h-[1200px]">
+            {/* 전체 높이를 확보하여 피그마의 비율을 보존 */}
+            <div className="relative w-full flex flex-col p-6 pb-8 min-h-[1150px]">
 
               {/* 은은하게 그라데이션으로 퍼지는 로즈빛 광원 오버레이 */}
               <div
@@ -414,7 +415,7 @@ export default function EunhyePopup({ onClose }) {
                 ))}
               </div>
 
-              {/* 피그마 2:127 노드의 대형 하트 장식 (은은하고 고급스러운 핑크 로즈 실루엣으로 복원) */}
+              {/* 우측 상단 하트 장식 (오버레이) */}
               <div className="absolute top-[5px] right-[-10px] w-64 h-60 opacity-40 pointer-events-none z-[2] mix-blend-normal animate-pulse">
                 <Heart className="w-full h-full text-rose-200/40 fill-rose-100/15" />
               </div>
@@ -427,127 +428,69 @@ export default function EunhyePopup({ onClose }) {
                 <div className="w-[100px] h-[0.5px] bg-rose-200" />
               </div>
 
-              {/* 피그마 2:145 노드 거대 둥근 카드 배경: 메인 조화를 위한 고급스러운 화이트 오페크 에멀전 배경화 */}
+              {/* 카드 배경 */}
               <div className="relative z-10 flex-1 flex flex-col bg-white/80 backdrop-blur-md rounded-[20px] border border-rose-100 p-7 shadow-[0_8px_32px_rgba(0,0,0,0.03)]">
 
-                {/* 피그마 1:1 대형 헤드라인 (좌측 정렬, 넓은 자간, 매혹적인 로즈 레드 테마) */}
+                {/* 헤드라인 타이틀: "마음을 접어놓은 자리" */}
                 <div className="text-left font-sentiment text-[36px] leading-[1.15] text-rose-500 tracking-[5.88px] font-bold mt-2 select-text">
-                  <p>귀하고</p>
-                  <p>아름다운</p>
-                  <p>나의 사랑아</p>
+                  <p>마음을</p>
+                  <p>접어놓은</p>
+                  <p>자리</p>
                 </div>
 
-                {/* 피그마 1:1 얇은 가로선 (로즈골드 31px 수평선) */}
+                {/* 얇은 가로선 */}
                 <div className="bg-rose-300 h-px w-[31px] my-6 flex-none" />
 
-                {/* 피그마 1:1 본문 서사: [폰트 가독성 대격변] Pretendard 특화 및 자간/행간 최적화 적용 */}
+                {/* 본문 서사: 홍지훈 작가 수필 (온점 하나도 누락 없이 100% 반영) */}
                 <div className="text-left text-[14.5px] leading-[1.85] text-gray-700 space-y-5 tracking-wide font-readable-sans select-text break-keep">
-                  <p className="text-gray-800">나는 사람을 믿지 않는다. 내가 아끼는 사람들은 모두 떠나간다.</p>
+                  <p className="text-gray-800 font-medium">잔디 위에 놓인 유리병은 바람에 아주 조금씩 흔들리고 있었다. 그 안에는 하트 모양으로 접힌 종이들이 가득 담겨 있었다.</p>
 
                   <div className="h-1" />
-                  <p>어린 시절을 함께 보낸 친구, <span className="font-bold text-gray-900">누구보다 사랑했던 연인</span>, 절대 변하지 않을 것이라 확신했던 모든 관계들이 매일 조금씩 흐려지는 것이 두렵다.</p>
+                  <p>누군가는 그걸 사랑이라고 불렀고, 누군가는 그걸 위로라고 불렀다.</p>
 
                   <div className="h-1" />
-                  <p>그래서 앞으로 진짜 내 마음을 열지 않기로 다짐했다.</p>
+                  <p>사실 그 종이들은 거창한 말이 아니었다.</p>
+                  <p className="italic text-gray-800">“오늘도 잘 버텼어.”</p>
+                  <p className="italic text-gray-800">“네가 있어서 다행이야.”</p>
+                  <p className="italic text-gray-800">“조금 느려도 괜찮아.”</p>
 
                   <div className="h-1" />
-                  <p className="font-semibold text-gray-900">메말라버린 이 세상에 변치 않는 사랑은 없다고 나는 확신한다.</p>
-
-                  <div className="h-1" />
-                  <p>친구도, 가족도, 그 무엇도 언젠가는 사라질 것들.</p>
-
-                  <div className="h-1" />
-                  <p>인생은 여전히 혼자다. 나는 앞으로도 혼자일 것이다.</p>
+                  <p>그저 누군가에게 건네고 싶었지만, 쉽게 말로 꺼내지 못했던 마음들이었다.</p>
 
                   <div className="py-2 text-rose-300 text-center flex justify-center gap-1 select-none font-bold">
                     <span>.</span><span>.</span><span>.</span>
                   </div>
 
-                  <p>어느 날 캠퍼스에서 아주 우연히, <span className="font-bold text-gray-900">낯선 존재를 마주했다.</span></p>
+                  <p>햇살이 내려앉을 때마다 유리병 속 하트들은 따뜻하게 빛났다. <span className="font-bold text-gray-900">마치 그 안에 담긴 말들이 이제는 괜찮다고, 괜찮아질 거라고 조용히 속삭이는 것처럼.</span></p>
 
                   <div className="h-1" />
-                  <p>새로운 관계를 받아들이고 싶지 않았다.</p>
+                  <p>지나가던 사람들 중 누군가는 잠시 멈춰 서서 그 병을 바라봤다. 그리고 이유 없이 마음이 조금 가벼워졌다.</p>
 
                   <div className="h-1" />
-                  <p>그는 매일 끈질기게 나를 찾아왔다.</p>
+                  <p>아마도 그건, 그 안의 말들이 특별해서가 아니라 <span className="font-semibold text-gray-900">누군가가 누군가를 위해 이만큼 마음을 접어 넣었다는 사실 때문일 것이다.</span></p>
 
-                  <div className="h-1" />
-                  <p className="italic text-gray-800">“사랑하는 친구야, 오늘 하루는 어떠니?”</p>
-
-                  <div className="h-1" />
-                  <p className="italic text-gray-800">
-                    “같이 이야기 나누지 않을래? 항상 기다리고 있을게.”
-                  </p>
-
-                  <div className="h-1" />
-                  <p>나는 가시 돋친 말로 대꾸했다. 그러면 곧 질려서 떨어져 나가겠지. 모두가 그랬듯이.</p>
-
-                  <div className="h-1" />
-                  <p className="pl-3 border-l-2 border-rose-200 text-[12.5px] italic text-rose-950 leading-relaxed bg-[#fff5f5] p-3.5 rounded-2xl border border-rose-100">
-                    “저 잘 아세요? 당신에게 쓸 시간 없으니 좀 비켜줄래요?”
-                  </p>
-                  <p className="pl-3 border-l-2 border-rose-200 text-[12.5px] italic text-rose-950 leading-relaxed bg-[#fff5f5] p-3.5 rounded-2xl border border-rose-100">
-                    “날 좀 내버려 두세요. 저는 당신이 싫어요.”
-                  </p>
-
-                  <div className="h-1" />
-                  <p>밀어내고, 밀어내고, 또 밀어냈다.</p>
+                  {/* 인용/강조 구절 */}
+                  <div className="pl-3.5 border-l-2 border-rose-300 text-[12.5px] text-gray-800 leading-relaxed bg-[#fffafa] p-4 rounded-3xl border border-rose-100">
+                    사랑은 거창한 게 아니라 이렇게 작게 접어도 충분하고, 위로는 멀리 있는 게 아니라 이렇게 가까이 놓여 있어도 된다는 걸.
+                  </div>
 
                   <div className="py-2 text-rose-300 text-center flex justify-center gap-1 select-none font-bold">
                     <span>.</span><span>.</span><span>.</span>
                   </div>
 
-                  <p>일 년쯤 지났을 때, 그는 여전히 그 자리에서 나를 바라보고 있었다.</p>
+                  <p>잔디 위의 유리병은 오늘도 아무 말 없이 서 있지만, 그 안의 수많은 하트들은 계속해서 말하고 있다.</p>
 
-                  <div className="h-1" />
-                  <p>얼음장같이 식어버린 내 손을 감싸 안고 아무 말 없이 나를 바라보고 있었다.</p>
-
-                  <div className="h-1" />
-                  <p>지독하게 화를 내며 돌아섰던 순간에도, 밤새 술을 마시며 연락을 꺼버린 순간에도, 시험공부를 하느라 무시했던 순간에도,</p>
-
-                  <div className="h-1" />
-                  <p className="font-bold text-gray-900">기다리고, 기다리고, 또 기다리고 있었다.</p>
-
-                  <div className="h-1" />
-                  <p className="text-gray-800">화가 치밀어오르고, 이상하게 마음이 슬펐다.</p>
-
-                  <div className="h-1" />
-                  <p className="pl-3.5 border-l-2 border-rose-300 text-[12.5px] text-gray-800 leading-relaxed bg-[#fffafa] p-4 rounded-3xl border border-rose-100">
-                    “저한테 왜 이렇게 잘해주세요?<br />
-                    &nbsp;&nbsp;난 당신에게 줄 수 있는 것이 아무것도 없어요.<br />
-                    &nbsp;&nbsp;이제 그만, 더 좋은 사람에게 시간을 쏟으세요.<br />
-                    &nbsp;&nbsp;나보다 더 잘 나고 멋진 사람에게..<br />
-                    &nbsp;&nbsp;난 당신에게 사랑받을 만한 사람이 아니에요.”
-                  </p>
-
-                  <div className="h-1" />
-                  <p>그는 잠시도 망설이지 않고 대답했다.</p>
-
-                  {/* 대답 상자: 러블리하고 눈에 잘 들어오는 맑은 핑크 베일 박스 테마 반전 */}
+                  {/* 대답 상자: 홍지훈 작가 수필 최종 구절 */}
                   <div className="my-6 border border-rose-150 bg-[#fff5f5] py-5 px-3.5 rounded-3xl font-sentiment text-[14.5px] leading-relaxed text-[#c93b3b] text-center shadow-sm">
-                    <p className="font-bold text-[#b92c2c]">“귀하고 아름다운 나의 사랑아,</p>
-                    <p className="font-bold text-[#b92c2c]">나의 모든 마음을 너에게 줄게.</p>
-                    <div className="h-2.5" />
-                    <p>네가 나를 사랑하지 않아도, 괜찮아.</p>
-                    <p>나는 그래도 너를 사랑한단다.</p>
-                    <div className="h-2.5" />
-                    <p className="font-bold text-rose-600">나는 변하지 않아.</p>
-                    <p className="font-bold text-rose-600">지금도, 그리고 앞으로도.”</p>
+                    <p className="font-bold text-[#b92c2c]">“당신도, 누군가에게는”</p>
+                    <p className="font-bold text-[#b92c2c]">“이렇게 소중한 사람이라고.”</p>
                   </div>
 
-                  <div className="h-2" />
-                  <p className="text-[14px] font-bold text-gray-900">눈물을 쏟았다.</p>
-                  <p className="text-[14px] font-bold text-gray-900">그제야 인정할 수밖에 없었다.</p>
-
-                  <div className="h-3" />
-                  <p className="font-sentiment text-[18px] text-gray-900 font-bold tracking-[2.5px] mt-4 text-center">
-                    나는 너무나 외로웠다.
-                  </p>
                 </div>
               </div>
 
-              {/* 하단 제어 버튼: 112px X 52px 둥근 캡슐 (화이트-레드 반전 테마) */}
-              <div className="relative z-10 flex justify-center gap-6 mt-8 flex-none font-readable-sans">
+              {/* 하단 제어 버튼: 112px X 52px 둥근 캡슐 */}
+              <div className="relative z-10 flex flex-wrap justify-center gap-3 mt-8 flex-none font-readable-sans">
                 {/* BACK 버튼 */}
                 <button
                   onClick={() => setStep(1)}
@@ -559,11 +502,18 @@ export default function EunhyePopup({ onClose }) {
 
                 {/* NEXT (확인 완료) 버튼 */}
                 <button
-                  onClick={onClose}
+                  onClick={() => setShowCommentModal(true)}
                   className="w-[112px] h-[52px] bg-gradient-to-r from-[#fa5c5c] to-[#ff7b7b] text-white rounded-[26px] flex items-center justify-center gap-1 hover:opacity-90 transition-all duration-200 active:scale-[0.96] shadow-[0_4px_12px_rgba(250,92,92,0.2)] cursor-pointer font-bold"
                 >
-                  <span className="text-[13px] tracking-[1.68px]">NEXT</span>
+                  <span className="text-[11px] tracking-[0.4px]">감상평 남기기</span>
                   <Check className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="w-full h-[46px] bg-white border border-gray-200 text-gray-700 rounded-[23px] flex items-center justify-center hover:bg-gray-50 transition-all duration-200 active:scale-[0.98] cursor-pointer shadow-sm font-bold"
+                >
+                  <span className="text-[13px] tracking-[0.4px]">다음 작품 보러 가기</span>
                 </button>
               </div>
 
