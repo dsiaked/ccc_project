@@ -104,7 +104,6 @@ export default function SymbolCards({ symbols, onCardClick, isQuestionUnlocked, 
         const isQuestionReady = card.id === 'question' && isReady;
         const isQuestionDone = card.id === 'question' && state === 'discovered';
         const displayLabel = isQuestionDone ? '상품 부스' : card.label;
-        const statusLabel = isQuestionDone ? '방문 완료' : isLocked ? '미발견' : isReady ? '위치 확인' : '발견 완료';
 
         if (isQuestionPending) {
           return (
@@ -226,7 +225,7 @@ export default function SymbolCards({ symbols, onCardClick, isQuestionUnlocked, 
                 ].join(' ')}
               >
                 <span className={`h-2 w-2 shrink-0 rounded-full ${isLocked ? 'bg-slate-400' : isQuestionDone ? 'bg-sky-500' : accent.dot} ${isReady ? 'animate-pulse' : ''}`} />
-                <span className={`max-w-[68px] truncate text-[10px] mt-0.5 whitespace-nowrap ${isLocked ? 'text-slate-500' : accent.text}`}>
+                <span className={`max-w-[68px] truncate text-[10px] mt-0.5 whitespace-nowrap ${isLocked ? 'text-slate-500' : isQuestionDone ? 'text-sky-700' : accent.text}`}>
                   {isLocked ? '미발견' : isReady ? '위치 확인' : '발견 완료'}
                 </span>
               </div>

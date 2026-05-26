@@ -57,7 +57,7 @@ export default function QuestionGuidePopup({ onClose }) {
         <div className="relative bg-slate-50 border border-slate-100 rounded-2xl p-4 w-full text-center mb-6 shadow-inner">
           <span className="text-slate-500 text-xs block mb-2">위치 힌트</span>
           <p className="text-slate-800 text-sm font-bold leading-relaxed">
-            지도의 가운데, 두 갈래 길이 만나는 신비로운 강가를 찾아보세요.
+            광활한 잔디밭, 지붕 하나
           </p>
         </div>
 
