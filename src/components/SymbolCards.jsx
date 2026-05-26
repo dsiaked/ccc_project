@@ -70,6 +70,24 @@ const accentClasses = {
   },
 };
 
+const formatFeedbackTime = value => {
+  if (!value) return '';
+  const date = typeof value.toDate === 'function'
+    ? value.toDate()
+    : value instanceof Date
+      ? value
+      : new Date(value);
+
+  if (Number.isNaN(date.getTime())) return '';
+
+  return new Intl.DateTimeFormat('ko-KR', {
+    month: 'numeric',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(date);
+};
+
 export default function SymbolCards({ symbols, onCardClick, isQuestionUnlocked, featuredFeedbacks = [] }) {
   const isQuestionDiscovered = !!symbols.question;
 
@@ -244,17 +262,31 @@ export default function SymbolCards({ symbols, onCardClick, isQuestionUnlocked, 
             <p className="text-sm text-slate-500">아직 공개된 소감이 없습니다.</p>
           </div>
         ) : (
-          <div className="grid max-h-[568px] gap-3 overflow-y-auto pr-1 scroll-container">
-            {featuredFeedbacks.map(feedback => (
-              <article key={feedback.id} className="min-h-[104px] rounded-2xl border border-sky-100 bg-sky-50/60 px-4 py-3 text-left">
-                <p className="line-clamp-3 whitespace-pre-wrap break-words text-[14px] leading-6 text-slate-700">
-                  {feedback.feedback}
-                </p>
-                <p className="mt-2 truncate text-[12px] text-slate-500">
-                  {feedback.name || '익명'}
-                </p>
-              </article>
-            ))}
+          <div className="grid max-h-[336px] gap-3 overflow-y-auto pr-1 scroll-container">
+            {featuredFeedbacks.map(feedback => {
+              const feedbackTime = formatFeedbackTime(feedback.createdAt);
+
+              return (
+                <article key={feedback.id} className="min-h-[104px] rounded-2xl border border-sky-100 bg-sky-50/60 px-4 py-3 text-left">
+                  <p className="line-clamp-3 whitespace-pre-wrap break-words text-[14px] leading-6 text-slate-700">
+                    {feedback.feedback}
+                  </p>
+                  <div className="mt-2 flex items-center justify-between gap-3 text-[12px] text-slate-500">
+                    <span className="min-w-0 truncate">{feedback.name || '익명'}</span>
+                    {feedback.sourceLabel && (
+                      <span className="shrink-0 rounded-full bg-white/80 px-2 py-0.5 text-[10px] text-sky-600">
+                        {feedback.sourceLabel}
+                      </span>
+                    )}
+                    {feedbackTime && (
+                      <time className="shrink-0 text-[11px] text-slate-400">
+                        {feedbackTime}
+                      </time>
+                    )}
+                  </div>
+                </article>
+              );
+            })}
           </div>
         )}
       </section>

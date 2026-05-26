@@ -10,7 +10,7 @@ export default function Header({ discoveredCount, announcement }) {
     '좋아요. 두 가지 심볼이 더 남았어요.',
     '거의 다 왔어요. 마지막 심볼을 찾아보세요.',
     '세 가지 심볼을 모두 확인했어요. 상품 부스에서 작품 설명도 다시 볼 수 있어요.',
-    '투어를 완료했어요. 상품 부스에서 작품 설명을 둘러보고 소감을 남겨 주세요.',
+    '투어를 완료했어요. 오늘의 질문이 앞으로의 걸음에도 작은 응원이 되길 바라요.',
   ];
   const progressMessage = progressMessages[Math.min(discoveredCount, totalDiscoverableSymbols)];
 
