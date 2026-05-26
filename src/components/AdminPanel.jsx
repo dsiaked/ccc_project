@@ -43,6 +43,14 @@ const recordTabs = [
   { id: 'feedbacks', label: '소감', icon: Megaphone },
 ];
 
+const featureTabs = [
+  { id: 'records', label: '기록 관리', desc: '방문, 댓글, 소감', icon: Users },
+  { id: 'map', label: '지도 핀', desc: '작품 위치 조정', icon: MapPinned },
+  { id: 'announcement', label: '상단 공지', desc: '방문자 안내', icon: Megaphone },
+  { id: 'links', label: '운영 링크', desc: 'QR/관리 주소', icon: Link2 },
+  { id: 'coordinates', label: '핀 좌표', desc: '좌표값 확인', icon: BarChart3 },
+];
+
 const symbolOrder = Object.keys(symbolData);
 
 const getTimestamp = value => {
@@ -93,6 +101,7 @@ export default function AdminPanel({ onBack }) {
   const [visitors, setVisitors] = useState([]);
   const [comments, setComments] = useState([]);
   const [feedbacks, setFeedbacks] = useState([]);
+  const [activeFeature, setActiveFeature] = useState('records');
   const [activeTab, setActiveTab] = useState('visitors');
   const [searchQuery, setSearchQuery] = useState('');
   const [notification, setNotification] = useState({ message: '', type: '' });
@@ -520,7 +529,7 @@ export default function AdminPanel({ onBack }) {
         </div>
       </header>
 
-      <main className="mx-auto grid w-full max-w-7xl gap-5 px-4 py-5 xl:grid-cols-[1fr_380px]">
+      <main className="mx-auto grid w-full max-w-7xl gap-5 px-4 py-5">
         <div className="grid content-start gap-5">
           <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
             {stats.map(item => (
@@ -561,6 +570,37 @@ export default function AdminPanel({ onBack }) {
             ))}
           </section>
 
+          <section className="rounded-lg border border-slate-800 bg-slate-900/55 p-2">
+            <div className="grid grid-cols-2 gap-2 lg:grid-cols-5">
+              {featureTabs.map(tab => {
+                const Icon = tab.icon;
+                const isActive = activeFeature === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setActiveFeature(tab.id)}
+                    className={[
+                      'flex min-h-[76px] items-center gap-3 rounded-md border px-3 text-left transition active:scale-[0.98]',
+                      isActive
+                        ? 'border-cyan-300 bg-cyan-300 text-slate-950 shadow-lg shadow-cyan-950/30'
+                        : 'border-slate-800 bg-slate-950/60 text-slate-300 hover:border-slate-600 hover:bg-slate-900',
+                    ].join(' ')}
+                  >
+                    <Icon className="h-5 w-5 shrink-0" />
+                    <span className="min-w-0">
+                      <span className="block text-sm font-bold">{tab.label}</span>
+                      <span className={['mt-0.5 block text-xs', isActive ? 'text-slate-700' : 'text-slate-500'].join(' ')}>
+                        {tab.desc}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
+          {activeFeature === 'records' && (
           <section className="rounded-lg border border-slate-800 bg-slate-900/55 p-4">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div>
@@ -578,7 +618,7 @@ export default function AdminPanel({ onBack }) {
               </div>
             </div>
 
-            <div className="mb-4 grid grid-cols-2 gap-1 rounded-lg border border-slate-800 bg-slate-950/70 p-1 md:grid-cols-4">
+            <div className="mb-4 grid grid-cols-2 gap-1 rounded-lg border border-slate-800 bg-slate-950/70 p-1 md:grid-cols-5">
               {recordTabs.map(tab => {
                 const Icon = tab.icon;
                 const isActive = activeTab === tab.id;
@@ -686,7 +726,9 @@ export default function AdminPanel({ onBack }) {
               />
             )}
           </section>
+          )}
 
+          {activeFeature === 'map' && (
           <section className="rounded-lg border border-slate-800 bg-slate-900/55 p-4">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div>
@@ -733,9 +775,11 @@ export default function AdminPanel({ onBack }) {
               />
             )}
           </section>
+          )}
         </div>
 
-        <aside className="grid content-start gap-5 xl:sticky xl:top-[76px]">
+        <div className="grid content-start gap-5">
+          {activeFeature === 'announcement' && (
           <section className="rounded-lg border border-slate-800 bg-slate-900/55 p-4">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
@@ -786,7 +830,9 @@ export default function AdminPanel({ onBack }) {
               </button>
             </div>
           </section>
+          )}
 
+          {activeFeature === 'links' && (
           <section className="rounded-lg border border-slate-800 bg-slate-900/55 p-4">
             <h2 className="flex items-center gap-2 text-lg font-bold text-white">
               <Link2 className="h-5 w-5 text-cyan-200" />
@@ -821,7 +867,9 @@ export default function AdminPanel({ onBack }) {
               ))}
             </div>
           </section>
+          )}
 
+          {activeFeature === 'coordinates' && (
           <section className="rounded-lg border border-slate-800 bg-slate-900/55 p-4">
             <h2 className="text-lg font-bold text-white">핀 좌표</h2>
             <div className="mt-4 max-h-[360px] space-y-2 overflow-y-auto pr-1">
@@ -838,7 +886,8 @@ export default function AdminPanel({ onBack }) {
               ))}
             </div>
           </section>
-        </aside>
+          )}
+        </div>
       </main>
 
       {notification.message && (
