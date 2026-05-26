@@ -243,7 +243,7 @@ export default function SymbolCards({ symbols, onCardClick, isQuestionUnlocked, 
             </div>
             <div>
               <h3 className="text-[17px] leading-tight text-slate-950">참가자 소감</h3>
-              <p className="text-[12px] leading-snug text-slate-500">관리자가 공개한 소감만 보여요</p>
+              <p className="text-[12px] leading-snug text-slate-500">함께 남긴 투어의 순간을 모았어요</p>
             </div>
           </div>
           {featuredFeedbacks.length > 0 && (
@@ -255,7 +255,7 @@ export default function SymbolCards({ symbols, onCardClick, isQuestionUnlocked, 
 
         {featuredFeedbacks.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-center">
-            <p className="text-sm text-slate-500">아직 공개된 소감이 없습니다.</p>
+            <p className="text-sm text-slate-500">아직 작성된 소감이 없습니다.</p>
           </div>
         ) : (
           <div className="grid gap-3">
