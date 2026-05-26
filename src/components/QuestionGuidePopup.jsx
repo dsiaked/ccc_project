@@ -47,11 +47,11 @@ export default function QuestionGuidePopup({ onClose }) {
         </p>
 
         <h3 className="relative text-slate-950 text-[22px] font-bold mb-3 font-['Cafe24_Ssurround'] text-center">
-          물음표 심볼 잠금 해제
+          상품 부스 안내
         </h3>
 
         <p className="relative text-slate-700 text-[15px] font-bold text-center leading-relaxed mb-5">
-          모든 진행률이 채워졌어요. 이제 마지막 물음표 심볼의 위치를 찾아갈 수 있습니다.
+          세 가지 심볼을 모두 모았어요. 이제 상품 부스로 이동해 이벤트에 참여할 수 있습니다.
         </p>
 
         <div className="relative bg-slate-50 border border-slate-100 rounded-2xl p-4 w-full text-center mb-6 shadow-inner">

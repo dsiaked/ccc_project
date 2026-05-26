@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Divide, Heart, Lock, Minus, Plus, RotateCcw, Sparkles } from 'lucide-react';
+import { Divide, Heart, Minus, Plus, RotateCcw, Sparkles } from 'lucide-react';
 
 const MAP_BASE_WIDTH = 345;
 const MIN_ZOOM = 1;
@@ -248,7 +248,7 @@ export default function MapArea({ symbols, onSymbolClick, isQuestionUnlocked, zo
     else if (type === 'divide') IconComponent = <Divide className="stroke-[2.5]" style={{ width: pinMetrics.icon, height: pinMetrics.icon }} />;
     else if (type === 'question') {
       if (!isQuestionUnlocked) {
-        IconComponent = <Lock className="text-gray-400" style={{ width: pinMetrics.icon, height: pinMetrics.icon }} />;
+        IconComponent = <span className="font-bold leading-none select-none" style={{ fontSize: pinMetrics.questionText }}>?</span>;
       } else if (!isDiscovered) {
         IconComponent = <span className="font-bold leading-none select-none animate-bounce" style={{ fontSize: pinMetrics.questionText }}>?</span>;
       } else {
@@ -263,9 +263,9 @@ export default function MapArea({ symbols, onSymbolClick, isQuestionUnlocked, zo
 
     if (id === 'question') {
       if (!isQuestionUnlocked) {
-        finalColor = '#9ca3af'; // 회색
-        finalBorderColor = '#e5e7eb';
-        extraPinClass = 'opacity-60';
+        finalColor = '#38bdf8';
+        finalBorderColor = '#dbeafe';
+        extraPinClass = 'opacity-75';
       } else if (!isDiscovered) {
         finalColor = '#0284c7'; // 활기찬 하늘색
         finalBorderColor = '#bae6fd';

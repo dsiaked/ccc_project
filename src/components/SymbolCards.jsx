@@ -97,7 +97,41 @@ export default function SymbolCards({ symbols, onCardClick, isQuestionUnlocked }
         const accent = accentClasses[card.accent];
         const isLocked = state === 'locked';
         const isReady = state === 'ready';
+        const isQuestionPending = card.id === 'question' && isLocked;
         const isQuestionReady = card.id === 'question' && isReady;
+
+        if (isQuestionPending) {
+          return (
+            <button
+              key={card.id}
+              type="button"
+              className="col-span-2 w-full min-h-[118px] border-2 border-slate-200 rounded-2xl bg-white/85 overflow-hidden relative text-left cursor-pointer transition-transform active:scale-[0.99] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500 shadow-sm"
+              onClick={() => onCardClick(card.id)}
+            >
+              <div className="absolute inset-y-0 right-0 w-1/2 bg-[linear-gradient(135deg,rgba(148,163,184,0.08),rgba(14,165,233,0.08))]" />
+              <div className="relative h-full min-h-[118px] px-5 py-4 flex items-center gap-4">
+                <div className="relative flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-slate-50 border border-slate-200 text-sky-500">
+                  <Gift className="w-7 h-7" />
+                  <span className="absolute -right-1.5 -top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-white border border-slate-200 shadow-sm text-sm font-bold text-sky-500">
+                    ?
+                  </span>
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <span className="mb-2 inline-flex rounded-full bg-slate-50 border border-slate-200 px-2.5 py-0.5 text-[11px] font-bold text-slate-500">
+                    준비 중
+                  </span>
+                  <span className="block text-xl leading-tight text-slate-950 font-bold">
+                    상품 부스
+                  </span>
+                  <p className="mt-1 text-[13px] leading-snug text-slate-600 font-bold">
+                    세 가지 심볼을 모두 모으면 상품 부스 안내가 열려요.
+                  </p>
+                </div>
+              </div>
+            </button>
+          );
+        }
 
         if (isQuestionReady) {
           return (
