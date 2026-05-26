@@ -1,7 +1,14 @@
-import React from 'react';
-import { Heart, Divide, Sparkles, Lock } from 'lucide-react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Divide, Heart, Lock, Minus, Plus, RotateCcw, Sparkles } from 'lucide-react';
 
-const CustomCrossIcon = ({ className = "w-3.5 h-3.5", color = "currentColor", strokeWidth = "3" }) => (
+const MAP_BASE_WIDTH = 345;
+const MIN_ZOOM = 1;
+const MAX_ZOOM = 2.6;
+const ZOOM_STEP = 0.35;
+
+const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+
+const CustomCrossIcon = ({ size = 14, color = "currentColor", strokeWidth = "3" }) => (
   <svg 
     viewBox="0 0 24 24" 
     fill="none" 
@@ -9,7 +16,7 @@ const CustomCrossIcon = ({ className = "w-3.5 h-3.5", color = "currentColor", st
     strokeWidth={strokeWidth} 
     strokeLinecap="round" 
     strokeLinejoin="round" 
-    className={className}
+    style={{ width: size, height: size }}
   >
     <line x1="12" y1="2.5" x2="12" y2="21.5" />
     <line x1="6.5" y1="8" x2="17.5" y2="8" />
@@ -116,23 +123,133 @@ const MAP_PINS = [
   }
 ];
 
-export default function MapArea({ symbols, onSymbolClick, isQuestionUnlocked }) {
+export default function MapArea({ symbols, onSymbolClick, isQuestionUnlocked, zoom = 1 }) {
+  const mapRef = useRef(null);
+  const dragRef = useRef(null);
+  const [mapScale, setMapScale] = useState(1);
+  const [mapSize, setMapSize] = useState({ width: MAP_BASE_WIDTH, height: 324 });
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const viewZoom = clamp(zoomLevel * zoom, MIN_ZOOM, MAX_ZOOM);
+  const pinScale = clamp(mapScale, 0.72, 1.75);
+  const pinMetrics = {
+    touch: Math.round(44 * pinScale),
+    marker: Math.round(32 * pinScale),
+    icon: Math.round(14 * pinScale),
+    questionText: Math.round(13 * pinScale),
+    border: Math.max(1.5, 2 * pinScale),
+    shadowY: Math.max(2, 2 * pinScale),
+    shadowBlur: Math.max(5, 5 * pinScale),
+  };
+
+  const getClampedPan = useCallback((nextPan, nextZoom = viewZoom, nextMapSize = mapSize) => {
+    if (nextZoom <= 1) return { x: 0, y: 0 };
+
+    const maxX = (nextMapSize.width * (nextZoom - 1)) / 2;
+    const maxY = (nextMapSize.height * (nextZoom - 1)) / 2;
+
+    return {
+      x: clamp(nextPan.x, -maxX, maxX),
+      y: clamp(nextPan.y, -maxY, maxY),
+    };
+  }, [mapSize, viewZoom]);
+
+  const setZoom = nextZoom => {
+    const clampedZoom = clamp(nextZoom, MIN_ZOOM, MAX_ZOOM);
+    setZoomLevel(clampedZoom);
+    setPan(currentPan => getClampedPan(currentPan, clampedZoom));
+  };
+
+  const resetZoom = () => {
+    setZoomLevel(1);
+    setPan({ x: 0, y: 0 });
+  };
+
+  const isInteractiveControl = target => target.closest('button');
+
+  useEffect(() => {
+    const mapElement = mapRef.current;
+    if (!mapElement) return undefined;
+
+    const updateScale = () => {
+      const { width, height } = mapElement.getBoundingClientRect();
+      const nextMapSize = { width, height };
+      setMapScale(width / MAP_BASE_WIDTH);
+      setMapSize(nextMapSize);
+      setPan(currentPan => getClampedPan(currentPan, viewZoom, nextMapSize));
+    };
+
+    updateScale();
+
+    if (!window.ResizeObserver) {
+      window.addEventListener('resize', updateScale);
+      return () => window.removeEventListener('resize', updateScale);
+    }
+
+    const observer = new ResizeObserver(updateScale);
+    observer.observe(mapElement);
+    return () => observer.disconnect();
+  }, [getClampedPan, viewZoom]);
+
+  const handlePointerDown = event => {
+    if (viewZoom <= 1 || isInteractiveControl(event.target)) return;
+
+    event.currentTarget.setPointerCapture(event.pointerId);
+    dragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      pan,
+    };
+    setIsDragging(true);
+  };
+
+  const handlePointerMove = event => {
+    const dragState = dragRef.current;
+    if (!dragState || dragState.pointerId !== event.pointerId) return;
+
+    const nextPan = {
+      x: dragState.pan.x + event.clientX - dragState.startX,
+      y: dragState.pan.y + event.clientY - dragState.startY,
+    };
+    setPan(getClampedPan(nextPan));
+  };
+
+  const endDrag = event => {
+    if (dragRef.current?.pointerId === event.pointerId) {
+      dragRef.current = null;
+      setIsDragging(false);
+    }
+  };
+
+  const handleDoubleClick = event => {
+    if (isInteractiveControl(event.target)) return;
+    setZoom(viewZoom >= MAX_ZOOM ? 1 : viewZoom + ZOOM_STEP);
+  };
+
+  const handleWheel = event => {
+    event.preventDefault();
+    const direction = event.deltaY > 0 ? -1 : 1;
+    setZoom(viewZoom + direction * ZOOM_STEP);
+  };
+
   const renderFigmaPin = (pin, index) => {
-    const { id, label, type, pinTop, pinLeft, textTop, textLeft, color, borderColor } = pin;
+    const { id, type, pinTop, pinLeft, color, borderColor } = pin;
     const isDiscovered = symbols[id];
     
     // 심볼 아이콘 매핑
     let IconComponent = null;
-    if (type === 'heart') IconComponent = <Heart className="w-3.5 h-3.5 fill-current" />;
-    else if (type === 'cross') IconComponent = <CustomCrossIcon className="w-3.5 h-3.5" color="currentColor" strokeWidth="3.2" />;
-    else if (type === 'divide') IconComponent = <Divide className="w-3.5 h-3.5 stroke-[2.5]" />;
+    if (type === 'heart') IconComponent = <Heart className="fill-current" style={{ width: pinMetrics.icon, height: pinMetrics.icon }} />;
+    else if (type === 'cross') IconComponent = <CustomCrossIcon size={pinMetrics.icon} color="currentColor" strokeWidth="3.2" />;
+    else if (type === 'divide') IconComponent = <Divide className="stroke-[2.5]" style={{ width: pinMetrics.icon, height: pinMetrics.icon }} />;
     else if (type === 'question') {
       if (!isQuestionUnlocked) {
-        IconComponent = <Lock className="w-3.5 h-3.5 text-gray-400" />;
+        IconComponent = <Lock className="text-gray-400" style={{ width: pinMetrics.icon, height: pinMetrics.icon }} />;
       } else if (!isDiscovered) {
-        IconComponent = <span className="text-[13px] font-bold leading-none select-none animate-bounce">?</span>;
+        IconComponent = <span className="font-bold leading-none select-none animate-bounce" style={{ fontSize: pinMetrics.questionText }}>?</span>;
       } else {
-        IconComponent = <span className="text-[13px] font-bold leading-none select-none">?</span>;
+        IconComponent = <span className="font-bold leading-none select-none" style={{ fontSize: pinMetrics.questionText }}>?</span>;
       }
     }
 
@@ -179,11 +296,15 @@ export default function MapArea({ symbols, onSymbolClick, isQuestionUnlocked }) 
         */}
         
         {/* 원형 핀 마커 */}
-        <div 
-          className="absolute flex items-center justify-center cursor-pointer transition-all duration-300 hover:scale-115 active:scale-95"
+        <button
+          type="button"
+          aria-label={`${type} symbol`}
+          className="absolute flex items-center justify-center cursor-pointer transition-all duration-300 hover:scale-105 active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 rounded-full"
           style={{ 
             top: pinTop, 
             left: pinLeft, 
+            width: pinMetrics.touch,
+            height: pinMetrics.touch,
             transform: 'translate(-50%, -50%)',
             zIndex: 20
           }}
@@ -192,30 +313,55 @@ export default function MapArea({ symbols, onSymbolClick, isQuestionUnlocked }) 
           <div className="relative">
             {/* 원형 테두리 */}
             <div 
-              className={`w-[29px] h-[29px] rounded-full flex items-center justify-center bg-white border-[1.8px] shadow-[0_2px_5px_rgba(0,0,0,0.1)] transition-all ${extraPinClass}`}
+              className={`rounded-full flex items-center justify-center bg-white transition-all ${extraPinClass}`}
               style={{ 
                 borderColor: finalBorderColor,
-                color: finalColor
+                borderWidth: pinMetrics.border,
+                boxShadow: `0 ${pinMetrics.shadowY}px ${pinMetrics.shadowBlur}px rgba(0,0,0,0.1)`,
+                color: finalColor,
+                width: pinMetrics.marker,
+                height: pinMetrics.marker,
               }}
             >
               {IconComponent}
             </div>
           </div>
-        </div>
+        </button>
       </React.Fragment>
     );
   };
 
   return (
-    <div className="w-full aspect-[345/324] border-[3px] border-[#F8CFD0]/60 rounded-[28px] relative overflow-hidden shadow-[0_12px_30px_rgba(248,207,208,0.3)] bg-white/90 backdrop-blur-sm">
-      {/* Figma Rectangle 349 based Custom Styled Map */}
-      <svg 
-        className="absolute inset-0 w-full h-full"
-        viewBox="0 0 345 324" 
-        fill="none" 
-        xmlns="http://www.w3.org/2000/svg"
-        preserveAspectRatio="none"
+    <div
+      ref={mapRef}
+      className={[
+        'w-full aspect-[345/324] border-2 border-[#F8CFD0]/70 rounded-2xl relative overflow-hidden shadow-[0_10px_24px_rgba(248,207,208,0.26)] bg-white/90 backdrop-blur-sm select-none',
+        viewZoom > 1 ? isDragging ? 'cursor-grabbing' : 'cursor-grab' : 'cursor-zoom-in',
+      ].join(' ')}
+      onDoubleClick={handleDoubleClick}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={endDrag}
+      onPointerCancel={endDrag}
+      onWheel={handleWheel}
+      style={{ touchAction: viewZoom > 1 ? 'none' : 'pan-y' }}
+    >
+      <div
+        className="absolute inset-0"
+        style={{
+          transform: `translate(${pan.x}px, ${pan.y}px) scale(${viewZoom})`,
+          transformOrigin: 'center center',
+          transition: isDragging ? 'none' : 'transform 180ms ease-out',
+        }}
       >
+        {/* Figma Rectangle 349 based Custom Styled Map */}
+        <svg 
+          className="absolute inset-0 w-full h-full"
+          viewBox="0 0 345 324" 
+          fill="none" 
+          xmlns="http://www.w3.org/2000/svg"
+          preserveAspectRatio="none"
+        >
         <g id="Mask group">
           <mask id="mask0_4_32" style={{ maskType: 'alpha' }} maskUnits="userSpaceOnUse" x="0" y="0" width="345" height="324">
             <rect id="Rectangle 349" x="0.5" y="0.5" width="344" height="323" rx="24.5" fill="url(#paint0_radial_4_32)" />
@@ -312,13 +458,45 @@ export default function MapArea({ symbols, onSymbolClick, isQuestionUnlocked }) 
             <stop offset="1" stopColor="#F8CFD0" />
           </radialGradient>
         </defs>
-      </svg>
+        </svg>
 
-      {/* Grid background (아주 은은한 그리드 가이드) */}
-      <div className="absolute inset-0 bg-[linear-gradient(rgba(107,33,168,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(107,33,168,0.02)_1px,transparent_1px)] bg-[size:40px_40px] pointer-events-none" />
+        {/* Grid background (아주 은은한 그리드 가이드) */}
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(107,33,168,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(107,33,168,0.02)_1px,transparent_1px)] bg-[size:40px_40px] pointer-events-none" />
 
-      {/* Markers (피그마 맵 레이아웃과 일치하는 원형 심볼 및 아티스트 이름 핀 목록) */}
-      {MAP_PINS.map(renderFigmaPin)}
+        {/* Markers (피그마 맵 레이아웃과 일치하는 원형 심볼 및 아티스트 이름 핀 목록) */}
+        {MAP_PINS.map(renderFigmaPin)}
+      </div>
+
+      <div className="absolute top-3 right-3 z-30 flex flex-col gap-2" data-map-control="true">
+        <button
+          type="button"
+          aria-label="지도 확대"
+          onClick={() => setZoom(viewZoom + ZOOM_STEP)}
+          className="w-9 h-9 rounded-full bg-white/95 border border-slate-200 shadow-sm flex items-center justify-center text-slate-800 active:scale-95 disabled:opacity-45"
+          disabled={viewZoom >= MAX_ZOOM}
+        >
+          <Plus className="w-4.5 h-4.5" />
+        </button>
+        <button
+          type="button"
+          aria-label="지도 축소"
+          onClick={() => setZoom(viewZoom - ZOOM_STEP)}
+          className="w-9 h-9 rounded-full bg-white/95 border border-slate-200 shadow-sm flex items-center justify-center text-slate-800 active:scale-95 disabled:opacity-45"
+          disabled={viewZoom <= MIN_ZOOM}
+        >
+          <Minus className="w-4.5 h-4.5" />
+        </button>
+        {viewZoom > 1 && (
+          <button
+            type="button"
+            aria-label="지도 원래 크기로"
+            onClick={resetZoom}
+            className="w-9 h-9 rounded-full bg-white/95 border border-slate-200 shadow-sm flex items-center justify-center text-slate-800 active:scale-95"
+          >
+            <RotateCcw className="w-4 h-4" />
+          </button>
+        )}
+      </div>
     </div>
   );
 }

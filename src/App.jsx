@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import Header from './components/Header';
 import MapArea from './components/MapArea';
 import SymbolCards from './components/SymbolCards';
 import Popup from './components/Popup';
-import CompletedPopup from './components/CompletedPopup';
+import ParticipatePage from './components/ParticipatePage';
 import { symbolData } from './data/symbolData';
 
 // Firebase imports
@@ -15,19 +15,53 @@ const INITIAL_SYMBOLS = Object.keys(symbolData).reduce((acc, id) => {
   return acc;
 }, {});
 
-const TOTAL_SYMBOLS = 4; // 하트, 나누기, 십자가, 물음표 카테고리 기준
+const UNLOCKED_SYMBOLS = Object.keys(symbolData).reduce((acc, id) => {
+  acc[id] = id !== 'question';
+  return acc;
+}, {});
+
+const ADMIN_UNLOCK_CATEGORIES = {
+  heart: ['heart_kymin', 'heart_yewon', 'heart_eunhye', 'heart_jihoon'],
+  divide: ['divide_kyeomjun', 'divide_yewon'],
+  cross: ['cross', 'cross_jihoon'],
+};
+
+const ADMIN_UNLOCK_LABELS = {
+  heart: '하트',
+  divide: '나누기',
+  cross: '십자가',
+};
+
+const normalizeSymbols = symbols => ({
+  ...INITIAL_SYMBOLS,
+  ...symbols,
+});
+
+const hasQuestionPrerequisites = symbols => {
+  const normalizedSymbols = normalizeSymbols(symbols);
+  const hasHeart =
+    normalizedSymbols.heart_kymin ||
+    normalizedSymbols.heart_yewon ||
+    normalizedSymbols.heart_eunhye ||
+    normalizedSymbols.heart_jihoon;
+  const hasDivide = normalizedSymbols.divide_kyeomjun || normalizedSymbols.divide_yewon;
+  const hasCross = normalizedSymbols.cross || normalizedSymbols.cross_jihoon;
+
+  return hasHeart && hasDivide && hasCross;
+};
 
 export default function App() {
+  const [page, setPage] = useState(() => {
+    return window.location.pathname === '/participate' ? 'participate' : 'home';
+  });
+
   const [symbols, setSymbols] = useState(() => {
     const savedSymbols = localStorage.getItem('symbols');
 
     if (!savedSymbols) return INITIAL_SYMBOLS;
 
     try {
-      return {
-        ...INITIAL_SYMBOLS,
-        ...JSON.parse(savedSymbols),
-      };
+      return normalizeSymbols(JSON.parse(savedSymbols));
     } catch {
       return INITIAL_SYMBOLS;
     }
@@ -37,11 +71,10 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(true);
 
   const [activePopup, setActivePopup] = useState(null);
-  const [showCompleted, setShowCompleted] = useState(false);
-  const [completedPopupSeen, setCompletedPopupSeen] = useState(() => {
-    return localStorage.getItem('completedPopupSeen') === 'true';
-  });
   const [toast, setToast] = useState('');
+  const hasAutoOpenedQuestionGuide = useRef(
+    localStorage.getItem('questionGuideAutoShown') === 'true',
+  );
 
   // 1개 이상 해금 시 해당 카테고리 발견 완료로 판정
   const isHeartDiscovered = symbols.heart_kymin || symbols.heart_yewon || symbols.heart_eunhye || symbols.heart_jihoon;
@@ -54,16 +87,27 @@ export default function App() {
 
   const discoveredCount = (isHeartDiscovered ? 1 : 0) + 
                           (isDivideDiscovered ? 1 : 0) + 
-                          (isCrossDiscovered ? 1 : 0) + 
+                          (isCrossDiscovered ? 1 : 0) +
                           (isQuestionDiscovered ? 1 : 0);
 
   // 1. URL 쿼리 파라미터를 통한 즉시 해금 및 리셋 처리
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    const normalizedPath = window.location.pathname.replace(/\/+$/, '');
+    const adminPathTarget = normalizedPath.startsWith('/admin/')
+      ? normalizedPath.slice('/admin/'.length)
+      : '';
+    const adminQueryTarget = params.get('admin');
+    const adminUnlockTarget = adminPathTarget || adminQueryTarget;
     const isResetRequested = params.get('reset') === 'true';
+    const isAdminUnlockRequested =
+      normalizedPath === '/admin' || adminQueryTarget === 'unlock' || adminQueryTarget === 'all';
+    const isAdminCategoryUnlockRequested =
+      Object.prototype.hasOwnProperty.call(ADMIN_UNLOCK_CATEGORIES, adminUnlockTarget);
 
     if (isResetRequested) {
       localStorage.clear();
+      hasAutoOpenedQuestionGuide.current = false;
       localStorage.setItem('symbols', JSON.stringify(INITIAL_SYMBOLS));
       localStorage.setItem('needReset', 'true'); // Firebase 세션 로드 완료 시 클라우드 리셋을 처리하기 위한 플래그
       setSymbols(INITIAL_SYMBOLS);
@@ -76,11 +120,52 @@ export default function App() {
       return;
     }
 
+    if (isAdminUnlockRequested) {
+      localStorage.setItem('symbols', JSON.stringify(UNLOCKED_SYMBOLS));
+      setSymbols(UNLOCKED_SYMBOLS);
+      setToast('관리자 모드로 전체 잠금이 열렸습니다.');
+
+      setTimeout(() => {
+        setToast('');
+      }, 1500);
+
+      window.history.replaceState({}, '', '/');
+      return;
+    }
+
+    if (isAdminCategoryUnlockRequested) {
+      setSymbols(prev => {
+        const next = normalizeSymbols(prev);
+        for (const symbolId of ADMIN_UNLOCK_CATEGORIES[adminUnlockTarget]) {
+          next[symbolId] = true;
+        }
+        localStorage.setItem('symbols', JSON.stringify(next));
+        return next;
+      });
+      setToast(`관리자 모드로 ${ADMIN_UNLOCK_LABELS[adminUnlockTarget]} 잠금이 열렸습니다.`);
+
+      setTimeout(() => {
+        setToast('');
+      }, 1500);
+
+      window.history.replaceState({}, '', '/');
+      return;
+    }
+
     let symbol = params.get('symbol');
 
     if (symbol) {
       if (symbol === 'heart') symbol = 'heart_kymin';
       else if (symbol === 'divide') symbol = 'divide_kyeomjun';
+
+      if (symbol === 'question' && !hasQuestionPrerequisites(symbols)) {
+        setToast('먼저 하트, 나누기, 십자가를 모두 찾아야 해요.');
+        setTimeout(() => {
+          setToast('');
+        }, 2000);
+        window.history.replaceState({}, '', window.location.pathname);
+        return;
+      }
 
       if (Object.prototype.hasOwnProperty.call(INITIAL_SYMBOLS, symbol)) {
         setSymbols(prev => {
@@ -91,10 +176,10 @@ export default function App() {
         });
 
         if (symbol === 'question') {
-          // question은 발견했을 때 설명하는 팝업창 없이 바로 완료(축하) 팝업을 노출
-          setShowCompleted(true);
-          setCompletedPopupSeen(true);
-          localStorage.setItem('completedPopupSeen', 'true');
+          setToast('모든 심볼을 발견했어요.');
+          setTimeout(() => {
+            setToast('');
+          }, 1500);
         } else {
           setActivePopup({
             type: 'qr',
@@ -123,9 +208,6 @@ export default function App() {
         if (localStorage.getItem('needReset') === 'true') {
           await setDoc(userDocRef, { symbols: INITIAL_SYMBOLS });
           localStorage.removeItem('needReset');
-          localStorage.removeItem('completedPopupSeen');
-          localStorage.setItem('completedPopupSeen', 'false');
-          setCompletedPopupSeen(false);
           setSymbols(INITIAL_SYMBOLS);
           return;
         }
@@ -177,23 +259,29 @@ export default function App() {
     }
   }, [symbols, userId, isLoading]);
 
-  // 4. 전체 해금 시 완료 팝업 자동 기동
   useEffect(() => {
     if (
-      discoveredCount === TOTAL_SYMBOLS &&
-      !completedPopupSeen &&
-      activePopup === null &&
-      !isLoading
+      !isQuestionUnlocked ||
+      isQuestionDiscovered ||
+      isLoading ||
+      activePopup ||
+      hasAutoOpenedQuestionGuide.current
     ) {
-      const timerId = setTimeout(() => {
-        setShowCompleted(true);
-        setCompletedPopupSeen(true);
-        localStorage.setItem('completedPopupSeen', 'true');
-      }, 500);
-
-      return () => clearTimeout(timerId);
+      return;
     }
-  }, [discoveredCount, completedPopupSeen, activePopup, isLoading]);
+
+    hasAutoOpenedQuestionGuide.current = true;
+    localStorage.setItem('questionGuideAutoShown', 'true');
+
+    const timerId = window.setTimeout(() => {
+      setActivePopup({
+        type: 'question_guide',
+        id: 'question',
+      });
+    }, 650);
+
+    return () => window.clearTimeout(timerId);
+  }, [isQuestionUnlocked, isQuestionDiscovered, isLoading, activePopup]);
 
   const handleMapSymbolClick = id => {
     if (id === 'question') {
@@ -204,15 +292,10 @@ export default function App() {
         }, 2000);
         return;
       }
-      if (!symbols.question) {
-        setActivePopup({
-          type: 'question_guide',
-          id: 'question',
-        });
-        return;
-      }
-      // 이미 발견된 완료 상태인 경우 설명창 없이 바로 완료 팝업 오픈
-      setShowCompleted(true);
+      setActivePopup({
+        type: symbols.question ? 'qr' : 'question_guide',
+        id: 'question',
+      });
       return;
     }
 
@@ -232,15 +315,10 @@ export default function App() {
         }, 2000);
         return;
       }
-      if (!symbols.question) {
-        setActivePopup({
-          type: 'question_guide',
-          id: 'question',
-        });
-        return;
-      }
-      // 이미 발견된 완료 상태인 경우 설명창 없이 바로 완료 팝업 오픈
-      setShowCompleted(true);
+      setActivePopup({
+        type: symbols.question ? 'qr' : 'question_guide',
+        id: 'question',
+      });
       return;
     }
 
@@ -277,25 +355,52 @@ export default function App() {
     setActivePopup(null);
   };
 
+  const openHomePage = () => {
+    setPage('home');
+    window.history.pushState({}, '', '/');
+  };
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setPage(window.location.pathname === '/participate' ? 'participate' : 'home');
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  if (page === 'participate') {
+    return <ParticipatePage onBack={openHomePage} />;
+  }
+
   return (
-    <div className="w-full h-full flex flex-col bg-white overflow-hidden relative font-['Jua']">
+    <div className="home-screen w-full h-full flex flex-col overflow-hidden relative font-['Jua']">
+      <div className="home-backdrop" aria-hidden="true">
+        <div className="home-backdrop__wash" />
+        <div className="home-backdrop__grid" />
+        <div className="home-backdrop__route home-backdrop__route--top" />
+        <div className="home-backdrop__route home-backdrop__route--bottom" />
+        <div className="home-backdrop__spark home-backdrop__spark--one" />
+        <div className="home-backdrop__spark home-backdrop__spark--two" />
+        <div className="home-backdrop__spark home-backdrop__spark--three" />
+      </div>
       
       {/* 5. 프리미엄 글래스모피즘 동기화 로딩 화면 */}
       {isLoading && (
         <div className="fixed inset-0 bg-white/75 backdrop-blur-xl z-[100] flex flex-col items-center justify-center p-6 animate-fade-in">
-          <div className="w-20 h-20 bg-purple-50 border-[3px] border-[#F8CFD0] rounded-[28px] flex items-center justify-center shadow-lg mb-6 animate-bounce">
-            <Sparkles className="w-10 h-10 text-purple-600 animate-pulse" />
+          <div className="w-20 h-20 bg-indigo-50 border-2 border-indigo-100 rounded-2xl flex items-center justify-center shadow-lg mb-6 animate-bounce">
+            <Sparkles className="w-10 h-10 text-indigo-600 animate-pulse" />
           </div>
           <h3 className="font-['Cafe24_Ssurround'] font-bold text-2xl text-gray-800 text-center mb-2">
             기기 데이터 동기화 중
           </h3>
           <p className="text-gray-500 text-sm text-center leading-relaxed max-w-[240px]">
-            기기별 해금 데이터를 안전하게 로드하고 있습니다. 잠시만 기다려주세요!
+            해금 데이터를 안전하게 불러오고 있어요. 잠시만 기다려 주세요.
           </p>
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto scroll-container pb-10">
+      <div className="relative z-10 flex-1 overflow-y-auto scroll-container pb-10">
         <Header discoveredCount={discoveredCount} />
 
         <div className="px-6 pb-6">
@@ -306,10 +411,10 @@ export default function App() {
           />
         </div>
 
-        <div className="px-6 pt-6">
+        <div className="px-6 pt-5">
           <div className="flex justify-center mb-5">
-            <div className="bg-white border-[2.8px] border-purple-800 rounded-full px-8 py-3 shadow-[0_4px_12px_rgba(107,33,168,0.15)]">
-              <h2 className="text-purple-800 text-2xl">작품 설명 카드</h2>
+            <div className="bg-white border-2 border-slate-200 rounded-full px-7 py-2.5 shadow-[0_4px_12px_rgba(15,23,42,0.08)]">
+              <h2 className="text-slate-900 text-2xl">작품 설명 카드</h2>
             </div>
           </div>
 
@@ -331,18 +436,7 @@ export default function App() {
         />
       )}
 
-      {showCompleted && (
-        <CompletedPopup onClose={() => setShowCompleted(false)} />
-      )}
-
-      {discoveredCount === TOTAL_SYMBOLS && !isLoading && (
-        <button
-          onClick={() => setShowCompleted(true)}
-          className="fixed bottom-6 right-6 px-4 py-2 bg-purple-700 text-white rounded-full shadow-lg"
-        >
-          완료 팝업 다시 보기
-        </button>
-      )}
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 h-10 bg-gradient-to-t from-white/95 to-transparent" />
 
       {toast && (
         <div className="fixed bottom-10 left-1/2 -translate-x-1/2 bg-black/80 text-white px-4 py-2 rounded-full text-sm shadow-lg animate-fade-in-out">

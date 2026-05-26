@@ -1,7 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { X, ArrowRight, ArrowLeft, Check, MessageSquare } from 'lucide-react';
-import { collection, addDoc, query, where, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { X, ArrowRight, ArrowLeft, Check, MessageSquare, Pencil, Trash2 } from 'lucide-react';
+import { collection, addDoc, query, where, onSnapshot, serverTimestamp, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
+
+const getCommentClientId = () => {
+  const existingId = localStorage.getItem('comment_client_id');
+  if (existingId) return existingId;
+
+  const newId = crypto.randomUUID();
+  localStorage.setItem('comment_client_id', newId);
+  return newId;
+};
 
 const CustomCrossIcon = ({ className = "w-6 h-6", color = "currentColor", strokeWidth = "2.5", style }) => (
   <svg
@@ -27,7 +36,10 @@ export default function CrossJihoonPopup({ onClose }) {
   const [newName, setNewName] = useState(() => {
     return localStorage.getItem('comment_author_name') || '';
   });
+  const [clientId] = useState(getCommentClientId);
   const [newContent, setNewContent] = useState('');
+  const [editingCommentId, setEditingCommentId] = useState(null);
+  const [editContent, setEditContent] = useState('');
 
   const artistId = 'cross_jihoon';
 
@@ -84,6 +96,7 @@ export default function CrossJihoonPopup({ onClose }) {
         artistId,
         name: newName.trim(),
         content: newContent.trim(),
+        clientId,
         createdAt: serverTimestamp()
       });
       setNewContent('');
@@ -92,8 +105,58 @@ export default function CrossJihoonPopup({ onClose }) {
       console.error("댓글 등록 실패:", error);
     }
   };
+  const startEditComment = (comment) => {
+    if (!isOwnComment(comment)) return;
 
-  // 댓글 상대 시간 포맷터
+    setEditingCommentId(comment.id);
+    setEditContent(comment.content || '');
+  };
+
+  const cancelEditComment = () => {
+    setEditingCommentId(null);
+    setEditContent('');
+  };
+
+  const handleUpdateComment = async (commentId) => {
+    const comment = comments.find((item) => item.id === commentId);
+    if (!comment || !isOwnComment(comment)) return;
+    if (!editContent.trim()) return;
+
+    try {
+      await updateDoc(doc(db, 'comments', commentId), {
+        content: editContent.trim(),
+        updatedAt: serverTimestamp()
+      });
+      cancelEditComment();
+    } catch (error) {
+      console.error("댓글 수정 실패:", error);
+    }
+  };
+
+  const handleDeleteComment = async (commentId) => {
+    const comment = comments.find((item) => item.id === commentId);
+    if (!comment || !isOwnComment(comment)) return;
+    if (!window.confirm('이 감상평을 삭제할까요?')) return;
+
+    try {
+      await deleteDoc(doc(db, 'comments', commentId));
+      if (editingCommentId === commentId) {
+        cancelEditComment();
+      }
+    } catch (error) {
+      console.error("댓글 삭제 실패:", error);
+    }
+  };
+
+  const isOwnComment = (comment) => {
+    if (comment.clientId) {
+      return comment.clientId === clientId;
+    }
+
+    return comment.name?.trim() === newName.trim() && newName.trim().length > 0;
+  };
+
+  // 댓글 작성 시간 포맷팅
   const formatCommentDate = (createdAt) => {
     if (!createdAt) return '방금 전';
     const date = createdAt.toDate ? createdAt.toDate() : new Date(createdAt);
@@ -548,15 +611,72 @@ export default function CrossJihoonPopup({ onClose }) {
                     <span className="opacity-60 mt-0.5">따뜻한 첫 마디로 작품을 채워주세요 ✨</span>
                   </div>
                 ) : (
-                  comments.map((comment) => (
-                    <div key={comment.id} className="bg-emerald-50/30 border border-emerald-100/50 p-3 rounded-2xl flex flex-col gap-1 shadow-sm">
-                      <div className="flex justify-between items-center">
-                        <span className="font-bold text-xs text-emerald-800">{comment.name}</span>
-                        <span className="text-[10px] text-gray-400">{formatCommentDate(comment.createdAt)}</span>
+                  comments.map((comment) => {
+                  const isEditing = editingCommentId === comment.id;
+                  const canManage = isOwnComment(comment);
+
+                  return (
+                    <div key={comment.id} className="bg-emerald-50/30 border border-emerald-100/50 p-3 rounded-2xl flex flex-col gap-2 shadow-sm">
+                      <div className="flex justify-between items-center gap-2">
+                        <span className="font-bold text-xs text-emerald-800 truncate">{comment.name}</span>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className="text-[10px] text-gray-400">{formatCommentDate(comment.createdAt)}</span>
+                          {canManage && !isEditing && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => startEditComment(comment)}
+                                className="w-6 h-6 rounded-full bg-white/80 border border-gray-100 text-gray-400 hover:text-gray-700 flex items-center justify-center transition-colors cursor-pointer"
+                                title="수정"
+                              >
+                                <Pencil className="w-3 h-3" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteComment(comment.id)}
+                                className="w-6 h-6 rounded-full bg-white/80 border border-gray-100 text-gray-400 hover:text-red-500 hover:border-red-100 flex items-center justify-center transition-colors cursor-pointer"
+                                title="삭제"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </>
+                          )}
+                        </div>
                       </div>
-                      <p className="text-gray-700 text-xs leading-relaxed break-all whitespace-pre-wrap">{comment.content}</p>
+
+                      {isEditing ? (
+                        <div className="flex flex-col gap-2">
+                          <textarea
+                            value={editContent}
+                            onChange={(e) => setEditContent(e.target.value)}
+                            maxLength={100}
+                            rows={3}
+                            className="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-gray-300 font-readable-sans resize-none bg-white/80 text-gray-800 leading-relaxed"
+                          />
+                          <div className="flex justify-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={cancelEditComment}
+                              className="h-7 px-3 rounded-full border border-gray-200 bg-white text-[11px] font-bold text-gray-500 hover:bg-gray-50 cursor-pointer"
+                            >
+                              취소
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateComment(comment.id)}
+                              disabled={!editContent.trim()}
+                              className="h-7 px-3 rounded-full bg-gray-800 disabled:bg-gray-300 text-[11px] font-bold text-white cursor-pointer"
+                            >
+                              저장
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-gray-700 text-xs leading-relaxed break-all whitespace-pre-wrap">{comment.content}</p>
+                      )}
                     </div>
-                  ))
+                  );
+                })
                 )}
               </div>
 

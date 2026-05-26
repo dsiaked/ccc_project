@@ -2,38 +2,45 @@ import React from 'react';
 import { Sparkles } from 'lucide-react';
 
 export default function Header({ discoveredCount }) {
+  const totalDiscoverableSymbols = 4;
+  const progress = (discoveredCount / totalDiscoverableSymbols) * 100;
+
   return (
-    <div className="w-full pt-8 px-6 pb-6 flex flex-col gap-6">
+    <header className="w-full pt-8 px-6 pb-5 flex flex-col gap-5">
       <div className="flex flex-col items-center justify-center gap-1.5">
-        <span className="text-[10px] uppercase tracking-[0.3em] text-indigo-600 font-bold">Exhibition Tour</span>
-        <h1 className="text-[28px] font-black text-center tracking-tight bg-gradient-to-r from-slate-950 via-indigo-950 to-slate-800 bg-clip-text text-transparent font-['Cafe24_Ssurround']">
+        <span className="text-[10px] uppercase tracking-[0.28em] text-indigo-600 font-bold">
+          Exhibition Tour
+        </span>
+        <h1 className="text-[28px] font-black text-center text-slate-950 font-['Cafe24_Ssurround']">
           붕어방 작품 투어
         </h1>
-        <div className="w-10 h-[3px] bg-indigo-600 rounded-full mt-1.5" />
+        <div className="w-10 h-[3px] bg-indigo-500 rounded-full mt-1" />
       </div>
-      
-      <div className="flex flex-col gap-3">
-        <div className="flex items-center justify-between h-11">
+
+      <section className="flex flex-col gap-3" aria-label="탐색 진행률">
+        <div className="flex items-center justify-between min-h-11">
           <div className="flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-purple-600" />
-            <span className="text-xl text-slate-800">진행도</span>
+            <Sparkles className="w-5 h-5 text-indigo-600" />
+            <span className="text-xl text-slate-800">진행률</span>
           </div>
-          <div className="bg-purple-800 border-[1.5px] border-white rounded-full px-4 py-1.5 shadow-[0_3px_10px_rgba(107,33,168,0.3)] flex items-center justify-center">
-            <span className="text-white text-xl leading-none pt-1">{discoveredCount}/4</span>
+          <div className="bg-slate-900 rounded-full px-4 py-1.5 shadow-[0_3px_10px_rgba(15,23,42,0.18)] flex items-center justify-center">
+            <span className="text-white text-xl leading-none pt-1">{discoveredCount}/{totalDiscoverableSymbols}</span>
           </div>
         </div>
-        
-        <div className="w-full bg-gray-100 border-[1.5px] border-gray-200 rounded-full h-8 p-[1.5px] shadow-inner relative overflow-hidden">
-          <div 
-            className="h-full rounded-full bg-gradient-to-r from-purple-800 to-purple-500 transition-all duration-500 shadow-[inset_0_2px_4px_rgba(255,255,255,0.3)] relative"
-            style={{ width: `${(discoveredCount / 4) * 100}%`, minWidth: discoveredCount > 0 ? '10%' : '0' }}
+
+        <div className="w-full bg-slate-100 border border-slate-200 rounded-full h-7 p-[2px] shadow-inner relative overflow-hidden">
+          <div
+            className="h-full rounded-full bg-gradient-to-r from-indigo-600 via-sky-500 to-emerald-400 transition-all duration-500 relative"
+            style={{ width: `${progress}%`, minWidth: discoveredCount > 0 ? '10%' : '0' }}
           >
-            {discoveredCount === 4 && (
-              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[12px] leading-none">✨</span>
+            {discoveredCount === totalDiscoverableSymbols && (
+              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[12px] leading-none text-white">
+                완료
+              </span>
             )}
           </div>
         </div>
-      </div>
-    </div>
+      </section>
+    </header>
   );
 }

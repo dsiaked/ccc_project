@@ -1,7 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { X, ArrowRight, ArrowLeft, Heart, Check, MessageSquare } from 'lucide-react';
-import { collection, addDoc, query, where, orderBy, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { X, ArrowRight, ArrowLeft, Heart, Check, MessageSquare, Pencil, Trash2 } from 'lucide-react';
+import { collection, addDoc, query, where, onSnapshot, serverTimestamp, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
+
+const ACCENT = '#fa5c5c';
+const accent = (opacity = 1) => `rgba(250, 92, 92, ${opacity})`;
+const getCommentClientId = () => {
+  const existingId = localStorage.getItem('comment_client_id');
+  if (existingId) return existingId;
+
+  const newId = crypto.randomUUID();
+  localStorage.setItem('comment_client_id', newId);
+  return newId;
+};
 
 export default function KyminPopup({ onClose }) {
   const [step, setStep] = useState(1);
@@ -11,7 +22,10 @@ export default function KyminPopup({ onClose }) {
   const [newName, setNewName] = useState(() => {
     return localStorage.getItem('comment_author_name') || '';
   });
+  const [clientId] = useState(getCommentClientId);
   const [newContent, setNewContent] = useState('');
+  const [editingCommentId, setEditingCommentId] = useState(null);
+  const [editContent, setEditContent] = useState('');
 
   useEffect(() => {
     setLoadingComments(true);
@@ -66,6 +80,7 @@ export default function KyminPopup({ onClose }) {
         artistId: 'heart_kymin',
         name: newName.trim(),
         content: newContent.trim(),
+        clientId,
         createdAt: serverTimestamp()
       });
       setNewContent('');
@@ -73,6 +88,57 @@ export default function KyminPopup({ onClose }) {
     } catch (error) {
       console.error("댓글 등록 실패:", error);
     }
+  };
+
+  const startEditComment = (comment) => {
+    if (!isOwnComment(comment)) return;
+
+    setEditingCommentId(comment.id);
+    setEditContent(comment.content || '');
+  };
+
+  const cancelEditComment = () => {
+    setEditingCommentId(null);
+    setEditContent('');
+  };
+
+  const handleUpdateComment = async (commentId) => {
+    const comment = comments.find((item) => item.id === commentId);
+    if (!comment || !isOwnComment(comment)) return;
+    if (!editContent.trim()) return;
+
+    try {
+      await updateDoc(doc(db, 'comments', commentId), {
+        content: editContent.trim(),
+        updatedAt: serverTimestamp()
+      });
+      cancelEditComment();
+    } catch (error) {
+      console.error("댓글 수정 실패:", error);
+    }
+  };
+
+  const handleDeleteComment = async (commentId) => {
+    const comment = comments.find((item) => item.id === commentId);
+    if (!comment || !isOwnComment(comment)) return;
+    if (!window.confirm('이 감상평을 삭제할까요?')) return;
+
+    try {
+      await deleteDoc(doc(db, 'comments', commentId));
+      if (editingCommentId === commentId) {
+        cancelEditComment();
+      }
+    } catch (error) {
+      console.error("댓글 삭제 실패:", error);
+    }
+  };
+
+  const isOwnComment = (comment) => {
+    if (comment.clientId) {
+      return comment.clientId === clientId;
+    }
+
+    return comment.name?.trim() === newName.trim() && newName.trim().length > 0;
   };
 
   // 댓글 상대 시간 포맷터
@@ -103,11 +169,12 @@ export default function KyminPopup({ onClose }) {
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-0 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300 overflow-x-hidden touch-pan-y">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-0 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300 overflow-x-hidden touch-pan-y"
+      style={{ '--heart-accent': ACCENT }}
+    >
       {/* 스타일 태그 삽입: 몽환적인 플로팅 하트 및 피그마 전용 서체 애니메이션 정의 */}
       <style>{`
-        @import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css");
-
         @keyframes float-up {
           0% {
             transform: translateY(100%) rotate(0deg) scale(0.8);
@@ -157,49 +224,52 @@ export default function KyminPopup({ onClose }) {
         
         {/* Step 1: 피그마 iPhone 17-19 1:1 완벽 절대 좌표 복원 */}
         {step === 1 && (
-          <div className="relative flex-1 bg-gradient-to-b from-[#ffffff] via-[#fffbfb] to-[#fff0f0] text-gray-800 overflow-hidden select-none">
+          <div
+            className="relative flex-1 text-gray-800 overflow-hidden select-none"
+            style={{ backgroundImage: `linear-gradient(to bottom, #fff, ${accent(0.03)}, ${accent(0.1)})` }}
+          >
             
             {/* 1. 피그마 기하학적 도형 배경들 0.9배율 완벽 재현 */}
             <div className="absolute inset-0 pointer-events-none z-[1] overflow-hidden">
               {/* Radial gradient background box 1 */}
               <div 
                 className="absolute w-[232px] h-[230px] rounded-[20px] left-[150px] top-[103px] opacity-[0.08]" 
-                style={{ backgroundImage: "linear-gradient(to bottom, #fa5c5c, #f8cfd0)" }}
+                style={{ backgroundImage: `linear-gradient(to bottom, ${ACCENT}, ${accent(0.18)})` }}
               />
               {/* Radial gradient background box 2 */}
               <div 
                 className="absolute w-[143px] h-[142px] rounded-bl-[20px] rounded-br-[20px] rounded-tl-[20px] left-[219px] top-0 opacity-[0.06]" 
-                style={{ backgroundImage: "linear-gradient(to bottom, #fa5c5c, #ffedd5)" }}
+                style={{ backgroundImage: `linear-gradient(to bottom, ${ACCENT}, ${accent(0.12)})` }}
               />
               {/* Radial gradient background box 3 */}
               <div 
                 className="absolute w-[73px] h-[254px] rounded-[20px] left-[242px] top-[281px] opacity-[0.05]" 
-                style={{ backgroundImage: "linear-gradient(to bottom, #fa5c5c, #f8cfd0)" }}
+                style={{ backgroundImage: `linear-gradient(to bottom, ${ACCENT}, ${accent(0.18)})` }}
               />
               {/* Radial gradient background box 4 */}
               <div 
                 className="absolute w-[82px] h-[230px] rounded-[20px] left-[291px] top-[176px] opacity-[0.08]" 
-                style={{ backgroundImage: "linear-gradient(to bottom, #fa5c5c, #f8cfd0)" }}
+                style={{ backgroundImage: `linear-gradient(to bottom, ${ACCENT}, ${accent(0.18)})` }}
               />
               {/* Radial gradient background box 5 */}
               <div 
                 className="absolute w-[137px] h-[230px] rounded-[20px] left-[276px] top-[448px] opacity-[0.07]" 
-                style={{ backgroundImage: "linear-gradient(to bottom, #fa5c5c, #ffffff)" }}
+                style={{ backgroundImage: `linear-gradient(to bottom, ${ACCENT}, #ffffff)` }}
               />
               {/* Radial gradient background box 6 */}
               <div 
                 className="absolute w-[141px] h-[269px] rounded-[20px] left-[208px] top-[574px] opacity-[0.08]" 
-                style={{ backgroundImage: "linear-gradient(to bottom, #fa5c5c, #f8cfd0)" }}
+                style={{ backgroundImage: `linear-gradient(to bottom, ${ACCENT}, ${accent(0.18)})` }}
               />
               {/* Radial gradient background box 7 */}
               <div 
                 className="absolute w-[68px] h-[269px] rounded-[20px] left-[15px] top-[631px] opacity-[0.06]" 
-                style={{ backgroundImage: "linear-gradient(to bottom, #fa5c5c, #f8cfd0)" }}
+                style={{ backgroundImage: `linear-gradient(to bottom, ${ACCENT}, ${accent(0.18)})` }}
               />
               {/* Radial gradient background box 8 */}
               <div 
                 className="absolute w-[147px] h-[49px] rounded-[20px] left-[130px] top-[365px] opacity-[0.08]" 
-                style={{ backgroundImage: "linear-gradient(to bottom, #fa5c5c, #f8cfd0)" }}
+                style={{ backgroundImage: `linear-gradient(to bottom, ${ACCENT}, ${accent(0.18)})` }}
               />
             </div>
 
@@ -217,7 +287,7 @@ export default function KyminPopup({ onClose }) {
                     fontSize: `${heart.size}px`,
                   }}
                 >
-                  <Heart className="fill-rose-400/8 text-transparent" style={{ width: heart.size, height: heart.size }} />
+                  <Heart className="text-transparent" style={{ width: heart.size, height: heart.size, fill: accent(0.08) }} />
                 </div>
               ))}
             </div>
@@ -225,14 +295,14 @@ export default function KyminPopup({ onClose }) {
             {/* 2. 피그마 자산 이미지들 배치 (은은한 실루엣 하트로 일치) */}
             <div className="absolute inset-0 pointer-events-none z-[3]">
               {/* 자산 1 3 (하트 실루엣 1) */}
-              <Heart className="absolute left-[180px] top-[70px] w-[50px] h-[48px] text-rose-300/20 fill-rose-100/10" />
+              <Heart className="absolute left-[180px] top-[70px] w-[50px] h-[48px]" style={{ color: accent(0.2), fill: accent(0.1) }} />
               {/* 자산 1 2 (하트 실루엣 2) */}
-              <Heart className="absolute left-[256px] top-[155px] w-[76px] h-[71px] text-rose-300/15 fill-rose-100/8" />
+              <Heart className="absolute left-[256px] top-[155px] w-[76px] h-[71px]" style={{ color: accent(0.15), fill: accent(0.08) }} />
               {/* 자산 1 4 (하트 실루엣 3) */}
-              <Heart className="absolute left-[10px] bottom-[20px] w-[50px] h-[48px] text-rose-300/20 fill-rose-100/10" />
+              <Heart className="absolute left-[10px] bottom-[20px] w-[50px] h-[48px]" style={{ color: accent(0.2), fill: accent(0.1) }} />
               {/* 자산 1 1 (우측 대형 하트 실루엣) */}
               <div className="absolute left-[132px] top-[448px] w-[225px] h-[212px] rotate-[5.89deg] opacity-25">
-                <Heart className="w-full h-full text-rose-300/30 fill-rose-100/15" />
+                <Heart className="w-full h-full" style={{ color: accent(0.3), fill: accent(0.15) }} />
               </div>
             </div>
 
@@ -244,7 +314,7 @@ export default function KyminPopup({ onClose }) {
               </span>
               
               {/* Rectangle 361 (상단 얇은 가로선) */}
-              <div className="absolute left-[29px] top-[64px] w-[35px] h-[1.5px] bg-[#e2cece]" />
+              <div className="absolute left-[29px] top-[64px] w-[35px] h-[1.5px] bg-[rgba(250,92,92,0.22)]" />
 
               {/* 2026.05.26/06.02 */}
               <div className="absolute right-[25px] top-[58px] text-[10px] text-[#4a3b3b] tracking-[1.2px] text-right font-readable-sans">
@@ -272,7 +342,7 @@ export default function KyminPopup({ onClose }) {
 
               {/* 하단 작가 소개 영역 */}
               {/* Rectangle 358 (작가 위 가로선) */}
-              <div className="absolute left-[26px] top-[475px] w-[35px] h-[1.5px] bg-[#e2cece]" />
+              <div className="absolute left-[26px] top-[475px] w-[35px] h-[1.5px] bg-[rgba(250,92,92,0.22)]" />
               
               {/* ARTIST. 김규민 및 댓글 이모지 버튼 */}
               <div className="absolute left-[26px] right-[25px] top-[492px] flex items-center justify-between">
@@ -281,12 +351,12 @@ export default function KyminPopup({ onClose }) {
                 </span>
                 <button
                   onClick={() => setShowCommentModal(true)}
-                  className="relative flex items-center justify-center w-16 h-16 rounded-full bg-rose-50 border-2 border-rose-100 hover:bg-rose-100/50 text-[#fa5c5c] cursor-pointer transition-all active:scale-95 shadow-md animate-in fade-in duration-300"
+                  className="relative flex items-center justify-center w-16 h-16 rounded-full bg-[rgba(250,92,92,0.08)] border-2 border-[rgba(250,92,92,0.18)] hover:bg-[rgba(250,92,92,0.14)] text-[var(--heart-accent)] cursor-pointer transition-all active:scale-95 shadow-md animate-in fade-in duration-300"
                   title="감상평 남기기"
                 >
                   <MessageSquare className="w-8 h-8" />
                   {/* 댓글 수 배지 */}
-                  <span className="absolute -top-1 -right-1 flex h-6 min-w-[24px] px-1.5 items-center justify-center rounded-full bg-red-500 text-white text-xs font-bold shadow-sm border border-white">
+                  <span className="absolute -top-1 -right-1 flex h-6 min-w-[24px] px-1.5 items-center justify-center rounded-full bg-[var(--heart-accent)] text-white text-xs font-bold shadow-sm border border-white">
                     {comments.length}
                   </span>
                 </button>
@@ -301,7 +371,7 @@ export default function KyminPopup({ onClose }) {
               {/* NEXT PAGE 버튼: 우측 하단 둥근 캡슐 */}
               <button
                 onClick={() => setStep(2)}
-                className="absolute right-[25px] bottom-[35px] w-[140px] h-[47px] bg-gradient-to-r from-[#fa5c5c] to-[#ff7b7b] text-white rounded-[24px] flex items-center justify-between pl-6 pr-5 hover:opacity-90 transition-all duration-200 active:scale-[0.96] shadow-[0_4px_15px_rgba(250,92,92,0.25)] cursor-pointer font-readable-sans"
+                className="absolute right-[25px] bottom-[35px] w-[140px] h-[47px] bg-[var(--heart-accent)] text-white rounded-[24px] flex items-center justify-between pl-6 pr-5 hover:opacity-90 transition-all duration-200 active:scale-[0.96] shadow-[0_4px_15px_rgba(250,92,92,0.25)] cursor-pointer font-readable-sans"
               >
                 <span className="text-[13px] tracking-[1.68px] font-bold">NEXT</span>
                 <ArrowRight className="w-4 h-4 text-white" />
@@ -320,7 +390,10 @@ export default function KyminPopup({ onClose }) {
 
         {/* Step 2: 피그마 iPhone 17-20 기반 디테일 완벽 복원 (김규민 작가 수필 서사 적용) */}
         {step === 2 && (
-          <div className="relative flex-1 flex flex-col bg-gradient-to-b from-[#ffffff] via-[#fffbfb] to-[#ffebeb] text-gray-800 overflow-y-auto overflow-x-hidden popup-body-scroll select-none touch-pan-y">
+          <div
+            className="relative flex-1 flex flex-col text-gray-800 overflow-y-auto overflow-x-hidden popup-body-scroll select-none touch-pan-y"
+            style={{ backgroundImage: `linear-gradient(to bottom, #fff, ${accent(0.03)}, ${accent(0.12)})` }}
+          >
             
             {/* 전체 높이를 확보하여 피그마의 비율을 보존 */}
             <div className="relative w-full flex flex-col p-6 pb-8 min-h-[960px]">
@@ -328,11 +401,11 @@ export default function KyminPopup({ onClose }) {
               {/* 은은하게 그라데이션으로 퍼지는 로즈빛 광원 오버레이 */}
               <div 
                 className="absolute inset-0 pointer-events-none opacity-[0.02] mix-blend-multiply" 
-                style={{ backgroundImage: "linear-gradient(206.325deg, rgba(248, 33, 33, 0) 14.004%, rgb(183, 26, 26) 80.929%)" }} 
+                style={{ backgroundImage: `linear-gradient(206.325deg, ${accent(0)} 14.004%, ${accent(0.5)} 80.929%)` }} 
               />
               <div 
                 className="absolute inset-0 pointer-events-none opacity-40 mix-blend-overlay" 
-                style={{ backgroundImage: "linear-gradient(147.794deg, rgba(248, 33, 33, 0) 34.559%, rgb(254, 229, 180) 100.79%)" }} 
+                style={{ backgroundImage: `linear-gradient(147.794deg, ${accent(0)} 34.559%, ${accent(0.18)} 100.79%)` }} 
               />
 
               {/* 흩날리는 핑크빛 하트 파티클 */}
@@ -349,39 +422,39 @@ export default function KyminPopup({ onClose }) {
                       fontSize: `${heart.size}px`,
                     }}
                   >
-                    <Heart className="fill-rose-400/10 text-transparent" style={{ width: heart.size, height: heart.size }} />
+                    <Heart className="text-transparent" style={{ width: heart.size, height: heart.size, fill: accent(0.1) }} />
                   </div>
                 ))}
               </div>
 
               {/* 우측 상단 하트 장식 (오버레이) */}
               <div className="absolute top-[5px] right-[-10px] w-64 h-60 opacity-40 pointer-events-none z-[2] mix-blend-normal animate-pulse">
-                <Heart className="w-full h-full text-rose-200/40 fill-rose-100/15" />
+                <Heart className="w-full h-full" style={{ color: accent(0.24), fill: accent(0.15) }} />
               </div>
 
               {/* 상단 띠지 */}
               <div className="relative z-10 flex justify-between items-center pb-6 font-readable-sans">
-                <span className="text-[10px] tracking-[1.2px] font-bold text-rose-500">
+                <span className="text-[10px] tracking-[1.2px] font-bold text-[var(--heart-accent)]">
                   SYMBOL1 : HEART
                 </span>
-                <div className="w-[100px] h-[0.5px] bg-rose-200" />
+                <div className="w-[100px] h-[0.5px] bg-[rgba(250,92,92,0.22)]" />
               </div>
 
               {/* 카드 배경 */}
-              <div className="relative z-10 flex-1 flex flex-col bg-white/80 backdrop-blur-md rounded-[20px] border border-rose-100 p-7 shadow-[0_8px_32px_rgba(0,0,0,0.03)]">
+              <div className="relative z-10 flex-1 flex flex-col bg-white/75 rounded-[18px] border border-[rgba(250,92,92,0.12)] px-6 py-7 shadow-[0_4px_18px_rgba(0,0,0,0.025)]">
                 
                 {/* 헤드라인 타이틀: "늘 기다리고 있었다" */}
-                <div className="text-left font-sentiment text-[36px] leading-[1.15] text-rose-500 tracking-[5.88px] font-bold mt-2 select-text">
+                <div className="text-left font-sentiment text-[34px] leading-[1.18] text-[#4a3b3b] tracking-[2px] font-normal mt-2 select-text">
                   <p>늘</p>
                   <p>기다리고</p>
                   <p>있었다</p>
                 </div>
 
                 {/* 얇은 가로선 */}
-                <div className="bg-rose-300 h-px w-[31px] my-6 flex-none" />
+                <div className="bg-[rgba(250,92,92,0.2)] h-px w-[31px] my-6 flex-none" />
 
                 {/* 본문 서사: 김규민 작가 수필 (온점 하나도 누락 없이 100% 반영) */}
-                <div className="text-left text-[14.5px] leading-[1.85] text-black space-y-5 tracking-wide font-readable-sans select-text break-keep">
+                <div className="text-left text-[14.5px] leading-[1.85] text-gray-700 space-y-5 tracking-normal font-readable-sans select-text break-keep">
                   <p className="text-black">익숙한 냄새 같은 기억이 있다. 어릴 때, 교회에서 먹던 따뜻한 잔치국수, 손에 쥐고 설레던 달란트, 괜히 오래 머물고 싶었던 그 시간들.</p>
                   
                   <div className="h-1" />
@@ -390,14 +463,14 @@ export default function KyminPopup({ onClose }) {
                   <div className="h-1" />
                   <p>시간이 지나고, 나는 그곳을 스쳐 지나가는 사람이 되었고 그 기억들도 지나간 장면쯤으로 남아 있다고 생각했다.</p>
                   
-                  <div className="py-2 text-rose-300 text-center flex justify-center gap-1 select-none font-bold">
+                  <div className="py-2 text-[rgba(250,92,92,0.25)] text-center flex justify-center gap-1 select-none font-bold">
                     <span>.</span><span>.</span><span>.</span>
                   </div>
                   
                   <p>그런데 어느 날, <span className="font-bold">익숙한 공간에서 잠깐 멈춰 서게 되었을 때</span> 문득 그때의 감각이 다시 떠올랐다.</p>
                   
                   <div className="h-1" />
-                  <p>따뜻했던 공기, <span className="italic">누군가 곁에 있었던 것 같은 조용한 느낌.</span></p>
+                  <p>따뜻했던 공기, <span>누군가 곁에 있었던 것 같은 조용한 느낌.</span></p>
                   
                   <div className="h-1" />
                   <p>그 자리에, <span className="font-bold">여전히 같은 모습으로 아무 일도 없다는 듯 앉아 있는 존재.</span></p>
@@ -405,17 +478,21 @@ export default function KyminPopup({ onClose }) {
                   <div className="h-1" />
                   <p>떠난 적이 없었던 것처럼, 처음부터 계속 그 자리에 있었던 것처럼.</p>
                   
-                  {/* 대답/요약 상자: 김규민 작가 최종 감성 구절 */}
-                  <div className="my-6 border border-rose-150 bg-[#fff5f5] py-5 px-3.5 rounded-3xl font-sentiment text-[14.5px] leading-relaxed text-[#c93b3b] text-center shadow-sm">
-                    <p className="font-bold text-[#b92c2c]">“어릴 때 아무렇지 않게 지나쳤던 그 마음이,</p>
-                    <p className="font-bold text-[#b92c2c]">지금의 나를 향해</p>
+                  {/* 마무리 문장은 박스 없이 여백과 얇은 선으로만 구분한다. */}
+                  <div className="mt-7 pt-5 border-t border-[rgba(250,92,92,0.14)] text-[14.5px] leading-[1.85] text-[#4a3b3b] text-center">
+                    <p className="font-semibold">“어릴 때 아무렇지 않게</p>
+                    <p className="font-semibold">지나쳤던 그 마음이,</p>
+                    <p className="font-semibold">지금의 나를 향해</p>
                     <div className="h-2.5" />
-                    <p className="font-bold text-rose-600">여전히 그 자리에서</p>
-                    <p className="font-bold text-rose-600">나를 기다리고 있었다.”</p>
+                    <p className="font-semibold">여전히 그 자리에서</p>
+                    <p className="font-semibold">나를 기다리고 있었다.”</p>
                   </div>
                   
                   <div className="h-2" />
-                  <p className="text-[14px] font-bold text-black text-center">늘 우리를 기다리시는 그 사랑.</p>
+                  <p className="text-[14.5px] font-semibold text-[#4a3b3b] text-center leading-[1.85]">
+                    늘 우리를 기다리시는<br />
+                    그 사랑.
+                  </p>
                 </div>
               </div>
 
@@ -433,7 +510,7 @@ export default function KyminPopup({ onClose }) {
                 {/* NEXT (확인 완료) 버튼 */}
                 <button
                   onClick={onClose}
-                  className="w-[112px] h-[52px] bg-gradient-to-r from-[#fa5c5c] to-[#ff7b7b] text-white rounded-[26px] flex items-center justify-center gap-1 hover:opacity-90 transition-all duration-200 active:scale-[0.96] shadow-[0_4px_12px_rgba(250,92,92,0.2)] cursor-pointer font-bold"
+                  className="w-[112px] h-[52px] bg-[var(--heart-accent)] text-white rounded-[26px] flex items-center justify-center gap-1 hover:opacity-90 transition-all duration-200 active:scale-[0.96] shadow-[0_4px_12px_rgba(250,92,92,0.2)] cursor-pointer font-bold"
                 >
                   <span className="text-[13px] tracking-[1.68px]">NEXT</span>
                   <Check className="w-4 h-4" />
@@ -457,12 +534,12 @@ export default function KyminPopup({ onClose }) {
       {/* 댓글 모달 */}
       {showCommentModal && (
         <div className="absolute inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-[2px] animate-in fade-in duration-200">
-          <div className="relative w-[310px] h-[520px] rounded-[24px] bg-white border border-rose-100 flex flex-col p-5 shadow-2xl animate-in zoom-in-95 duration-200">
+          <div className="relative w-[310px] h-[520px] rounded-[24px] bg-white border border-[rgba(250,92,92,0.18)] flex flex-col p-5 shadow-2xl animate-in zoom-in-95 duration-200">
             {/* 헤더 */}
             <div className="flex justify-between items-center pb-3 border-b border-gray-100">
               <div className="flex items-center gap-1.5">
-                <span className="text-lg font-bold text-rose-500 font-sentiment">감상평 남기기 💬</span>
-                <span className="bg-rose-100 text-rose-600 text-xs px-2 py-0.5 rounded-full font-bold">{comments.length}</span>
+                <span className="text-lg font-bold text-[var(--heart-accent)] font-sentiment">감상평 남기기 💬</span>
+                <span className="bg-[rgba(250,92,92,0.12)] text-[var(--heart-accent)] text-xs px-2 py-0.5 rounded-full font-bold">{comments.length}</span>
               </div>
               <button 
                 onClick={() => setShowCommentModal(false)}
@@ -476,7 +553,7 @@ export default function KyminPopup({ onClose }) {
             <div className="flex-1 overflow-y-auto popup-body-scroll my-3 pr-1 space-y-3 select-text">
               {loadingComments ? (
                 <div className="h-full flex flex-col items-center justify-center text-gray-400 text-xs gap-2 py-10">
-                  <div className="w-6 h-6 border-2 border-rose-400 border-t-transparent rounded-full animate-spin" />
+                  <div className="w-6 h-6 border-2 border-[var(--heart-accent)] border-t-transparent rounded-full animate-spin" />
                   <span>감상평을 불러오는 중...</span>
                 </div>
               ) : comments.length === 0 ? (
@@ -487,15 +564,72 @@ export default function KyminPopup({ onClose }) {
                   <span className="opacity-60 mt-0.5">따뜻한 첫 마디로 작품을 채워주세요 ✨</span>
                 </div>
               ) : (
-                comments.map((comment) => (
-                  <div key={comment.id} className="bg-rose-50/30 border border-rose-100/50 p-3 rounded-2xl flex flex-col gap-1 shadow-sm">
-                    <div className="flex justify-between items-center">
-                      <span className="font-bold text-xs text-rose-800">{comment.name}</span>
-                      <span className="text-[10px] text-gray-400">{formatCommentDate(comment.createdAt)}</span>
+                comments.map((comment) => {
+                  const isEditing = editingCommentId === comment.id;
+                  const canManage = isOwnComment(comment);
+
+                  return (
+                    <div key={comment.id} className="bg-[rgba(250,92,92,0.04)] border border-[rgba(250,92,92,0.14)] p-3 rounded-2xl flex flex-col gap-2 shadow-sm">
+                      <div className="flex justify-between items-center gap-2">
+                        <span className="font-bold text-xs text-[var(--heart-accent)] truncate">{comment.name}</span>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className="text-[10px] text-gray-400">{formatCommentDate(comment.createdAt)}</span>
+                          {canManage && !isEditing && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => startEditComment(comment)}
+                                className="w-6 h-6 rounded-full bg-white/80 border border-gray-100 text-gray-400 hover:text-[var(--heart-accent)] hover:border-[rgba(250,92,92,0.22)] flex items-center justify-center transition-colors cursor-pointer"
+                                title="수정"
+                              >
+                                <Pencil className="w-3 h-3" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteComment(comment.id)}
+                                className="w-6 h-6 rounded-full bg-white/80 border border-gray-100 text-gray-400 hover:text-red-500 hover:border-red-100 flex items-center justify-center transition-colors cursor-pointer"
+                                title="삭제"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      {isEditing ? (
+                        <div className="flex flex-col gap-2">
+                          <textarea
+                            value={editContent}
+                            onChange={(e) => setEditContent(e.target.value)}
+                            maxLength={100}
+                            rows={3}
+                            className="w-full px-3 py-2 text-xs border border-[rgba(250,92,92,0.2)] rounded-xl focus:outline-none focus:ring-1 focus:ring-[var(--heart-accent)] font-readable-sans resize-none bg-white/80 text-gray-800 leading-relaxed"
+                          />
+                          <div className="flex justify-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={cancelEditComment}
+                              className="h-7 px-3 rounded-full border border-gray-200 bg-white text-[11px] font-bold text-gray-500 hover:bg-gray-50 cursor-pointer"
+                            >
+                              취소
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateComment(comment.id)}
+                              disabled={!editContent.trim()}
+                              className="h-7 px-3 rounded-full bg-[var(--heart-accent)] disabled:bg-gray-300 text-[11px] font-bold text-white cursor-pointer"
+                            >
+                              저장
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-gray-700 text-xs leading-relaxed break-all whitespace-pre-wrap">{comment.content}</p>
+                      )}
                     </div>
-                    <p className="text-gray-700 text-xs leading-relaxed break-all whitespace-pre-wrap">{comment.content}</p>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
 
@@ -507,7 +641,7 @@ export default function KyminPopup({ onClose }) {
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 maxLength={10}
-                className="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-rose-400 font-readable-sans bg-gray-50/50 text-gray-800"
+                className="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-[var(--heart-accent)] font-readable-sans bg-gray-50/50 text-gray-800"
                 required
               />
               <div className="relative">
@@ -517,13 +651,13 @@ export default function KyminPopup({ onClose }) {
                   onChange={(e) => setNewContent(e.target.value)}
                   maxLength={100}
                   rows={2}
-                  className="w-full pl-3 pr-10 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-rose-400 font-readable-sans resize-none bg-gray-50/50 text-gray-800 leading-normal"
+                  className="w-full pl-3 pr-10 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-[var(--heart-accent)] font-readable-sans resize-none bg-gray-50/50 text-gray-800 leading-normal"
                   required
                 />
                 <button
                   type="submit"
                   disabled={!newName.trim() || !newContent.trim()}
-                  className="absolute right-2 bottom-3 p-1.5 bg-[#fa5c5c] disabled:bg-gray-300 text-white rounded-lg flex items-center justify-center transition-all duration-200 active:scale-95 shadow-sm cursor-pointer"
+                  className="absolute right-2 bottom-3 p-1.5 bg-[var(--heart-accent)] disabled:bg-gray-300 text-white rounded-lg flex items-center justify-center transition-all duration-200 active:scale-95 shadow-sm cursor-pointer"
                 >
                   <Check className="w-3.5 h-3.5" />
                 </button>
