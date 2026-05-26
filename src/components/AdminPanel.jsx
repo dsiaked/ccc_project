@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { collection, getDocs, onSnapshot } from 'firebase/firestore';
+import { collection, getDocs, onSnapshot, updateDoc } from 'firebase/firestore';
 import {
   AlertCircle,
   ArrowLeft,
@@ -7,6 +7,8 @@ import {
   CheckCircle2,
   Copy,
   ExternalLink,
+  Eye,
+  EyeOff,
   Link2,
   MapPinned,
   MessageSquareText,
@@ -291,6 +293,22 @@ export default function AdminPanel({ onBack }) {
     }
   };
 
+  const handleToggleFeedbackPublish = async feedback => {
+    try {
+      await updateDoc(doc(db, 'tour_feedbacks', feedback.id), {
+        isPublished: !feedback.isPublished,
+      });
+      showNotification(
+        feedback.isPublished
+          ? '방문자 화면에서 소감을 숨겼습니다.'
+          : '방문자 화면에 소감을 공개했습니다.',
+      );
+    } catch (err) {
+      console.error('피드백 공개 상태 변경 실패:', err);
+      showNotification('소감 공개 상태를 변경하지 못했습니다.', 'error');
+    }
+  };
+
   const mockSymbols = useMemo(
     () => DEFAULT_MAP_PINS.reduce((acc, pin) => ({ ...acc, [pin.id]: true }), {}),
     [],
@@ -449,6 +467,22 @@ export default function AdminPanel({ onBack }) {
                     title={feedback.name || '익명'}
                     meta={formatDate(feedback.createdAt)}
                     body={feedback.feedback}
+                    badge={feedback.isPublished ? '공개 중' : '비공개'}
+                    action={
+                      <button
+                        type="button"
+                        onClick={() => handleToggleFeedbackPublish(feedback)}
+                        className={[
+                          'flex h-9 items-center gap-1.5 rounded-lg border px-3 text-xs font-bold transition active:scale-95',
+                          feedback.isPublished
+                            ? 'border-cyan-400/30 bg-cyan-400/10 text-cyan-200'
+                            : 'border-slate-700 bg-slate-900 text-slate-300',
+                        ].join(' ')}
+                      >
+                        {feedback.isPublished ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        {feedback.isPublished ? '숨기기' : '공개'}
+                      </button>
+                    }
                   />
                 )}
               />
@@ -596,12 +630,22 @@ function RecordList({ records, emptyTitle, renderItem }) {
   return <div className="grid gap-3">{records.map(renderItem)}</div>;
 }
 
-function RecordCard({ title, meta, body }) {
+function RecordCard({ title, meta, body, badge, action }) {
   return (
     <article className="rounded-lg border border-slate-800 bg-slate-950/55 p-4">
-      <div className="min-w-0">
-        <p className="truncate font-bold text-slate-100">{title}</p>
-        <p className="mt-1 text-xs text-slate-500">{meta}</p>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="truncate font-bold text-slate-100">{title}</p>
+            {badge && (
+              <span className="rounded-full border border-slate-700 bg-slate-900 px-2 py-0.5 text-[11px] text-slate-300">
+                {badge}
+              </span>
+            )}
+          </div>
+          <p className="mt-1 text-xs text-slate-500">{meta}</p>
+        </div>
+        {action}
       </div>
       <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-300">
         {body || '내용 없음'}

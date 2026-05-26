@@ -71,6 +71,8 @@ const accentClasses = {
 };
 
 export default function SymbolCards({ symbols, onCardClick, isQuestionUnlocked }) {
+  const isQuestionDiscovered = !!symbols.question;
+
   const checkDiscovered = id => {
     if (id === 'heart') {
       return symbols.heart_kymin || symbols.heart_yewon || symbols.heart_eunhye || symbols.heart_jihoon;
@@ -91,7 +93,7 @@ export default function SymbolCards({ symbols, onCardClick, isQuestionUnlocked }
   };
 
   return (
-    <div className="grid grid-cols-3 gap-2.5 pb-8">
+    <div className={`grid pb-8 ${isQuestionDiscovered ? 'grid-cols-2 gap-3.5' : 'grid-cols-3 gap-2.5'}`}>
       {cards.map(card => {
         const state = getState(card);
         const accent = accentClasses[card.accent];
@@ -99,6 +101,9 @@ export default function SymbolCards({ symbols, onCardClick, isQuestionUnlocked }
         const isReady = state === 'ready';
         const isQuestionPending = card.id === 'question' && isLocked;
         const isQuestionReady = card.id === 'question' && isReady;
+        const isQuestionDone = card.id === 'question' && state === 'discovered';
+        const displayLabel = isQuestionDone ? '상품 부스' : card.label;
+        const statusLabel = isQuestionDone ? '방문 완료' : isLocked ? '미발견' : isReady ? '위치 확인' : '발견 완료';
 
         if (isQuestionPending) {
           return (
@@ -176,24 +181,34 @@ export default function SymbolCards({ symbols, onCardClick, isQuestionUnlocked }
             type="button"
             className={[
               'w-full min-h-[148px] border-2 rounded-2xl bg-white overflow-hidden relative text-center cursor-pointer transition-transform active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 flex flex-col',
-              isLocked
-                ? 'border-dashed border-slate-200 shadow-sm'
-                : `${accent.border} shadow-[0_8px_18px_rgba(15,23,42,0.08)] hover:scale-[1.02]`,
+              isQuestionDone
+                ? 'border-sky-200 shadow-[0_8px_18px_rgba(14,165,233,0.12)] hover:scale-[1.02]'
+                : isLocked
+                  ? 'border-dashed border-slate-200 shadow-sm'
+                  : `${accent.border} shadow-[0_8px_18px_rgba(15,23,42,0.08)] hover:scale-[1.02]`,
             ].join(' ')}
             onClick={() => onCardClick(card.id)}
           >
-            <div className={`h-[62px] w-full flex shrink-0 items-center justify-center ${isLocked ? 'bg-slate-50' : accent.panel}`}>
-              {isLocked ? <Search className="w-7 h-7 text-slate-300" /> : card.icon}
+            <div className={`h-[62px] w-full flex shrink-0 items-center justify-center ${isLocked ? 'bg-slate-50' : isQuestionDone ? 'bg-sky-50' : accent.panel}`}>
+              {isLocked ? (
+                <Search className="w-7 h-7 text-slate-300" />
+              ) : isQuestionDone ? (
+                <Gift className="w-8 h-8 text-sky-600" />
+              ) : (
+                card.icon
+              )}
             </div>
 
             <div
               className={[
                 '-mt-4 mx-auto w-9 h-9 bg-white rounded-full border-2 flex shrink-0 items-center justify-center shadow-sm',
-                isLocked ? 'border-slate-200' : accent.border,
+                isLocked ? 'border-slate-200' : isQuestionDone ? 'border-sky-200' : accent.border,
               ].join(' ')}
             >
               {isLocked ? (
                 <Lock className="w-4 h-4 text-slate-400" />
+              ) : isQuestionDone ? (
+                <MapPin className="w-4 h-4 text-sky-600" />
               ) : (
                 <Unlock className={`w-4 h-4 ${accent.text} ${isReady ? 'animate-bounce' : ''}`} />
               )}
@@ -201,12 +216,12 @@ export default function SymbolCards({ symbols, onCardClick, isQuestionUnlocked }
 
             <div className="flex min-h-0 flex-1 flex-col items-center justify-end gap-1.5 px-1.5 pb-3 pt-1">
               <span className={`block w-full truncate text-[15px] leading-tight ${isLocked ? 'text-slate-400' : 'text-slate-900'}`}>
-                {card.label}
+                {displayLabel}
               </span>
               <div
                 className={[
                   'border rounded-full px-1.5 py-0.5 flex items-center gap-1 w-fit max-w-full',
-                  isLocked ? 'bg-slate-50 border-slate-200' : `${accent.panel} ${accent.border}`,
+                  isLocked ? 'bg-slate-50 border-slate-200' : isQuestionDone ? 'bg-sky-50 border-sky-200' : `${accent.panel} ${accent.border}`,
                 ].join(' ')}
               >
                 <span className={`h-2 w-2 shrink-0 rounded-full ${isLocked ? 'bg-slate-400' : accent.dot} ${isReady ? 'animate-pulse' : ''}`} />

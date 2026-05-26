@@ -29,6 +29,7 @@ export default function ParticipatePage({ onBack }) {
       await addDoc(collection(db, 'tour_feedbacks'), {
         name: trimmedName || '익명',
         feedback: trimmedFeedback,
+        isPublished: false,
         createdAt: serverTimestamp(),
         source: 'question_qr',
       });

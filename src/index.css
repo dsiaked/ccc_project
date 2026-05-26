@@ -23,16 +23,21 @@ body {
 }
 
 body.admin-shell {
+  display: block;
   align-items: stretch;
   justify-content: stretch;
   background-color: #020617;
+  min-height: 100vh;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 body.admin-shell #root {
   max-width: none;
   width: 100vw;
-  height: 100vh;
-  overflow: auto;
+  min-height: 100vh;
+  height: auto;
+  overflow: visible;
   background-color: #020617;
   box-shadow: none;
 }

@@ -25,11 +25,11 @@ export default function Header({ discoveredCount }) {
           </div>
           <div>
             <h2 className="text-lg leading-tight text-slate-950 mb-1.5">작품 투어 안내</h2>
-            <p className="text-[13px] leading-5 text-slate-600">
-              1. 지도 속 하트, 나누기, 십자가 심볼을 따라 작품을 찾아보세요.
-              2. 각 작품의 QR을 스캔해 설명을 읽고 기록을 모아보세요.
-              3. 세 가지 심볼을 모두 확인한 뒤 상품 부스로 이동해 이벤트에 참여해 보세요.
-            </p>
+            <div className="space-y-1 text-[13px] leading-5 text-slate-600">
+              <p>1. 지도 속 하트, 나누기, 십자가 심볼을 따라 작품을 찾아보세요.</p>
+              <p>2. 각 작품의 QR을 스캔해 설명을 읽고 기록을 모아보세요.</p>
+              <p>3. 세 가지 심볼을 모두 확인한 뒤 상품 부스로 이동해 이벤트에 참여해 보세요.</p>
+            </div>
           </div>
         </div>
 
