@@ -135,7 +135,7 @@ export const DEFAULT_MAP_PINS = [
   }
 ];
 
-export default function MapArea({ symbols, onSymbolClick, isQuestionUnlocked, zoom = 1, pins = DEFAULT_MAP_PINS, editable = false, onPinMove }) {
+export default function MapArea({ symbols, onSymbolClick, isQuestionUnlocked, zoom = 1, pins = DEFAULT_MAP_PINS, editable = false, onPinMove, highlightedPinId = null }) {
   const mapRef = useRef(null);
   const dragRef = useRef(null);
   const [mapScale, setMapScale] = useState(1);
@@ -148,13 +148,13 @@ export default function MapArea({ symbols, onSymbolClick, isQuestionUnlocked, zo
   const zoomPinScale = clamp(1 / Math.pow(viewZoom, 1.15), 0.32, 1);
   const pinScale = clamp(mapScale * zoomPinScale, 0.36, 1.75);
   const pinMetrics = {
-    touch: Math.round(44 * pinScale),
-    marker: Math.round(32 * pinScale),
-    icon: Math.round(14 * pinScale),
-    questionText: Math.round(13 * pinScale),
-    border: Math.max(1.5, 2 * pinScale),
-    shadowY: Math.max(2, 2 * pinScale),
-    shadowBlur: Math.max(5, 5 * pinScale),
+    touch: Math.round(36 * pinScale),
+    marker: Math.round(24 * pinScale),
+    icon: Math.round(11 * pinScale),
+    questionText: Math.round(11 * pinScale),
+    border: Math.max(1.25, 1.6 * pinScale),
+    shadowY: Math.max(1.5, 1.6 * pinScale),
+    shadowBlur: Math.max(4, 4 * pinScale),
     hoverScale: 1 + (1 - zoomProgress) * 0.05,
   };
 
@@ -321,6 +321,7 @@ export default function MapArea({ symbols, onSymbolClick, isQuestionUnlocked, zo
   const renderFigmaPin = (pin, index) => {
     const { id, type, pinTop, pinLeft, color, borderColor } = pin;
     const isDiscovered = symbols[id];
+    const isHighlighted = highlightedPinId === id;
     
     // 심볼 아이콘 매핑
     let IconComponent = null;
@@ -382,14 +383,17 @@ export default function MapArea({ symbols, onSymbolClick, isQuestionUnlocked, zo
         <button
           type="button"
           aria-label={`${type} symbol`}
-          className="absolute flex items-center justify-center cursor-pointer transition-all duration-300 active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 rounded-full"
+          className={[
+            'absolute flex items-center justify-center cursor-pointer transition-all duration-300 active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 rounded-full',
+            isHighlighted ? 'map-pin-button-highlight' : '',
+          ].join(' ')}
           style={{ 
             top: pinTop, 
             left: pinLeft, 
             width: pinMetrics.touch,
             height: pinMetrics.touch,
             transform: 'translate(-50%, -50%)',
-            zIndex: 20,
+            zIndex: isHighlighted ? 30 : 20,
             '--pin-hover-scale': pinMetrics.hoverScale,
           }}
           onClick={() => {
@@ -400,7 +404,7 @@ export default function MapArea({ symbols, onSymbolClick, isQuestionUnlocked, zo
           <div className="relative">
             {/* 원형 테두리 */}
             <div 
-              className={`rounded-full flex items-center justify-center bg-white transition-all ${extraPinClass}`}
+              className={`rounded-full flex items-center justify-center bg-white transition-all ${extraPinClass} ${isHighlighted ? 'map-pin-highlight' : ''}`}
               style={{ 
                 borderColor: finalBorderColor,
                 borderWidth: pinMetrics.border,

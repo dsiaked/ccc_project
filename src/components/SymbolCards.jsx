@@ -130,7 +130,7 @@ export default function SymbolCards({ symbols, onCardClick, isQuestionUnlocked, 
                     상품 부스
                   </span>
                   <p className="mt-1 text-[13px] leading-snug text-slate-600 font-bold">
-                    세 가지 심볼을 모두 모으면 상품 부스 안내가 열려요.
+                    세 가지 심볼을 모두 모으면 작품 설명과 상품 부스 안내가 열려요.
                   </p>
                 </div>
               </div>
@@ -167,7 +167,7 @@ export default function SymbolCards({ symbols, onCardClick, isQuestionUnlocked, 
                     상품 부스
                   </span>
                   <p className="mt-1 text-[13px] leading-snug text-slate-700 font-bold">
-                    세 가지 심볼을 모두 모았어요. 상품 부스를 찾아가세요.
+                    세 가지 심볼을 모두 모았어요. 상품 부스에서 작품 설명도 다시 볼 수 있어요.
                   </p>
                 </div>
               </div>
@@ -242,7 +242,7 @@ export default function SymbolCards({ symbols, onCardClick, isQuestionUnlocked, 
               <MessageSquareText className="h-5 w-5" />
             </div>
             <div>
-              <h3 className="text-[17px] leading-tight text-slate-950">참가자 소감</h3>
+              <h3 className="text-[17px] leading-tight text-slate-950">여행자들의 소감</h3>
               <p className="text-[12px] leading-snug text-slate-500">함께 남긴 투어의 순간을 모았어요</p>
             </div>
           </div>

@@ -133,6 +133,7 @@ export default function App() {
   });
 
   const [pins, setPins] = useState(DEFAULT_MAP_PINS);
+  const [announcement, setAnnouncement] = useState(null);
 
   const [symbols, setSymbols] = useState(() => {
     const savedSymbols = localStorage.getItem('symbols');
@@ -152,6 +153,9 @@ export default function App() {
   const [activePopup, setActivePopup] = useState(null);
   const [toast, setToast] = useState('');
   const [publishedFeedbacks, setPublishedFeedbacks] = useState([]);
+  const [highlightedPinId, setHighlightedPinId] = useState(null);
+  const mapSectionRef = useRef(null);
+  const highlightTimerRef = useRef(null);
   const hasStartedFirebaseSession = useRef(false);
   const lastStoredSymbolsSignature = useRef(getSymbolsSignature(symbols));
   const lastSyncedSymbolsSignature = useRef('');
@@ -388,6 +392,30 @@ export default function App() {
           console.error('심볼 위치(pins) 데이터를 로드하는 중 에러 발생:', pinError);
         }
 
+        try {
+          const announcementDocRef = doc(db, 'settings', 'announcement');
+          const announcementDocSnap = await withTimeout(
+            getDoc(announcementDocRef),
+            FIREBASE_SYNC_TIMEOUT_MS,
+            'Announcement load',
+          );
+
+          if (announcementDocSnap.exists()) {
+            const announcementData = announcementDocSnap.data();
+            const message = String(announcementData.message || '').trim();
+            setAnnouncement(
+              announcementData.isActive && message
+                ? {
+                    title: String(announcementData.title || '공지').trim(),
+                    message,
+                  }
+                : null,
+            );
+          }
+        } catch (announcementError) {
+          console.error('공지 데이터를 불러오는 중 오류 발생:', announcementError);
+        }
+
         // Firestore에서 사용자 해금 데이터 로드
         const userDocRef = doc(db, 'users', uid);
 
@@ -562,8 +590,26 @@ export default function App() {
     }
   };
 
+  const focusQuestionPinOnMap = () => {
+    mapSectionRef.current?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'center',
+    });
+
+    setHighlightedPinId('question');
+    window.clearTimeout(highlightTimerRef.current);
+    highlightTimerRef.current = window.setTimeout(() => {
+      setHighlightedPinId(null);
+    }, 3200);
+  };
+
   const closePopup = () => {
+    const shouldFocusQuestionPin = activePopup?.type === 'question_guide' && activePopup?.id === 'question';
     setActivePopup(null);
+
+    if (shouldFocusQuestionPin) {
+      window.setTimeout(focusQuestionPinOnMap, 180);
+    }
   };
 
   const openHomePage = () => {
@@ -587,6 +633,10 @@ export default function App() {
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
+
+  useEffect(() => (
+    () => window.clearTimeout(highlightTimerRef.current)
+  ), []);
 
   if (page === 'participate') {
     return <ParticipatePage onBack={openHomePage} />;
@@ -624,14 +674,15 @@ export default function App() {
       )}
 
       <div className="relative z-10 flex-1 overflow-y-auto scroll-container pb-10">
-        <Header discoveredCount={discoveredCount} />
+        <Header discoveredCount={discoveredCount} announcement={announcement} />
 
-        <div className="px-6 pb-6">
+        <div ref={mapSectionRef} className="px-6 pb-6">
           <MapArea 
             symbols={symbols} 
             onSymbolClick={handleMapSymbolClick} 
             isQuestionUnlocked={isQuestionUnlocked}
             pins={pins}
+            highlightedPinId={highlightedPinId}
           />
         </div>
 

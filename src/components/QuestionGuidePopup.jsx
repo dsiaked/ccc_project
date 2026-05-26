@@ -51,7 +51,7 @@ export default function QuestionGuidePopup({ onClose }) {
         </h3>
 
         <p className="relative text-slate-700 text-[15px] font-bold text-center leading-relaxed mb-5">
-          세 가지 심볼을 모두 모았어요. 이제 상품 부스로 이동해 이벤트에 참여할 수 있습니다.
+          세 가지 심볼을 모두 모았어요. 상품 부스에서 각 작품의 설명을 다시 보고 이벤트에 참여할 수 있습니다.
         </p>
 
         <div className="relative bg-slate-50 border border-slate-100 rounded-2xl p-4 w-full text-center mb-6 shadow-inner">

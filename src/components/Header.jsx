@@ -1,10 +1,18 @@
 import React from 'react';
-import { BadgeCheck, BookOpenText, Gift, MapPinned, QrCode, Sparkles } from 'lucide-react';
+import { BadgeCheck, BookOpenText, Gift, MapPinned, Megaphone, QrCode, Sparkles } from 'lucide-react';
 
-export default function Header({ discoveredCount }) {
+export default function Header({ discoveredCount, announcement }) {
   const totalDiscoverableSymbols = 4;
   const progress = (discoveredCount / totalDiscoverableSymbols) * 100;
   const isReadyForBooth = discoveredCount === 3;
+  const progressMessages = [
+    '지도에서 첫 번째 심볼을 찾아 작품 투어를 시작해 보세요.',
+    '좋아요. 두 가지 심볼이 더 남았어요.',
+    '거의 다 왔어요. 마지막 심볼을 찾아보세요.',
+    '세 가지 심볼을 모두 확인했어요. 상품 부스에서 작품 설명도 다시 볼 수 있어요.',
+    '투어를 완료했어요. 상품 부스에서 작품 설명을 둘러보고 소감을 남겨 주세요.',
+  ];
+  const progressMessage = progressMessages[Math.min(discoveredCount, totalDiscoverableSymbols)];
 
   return (
     <header className="w-full pt-8 px-6 pb-5 flex flex-col gap-5">
@@ -18,6 +26,24 @@ export default function Header({ discoveredCount }) {
         <div className="w-10 h-[3px] bg-indigo-500 rounded-full mt-1" />
       </div>
 
+      {announcement?.message && (
+        <section className="rounded-[22px] border border-amber-200 bg-amber-50/95 px-4 py-3.5 shadow-[0_10px_24px_rgba(245,158,11,0.12)]">
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-amber-200 bg-white text-amber-600">
+              <Megaphone className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <h2 className="text-lg leading-tight text-amber-950 mb-1.5">
+                {announcement.title || '공지'}
+              </h2>
+              <p className="whitespace-pre-wrap break-words text-[13px] leading-5 text-amber-900">
+                {announcement.message}
+              </p>
+            </div>
+          </div>
+        </section>
+      )}
+
       <section className="rounded-[22px] border border-sky-100 bg-white/82 px-4 py-3.5 shadow-[0_10px_24px_rgba(14,165,233,0.08)]">
         <div className="flex items-start gap-3">
           <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-sky-50 border border-sky-100">
@@ -28,7 +54,7 @@ export default function Header({ discoveredCount }) {
             <div className="space-y-1 text-[13px] leading-5 text-slate-600">
               <p>1. 지도 속 하트, 나누기, 십자가 심볼을 따라 작품을 찾아보세요.</p>
               <p>2. 각 작품의 QR을 스캔해 설명을 읽고 기록을 모아보세요.</p>
-              <p>3. 세 가지 심볼을 모두 확인한 뒤 상품 부스로 이동해 이벤트에 참여해 보세요.</p>
+              <p>3. 세 가지 심볼을 모두 확인한 뒤 상품 부스에서 작품 설명을 보고 이벤트에 참여해 보세요.</p>
             </div>
           </div>
         </div>
@@ -91,14 +117,20 @@ export default function Header({ discoveredCount }) {
           </div>
         </div>
 
+        {!isReadyForBooth && (
+          <p className="rounded-2xl border border-slate-100 bg-white/75 px-4 py-3 text-[13px] leading-relaxed text-slate-700 shadow-sm">
+            {progressMessage}
+          </p>
+        )}
+
         {isReadyForBooth && (
-          <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 shadow-[0_6px_16px_rgba(16,185,129,0.08)]">
+          <div className="mt-1 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 shadow-[0_6px_16px_rgba(16,185,129,0.08)]">
             <div className="flex items-center gap-2.5">
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-emerald-600 shadow-sm">
                 <Gift className="h-4 w-4" />
               </div>
               <p className="text-[13px] leading-relaxed text-emerald-800">
-                세 가지 심볼을 모두 확인했어요. 상품 부스로 이동해 이벤트에 참여해 주세요.
+                세 가지 심볼을 모두 확인했어요. 상품 부스에서 작품 설명을 다시 보고 이벤트에 참여해 주세요.
               </p>
             </div>
           </div>
