@@ -88,6 +88,11 @@ export default function AdminPanel({ onBack }) {
 
   const baseUrl = window.location.origin;
 
+  useEffect(() => {
+    document.body.classList.add('admin-shell');
+    return () => document.body.classList.remove('admin-shell');
+  }, []);
+
   const showNotification = useCallback((message, type = 'success') => {
     setNotification({ message, type });
     window.setTimeout(() => {

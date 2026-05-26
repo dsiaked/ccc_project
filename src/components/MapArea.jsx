@@ -23,6 +23,7 @@ const CustomCrossIcon = ({ size = 14, color = "currentColor", strokeWidth = "3" 
   </svg>
 );
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const DEFAULT_MAP_PINS = [
   {
     id: 'heart_kymin',
@@ -195,7 +196,9 @@ export default function MapArea({ symbols, onSymbolClick, isQuestionUnlocked, zo
     const handlePointerUp = (upEvent) => {
       try {
         upEvent.currentTarget?.releasePointerCapture(upEvent.pointerId);
-      } catch (e) {}
+      } catch {
+        // Pointer capture can already be released by the browser.
+      }
       window.removeEventListener('pointermove', handlePointerMove);
       window.removeEventListener('pointerup', handlePointerUp);
     };
@@ -236,9 +239,17 @@ export default function MapArea({ symbols, onSymbolClick, isQuestionUnlocked, zo
     const updateScale = () => {
       const { width, height } = mapElement.getBoundingClientRect();
       const nextMapSize = { width, height };
-      setMapScale(width / MAP_BASE_WIDTH);
-      setMapSize(nextMapSize);
-      setPan(currentPan => getClampedPan(currentPan, viewZoom, nextMapSize));
+      const nextMapScale = width / MAP_BASE_WIDTH;
+      setMapScale(currentScale => (currentScale === nextMapScale ? currentScale : nextMapScale));
+      setMapSize(currentSize => (
+        currentSize.width === nextMapSize.width && currentSize.height === nextMapSize.height
+          ? currentSize
+          : nextMapSize
+      ));
+      setPan(currentPan => {
+        const nextPan = getClampedPan(currentPan, viewZoom, nextMapSize);
+        return currentPan.x === nextPan.x && currentPan.y === nextPan.y ? currentPan : nextPan;
+      });
     };
 
     updateScale();

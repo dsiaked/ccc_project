@@ -175,20 +175,20 @@ export default function SymbolCards({ symbols, onCardClick, isQuestionUnlocked }
             key={card.id}
             type="button"
             className={[
-              'w-full aspect-[0.72] min-h-[118px] border-2 rounded-2xl bg-white overflow-hidden relative text-left cursor-pointer transition-transform active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500',
+              'w-full min-h-[148px] border-2 rounded-2xl bg-white overflow-hidden relative text-center cursor-pointer transition-transform active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 flex flex-col',
               isLocked
                 ? 'border-dashed border-slate-200 shadow-sm'
                 : `${accent.border} shadow-[0_8px_18px_rgba(15,23,42,0.08)] hover:scale-[1.02]`,
             ].join(' ')}
             onClick={() => onCardClick(card.id)}
           >
-            <div className={`absolute top-0 left-0 w-full h-[55%] flex items-center justify-center ${isLocked ? 'bg-slate-50' : accent.panel}`}>
-              {isLocked ? <Search className="w-9 h-9 text-slate-300" /> : card.icon}
+            <div className={`h-[62px] w-full flex shrink-0 items-center justify-center ${isLocked ? 'bg-slate-50' : accent.panel}`}>
+              {isLocked ? <Search className="w-7 h-7 text-slate-300" /> : card.icon}
             </div>
 
             <div
               className={[
-                'absolute top-[38%] left-1/2 -translate-x-1/2 w-9 h-9 bg-white rounded-full border-2 flex items-center justify-center shadow-sm',
+                '-mt-4 mx-auto w-9 h-9 bg-white rounded-full border-2 flex shrink-0 items-center justify-center shadow-sm',
                 isLocked ? 'border-slate-200' : accent.border,
               ].join(' ')}
             >
@@ -199,18 +199,18 @@ export default function SymbolCards({ symbols, onCardClick, isQuestionUnlocked }
               )}
             </div>
 
-            <div className="absolute bottom-3 left-3 right-3 flex flex-col gap-1.5">
-              <span className={`text-base leading-tight ${isLocked ? 'text-slate-400' : 'text-slate-900'}`}>
+            <div className="flex min-h-0 flex-1 flex-col items-center justify-end gap-1.5 px-1.5 pb-3 pt-1">
+              <span className={`block w-full truncate text-[15px] leading-tight ${isLocked ? 'text-slate-400' : 'text-slate-900'}`}>
                 {card.label}
               </span>
               <div
                 className={[
-                  'border rounded-full px-2 py-0.5 flex items-center gap-1.5 w-fit max-w-full',
+                  'border rounded-full px-1.5 py-0.5 flex items-center gap-1 w-fit max-w-full',
                   isLocked ? 'bg-slate-50 border-slate-200' : `${accent.panel} ${accent.border}`,
                 ].join(' ')}
               >
-                <span className={`w-2.5 h-2.5 rounded-full ${isLocked ? 'bg-slate-400' : accent.dot} ${isReady ? 'animate-pulse' : ''}`} />
-                <span className={`text-[11px] mt-0.5 whitespace-nowrap ${isLocked ? 'text-slate-500' : accent.text}`}>
+                <span className={`h-2 w-2 shrink-0 rounded-full ${isLocked ? 'bg-slate-400' : accent.dot} ${isReady ? 'animate-pulse' : ''}`} />
+                <span className={`max-w-[68px] truncate text-[10px] mt-0.5 whitespace-nowrap ${isLocked ? 'text-slate-500' : accent.text}`}>
                   {isLocked ? '미발견' : isReady ? '위치 확인' : '발견 완료'}
                 </span>
               </div>

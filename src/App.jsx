@@ -71,6 +71,20 @@ const normalizeSymbols = symbols => ({
   ...symbols,
 });
 
+const hasQuestionPrerequisites = symbols => {
+  const normalizedSymbols = normalizeSymbols(symbols);
+  const hasHeart =
+    normalizedSymbols.heart_kymin ||
+    normalizedSymbols.heart_yewon ||
+    normalizedSymbols.heart_eunhye ||
+    normalizedSymbols.heart_jihoon ||
+    normalizedSymbols.heart_eunchae;
+  const hasDivide = normalizedSymbols.divide_kyeomjun || normalizedSymbols.divide_yewon;
+  const hasCross = normalizedSymbols.cross || normalizedSymbols.cross_jihoon;
+
+  return hasHeart && hasDivide && hasCross;
+};
+
 const normalizeQrValue = value => {
   if (!value) return '';
   return decodeURIComponent(value)

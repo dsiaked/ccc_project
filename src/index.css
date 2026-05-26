@@ -22,6 +22,21 @@ body {
   box-shadow: 0 0 20px rgba(15, 23, 42, 0.12);
 }
 
+body.admin-shell {
+  align-items: stretch;
+  justify-content: stretch;
+  background-color: #020617;
+}
+
+body.admin-shell #root {
+  max-width: none;
+  width: 100vw;
+  height: 100vh;
+  overflow: auto;
+  background-color: #020617;
+  box-shadow: none;
+}
+
 .home-screen {
   background:
     linear-gradient(180deg, rgba(248, 250, 252, 0.96) 0%, rgba(255, 255, 255, 0.9) 48%, rgba(245, 251, 249, 0.98) 100%),
