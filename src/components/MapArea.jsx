@@ -132,7 +132,9 @@ export default function MapArea({ symbols, onSymbolClick, isQuestionUnlocked, zo
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const viewZoom = clamp(zoomLevel * zoom, MIN_ZOOM, MAX_ZOOM);
-  const pinScale = clamp(mapScale, 0.72, 1.75);
+  const zoomProgress = (viewZoom - MIN_ZOOM) / (MAX_ZOOM - MIN_ZOOM);
+  const zoomPinScale = clamp(1 / Math.pow(viewZoom, 1.15), 0.32, 1);
+  const pinScale = clamp(mapScale * zoomPinScale, 0.36, 1.75);
   const pinMetrics = {
     touch: Math.round(44 * pinScale),
     marker: Math.round(32 * pinScale),
@@ -141,6 +143,7 @@ export default function MapArea({ symbols, onSymbolClick, isQuestionUnlocked, zo
     border: Math.max(1.5, 2 * pinScale),
     shadowY: Math.max(2, 2 * pinScale),
     shadowBlur: Math.max(5, 5 * pinScale),
+    hoverScale: 1 + (1 - zoomProgress) * 0.05,
   };
 
   const getClampedPan = useCallback((nextPan, nextZoom = viewZoom, nextMapSize = mapSize) => {
@@ -299,14 +302,15 @@ export default function MapArea({ symbols, onSymbolClick, isQuestionUnlocked, zo
         <button
           type="button"
           aria-label={`${type} symbol`}
-          className="absolute flex items-center justify-center cursor-pointer transition-all duration-300 hover:scale-105 active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 rounded-full"
+          className="absolute flex items-center justify-center cursor-pointer transition-all duration-300 active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 rounded-full"
           style={{ 
             top: pinTop, 
             left: pinLeft, 
             width: pinMetrics.touch,
             height: pinMetrics.touch,
             transform: 'translate(-50%, -50%)',
-            zIndex: 20
+            zIndex: 20,
+            '--pin-hover-scale': pinMetrics.hoverScale,
           }}
           onClick={() => onSymbolClick(id)}
         >

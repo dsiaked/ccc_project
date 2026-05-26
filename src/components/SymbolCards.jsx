@@ -1,5 +1,5 @@
 import React from 'react';
-import { Divide, Heart, Lock, Search, Unlock } from 'lucide-react';
+import { Divide, Gift, Heart, Lock, MapPin, Search, Unlock } from 'lucide-react';
 
 const CustomCrossIcon = ({ className = 'w-6 h-6', color = 'currentColor', strokeWidth = '2.5' }) => (
   <svg
@@ -97,6 +97,44 @@ export default function SymbolCards({ symbols, onCardClick, isQuestionUnlocked }
         const accent = accentClasses[card.accent];
         const isLocked = state === 'locked';
         const isReady = state === 'ready';
+        const isQuestionReady = card.id === 'question' && isReady;
+
+        if (isQuestionReady) {
+          return (
+            <button
+              key={card.id}
+              type="button"
+              className="col-span-2 w-full min-h-[124px] border-2 border-sky-200 rounded-2xl bg-gradient-to-br from-white via-sky-50 to-indigo-50 overflow-hidden relative text-left cursor-pointer transition-transform active:scale-[0.99] hover:scale-[1.01] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500 shadow-[0_12px_26px_rgba(14,165,233,0.16)]"
+              onClick={() => onCardClick(card.id)}
+            >
+              <div className="absolute inset-y-0 right-0 w-1/2 bg-[linear-gradient(135deg,rgba(56,189,248,0.12),rgba(99,102,241,0.12))]" />
+              <div className="absolute right-5 top-5 h-16 w-16 rounded-full border border-sky-200/80 bg-white/70" />
+              <div className="relative h-full min-h-[124px] px-5 py-4 flex items-center gap-4">
+                <div className="relative flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-sky-500 text-white shadow-[0_10px_20px_rgba(14,165,233,0.24)]">
+                  <Gift className="w-8 h-8" />
+                  <span className="absolute -right-1.5 -top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-white border border-sky-200 shadow-sm">
+                    <MapPin className="w-3.5 h-3.5 text-sky-600" />
+                  </span>
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <div className="mb-2 flex items-center gap-2">
+                    <span className="rounded-full bg-sky-100 border border-sky-200 px-2.5 py-0.5 text-[11px] font-bold text-sky-700">
+                      위치 확인
+                    </span>
+                    <span className="h-2 w-2 rounded-full bg-sky-500 animate-pulse" />
+                  </div>
+                  <span className="block text-xl leading-tight text-slate-950 font-bold">
+                    상품 부스
+                  </span>
+                  <p className="mt-1 text-[13px] leading-snug text-slate-700 font-bold">
+                    세 가지 심볼을 모두 모았어요. 상품 부스를 찾아가세요.
+                  </p>
+                </div>
+              </div>
+            </button>
+          );
+        }
 
         return (
           <button

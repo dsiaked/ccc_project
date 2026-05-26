@@ -26,6 +26,37 @@ const ADMIN_UNLOCK_CATEGORIES = {
   cross: ['cross', 'cross_jihoon'],
 };
 
+const BASIC_UNLOCK_SYMBOLS = ['heart_kymin', 'divide_kyeomjun', 'cross'];
+
+const QR_SYMBOL_ALIASES = {
+  heart: 'heart_kymin',
+  kymin: 'heart_kymin',
+  kim_kyumin: 'heart_kymin',
+  gyumin: 'heart_kymin',
+  heart_kim: 'heart_kymin',
+  yewon_heart: 'heart_yewon',
+  heart_son: 'heart_yewon',
+  eunhye: 'heart_eunhye',
+  eunhye_heart: 'heart_eunhye',
+  heart_kim_eunhye: 'heart_eunhye',
+  jihoon_heart: 'heart_jihoon',
+  heart_hong: 'heart_jihoon',
+  divide: 'divide_kyeomjun',
+  divide_kyeom: 'divide_kyeomjun',
+  kyeomjun: 'divide_kyeomjun',
+  divide_seo: 'divide_kyeomjun',
+  yewon_divide: 'divide_yewon',
+  divide_son: 'divide_yewon',
+  cross_kyeomjun: 'cross',
+  kyeomjun_cross: 'cross',
+  cross_seo: 'cross',
+  jihoon_cross: 'cross_jihoon',
+  cross_hong: 'cross_jihoon',
+  question_mark: 'question',
+  reward: 'question',
+  booth: 'question',
+};
+
 const ADMIN_UNLOCK_LABELS = {
   heart: '하트',
   divide: '나누기',
@@ -37,17 +68,22 @@ const normalizeSymbols = symbols => ({
   ...symbols,
 });
 
-const hasQuestionPrerequisites = symbols => {
-  const normalizedSymbols = normalizeSymbols(symbols);
-  const hasHeart =
-    normalizedSymbols.heart_kymin ||
-    normalizedSymbols.heart_yewon ||
-    normalizedSymbols.heart_eunhye ||
-    normalizedSymbols.heart_jihoon;
-  const hasDivide = normalizedSymbols.divide_kyeomjun || normalizedSymbols.divide_yewon;
-  const hasCross = normalizedSymbols.cross || normalizedSymbols.cross_jihoon;
+const normalizeQrValue = value => {
+  if (!value) return '';
+  return decodeURIComponent(value)
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '_')
+    .replace(/-/g, '_');
+};
 
-  return hasHeart && hasDivide && hasCross;
+const resolveQrSymbol = value => {
+  const normalizedValue = normalizeQrValue(value);
+  if (!normalizedValue) return '';
+  if (Object.prototype.hasOwnProperty.call(INITIAL_SYMBOLS, normalizedValue)) {
+    return normalizedValue;
+  }
+  return QR_SYMBOL_ALIASES[normalizedValue] || '';
 };
 
 export default function App() {
@@ -97,9 +133,25 @@ export default function App() {
     const adminPathTarget = normalizedPath.startsWith('/admin/')
       ? normalizedPath.slice('/admin/'.length)
       : '';
+    const unlockPathTarget = normalizedPath.startsWith('/unlock/')
+      ? normalizedPath.slice('/unlock/'.length)
+      : '';
+    const qrPathTarget = normalizedPath.startsWith('/qr/')
+      ? normalizedPath.slice('/qr/'.length)
+      : normalizedPath.startsWith('/symbol/')
+        ? normalizedPath.slice('/symbol/'.length)
+        : '';
     const adminQueryTarget = params.get('admin');
+    const unlockQueryTarget = params.get('unlock');
+    const qrQueryTarget =
+      params.get('symbol') || params.get('id') || params.get('qr') || params.get('s');
     const adminUnlockTarget = adminPathTarget || adminQueryTarget;
     const isResetRequested = params.get('reset') === 'true';
+    const isBasicUnlockRequested =
+      unlockPathTarget === 'basic' ||
+      unlockQueryTarget === 'basic' ||
+      unlockQueryTarget === 'core' ||
+      adminQueryTarget === 'basic';
     const isAdminUnlockRequested =
       normalizedPath === '/admin' || adminQueryTarget === 'unlock' || adminQueryTarget === 'all';
     const isAdminCategoryUnlockRequested =
@@ -117,6 +169,25 @@ export default function App() {
         setToast('');
         window.location.href = window.location.pathname; // 쿼리 파라미터를 깔끔하게 제거하고 새로고침
       }, 1200);
+      return;
+    }
+
+    if (isBasicUnlockRequested) {
+      setSymbols(prev => {
+        const next = normalizeSymbols(prev);
+        for (const symbolId of BASIC_UNLOCK_SYMBOLS) {
+          next[symbolId] = true;
+        }
+        localStorage.setItem('symbols', JSON.stringify(next));
+        return next;
+      });
+      setToast('하트, 나누기, 십자가가 해금되었어요.');
+
+      setTimeout(() => {
+        setToast('');
+      }, 1500);
+
+      window.history.replaceState({}, '', '/');
       return;
     }
 
@@ -152,18 +223,13 @@ export default function App() {
       return;
     }
 
-    let symbol = params.get('symbol');
+    const symbol = resolveQrSymbol(qrPathTarget || qrQueryTarget);
 
     if (symbol) {
-      if (symbol === 'heart') symbol = 'heart_kymin';
-      else if (symbol === 'divide') symbol = 'divide_kyeomjun';
-
-      if (symbol === 'question' && !hasQuestionPrerequisites(symbols)) {
-        setToast('먼저 하트, 나누기, 십자가를 모두 찾아야 해요.');
-        setTimeout(() => {
-          setToast('');
-        }, 2000);
-        window.history.replaceState({}, '', window.location.pathname);
+      if (symbol === 'question') {
+        setActivePopup(null);
+        setPage('participate');
+        window.history.replaceState({}, '', '/participate');
         return;
       }
 
@@ -172,20 +238,18 @@ export default function App() {
           if (prev[symbol]) return prev;
           const next = { ...prev, [symbol]: true };
           localStorage.setItem('symbols', JSON.stringify(next));
+          if (userId) {
+            setDoc(doc(db, 'users', userId), { symbols: next }, { merge: true }).catch(err => {
+              console.error('QR 해금 데이터 즉시 백업 중 에러 발생:', err);
+            });
+          }
           return next;
         });
 
-        if (symbol === 'question') {
-          setToast('모든 심볼을 발견했어요.');
-          setTimeout(() => {
-            setToast('');
-          }, 1500);
-        } else {
-          setActivePopup({
-            type: 'qr',
-            id: symbol,
-          });
-        }
+        setActivePopup({
+          type: 'qr',
+          id: symbol,
+        });
 
         window.history.replaceState({}, '', window.location.pathname);
       }
@@ -439,7 +503,7 @@ export default function App() {
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 h-10 bg-gradient-to-t from-white/95 to-transparent" />
 
       {toast && (
-        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 bg-black/80 text-white px-4 py-2 rounded-full text-sm shadow-lg animate-fade-in-out">
+        <div className="pointer-events-none fixed bottom-10 left-1/2 z-[120] -translate-x-1/2 bg-black/80 text-white px-4 py-2 rounded-full text-sm shadow-lg animate-fade-in-out">
           {toast}
         </div>
       )}
