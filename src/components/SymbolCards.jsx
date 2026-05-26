@@ -1,5 +1,5 @@
 import React from 'react';
-import { Divide, Gift, Heart, Lock, MapPin, Search, Unlock } from 'lucide-react';
+import { Divide, Gift, Heart, Lock, MapPin, MessageSquareText, Search, Unlock } from 'lucide-react';
 
 const CustomCrossIcon = ({ className = 'w-6 h-6', color = 'currentColor', strokeWidth = '2.5' }) => (
   <svg
@@ -70,7 +70,7 @@ const accentClasses = {
   },
 };
 
-export default function SymbolCards({ symbols, onCardClick, isQuestionUnlocked }) {
+export default function SymbolCards({ symbols, onCardClick, isQuestionUnlocked, featuredFeedbacks = [] }) {
   const isQuestionDiscovered = !!symbols.question;
 
   const checkDiscovered = id => {
@@ -93,8 +93,9 @@ export default function SymbolCards({ symbols, onCardClick, isQuestionUnlocked }
   };
 
   return (
-    <div className={`grid pb-8 ${isQuestionDiscovered ? 'grid-cols-2 gap-3.5' : 'grid-cols-3 gap-2.5'}`}>
-      {cards.map(card => {
+    <div className="pb-8">
+      <div className={`grid ${isQuestionDiscovered ? 'grid-cols-2 gap-3.5' : 'grid-cols-3 gap-2.5'}`}>
+        {cards.map(card => {
         const state = getState(card);
         const accent = accentClasses[card.accent];
         const isLocked = state === 'locked';
@@ -224,7 +225,7 @@ export default function SymbolCards({ symbols, onCardClick, isQuestionUnlocked }
                   isLocked ? 'bg-slate-50 border-slate-200' : isQuestionDone ? 'bg-sky-50 border-sky-200' : `${accent.panel} ${accent.border}`,
                 ].join(' ')}
               >
-                <span className={`h-2 w-2 shrink-0 rounded-full ${isLocked ? 'bg-slate-400' : accent.dot} ${isReady ? 'animate-pulse' : ''}`} />
+                <span className={`h-2 w-2 shrink-0 rounded-full ${isLocked ? 'bg-slate-400' : isQuestionDone ? 'bg-sky-500' : accent.dot} ${isReady ? 'animate-pulse' : ''}`} />
                 <span className={`max-w-[68px] truncate text-[10px] mt-0.5 whitespace-nowrap ${isLocked ? 'text-slate-500' : accent.text}`}>
                   {isLocked ? '미발견' : isReady ? '위치 확인' : '발견 완료'}
                 </span>
@@ -232,7 +233,46 @@ export default function SymbolCards({ symbols, onCardClick, isQuestionUnlocked }
             </div>
           </button>
         );
-      })}
+        })}
+      </div>
+
+      <section className="mt-5 rounded-[22px] border-2 border-slate-200 bg-white/90 p-4 shadow-[0_10px_24px_rgba(15,23,42,0.08)]">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-sky-50 text-sky-600">
+              <MessageSquareText className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="text-[17px] leading-tight text-slate-950">참가자 소감</h3>
+              <p className="text-[12px] leading-snug text-slate-500">관리자가 공개한 소감만 보여요</p>
+            </div>
+          </div>
+          {featuredFeedbacks.length > 0 && (
+            <span className="rounded-full bg-sky-50 px-2.5 py-1 text-[11px] text-sky-700">
+              {featuredFeedbacks.length}개
+            </span>
+          )}
+        </div>
+
+        {featuredFeedbacks.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-center">
+            <p className="text-sm text-slate-500">아직 공개된 소감이 없습니다.</p>
+          </div>
+        ) : (
+          <div className="grid gap-3">
+            {featuredFeedbacks.map(feedback => (
+              <article key={feedback.id} className="rounded-2xl border border-sky-100 bg-sky-50/60 px-4 py-3 text-left">
+                <p className="line-clamp-4 whitespace-pre-wrap break-words text-[14px] leading-6 text-slate-700">
+                  {feedback.feedback}
+                </p>
+                <p className="mt-2 truncate text-[12px] text-slate-500">
+                  {feedback.name || '익명'}
+                </p>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }

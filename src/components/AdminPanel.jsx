@@ -194,6 +194,7 @@ export default function AdminPanel({ onBack }) {
 
   const stats = useMemo(() => {
     const visitorsWithAnySymbol = visitors.filter(visitor => visitor.viewedSymbols.length > 0).length;
+    const appOnlyVisitors = visitors.length - visitorsWithAnySymbol;
     const completedVisitors = visitors.filter(visitor => {
       const symbols = visitor.symbols || {};
       const hasHeart = symbols.heart_kymin || symbols.heart_yewon || symbols.heart_eunhye || symbols.heart_jihoon || symbols.heart_eunchae;
@@ -203,24 +204,34 @@ export default function AdminPanel({ onBack }) {
     }).length;
 
     return [
-      { label: '방문 기록', value: visitors.length, desc: '기기별 누적 방문' },
       { label: '작품 발견', value: visitorsWithAnySymbol, desc: '1개 이상 발견' },
+      { label: '접속만 있음', value: appOnlyVisitors, desc: 'QR 발견 없음' },
       { label: '3분류 완료', value: completedVisitors, desc: '하트, 나누기, 십자가' },
       { label: '댓글', value: comments.length, desc: '작품 팝업 댓글' },
       { label: '피드백', value: feedbacks.length, desc: '참여 페이지 제출' },
     ];
   }, [comments.length, feedbacks.length, visitors]);
 
+  const visitorRecords = useMemo(
+    () => visitors.filter(visitor => visitor.viewedSymbols.length > 0),
+    [visitors],
+  );
+
+  const appOnlyVisitorRecords = useMemo(
+    () => visitors.filter(visitor => visitor.viewedSymbols.length === 0),
+    [visitors],
+  );
+
   const tabCounts = {
-    visitors: visitors.length,
+    visitors: visitorRecords.length,
     comments: comments.length,
     feedbacks: feedbacks.length,
   };
 
   const filteredVisitors = useMemo(() => {
     const query = normalizeSearchText(searchQuery);
-    if (!query) return visitors;
-    return visitors.filter(visitor => {
+    if (!query) return visitorRecords;
+    return visitorRecords.filter(visitor => {
       const target = [
         visitor.id,
         formatDate(visitor.updatedAt),
@@ -228,7 +239,16 @@ export default function AdminPanel({ onBack }) {
       ].join(' ');
       return normalizeSearchText(target).includes(query);
     });
-  }, [searchQuery, visitors]);
+  }, [searchQuery, visitorRecords]);
+
+  const filteredAppOnlyVisitors = useMemo(() => {
+    const query = normalizeSearchText(searchQuery);
+    if (!query) return appOnlyVisitorRecords;
+    return appOnlyVisitorRecords.filter(visitor => {
+      const target = [visitor.id, formatDate(visitor.updatedAt)].join(' ');
+      return normalizeSearchText(target).includes(query);
+    });
+  }, [appOnlyVisitorRecords, searchQuery]);
 
   const filteredComments = useMemo(() => {
     const query = normalizeSearchText(searchQuery);
@@ -412,7 +432,7 @@ export default function AdminPanel({ onBack }) {
                 {isLoadingVisitors ? (
                   <EmptyState icon={RefreshCw} title="방문 기록을 불러오는 중입니다." spinning />
                 ) : filteredVisitors.length === 0 ? (
-                  <EmptyState icon={Users} title="표시할 방문 기록이 없습니다." />
+                  <EmptyState icon={Users} title="표시할 작품 발견 기록이 없습니다." />
                 ) : (
                   filteredVisitors.map(visitor => (
                     <article key={visitor.id} className="rounded-lg border border-slate-800 bg-slate-950/55 p-4">
@@ -426,18 +446,30 @@ export default function AdminPanel({ onBack }) {
                         </span>
                       </div>
                       <div className="mt-3 flex flex-wrap gap-2">
-                        {visitor.viewedSymbols.length > 0 ? (
-                          visitor.viewedSymbols.map(symbol => (
-                            <span key={symbol.id} className="rounded-full border border-slate-700 bg-slate-900 px-2.5 py-1 text-xs text-slate-300">
-                              {symbol.label}
-                            </span>
-                          ))
-                        ) : (
-                          <span className="text-sm text-slate-500">아직 발견한 작품이 없습니다.</span>
-                        )}
+                        {visitor.viewedSymbols.map(symbol => (
+                          <span key={symbol.id} className="rounded-full border border-slate-700 bg-slate-900 px-2.5 py-1 text-xs text-slate-300">
+                            {symbol.label}
+                          </span>
+                        ))}
                       </div>
                     </article>
                   ))
+                )}
+
+                {!isLoadingVisitors && filteredAppOnlyVisitors.length > 0 && (
+                  <details className="rounded-lg border border-slate-800 bg-slate-950/35">
+                    <summary className="cursor-pointer px-4 py-3 text-sm text-slate-400 marker:text-slate-500">
+                      접속만 있는 기록 {filteredAppOnlyVisitors.length}개 보기
+                    </summary>
+                    <div className="grid gap-2 border-t border-slate-800 px-4 py-3">
+                      {filteredAppOnlyVisitors.map(visitor => (
+                        <div key={visitor.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-800 bg-slate-900/45 px-3 py-2">
+                          <span className="text-sm text-slate-300">방문자 {visitor.id.slice(0, 8)}</span>
+                          <span className="text-xs text-slate-500">최근 갱신 {formatDate(visitor.updatedAt)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
                 )}
               </div>
             )}

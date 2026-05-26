@@ -9,7 +9,7 @@ import { symbolData } from './data/symbolData';
 
 // Firebase imports
 import { auth, db, signInAnonymously, doc, getDoc, setDoc } from './firebase';
-import { serverTimestamp } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, serverTimestamp } from 'firebase/firestore';
 import { Sparkles, Shield } from 'lucide-react';
 
 const INITIAL_SYMBOLS = Object.keys(symbolData).reduce((acc, id) => {
@@ -105,6 +105,14 @@ const resolveQrSymbol = value => {
 
 const getSymbolsSignature = symbols => JSON.stringify(normalizeSymbols(symbols));
 
+const getTimestamp = value => {
+  if (!value) return 0;
+  if (typeof value.toMillis === 'function') return value.toMillis();
+  if (typeof value.toDate === 'function') return value.toDate().getTime();
+  if (typeof value === 'number') return value;
+  return new Date(value).getTime() || 0;
+};
+
 const withTimeout = (promise, timeoutMs, label) => (
   Promise.race([
     promise,
@@ -143,6 +151,7 @@ export default function App() {
 
   const [activePopup, setActivePopup] = useState(null);
   const [toast, setToast] = useState('');
+  const [publishedFeedbacks, setPublishedFeedbacks] = useState([]);
   const hasStartedFirebaseSession = useRef(false);
   const lastStoredSymbolsSignature = useRef(getSymbolsSignature(symbols));
   const lastSyncedSymbolsSignature = useRef('');
@@ -163,6 +172,28 @@ export default function App() {
                           (isDivideDiscovered ? 1 : 0) + 
                           (isCrossDiscovered ? 1 : 0) +
                           (isQuestionDiscovered ? 1 : 0);
+
+  useEffect(() => {
+    const publishedFeedbackQuery = query(
+      collection(db, 'tour_feedbacks'),
+      where('isPublished', '==', true),
+    );
+
+    return onSnapshot(
+      publishedFeedbackQuery,
+      snapshot => {
+        const nextFeedbacks = snapshot.docs
+          .map(feedbackDoc => ({ id: feedbackDoc.id, ...feedbackDoc.data() }))
+          .sort((a, b) => getTimestamp(b.createdAt) - getTimestamp(a.createdAt))
+          .slice(0, 6);
+        setPublishedFeedbacks(nextFeedbacks);
+      },
+      error => {
+        console.error('공개 소감 로드 실패:', error);
+        setPublishedFeedbacks([]);
+      },
+    );
+  }, []);
 
   // 1. URL 쿼리 파라미터를 통한 즉시 해금 및 리셋 처리
   useEffect(() => {
@@ -616,6 +647,7 @@ export default function App() {
             symbols={symbols} 
             onCardClick={handleSymbolCardClick} 
             isQuestionUnlocked={isQuestionUnlocked}
+            featuredFeedbacks={publishedFeedbacks}
           />
         </div>
       </div>
