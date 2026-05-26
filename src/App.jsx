@@ -9,6 +9,7 @@ import { symbolData } from './data/symbolData';
 
 // Firebase imports
 import { auth, db, signInAnonymously, doc, getDoc, setDoc } from './firebase';
+import { serverTimestamp } from 'firebase/firestore';
 import { Sparkles, Shield } from 'lucide-react';
 
 const INITIAL_SYMBOLS = Object.keys(symbolData).reduce((acc, id) => {
@@ -28,6 +29,7 @@ const ADMIN_UNLOCK_CATEGORIES = {
 };
 
 const BASIC_UNLOCK_SYMBOLS = ['heart_kymin', 'divide_kyeomjun', 'cross'];
+const FIREBASE_SYNC_TIMEOUT_MS = 4500;
 
 const QR_SYMBOL_ALIASES = {
   heart: 'heart_kymin',
@@ -87,6 +89,19 @@ const resolveQrSymbol = value => {
   return QR_SYMBOL_ALIASES[normalizedValue] || '';
 };
 
+const getSymbolsSignature = symbols => JSON.stringify(normalizeSymbols(symbols));
+
+const withTimeout = (promise, timeoutMs, label) => (
+  Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      window.setTimeout(() => {
+        reject(new Error(`${label} timed out`));
+      }, timeoutMs);
+    }),
+  ])
+);
+
 export default function App() {
   const [page, setPage] = useState(() => {
     const path = window.location.pathname;
@@ -114,6 +129,9 @@ export default function App() {
 
   const [activePopup, setActivePopup] = useState(null);
   const [toast, setToast] = useState('');
+  const hasStartedFirebaseSession = useRef(false);
+  const lastStoredSymbolsSignature = useRef(getSymbolsSignature(symbols));
+  const lastSyncedSymbolsSignature = useRef('');
   const hasAutoOpenedQuestionGuide = useRef(
     localStorage.getItem('questionGuideAutoShown') === 'true',
   );
@@ -233,6 +251,29 @@ export default function App() {
 
     if (symbol) {
       if (symbol === 'question') {
+        if (!hasQuestionPrerequisites(symbols)) {
+          setToast('먼저 하트, 나누기, 십자가를 모두 찾아야 해요.');
+          setTimeout(() => {
+            setToast('');
+          }, 2000);
+          window.history.replaceState({}, '', window.location.pathname);
+          return;
+        }
+
+        setSymbols(prev => {
+          const next = { ...prev, question: true };
+          localStorage.setItem('symbols', JSON.stringify(next));
+          if (userId) {
+            setDoc(doc(db, 'users', userId), {
+              symbols: next,
+              updatedAt: serverTimestamp(),
+            }, { merge: true }).catch(err => {
+              console.error('question QR 완료 데이터 백업 중 에러 발생:', err);
+            });
+          }
+          return next;
+        });
+
         setActivePopup(null);
         setPage('participate');
         window.history.replaceState({}, '', '/participate');
@@ -245,7 +286,10 @@ export default function App() {
           const next = { ...prev, [symbol]: true };
           localStorage.setItem('symbols', JSON.stringify(next));
           if (userId) {
-            setDoc(doc(db, 'users', userId), { symbols: next }, { merge: true }).catch(err => {
+            setDoc(doc(db, 'users', userId), {
+              symbols: next,
+              updatedAt: serverTimestamp(),
+            }, { merge: true }).catch(err => {
               console.error('QR 해금 데이터 즉시 백업 중 에러 발생:', err);
             });
           }
@@ -264,17 +308,28 @@ export default function App() {
 
   // 2. Firebase 익명 로그인 및 Firestore 데이터 동기화
   useEffect(() => {
+    if (hasStartedFirebaseSession.current) return undefined;
+    hasStartedFirebaseSession.current = true;
+
     async function initFirebaseSession() {
       try {
         // 백그라운드 익명 로그인 처리
-        const userCredential = await signInAnonymously(auth);
+        const userCredential = await withTimeout(
+          signInAnonymously(auth),
+          FIREBASE_SYNC_TIMEOUT_MS,
+          'Firebase auth',
+        );
         const uid = userCredential.user.uid;
         setUserId(uid);
 
         // 🔄 지도 핀(심볼) 위치 데이터 동적 로드
         try {
           const pinsDocRef = doc(db, 'settings', 'map_pins');
-          const pinsDocSnap = await getDoc(pinsDocRef);
+          const pinsDocSnap = await withTimeout(
+            getDoc(pinsDocRef),
+            FIREBASE_SYNC_TIMEOUT_MS,
+            'Map pins load',
+          );
           if (pinsDocSnap.exists()) {
             const cloudPins = pinsDocSnap.data().pins;
             if (Array.isArray(cloudPins) && cloudPins.length > 0) {
@@ -294,13 +349,25 @@ export default function App() {
 
         // 🔄 로컬에서 요청된 초기화(리셋) 플래그가 있는 경우 클라우드 및 로컬스토리지 강제 초기화 진행
         if (localStorage.getItem('needReset') === 'true') {
-          await setDoc(userDocRef, { symbols: INITIAL_SYMBOLS });
+          await withTimeout(
+            setDoc(userDocRef, {
+              symbols: INITIAL_SYMBOLS,
+              updatedAt: serverTimestamp(),
+            }),
+            FIREBASE_SYNC_TIMEOUT_MS,
+            'Reset sync',
+          );
           localStorage.removeItem('needReset');
           setSymbols(INITIAL_SYMBOLS);
+          lastSyncedSymbolsSignature.current = getSymbolsSignature(INITIAL_SYMBOLS);
           return;
         }
 
-        const userDocSnap = await getDoc(userDocRef);
+        const userDocSnap = await withTimeout(
+          getDoc(userDocRef),
+          FIREBASE_SYNC_TIMEOUT_MS,
+          'User symbols load',
+        );
 
         if (userDocSnap.exists()) {
           const cloudData = userDocSnap.data();
@@ -314,6 +381,11 @@ export default function App() {
               const val = !!(prev[key] || cloudSymbols[key]);
               if (prev[key] !== val) isChanged = true;
               merged[key] = val;
+            }
+            if (isChanged) {
+              const mergedSignature = getSymbolsSignature(merged);
+              lastStoredSymbolsSignature.current = mergedSignature;
+              localStorage.setItem('symbols', JSON.stringify(merged));
             }
             return isChanged ? merged : prev;
           });
@@ -330,15 +402,25 @@ export default function App() {
     }
 
     initFirebaseSession();
+
   }, []);
 
   // 3. 심볼 상태가 변경될 때마다 로컬 스토리지 및 Firestore에 상시 실시간 백업
   useEffect(() => {
-    localStorage.setItem('symbols', JSON.stringify(symbols));
+    const symbolsSignature = getSymbolsSignature(symbols);
 
-    if (userId && !isLoading) {
+    if (lastStoredSymbolsSignature.current !== symbolsSignature) {
+      localStorage.setItem('symbols', JSON.stringify(symbols));
+      lastStoredSymbolsSignature.current = symbolsSignature;
+    }
+
+    if (userId && !isLoading && lastSyncedSymbolsSignature.current !== symbolsSignature) {
+      lastSyncedSymbolsSignature.current = symbolsSignature;
       const userDocRef = doc(db, 'users', userId);
-      setDoc(userDocRef, { symbols }, { merge: true }).catch(err => {
+      setDoc(userDocRef, {
+        symbols,
+        updatedAt: serverTimestamp(),
+      }, { merge: true }).catch(err => {
         console.error('Firestore 백업 중 에러 발생:', err);
       });
     }

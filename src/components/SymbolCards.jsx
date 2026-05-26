@@ -91,7 +91,7 @@ export default function SymbolCards({ symbols, onCardClick, isQuestionUnlocked }
   };
 
   return (
-    <div className="grid grid-cols-2 gap-3.5 pb-8">
+    <div className="grid grid-cols-3 gap-2.5 pb-8">
       {cards.map(card => {
         const state = getState(card);
         const accent = accentClasses[card.accent];
@@ -105,7 +105,7 @@ export default function SymbolCards({ symbols, onCardClick, isQuestionUnlocked }
             <button
               key={card.id}
               type="button"
-              className="col-span-2 w-full min-h-[118px] border-2 border-slate-200 rounded-2xl bg-white/85 overflow-hidden relative text-left cursor-pointer transition-transform active:scale-[0.99] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500 shadow-sm"
+              className="col-span-3 w-full min-h-[118px] border-2 border-slate-200 rounded-2xl bg-white/85 overflow-hidden relative text-left cursor-pointer transition-transform active:scale-[0.99] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500 shadow-sm"
               onClick={() => onCardClick(card.id)}
             >
               <div className="absolute inset-y-0 right-0 w-1/2 bg-[linear-gradient(135deg,rgba(148,163,184,0.08),rgba(14,165,233,0.08))]" />
@@ -138,7 +138,7 @@ export default function SymbolCards({ symbols, onCardClick, isQuestionUnlocked }
             <button
               key={card.id}
               type="button"
-              className="col-span-2 w-full min-h-[124px] border-2 border-sky-200 rounded-2xl bg-gradient-to-br from-white via-sky-50 to-indigo-50 overflow-hidden relative text-left cursor-pointer transition-transform active:scale-[0.99] hover:scale-[1.01] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500 shadow-[0_12px_26px_rgba(14,165,233,0.16)]"
+              className="col-span-3 w-full min-h-[124px] border-2 border-sky-200 rounded-2xl bg-gradient-to-br from-white via-sky-50 to-indigo-50 overflow-hidden relative text-left cursor-pointer transition-transform active:scale-[0.99] hover:scale-[1.01] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500 shadow-[0_12px_26px_rgba(14,165,233,0.16)]"
               onClick={() => onCardClick(card.id)}
             >
               <div className="absolute inset-y-0 right-0 w-1/2 bg-[linear-gradient(135deg,rgba(56,189,248,0.12),rgba(99,102,241,0.12))]" />
@@ -175,7 +175,7 @@ export default function SymbolCards({ symbols, onCardClick, isQuestionUnlocked }
             key={card.id}
             type="button"
             className={[
-              'w-full aspect-[0.82] border-2 rounded-2xl bg-white overflow-hidden relative text-left cursor-pointer transition-transform active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500',
+              'w-full aspect-[0.72] min-h-[118px] border-2 rounded-2xl bg-white overflow-hidden relative text-left cursor-pointer transition-transform active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500',
               isLocked
                 ? 'border-dashed border-slate-200 shadow-sm'
                 : `${accent.border} shadow-[0_8px_18px_rgba(15,23,42,0.08)] hover:scale-[1.02]`,
@@ -200,17 +200,17 @@ export default function SymbolCards({ symbols, onCardClick, isQuestionUnlocked }
             </div>
 
             <div className="absolute bottom-3 left-3 right-3 flex flex-col gap-1.5">
-              <span className={`text-lg leading-tight ${isLocked ? 'text-slate-400' : 'text-slate-900'}`}>
+              <span className={`text-base leading-tight ${isLocked ? 'text-slate-400' : 'text-slate-900'}`}>
                 {card.label}
               </span>
               <div
                 className={[
-                  'border rounded-full px-2.5 py-0.5 flex items-center gap-1.5 w-fit max-w-full',
+                  'border rounded-full px-2 py-0.5 flex items-center gap-1.5 w-fit max-w-full',
                   isLocked ? 'bg-slate-50 border-slate-200' : `${accent.panel} ${accent.border}`,
                 ].join(' ')}
               >
                 <span className={`w-2.5 h-2.5 rounded-full ${isLocked ? 'bg-slate-400' : accent.dot} ${isReady ? 'animate-pulse' : ''}`} />
-                <span className={`text-xs mt-0.5 whitespace-nowrap ${isLocked ? 'text-slate-500' : accent.text}`}>
+                <span className={`text-[11px] mt-0.5 whitespace-nowrap ${isLocked ? 'text-slate-500' : accent.text}`}>
                   {isLocked ? '미발견' : isReady ? '위치 확인' : '발견 완료'}
                 </span>
               </div>
