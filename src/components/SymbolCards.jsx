@@ -267,8 +267,8 @@ export default function SymbolCards({ symbols, onCardClick, isQuestionUnlocked, 
               const feedbackTime = formatFeedbackTime(feedback.createdAt);
 
               return (
-                <article key={feedback.id} className="min-h-[104px] rounded-2xl border border-sky-100 bg-sky-50/60 px-4 py-3 text-left">
-                  <p className="line-clamp-3 whitespace-pre-wrap break-words text-[14px] leading-6 text-slate-700">
+                <article key={feedback.id} className="rounded-2xl border border-sky-100 bg-sky-50/60 px-4 py-3 text-left">
+                  <p className="line-clamp-3 whitespace-pre-wrap break-words text-[14px] leading-5 text-slate-700">
                     {feedback.feedback}
                   </p>
                   <div className="mt-2 flex items-center justify-between gap-3 text-[12px] text-slate-500">
