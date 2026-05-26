@@ -591,9 +591,12 @@ export default function App() {
   };
 
   const focusQuestionPinOnMap = () => {
-    mapSectionRef.current?.scrollIntoView({
+    const questionPin = mapSectionRef.current?.querySelector('[data-map-pin-id="question"]');
+
+    (questionPin || mapSectionRef.current)?.scrollIntoView({
       behavior: 'smooth',
       block: 'center',
+      inline: 'center',
     });
 
     setHighlightedPinId('question');

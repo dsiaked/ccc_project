@@ -383,6 +383,7 @@ export default function MapArea({ symbols, onSymbolClick, isQuestionUnlocked, zo
         <button
           type="button"
           aria-label={`${type} symbol`}
+          data-map-pin-id={id}
           className={[
             'absolute flex items-center justify-center cursor-pointer transition-all duration-300 active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 rounded-full',
             isHighlighted ? 'map-pin-button-highlight' : '',
