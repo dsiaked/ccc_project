@@ -338,13 +338,13 @@ export default function CrossKyeomjunPopup({ onClose }) {
               <div className="absolute left-[29px] top-[91px] w-[310px] text-left">
                 <div className="text-[32px] leading-[1.24] text-[#2d3a2e] tracking-[1.2px] font-sentiment font-normal">
                   <p>?덈Ъ???볦뿬</p>
-                  <p>留뚮뱾?댁쭊 寃? 紐?/p>
+                  <p>믿음으로 다시 일어서는 빛</p>
                   <div className="h-[18px]" /> {/* ?쇨렇留??ㅻ━吏??鍮?以?媛꾧꺽 ?뺣? 蹂듭썝 */}
                   <p>?щ쭩????좏븷</p>
                   <p>???덈뒗 ?щ옉</p>
                   <div className="h-[18px]" />
                   <p>?щ쭩???닿릿</p>
-                  <p>???대┛??/p>
+                  <p>소망을 바라봅니다</p>
                 </div>
               </div>
 
