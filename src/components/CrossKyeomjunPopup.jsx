@@ -360,7 +360,7 @@ export default function CrossKyeomjunPopup({ onClose }) {
                 <button
                   onClick={() => setShowCommentModal(true)}
                   className="relative flex items-center justify-center w-16 h-16 rounded-full bg-emerald-50 border-2 border-emerald-100 hover:bg-emerald-100/50 text-[#10b981] cursor-pointer transition-all active:scale-95 shadow-md animate-in fade-in duration-300"
-                  title="媛먯긽???④린湲?
+                  title="감상평 남기기"
                 >
                   <MessageSquare className="w-8 h-8" />
                   {/* ?볤? ??諛곗? */}
@@ -451,7 +451,7 @@ export default function CrossKyeomjunPopup({ onClose }) {
                 {/* ?ㅻ뱶?쇱씤 ??댄?: "寃?뺤깋 紐산낵 ???대┛?? */}
                 <div className="text-left font-sentiment text-[28px] leading-[1.2] text-[#2e7d32] tracking-[1px] font-bold mt-2 select-text">
                   <p>寃?뺤깋 紐산낵</p>
-                  <p>???대┛??/p>
+                  <p>소망의 빛</p>
                 </div>
 
                 {/* ?뉗? 媛濡쒖꽑 */}
@@ -491,15 +491,13 @@ export default function CrossKyeomjunPopup({ onClose }) {
                   <div className="my-6 border border-green-150 bg-[#f1faf2] py-5 px-3.5 rounded-3xl font-sentiment text-[14.5px] leading-relaxed text-[#2e7d32] text-center shadow-sm">
                     <p className="font-bold text-[#2d6630]">?쒓눼濡?쾶 ?섎뒗 寃껋? 愿대∼寃??섎뒗 寃껋쑝濡?</p>
                     <p className="font-bold text-[#2d6630]">?щ쭩? ?щ쭩?쇰줈. ?섏?留??щ쭩???щ옉?쇰줈</p>
-                    <p className="font-bold text-[#2d6630]">??좏븷 ???덈뒗 ?곗＜ 諛뽰쓽 ?먮━.??/p>
+                    <p className="font-bold text-[#2d6630]">소망을 품고 일어서는 마음.</p>
                   </div>
 
                 </div>
               </div>
 
-              {/* ?섎떒 ?쒖뼱 踰꾪듉: 112px X 52px ?κ렐 罹≪뒓 */}
-              <div className="relative z-10 flex justify-center gap-6 mt-8 flex-none font-readable-sans">
-                {/* BACK 踰꾪듉 */}
+              <div className="relative z-10 flex flex-wrap justify-center gap-3 mt-8 flex-none font-readable-sans">
                 <button
                   onClick={() => setStep(1)}
                   className="w-[112px] h-[52px] bg-white border border-gray-200 text-gray-700 rounded-[26px] flex items-center justify-center gap-1.5 hover:bg-gray-50 transition-all duration-200 active:scale-[0.96] cursor-pointer shadow-sm font-bold"
@@ -508,12 +506,11 @@ export default function CrossKyeomjunPopup({ onClose }) {
                   <span className="text-[13px] tracking-[1.68px]">BACK</span>
                 </button>
 
-                {/* NEXT (?뺤씤 ?꾨즺) 踰꾪듉 */}
                 <button
-                  onClick={onClose}
+                  onClick={() => setShowCommentModal(true)}
                   className="w-[112px] h-[52px] bg-gradient-to-r from-[#4caf50] to-[#66bb6a] text-white rounded-[26px] flex items-center justify-center gap-1 hover:opacity-90 transition-all duration-200 active:scale-[0.96] shadow-[0_4px_12px_rgba(76,175,80,0.2)] cursor-pointer font-bold"
                 >
-                  <span className="text-[11px] tracking-[0.4px]">媛먯긽???④린湲?/span>
+                  <span className="text-[11px] tracking-[0.4px]">감상평 남기기</span>
                   <Check className="w-4 h-4" />
                 </button>
                 <button
@@ -521,7 +518,7 @@ export default function CrossKyeomjunPopup({ onClose }) {
                   onClick={onClose}
                   className="w-full h-[46px] bg-white border border-gray-200 text-gray-700 rounded-[23px] flex items-center justify-center hover:bg-gray-50 transition-all duration-200 active:scale-[0.98] cursor-pointer shadow-sm font-bold"
                 >
-                  <span className="text-[13px] tracking-[0.4px]">?ㅼ쓬 ?묓뭹 蹂대윭 媛湲?/span>
+                  <span className="text-[13px] tracking-[0.4px]">다음 작품 보러 가기</span>
                 </button>
               </div>
 
@@ -567,7 +564,7 @@ export default function CrossKyeomjunPopup({ onClose }) {
                     <span className="text-3xl mb-2">?럥</span>
                     <span className="font-bold text-gray-600 text-sm">泥?媛먯긽?됱쓣 ?④꺼蹂댁꽭??</span>
                     <span className="opacity-70 mt-1">?꾩쭅 ?묒꽦??媛먯긽?됱씠 ?놁뒿?덈떎.</span>
-                    <span className="opacity-60 mt-0.5">?곕쑜??泥?留덈뵒濡??묓뭹??梨꾩썙二쇱꽭????/span>
+                    <span className="opacity-60 mt-0.5">첫 감상평으로 작품을 채워주세요.</span>
                   </div>
                 ) : (
                   comments.map((comment) => {
