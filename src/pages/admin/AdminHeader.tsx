@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { LayoutDashboard, CreditCard, Bus, LogOut } from 'lucide-react';
+import { Bus, CreditCard, LayoutDashboard, LogOut } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import styles from './AdminHeader.module.css';
 
@@ -16,13 +16,13 @@ const AdminHeader = () => {
       <button
         type="button"
         className={styles.logo}
-        onClick={() => navigate('/admin')}
+        onClick={() => navigate('/admin/global')}
       >
         CCC Bus Admin
       </button>
 
       <nav className={styles.nav}>
-        <button type="button" onClick={() => navigate('/admin')}>
+        <button type="button" onClick={() => navigate('/admin/global')}>
           <LayoutDashboard size={18} />
           대시보드
         </button>
@@ -41,7 +41,11 @@ const AdminHeader = () => {
           버스 배분
         </button>
 
-        <button type="button" className={styles.logoutButton} onClick={handleLogout}>
+        <button
+          type="button"
+          className={styles.logoutButton}
+          onClick={handleLogout}
+        >
           <LogOut size={18} />
           로그아웃
         </button>

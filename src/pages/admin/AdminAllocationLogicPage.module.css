@@ -1,0 +1,248 @@
+.pageContainer {
+  min-height: 100vh;
+  background: #f3f4f6;
+  display: flex;
+  flex-direction: column;
+}
+
+.main {
+  flex: 1;
+  width: 100%;
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 20px;
+  padding-top: 100px;
+}
+
+.backButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 14px;
+  margin-bottom: 18px;
+  border: 1px solid #d0d5dd;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #344054;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.hero,
+.section {
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+}
+
+.hero {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 26px;
+  margin-bottom: 20px;
+}
+
+.heroIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 58px;
+  height: 58px;
+  border-radius: 18px;
+  background: #dbeafe;
+  color: #1d4ed8;
+  flex-shrink: 0;
+}
+
+.hero h1,
+.section h2 {
+  margin: 0;
+  color: #101828;
+}
+
+.hero h1 {
+  font-size: 30px;
+  font-weight: 900;
+}
+
+.hero p {
+  margin: 8px 0 0;
+  color: #667085;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.section {
+  padding: 24px;
+  margin-bottom: 18px;
+}
+
+.section h2 {
+  margin-bottom: 16px;
+  font-size: 19px;
+  font-weight: 900;
+}
+
+.ruleGrid,
+.modeList {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.modeList {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.reviewList,
+.decisionGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.ruleGrid article,
+.modeList article,
+.reviewList article,
+.decisionGrid article,
+.formulaBox,
+.formulaList article {
+  padding: 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #f9fafb;
+}
+
+.ruleGrid svg {
+  color: #2563eb;
+  margin-bottom: 10px;
+}
+
+.ruleGrid strong,
+.modeList strong,
+.reviewTitleRow strong,
+.decisionGrid strong,
+.formulaBox strong,
+.stepList strong,
+.formulaList strong {
+  display: block;
+  color: #111827;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.ruleGrid p,
+.modeList p,
+.reviewList p,
+.decisionGrid p,
+.formulaBox p,
+.stepList p,
+.formulaList p {
+  margin: 7px 0 0;
+  color: #4b5563;
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.reviewTitleRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.reviewTitleRow span {
+  flex-shrink: 0;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.reviewList ul {
+  display: grid;
+  gap: 6px;
+  margin: 12px 0 0;
+  padding-left: 18px;
+  color: #4b5563;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.reviewList li::marker {
+  color: #2563eb;
+}
+
+.formulaList {
+  display: grid;
+  gap: 12px;
+}
+
+.formulaList article {
+  background: #ffffff;
+}
+
+.formulaList code {
+  display: block;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #f3f4f6;
+  color: #1f2937;
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.stepList {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding-left: 22px;
+}
+
+.stepList li {
+  padding: 14px 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #f9fafb;
+}
+
+.formulaBox {
+  background: #eef4ff;
+  border-color: #c7d7fe;
+}
+
+.formulaBox strong {
+  color: #3538cd;
+}
+
+@media (max-width: 768px) {
+  .main {
+    padding: 14px;
+    padding-top: 88px;
+  }
+
+  .hero {
+    align-items: flex-start;
+    padding: 20px;
+  }
+
+  .hero h1 {
+    font-size: 24px;
+  }
+
+  .ruleGrid,
+  .modeList,
+  .reviewList,
+  .decisionGrid {
+    grid-template-columns: 1fr;
+  }
+}

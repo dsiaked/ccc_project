@@ -3,6 +3,18 @@ import { supabase } from './supabase';
 // ===== 공통 타입 =====
 
 export type AdminRoleType = 'global_admin' | 'campus_admin';
+export type CampusRequestType =
+  | 'late_signup'
+  | 'cancel_refund'
+  | 'payment_issue'
+  | 'roster_change'
+  | 'transfer_issue'
+  | 'etc';
+export type CampusRequestStatus =
+  | 'open'
+  | 'in_progress'
+  | 'resolved'
+  | 'on_hold';
 
 export interface AdminRole {
   id: string;
@@ -72,6 +84,138 @@ export type CampusAdminRole = {
   } | null;
 };
 
+type PaymentStatsRow = {
+  status: 'pending' | 'completed' | 'refunded' | string | null;
+  amount: number | null;
+};
+
+type CampusTransferStatsRow = {
+  id?: string | null;
+  district?: string | null;
+  team?: string | null;
+  campus?: string | null;
+  campus_admin_name?: string | null;
+  campus_admin_phone?: string | null;
+  current_total_people?: number | null;
+  current_paid_people?: number | null;
+  current_total_amount?: number | null;
+  total_people?: number | null;
+  paid_people?: number | null;
+  total_amount?: number | null;
+  reported_total_people?: number | null;
+  reported_paid_people?: number | null;
+  reported_total_amount?: number | null;
+  actual_confirmed_amount?: number | null;
+  additional_amount_due?: number | null;
+  has_additional_settlement?: boolean | null;
+  status?: 'pending' | 'sent' | 'confirmed' | null;
+  sent_at?: string | null;
+};
+
+type CampusTransferMutationRow = {
+  id: string;
+  district: string | null;
+  team: string | null;
+  campus: string | null;
+  total_people: number | null;
+  paid_people: number | null;
+  total_amount: number | null;
+  actual_confirmed_amount: number | null;
+  status: 'sent' | 'confirmed' | null;
+  sent_at: string | null;
+};
+
+type CampusTransferActualAmountRow = {
+  id: string;
+  status: 'sent' | 'confirmed' | null;
+  actual_confirmed_amount: number | null;
+};
+
+type CampusTransferRow = CampusTransferMutationRow & {
+  sent_by?: string | null;
+};
+
+type CampusRequestRow = {
+  id: string;
+  type: CampusRequestType;
+  status: CampusRequestStatus;
+  title: string;
+  content: string;
+  admin_response: string | null;
+  district: string;
+  team: string;
+  campus: string;
+  created_by: string;
+  handled_by: string | null;
+  handled_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type CampusRequestMessageRow = {
+  id: string;
+  request_id: string;
+  sender_id: string;
+  sender_role: AdminRoleType;
+  message: string;
+  created_at: string;
+};
+
+type DestinationPreference = {
+  rank?: number | string | null;
+  station?: {
+    name?: string | null;
+  } | null;
+};
+
+type DestinationReservationRow = {
+  station_preferences: unknown;
+};
+
+export type ReservationDataResetStats = {
+  reservations: number;
+  payments: number;
+  campusTransfers: number;
+  busAllocations: number;
+  campusRequests: number;
+  campusRequestMessages: number;
+};
+
+const emptyReservationDataResetStats = (): ReservationDataResetStats => ({
+  reservations: 0,
+  payments: 0,
+  campusTransfers: 0,
+  busAllocations: 0,
+  campusRequests: 0,
+  campusRequestMessages: 0,
+});
+
+const toReservationDataResetStats = (
+  value: unknown
+): ReservationDataResetStats => {
+  const source =
+    value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
+
+  return {
+    reservations: Number(source.reservations ?? 0),
+    payments: Number(source.payments ?? 0),
+    campusTransfers: Number(source.campusTransfers ?? 0),
+    busAllocations: Number(source.busAllocations ?? 0),
+    campusRequests: Number(source.campusRequests ?? 0),
+    campusRequestMessages: Number(source.campusRequestMessages ?? 0),
+  };
+};
+
+async function getTableCount(tableName: string) {
+  const { count, error } = await supabase
+    .from(tableName)
+    .select('*', { count: 'exact', head: true });
+
+  if (error) throw error;
+
+  return count ?? 0;
+}
+
 
 // ===== 관리자 권한 기본 =====
 
@@ -80,14 +224,22 @@ export async function getAdminRole(userId: string) {
     .from('admin_roles')
     .select('*')
     .eq('user_id', userId)
-    .maybeSingle();
+    .order('role', { ascending: false })
+    .order('updated_at', { ascending: false, nullsFirst: false })
+    .order('created_at', { ascending: false, nullsFirst: false });
 
   if (error) {
     console.error('Failed to get admin role:', error);
     return null;
   }
 
-  return data as AdminRole | null;
+  const roles = (data ?? []) as AdminRole[];
+
+  return (
+    roles.find((role) => role.role === 'global_admin') ||
+    roles.find((role) => role.role === 'campus_admin') ||
+    null
+  );
 }
 
 export async function setAdminRole(
@@ -496,17 +648,24 @@ export async function cancelCampusAdmin(adminRoleId: string) {
 
 // 기존 코드 호환용 함수
 export async function assignCampusAdmin(userId: string, campus: string) {
-  const { error } = await supabase.from('admin_roles').upsert(
-    {
-      user_id: userId,
-      role: 'campus_admin',
-      campus,
-      updated_at: new Date().toISOString(),
-    },
-    {
-      onConflict: 'user_id',
-    }
-  );
+  const { error: deleteError } = await supabase
+    .from('admin_roles')
+    .delete()
+    .eq('user_id', userId)
+    .eq('role', 'campus_admin')
+    .eq('campus', campus);
+
+  if (deleteError) {
+    console.error('Failed to clear previous campus admin role:', deleteError);
+    throw deleteError;
+  }
+
+  const { error } = await supabase.from('admin_roles').insert({
+    user_id: userId,
+    role: 'campus_admin',
+    campus,
+    updated_at: new Date().toISOString(),
+  });
 
   if (error) {
     console.error('Failed to assign campus admin:', error);
@@ -666,7 +825,7 @@ export async function getPaymentStats() {
       completedCount: 0,
     };
 
-    (data || []).forEach((payment: any) => {
+    ((data || []) as PaymentStatsRow[]).forEach((payment) => {
       if (payment.status === 'completed') {
         stats.completed += 1;
         stats.totalCompleted += payment.amount || 0;
@@ -696,6 +855,12 @@ export interface CampusTransferStat {
   totalPeople: number;
   paidPeople: number;
   totalAmount: number;
+  reportedTotalPeople: number;
+  reportedPaidPeople: number;
+  reportedTotalAmount: number;
+  actualConfirmedAmount: number | null;
+  additionalAmountDue: number;
+  hasAdditionalSettlement: boolean;
   status: 'pending' | 'sent' | 'confirmed';
   sentAt: string | null;
 }
@@ -710,51 +875,237 @@ export async function getCampusTransferStats(): Promise<CampusTransferStat[]> {
     throw new Error(error.message);
   }
 
-  return (data ?? []).map((item: any) => ({
-    id: item.id ?? `empty-${item.district}-${item.team}-${item.campus}`,
-    district: item.district ?? '',
-    team: item.team ?? '',
-    campus: item.campus ?? '',
-    campusAdminName: item.campus_admin_name ?? null,
-    campusAdminPhone: item.campus_admin_phone ?? null,
-    totalPeople: Number(item.total_people ?? 0),
-    paidPeople: Number(item.paid_people ?? 0),
-    totalAmount: Number(item.total_amount ?? 0),
-    status: item.status ?? 'pending',
-    sentAt: item.sent_at ?? null,
-  }));
+  const stats = ((data ?? []) as CampusTransferStatsRow[]).map((item) => {
+    const status = item.status ?? 'pending';
+    const totalPeople = Number(item.current_total_people ?? item.total_people ?? 0);
+    const paidPeople = Number(item.current_paid_people ?? item.paid_people ?? 0);
+    const totalAmount = Number(item.current_total_amount ?? item.total_amount ?? 0);
+    const reportedTotalPeople = Number(
+      item.reported_total_people ?? (status === 'pending' ? 0 : item.total_people) ?? 0
+    );
+    const reportedPaidPeople = Number(
+      item.reported_paid_people ?? (status === 'pending' ? 0 : item.paid_people) ?? 0
+    );
+    const reportedTotalAmount = Number(
+      item.reported_total_amount ?? (status === 'pending' ? 0 : item.total_amount) ?? 0
+    );
+    const actualConfirmedAmount =
+      item.actual_confirmed_amount === null ||
+      item.actual_confirmed_amount === undefined
+        ? null
+        : Number(item.actual_confirmed_amount);
+    const additionalAmountDue = Math.max(
+      Number(item.additional_amount_due ?? totalAmount - reportedTotalAmount),
+      0
+    );
+
+    return {
+      id: item.id ?? `empty-${item.district}-${item.team}-${item.campus}`,
+      district: item.district ?? '',
+      team: item.team ?? '',
+      campus: item.campus ?? '',
+      campusAdminName: item.campus_admin_name ?? null,
+      campusAdminPhone: item.campus_admin_phone ?? null,
+      totalPeople,
+      paidPeople,
+      totalAmount,
+      reportedTotalPeople,
+      reportedPaidPeople,
+      reportedTotalAmount,
+      actualConfirmedAmount,
+      additionalAmountDue,
+      hasAdditionalSettlement:
+        Boolean(item.has_additional_settlement) || additionalAmountDue > 0,
+      status,
+      sentAt: item.sent_at ?? null,
+    };
+  });
+
+  const transferIds = stats
+    .map((item) => item.id)
+    .filter((id) => id && !id.startsWith('empty-'));
+
+  if (transferIds.length === 0) {
+    return stats;
+  }
+
+  const { data: actualRows, error: actualError } = await supabase
+    .from('campus_transfers')
+    .select('id, status, actual_confirmed_amount')
+    .in('id', transferIds);
+
+  if (actualError) {
+    console.warn('Failed to hydrate campus transfer actual amounts:', actualError);
+    return stats;
+  }
+
+  const actualById = new Map(
+    ((actualRows ?? []) as CampusTransferActualAmountRow[]).map((row) => [
+      row.id,
+      row,
+    ])
+  );
+
+  return stats.map((item) => {
+    const actualRow = actualById.get(item.id);
+
+    if (!actualRow) return item;
+
+    return {
+      ...item,
+      status: actualRow.status ?? item.status,
+      actualConfirmedAmount:
+        actualRow.actual_confirmed_amount === null ||
+        actualRow.actual_confirmed_amount === undefined
+          ? item.actualConfirmedAmount
+          : Number(actualRow.actual_confirmed_amount),
+    };
+  });
+}
+
+export async function getCampusTransferByScope({
+  district,
+  team,
+  campus,
+}: {
+  district: string;
+  team: string;
+  campus: string;
+}): Promise<CampusTransferStat | null> {
+  const { data, error } = await supabase
+    .from('campus_transfers')
+    .select(
+      'id, district, team, campus, total_people, paid_people, total_amount, actual_confirmed_amount, status, sent_at, sent_by'
+    )
+    .eq('district', district)
+    .eq('team', team)
+    .eq('campus', campus)
+    .maybeSingle();
+
+  if (error) {
+    console.error('Failed to get campus transfer by scope:', error);
+    throw new Error(error.message);
+  }
+
+  if (!data) return null;
+
+  const transfer = data as CampusTransferRow;
+  const reportedTotalPeople = Number(transfer.total_people ?? 0);
+  const reportedPaidPeople = Number(transfer.paid_people ?? 0);
+  const reportedTotalAmount = Number(transfer.total_amount ?? 0);
+
+  return {
+    id: transfer.id,
+    district: transfer.district ?? district,
+    team: transfer.team ?? team,
+    campus: transfer.campus ?? campus,
+    campusAdminName: null,
+    campusAdminPhone: null,
+    totalPeople: reportedTotalPeople,
+    paidPeople: reportedPaidPeople,
+    totalAmount: reportedTotalAmount,
+    reportedTotalPeople,
+    reportedPaidPeople,
+    reportedTotalAmount,
+    actualConfirmedAmount:
+      transfer.actual_confirmed_amount === null ||
+      transfer.actual_confirmed_amount === undefined
+        ? null
+        : Number(transfer.actual_confirmed_amount),
+    additionalAmountDue: 0,
+    hasAdditionalSettlement: false,
+    status: transfer.status ?? 'sent',
+    sentAt: transfer.sent_at ?? null,
+  };
 }
 
 export async function confirmCampusTransferById(params: {
   transferId: string;
   confirmedBy: string;
+  actualConfirmedAmount: number;
 }) {
   if (params.transferId.startsWith('empty-')) {
     throw new Error('아직 campus_transfers에 생성된 행이 없습니다. 먼저 송금 완료 처리를 해야 합니다.');
   }
 
-  const { data, error } = await supabase
-    .from('campus_transfers')
-    .update({
-      status: 'confirmed',
-      confirmed_by: params.confirmedBy,
-      confirmed_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', params.transferId)
-    .select('id, status')
-    .maybeSingle();
+  const normalizedAmount = Math.max(
+    0,
+    Math.floor(Number(params.actualConfirmedAmount) || 0)
+  );
+
+  const { data, error } = await supabase.rpc(
+    'confirm_campus_transfer_amount',
+    {
+      p_transfer_id: params.transferId,
+      p_confirmed_by: params.confirmedBy,
+      p_actual_confirmed_amount: normalizedAmount,
+    }
+  );
 
   if (error) {
-    console.error('Failed to confirm campus transfer:', error);
-    throw new Error(error.message);
+    const canFallback =
+      error.code === 'PGRST202' ||
+      error.code === '42883' ||
+      error.message.includes('confirm_campus_transfer_amount');
+
+    if (!canFallback) {
+      console.error('Failed to confirm campus transfer:', error);
+      throw new Error(error.message);
+    }
+
+    const { data: fallbackData, error: fallbackError } = await supabase
+      .from('campus_transfers')
+      .update({
+        status: 'confirmed',
+        confirmed_by: params.confirmedBy,
+        confirmed_at: new Date().toISOString(),
+        actual_confirmed_amount: normalizedAmount,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', params.transferId)
+      .select('id, status, actual_confirmed_amount')
+      .maybeSingle();
+
+    if (fallbackError) {
+      console.error('Failed to confirm campus transfer:', fallbackError);
+      throw new Error(fallbackError.message);
+    }
+
+    if (!fallbackData) {
+      throw new Error('업데이트할 캠퍼스 송금 정보를 찾지 못했습니다. 권한 또는 id 값을 확인해주세요.');
+    }
+
+    const fallbackTransfer = fallbackData as Pick<
+      CampusTransferMutationRow,
+      'id' | 'status' | 'actual_confirmed_amount'
+    >;
+
+    return {
+      id: fallbackTransfer.id,
+      status: fallbackTransfer.status ?? 'confirmed',
+      actualConfirmedAmount:
+        fallbackTransfer.actual_confirmed_amount === null ||
+        fallbackTransfer.actual_confirmed_amount === undefined
+          ? normalizedAmount
+          : Number(fallbackTransfer.actual_confirmed_amount),
+    };
   }
 
   if (!data) {
     throw new Error('업데이트할 캠퍼스 송금 정보를 찾지 못했습니다. 권한 또는 id 값을 확인해주세요.');
   }
 
-  return data;
+  const transfer = data as CampusTransferMutationRow;
+
+  return {
+    id: transfer.id,
+    status: transfer.status ?? 'confirmed',
+    actualConfirmedAmount:
+      transfer.actual_confirmed_amount === null ||
+      transfer.actual_confirmed_amount === undefined
+        ? normalizedAmount
+        : Number(transfer.actual_confirmed_amount),
+  };
 }
 
 export async function revertCampusTransferConfirmationById(params: {
@@ -772,6 +1123,7 @@ export async function revertCampusTransferConfirmationById(params: {
       status: 'sent',
       confirmed_by: null,
       confirmed_at: null,
+      actual_confirmed_amount: null,
       updated_at: new Date().toISOString(),
     })
     .eq('id', params.transferId)
@@ -824,7 +1176,282 @@ export async function markCampusTransferSent({
     throw new Error(error.message);
   }
 
-  return data;
+  const transfer = data as CampusTransferMutationRow;
+
+  return {
+    id: transfer.id,
+    district: transfer.district ?? district,
+    team: transfer.team ?? team,
+    campus: transfer.campus ?? campus,
+    campusAdminName: null,
+    campusAdminPhone: null,
+    totalPeople,
+    paidPeople,
+    totalAmount,
+    reportedTotalPeople: Number(transfer.total_people ?? totalPeople),
+    reportedPaidPeople: Number(transfer.paid_people ?? paidPeople),
+    reportedTotalAmount: Number(transfer.total_amount ?? totalAmount),
+    actualConfirmedAmount:
+      transfer.actual_confirmed_amount === null ||
+      transfer.actual_confirmed_amount === undefined
+        ? null
+        : Number(transfer.actual_confirmed_amount),
+    additionalAmountDue: 0,
+    hasAdditionalSettlement: false,
+    status: transfer.status ?? 'sent',
+    sentAt: transfer.sent_at ?? new Date().toISOString(),
+  } satisfies CampusTransferStat;
+}
+
+// ===== 캠퍼스 문의 게시판 =====
+
+export interface CampusRequest {
+  id: string;
+  type: CampusRequestType;
+  status: CampusRequestStatus;
+  title: string;
+  content: string;
+  adminResponse: string | null;
+  district: string;
+  team: string;
+  campus: string;
+  createdBy: string;
+  handledBy: string | null;
+  handledAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  messages: CampusRequestMessage[];
+}
+
+export interface CampusRequestMessage {
+  id: string;
+  requestId: string;
+  senderId: string;
+  senderRole: AdminRoleType;
+  message: string;
+  createdAt: string;
+}
+
+const mapCampusRequestMessage = (
+  row: CampusRequestMessageRow
+): CampusRequestMessage => ({
+  id: row.id,
+  requestId: row.request_id,
+  senderId: row.sender_id,
+  senderRole: row.sender_role,
+  message: row.message,
+  createdAt: row.created_at,
+});
+
+const sortCampusRequestMessages = (messages: CampusRequestMessage[]) =>
+  [...messages].sort(
+    (a, b) =>
+      new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  );
+
+const mapCampusRequest = (
+  row: CampusRequestRow,
+  messages: CampusRequestMessage[] = []
+): CampusRequest => ({
+  id: row.id,
+  type: row.type,
+  status: row.status,
+  title: row.title,
+  content: row.content,
+  adminResponse: row.admin_response,
+  district: row.district,
+  team: row.team,
+  campus: row.campus,
+  createdBy: row.created_by,
+  handledBy: row.handled_by,
+  handledAt: row.handled_at,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+  messages: sortCampusRequestMessages(messages),
+});
+
+export async function getCampusRequests(adminRole: AdminRole) {
+  let query = supabase
+    .from('campus_requests')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (adminRole.role === 'campus_admin') {
+    query = query
+      .eq('district', adminRole.district)
+      .eq('team', adminRole.team)
+      .eq('campus', adminRole.campus);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    console.error('캠퍼스 문의 조회 실패:', error);
+    throw new Error(error.message);
+  }
+
+  const requestRows = (data ?? []) as CampusRequestRow[];
+  const requestIds = requestRows.map((request) => request.id);
+
+  if (requestIds.length === 0) {
+    return [];
+  }
+
+  const { data: messageData, error: messageError } = await supabase
+    .from('campus_request_messages')
+    .select('*')
+    .in('request_id', requestIds)
+    .order('created_at', { ascending: true });
+
+  if (messageError) {
+    console.error('罹좏띁??臾몄쓽 硫붿떆吏 議고쉶 ?ㅽ뙣:', messageError);
+    throw new Error(messageError.message);
+  }
+
+  const messagesByRequest = new Map<string, CampusRequestMessage[]>();
+
+  ((messageData ?? []) as CampusRequestMessageRow[]).forEach((messageRow) => {
+    const nextMessage = mapCampusRequestMessage(messageRow);
+    const currentMessages = messagesByRequest.get(nextMessage.requestId) ?? [];
+
+    messagesByRequest.set(nextMessage.requestId, [
+      ...currentMessages,
+      nextMessage,
+    ]);
+  });
+
+  return requestRows.map((request) =>
+    mapCampusRequest(request, messagesByRequest.get(request.id) ?? [])
+  );
+}
+
+export async function createCampusRequest(params: {
+  type: CampusRequestType;
+  title: string;
+  content: string;
+  district: string;
+  team: string;
+  campus: string;
+  createdBy: string;
+}) {
+  const { data, error } = await supabase
+    .from('campus_requests')
+    .insert({
+      type: params.type,
+      title: params.title,
+      content: params.content,
+      district: params.district,
+      team: params.team,
+      campus: params.campus,
+      created_by: params.createdBy,
+    })
+    .select('*')
+    .single();
+
+  if (error) {
+    console.error('캠퍼스 문의 작성 실패:', error);
+    throw new Error(error.message);
+  }
+
+  const createdRequest = mapCampusRequest(data as CampusRequestRow);
+  const firstMessage = await createCampusRequestMessage({
+    requestId: createdRequest.id,
+    senderId: params.createdBy,
+    senderRole: 'campus_admin',
+    message: params.content,
+  });
+
+  return {
+    ...createdRequest,
+    messages: [firstMessage],
+  };
+}
+
+export async function createCampusRequestMessage(params: {
+  requestId: string;
+  senderId: string;
+  senderRole: AdminRoleType;
+  message: string;
+}) {
+  const { data, error } = await supabase
+    .from('campus_request_messages')
+    .insert({
+      request_id: params.requestId,
+      sender_id: params.senderId,
+      sender_role: params.senderRole,
+      message: params.message.trim(),
+    })
+    .select('*')
+    .single();
+
+  if (error) {
+    console.error('罹좏띁??臾몄쓽 硫붿떆吏 ?깅줉 ?ㅽ뙣:', error);
+    throw new Error(error.message);
+  }
+
+  return mapCampusRequestMessage(data as CampusRequestMessageRow);
+}
+
+export async function updateCampusRequestMessage(params: {
+  messageId: string;
+  message: string;
+}) {
+  const { data, error } = await supabase
+    .from('campus_request_messages')
+    .update({
+      message: params.message.trim(),
+    })
+    .eq('id', params.messageId)
+    .select('*')
+    .single();
+
+  if (error) {
+    console.error('캠퍼스 문의 메시지 수정 실패:', error);
+    throw new Error(error.message);
+  }
+
+  return mapCampusRequestMessage(data as CampusRequestMessageRow);
+}
+
+export async function deleteCampusRequestMessage(messageId: string) {
+  const { error } = await supabase
+    .from('campus_request_messages')
+    .delete()
+    .eq('id', messageId);
+
+  if (error) {
+    console.error('캠퍼스 문의 메시지 삭제 실패:', error);
+    throw new Error(error.message);
+  }
+}
+
+export async function updateCampusRequestStatus(params: {
+  requestId: string;
+  status: CampusRequestStatus;
+  adminResponse: string;
+  handledBy: string;
+}) {
+  const isResolved = params.status === 'resolved';
+
+  const { data, error } = await supabase
+    .from('campus_requests')
+    .update({
+      status: params.status,
+      admin_response: params.adminResponse.trim() || null,
+      handled_by: params.handledBy,
+      handled_at: isResolved ? new Date().toISOString() : null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', params.requestId)
+    .select('*')
+    .single();
+
+  if (error) {
+    console.error('캠퍼스 문의 처리 실패:', error);
+    throw new Error(error.message);
+  }
+
+  return mapCampusRequest(data as CampusRequestRow);
 }
 
 // ===== 캠퍼스 예약 조회 =====
@@ -922,12 +1549,12 @@ export async function getDestinationStats() {
       { rank1: number; rank2: number; rank3: number; total: number }
     > = {};
 
-    (reservations || []).forEach((res: any) => {
+    ((reservations || []) as DestinationReservationRow[]).forEach((res) => {
       const prefs = res.station_preferences;
 
       if (!Array.isArray(prefs)) return;
 
-      prefs.forEach((pref: any) => {
+      (prefs as DestinationPreference[]).forEach((pref) => {
         const stationName = pref.station?.name;
         const rank = Number(pref.rank);
 
@@ -1013,7 +1640,7 @@ export async function deleteBusOption(id: string) {
 
 export async function saveBusAllocation(
   allocationName: string,
-  allocationData: any,
+  allocationData: unknown,
   totalCost: number,
   totalCapacity: number,
   createdBy: string
@@ -1060,96 +1687,519 @@ interface BusAllocationResult {
   totalCapacity: number;
   totalBuses: number;
   efficiency: number;
+  emptySeats: number;
+  costPerPerson: number;
+  qualityScore: number;
+  totalUtility?: number;
+  netValue?: number;
+  unservedPeople?: number;
+  routePlan: Array<{
+    busLabel: string;
+    capacity: number;
+    price: number;
+    passengerCount: number;
+    emptySeats: number;
+    destinations: Array<{
+      name: string;
+      passengerCount: number;
+      rank2Demand: number;
+      rank3Demand: number;
+    }>;
+  }>;
 }
+
+type BusAllocationCalculateOptions = {
+  firstChoiceWeight?: number;
+  secondChoiceWeight?: number;
+  usePreferenceUtility?: boolean;
+};
 
 export function calculateOptimalBusAllocation(
   destinationStats: Record<
     string,
     { rank1: number; rank2: number; rank3: number; total: number }
   >,
-  busOptions: Array<{ id: string; capacity: number; estimated_price: number }>
+  busOptions: Array<{ id: string; capacity: number; estimated_price: number }>,
+  options: BusAllocationCalculateOptions = {}
 ): BusAllocationResult[] {
-  const destinations = Object.entries(destinationStats).map(([name, stats]) => ({
-    name,
-    ...stats,
-  }));
+  const MAX_DESTINATION_PLAN_CANDIDATES = 200;
+  const MAX_STANDARD_CANDIDATES = 1200;
+  const firstChoiceWeight = Math.max(0, Number(options.firstChoiceWeight ?? 1));
+  const secondChoiceWeight = Math.max(
+    0,
+    Number(options.secondChoiceWeight ?? 0.5)
+  );
+  const destinations = Object.entries(destinationStats)
+    .map(([name, stats]) => ({
+      name,
+      passengerCount: Number(stats.rank1 || 0),
+      rank2Demand: Number(stats.rank2 || 0),
+      rank3Demand: Number(stats.rank3 || 0),
+      weightedDemand:
+        Number(stats.rank1 || 0) * firstChoiceWeight +
+        Number(stats.rank2 || 0) * secondChoiceWeight,
+    }))
+    .filter((destination) => destination.passengerCount > 0)
+    .sort(
+      (a, b) =>
+        b.weightedDemand - a.weightedDemand ||
+        b.passengerCount - a.passengerCount
+    );
+  const normalizedOptions = busOptions
+    .filter((option) => option.capacity > 0 && option.estimated_price >= 0)
+    .sort(
+      (a, b) =>
+        a.estimated_price / a.capacity - b.estimated_price / b.capacity ||
+        b.capacity - a.capacity
+    );
+  const totalPeople = destinations.reduce(
+    (sum, destination) => sum + destination.passengerCount,
+    0
+  );
 
-  const totalPeople = destinations.reduce((sum, dest) => sum + dest.total, 0);
+  if (totalPeople === 0 || normalizedOptions.length === 0) {
+    return [];
+  }
 
-  const results: BusAllocationResult[] = [];
+  if (options.usePreferenceUtility) {
+    type DestinationPlan = {
+      destinationName: string;
+      passengerCount: number;
+      rank2Demand: number;
+      totalCapacity: number;
+      totalCost: number;
+      totalUtility: number;
+      netValue: number;
+      routePlan: BusAllocationResult['routePlan'];
+    };
 
-  function findCombination(
-    remaining: number,
-    options: typeof busOptions,
-    current: BusAllocationResult['combination'] = [],
-    totalCost = 0
-  ): BusAllocationResult | null {
-    if (remaining <= 0) {
-      const totalCapacity = current.reduce(
-        (sum, bus) => sum + bus.capacity * bus.count,
-        0
+    const buildDestinationPlans = (
+      destination: (typeof destinations)[number]
+    ): DestinationPlan[] => {
+      const maxCapacity = Math.max(
+        ...normalizedOptions.map((option) => option.capacity)
       );
+      const maxBusesForDestination =
+        Math.ceil(destination.passengerCount / maxCapacity) + 3;
+      const destinationCandidates: DestinationPlan[] = [];
+      const utility =
+        destination.passengerCount * firstChoiceWeight +
+        destination.rank2Demand * secondChoiceWeight;
 
-      return {
-        combination: current,
-        totalCost,
-        totalCapacity,
-        totalBuses: current.reduce((sum, bus) => sum + bus.count, 0),
-        efficiency: totalCapacity > 0 ? (totalPeople / totalCapacity) * 100 : 0,
-      };
-    }
+      const searchDestination = (
+        startIndex: number,
+        buses: Array<{ capacity: number; price: number }>,
+        capacity = 0,
+        cost = 0
+      ) => {
+        if (capacity >= destination.passengerCount) {
+          const sortedBuses = [...buses].sort((a, b) => b.capacity - a.capacity);
+          let remaining = destination.passengerCount;
+          const routePlan = sortedBuses.map((bus, index) => {
+            const passengerCount = Math.min(remaining, bus.capacity);
+            remaining -= passengerCount;
 
-    for (const option of options) {
-      const count = Math.ceil(remaining / option.capacity);
+            return {
+              busLabel: '',
+              capacity: bus.capacity,
+              price: bus.price,
+              passengerCount,
+              emptySeats: bus.capacity - passengerCount,
+              destinations: [
+                {
+                  name: destination.name,
+                  passengerCount,
+                  rank2Demand: destination.rank2Demand,
+                  rank3Demand: destination.rank3Demand,
+                },
+              ],
+              routeIndex: index,
+            };
+          });
+          destinationCandidates.push({
+            destinationName: destination.name,
+            passengerCount: destination.passengerCount,
+            rank2Demand: destination.rank2Demand,
+            totalCapacity: capacity,
+            totalCost: cost,
+            totalUtility: utility,
+            netValue: utility - cost,
+            routePlan,
+          });
 
-      if (count > 0) {
-        const capacity = option.capacity * count;
-        const cost = option.estimated_price * count;
+          if (destinationCandidates.length >= MAX_DESTINATION_PLAN_CANDIDATES) {
+            return;
+          }
+        }
 
-        if (capacity >= remaining) {
-          return {
-            combination: [
-              ...current,
+        if (buses.length >= maxBusesForDestination) return;
+
+        for (let i = startIndex; i < normalizedOptions.length; i += 1) {
+          if (destinationCandidates.length >= MAX_DESTINATION_PLAN_CANDIDATES) {
+            return;
+          }
+
+          const option = normalizedOptions[i];
+
+          searchDestination(
+            i,
+            [
+              ...buses,
               {
-                count,
                 capacity: option.capacity,
                 price: option.estimated_price,
               },
             ],
-            totalCost: totalCost + cost,
-            totalCapacity: capacity,
-            totalBuses: count,
-            efficiency: capacity > 0 ? (totalPeople / capacity) * 100 : 0,
-          };
+            capacity + option.capacity,
+            cost + option.estimated_price
+          );
         }
+      };
+
+      searchDestination(0, [], 0, 0);
+
+      const uniquePlans = new Map<string, DestinationPlan>();
+
+      destinationCandidates.forEach((candidate) => {
+        const key = candidate.routePlan
+          .map((route) => `${route.capacity}:${route.price}`)
+          .sort()
+          .join('|');
+        const existing = uniquePlans.get(key);
+
+        if (!existing || candidate.netValue > existing.netValue) {
+          uniquePlans.set(key, candidate);
+        }
+      });
+
+      return Array.from(uniquePlans.values())
+        .sort(
+          (a, b) =>
+            b.netValue - a.netValue ||
+            a.totalCost - b.totalCost ||
+            a.totalCapacity - b.totalCapacity
+        )
+        .slice(0, 4);
+    };
+
+    type CombinedPlan = {
+      plans: DestinationPlan[];
+      totalCost: number;
+      totalCapacity: number;
+      totalUtility: number;
+      passengerCount: number;
+    };
+
+    let beam: CombinedPlan[] = [
+      {
+        plans: [],
+        totalCost: 0,
+        totalCapacity: 0,
+        totalUtility: 0,
+        passengerCount: 0,
+      },
+    ];
+
+    destinations.forEach((destination) => {
+      const destinationPlans = buildDestinationPlans(destination);
+      const choices: Array<DestinationPlan | null> = [null, ...destinationPlans];
+      const nextBeam: CombinedPlan[] = [];
+
+      beam.forEach((combinedPlan) => {
+        choices.forEach((plan) => {
+          nextBeam.push({
+            plans: plan
+              ? [...combinedPlan.plans, plan]
+              : [...combinedPlan.plans],
+            totalCost: combinedPlan.totalCost + (plan?.totalCost ?? 0),
+            totalCapacity:
+              combinedPlan.totalCapacity + (plan?.totalCapacity ?? 0),
+            totalUtility:
+              combinedPlan.totalUtility + (plan?.totalUtility ?? 0),
+            passengerCount:
+              combinedPlan.passengerCount + (plan?.passengerCount ?? 0),
+          });
+        });
+      });
+
+      beam = nextBeam
+        .sort(
+          (a, b) =>
+            b.totalUtility -
+              b.totalCost -
+              (a.totalUtility - a.totalCost) ||
+            b.passengerCount - a.passengerCount ||
+            a.totalCost - b.totalCost
+        )
+        .slice(0, 20);
+    });
+
+    const combinedResults = beam
+      .filter((plan) => plan.plans.length > 0)
+      .map((plan): BusAllocationResult => {
+        const routePlan = plan.plans
+          .flatMap((destinationPlan) => destinationPlan.routePlan)
+          .map((route, index) => ({
+            busLabel: `${index + 1}호차`,
+            capacity: route.capacity,
+            price: route.price,
+            passengerCount: route.passengerCount,
+            emptySeats: route.emptySeats,
+            destinations: route.destinations,
+          }));
+        const totalBuses = routePlan.length;
+        const emptySeats = plan.totalCapacity - plan.passengerCount;
+        const efficiency =
+          plan.totalCapacity > 0
+            ? (plan.passengerCount / plan.totalCapacity) * 100
+            : 0;
+        const costPerPerson =
+          plan.passengerCount > 0 ? plan.totalCost / plan.passengerCount : 0;
+        const combinationMap = new Map<
+          string,
+          { count: number; capacity: number; price: number }
+        >();
+
+        routePlan.forEach((route) => {
+          const key = `${route.capacity}-${route.price}`;
+          const current = combinationMap.get(key);
+
+          if (current) {
+            current.count += 1;
+          } else {
+            combinationMap.set(key, {
+              count: 1,
+              capacity: route.capacity,
+              price: route.price,
+            });
+          }
+        });
+
+        return {
+          combination: Array.from(combinationMap.values()),
+          totalCost: plan.totalCost,
+          totalCapacity: plan.totalCapacity,
+          totalBuses,
+          efficiency,
+          emptySeats,
+          costPerPerson,
+          qualityScore: plan.totalUtility - plan.totalCost,
+          totalUtility: plan.totalUtility,
+          netValue: plan.totalUtility - plan.totalCost,
+          unservedPeople: totalPeople - plan.passengerCount,
+          routePlan,
+        };
+      });
+
+    const uniqueResults = new Map<string, BusAllocationResult>();
+
+    combinedResults.forEach((candidate) => {
+      const key = candidate.routePlan
+        .map(
+          (route) =>
+            `${route.destinations[0]?.name}:${route.capacity}:${route.price}`
+        )
+        .sort()
+        .join('|');
+      const existing = uniqueResults.get(key);
+
+      if (!existing || (candidate.netValue ?? 0) > (existing.netValue ?? 0)) {
+        uniqueResults.set(key, candidate);
       }
-    }
+    });
 
-    return null;
+    return Array.from(uniqueResults.values())
+      .sort(
+        (a, b) =>
+          (b.netValue ?? 0) - (a.netValue ?? 0) ||
+          (a.unservedPeople ?? 0) - (b.unservedPeople ?? 0) ||
+          a.totalCost - b.totalCost
+      )
+      .slice(0, 5);
   }
 
-  for (const option of busOptions) {
-    const result = findCombination(totalPeople, [option]);
+  const maxCapacity = Math.max(
+    ...normalizedOptions.map((option) => option.capacity)
+  );
+  const maxBuses = Math.min(
+    totalPeople,
+    Math.ceil(totalPeople / maxCapacity) + destinations.length + 4
+  );
+  const candidates: BusAllocationResult[] = [];
 
-    if (result) {
-      results.push(result);
-    }
-  }
+  const buildResult = (
+    buses: Array<{ capacity: number; price: number }>
+  ): BusAllocationResult | null => {
+    const sortedBuses = [...buses].sort((a, b) => b.capacity - a.capacity);
+    const routePlan = sortedBuses.map((bus, index) => ({
+      busLabel: `${index + 1}호차`,
+      capacity: bus.capacity,
+      price: bus.price,
+      passengerCount: 0,
+      emptySeats: bus.capacity,
+      destinations: [] as BusAllocationResult['routePlan'][number]['destinations'],
+    }));
+    const remainingDestinations = destinations.map((destination) => ({
+      ...destination,
+      remaining: destination.passengerCount,
+    }));
 
-  for (let i = 0; i < busOptions.length && results.length < 3; i += 1) {
-    for (let j = i; j < busOptions.length; j += 1) {
-      const result = findCombination(totalPeople, [busOptions[i], busOptions[j]]);
+    remainingDestinations.forEach((destination) => {
+      while (destination.remaining > 0) {
+        const targetBus = routePlan
+          .filter((bus) => bus.destinations.length === 0)
+          .sort(
+            (a, b) => {
+              const aCanFit = a.capacity >= destination.remaining;
+              const bCanFit = b.capacity >= destination.remaining;
 
-      if (
-        result &&
-        !results.find((item) => JSON.stringify(item) === JSON.stringify(result))
-      ) {
-        results.push(result);
+              if (aCanFit && bCanFit) {
+                return (
+                  a.capacity -
+                  destination.remaining -
+                  (b.capacity - destination.remaining)
+                );
+              }
+
+              if (aCanFit !== bCanFit) {
+                return aCanFit ? -1 : 1;
+              }
+
+              return b.capacity - a.capacity;
+            }
+          )[0];
+
+        if (!targetBus) break;
+
+        const passengerCount = Math.min(
+          destination.remaining,
+          targetBus.emptySeats
+        );
+
+        targetBus.destinations.push({
+          name: destination.name,
+          passengerCount,
+          rank2Demand: destination.rank2Demand,
+          rank3Demand: destination.rank3Demand,
+        });
+        targetBus.passengerCount += passengerCount;
+        targetBus.emptySeats -= passengerCount;
+        destination.remaining -= passengerCount;
       }
-    }
-  }
+    });
 
-  return results.sort((a, b) => a.totalCost - b.totalCost).slice(0, 3);
+    if (remainingDestinations.some((destination) => destination.remaining > 0)) {
+      return null;
+    }
+
+    const totalCapacity = sortedBuses.reduce(
+      (sum, bus) => sum + bus.capacity,
+      0
+    );
+    const totalCost = sortedBuses.reduce((sum, bus) => sum + bus.price, 0);
+    const totalBuses = sortedBuses.length;
+    const emptySeats = totalCapacity - totalPeople;
+    const efficiency = totalCapacity > 0 ? (totalPeople / totalCapacity) * 100 : 0;
+    const costPerPerson = totalPeople > 0 ? totalCost / totalPeople : 0;
+    const qualityScore =
+      efficiency * 1000 -
+      totalCost / 10000 -
+      emptySeats * 25 -
+      totalBuses * 100;
+    const combinationMap = new Map<
+      string,
+      { count: number; capacity: number; price: number }
+    >();
+
+    sortedBuses.forEach((bus) => {
+      const key = `${bus.capacity}-${bus.price}`;
+      const current = combinationMap.get(key);
+
+      if (current) {
+        current.count += 1;
+      } else {
+        combinationMap.set(key, {
+          count: 1,
+          capacity: bus.capacity,
+          price: bus.price,
+        });
+      }
+    });
+
+    return {
+      combination: Array.from(combinationMap.values()),
+      totalCost,
+      totalCapacity,
+      totalBuses,
+      efficiency,
+      emptySeats,
+      costPerPerson,
+      qualityScore,
+      routePlan,
+    };
+  };
+
+  const search = (
+    startIndex: number,
+    buses: Array<{ capacity: number; price: number }>,
+    capacity = 0
+  ) => {
+    if (capacity >= totalPeople) {
+      const result = buildResult(buses);
+
+      if (result) {
+        candidates.push(result);
+      }
+
+      if (candidates.length >= MAX_STANDARD_CANDIDATES) return;
+      if (buses.length >= maxBuses) return;
+    }
+
+    if (buses.length >= maxBuses) return;
+
+    for (let i = startIndex; i < normalizedOptions.length; i += 1) {
+      if (candidates.length >= MAX_STANDARD_CANDIDATES) return;
+
+      const option = normalizedOptions[i];
+
+      search(
+        i,
+        [
+          ...buses,
+          {
+            capacity: option.capacity,
+            price: option.estimated_price,
+          },
+        ],
+        capacity + option.capacity
+      );
+    }
+  };
+
+  search(0, [], 0);
+
+  const uniqueResults = new Map<string, BusAllocationResult>();
+
+  candidates.forEach((candidate) => {
+    const key = candidate.combination
+      .map((bus) => `${bus.count}x${bus.capacity}:${bus.price}`)
+      .sort()
+      .join('|');
+    const existing = uniqueResults.get(key);
+
+    if (!existing || candidate.qualityScore > existing.qualityScore) {
+      uniqueResults.set(key, candidate);
+    }
+  });
+
+  return Array.from(uniqueResults.values())
+    .sort(
+      (a, b) =>
+        b.qualityScore - a.qualityScore ||
+        a.totalCost - b.totalCost ||
+        a.emptySeats - b.emptySeats
+    )
+    .slice(0, 5);
 }
 
 
@@ -1177,4 +2227,40 @@ export async function updateBusTicketPrice(price: number): Promise<number> {
   }
 
   return Number(data ?? normalizedPrice);
+}
+
+export async function getReservationDataResetStats(): Promise<ReservationDataResetStats> {
+  const [
+    reservations,
+    payments,
+    campusTransfers,
+    busAllocations,
+    campusRequests,
+  ] = await Promise.all([
+    getTableCount('reservations'),
+    getTableCount('payments'),
+    getTableCount('campus_transfers'),
+    getTableCount('bus_allocations'),
+    getTableCount('campus_requests'),
+  ]);
+
+  return {
+    ...emptyReservationDataResetStats(),
+    reservations,
+    payments,
+    campusTransfers,
+    busAllocations,
+    campusRequests,
+  };
+}
+
+export async function resetReservationData(): Promise<ReservationDataResetStats> {
+  const { data, error } = await supabase.rpc('reset_reservation_data');
+
+  if (error) {
+    console.error('Failed to reset reservation data:', error);
+    throw new Error(error.message);
+  }
+
+  return toReservationDataResetStats(data);
 }

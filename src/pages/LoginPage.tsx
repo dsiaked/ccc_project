@@ -13,6 +13,8 @@ const LoginPage = () => {
 
   const initialEmail =
     typeof location.state?.email === 'string' ? location.state.email : '';
+  const redirectTo =
+    typeof location.state?.from === 'string' ? location.state.from : '/';
 
   const [email, setEmail] = useState(initialEmail);
   const [password, setPassword] = useState('');
@@ -56,7 +58,7 @@ const LoginPage = () => {
         return;
       }
 
-      navigate('/');
+      navigate(redirectTo, { replace: true });
     } finally {
       setLoading(false);
     }

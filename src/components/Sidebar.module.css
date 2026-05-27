@@ -144,6 +144,18 @@
   background-color: #f9fafb;
 }
 
+.adminNavItem {
+  margin-top: 8px;
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-weight: 800;
+}
+
+.adminNavItem:hover {
+  background: #dbeafe;
+}
+
 .footer {
   padding: 24px;
   border-top: 1px solid rgba(0, 0, 0, 0.1);

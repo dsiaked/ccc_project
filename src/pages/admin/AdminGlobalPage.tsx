@@ -1,98 +1,179 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BarChart3, DollarSign, Users } from 'lucide-react';
-import Header from '../../components/Header';
+import {
+  ArrowRight,
+  Bus,
+  CheckCircle2,
+  CircleHelp,
+  Circle,
+  CreditCard,
+  Megaphone,
+  ShieldCheck,
+  Timer,
+  Users,
+} from 'lucide-react';
+
 import { supabase } from '../../lib/supabase';
 import {
-  cancelCampusAdmin,
   getAdminRole,
   getBusTicketPrice,
-  getCampusesByTeam,
-  getDestinationStats,
-  getDistrictsForAdmin,
-  getPaymentStats,
-  getTeamsByDistrict,
-  registerCampusAdmin,
-  searchUsersForCampusManager,
-  updateBusTicketPrice,
-  type AdminUserSearchResult,
+  getCampusTransferStats,
+  type CampusTransferStat,
 } from '../../lib/adminService';
 
 import styles from './AdminGlobalPage.module.css';
+import AdminHeader from './AdminHeader';
 
-interface DestinationStat {
-  name: string;
-  rank1: number;
-  rank2: number;
-  rank3: number;
-  total: number;
-}
+const PARTICIPATION_TARGETS_STORAGE_KEY =
+  'admin_ticket_participation_targets';
 
-interface PaymentStat {
-  completed: number;
-  pending: number;
-  refunded: number;
-  totalCompleted: number;
-  completedCount: number;
-}
+const operationScenarioSteps = [
+  {
+    id: 'initial-setup',
+    title: '기초 세팅 확인',
+    description: '조직, 참여 목표, 캠퍼스 관리자 권한을 먼저 점검합니다.',
+    actionLabel: '세팅 확인',
+    actionPath: '/admin/setup-check',
+  },
+  {
+    id: 'reservation-status',
+    title: '예매 시작: 예매 현황 점검',
+    description: '예매를 시작하고 참여 기준 대비 신청률과 도착지별 수요를 확인합니다.',
+    actionLabel: '예매 현황',
+    actionPath: '/admin/tickets',
+  },
+  {
+    id: 'post-deadline-operations',
+    title: '신청 마감',
+    description: '신청 마감 이후 캠퍼스 입금 집계, 문의 처리, 배차 계획 산출을 진행합니다.',
+    checks: ['캠퍼스 입금 집계', '문의 처리', '배차 계획 산출'],
+    actionLabel: '마감 설정',
+    actionPath: '/admin/reservation-deadline',
+    actionLinks: [
+      { label: '입금 집계', path: '/admin/campus-transfer' },
+      { label: '문의 처리', path: '/admin/campus-requests' },
+      { label: '배차 계산', path: '/admin/allocation' },
+    ],
+  },
+  {
+    id: 'remaining-seat-sales',
+    title: '배차 확정 이후 잔여 좌석 판매',
+    description: '배차 확정 후 남은 좌석을 추가 판매하고 관리합니다.',
+    actionLabel: '좌석 관리',
+    actionPath: '/admin/remaining-seat-sales',
+  },
+  {
+    id: 'final-check',
+    title: '출발 전 최종 점검',
+    description: '탑승 명단, 입금 상태, 출발 장소, 안내 사항을 마지막으로 확인합니다.',
+    actionLabel: '최종 명단',
+    actionPath: '/admin/tickets',
+  },
+] as const;
 
-interface SelectOption {
-  id: string;
-  name: string;
-}
+const operationScenarioStepIds = new Set<string>(
+  operationScenarioSteps.map((step) => step.id)
+);
+
+const quickActions = [
+  {
+    title: '공지 작성',
+    description: '홈 화면 공지사항과 안내 문구를 관리합니다.',
+    path: '/admin/home-announcements',
+    icon: Megaphone,
+  },
+  {
+    title: '개인 버스표',
+    description: '개인별 버스표 확정과 좌석 정보를 수정합니다.',
+    path: '/admin/personal-tickets',
+    icon: CreditCard,
+  },
+  {
+    title: '문의 게시판',
+    description: '추가 신청, 환불, 입금 오류, 명단 수정 문의를 확인합니다.',
+    path: '/admin/campus-requests',
+    icon: CircleHelp,
+  },
+  {
+    title: '배차 로직',
+    description: '배차 계산 기준과 옵션을 점검합니다.',
+    path: '/admin/allocation/logic',
+    icon: Bus,
+  },
+  {
+    title: '관리자 권한',
+    description: '캠퍼스 관리자 권한을 부여하거나 회수합니다.',
+    path: '/admin/campus-admins',
+    icon: ShieldCheck,
+  },
+] as const;
+
+const formatCurrency = (amount: number) => `${amount.toLocaleString()}원`;
+
+const formatPercent = (value: number) => `${value.toFixed(1)}%`;
+
+const loadTotalParticipationTarget = () => {
+  const saved = localStorage.getItem(PARTICIPATION_TARGETS_STORAGE_KEY);
+
+  if (!saved) return 0;
+
+  try {
+    const parsed = JSON.parse(saved);
+
+    if (!parsed || typeof parsed !== 'object') return 0;
+
+    return Object.values(parsed).reduce<number>((sum, value) => {
+      const count = Number(value);
+
+      return Number.isFinite(count) && count > 0 ? sum + count : sum;
+    }, 0);
+  } catch {
+    return 0;
+  }
+};
 
 const AdminGlobalPage = () => {
   const navigate = useNavigate();
 
-  const [destStats, setDestStats] = useState<DestinationStat[]>([]);
-  const [paymentStats, setPaymentStats] = useState<PaymentStat | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const [districts, setDistricts] = useState<SelectOption[]>([]);
-  const [teams, setTeams] = useState<SelectOption[]>([]);
-  const [campuses, setCampuses] = useState<SelectOption[]>([]);
-
-  const [selectedDistrictId, setSelectedDistrictId] = useState('');
-  const [selectedDistrictName, setSelectedDistrictName] = useState('');
-
-  const [selectedTeamId, setSelectedTeamId] = useState('');
-  const [selectedTeamName, setSelectedTeamName] = useState('');
-
-  const [selectedCampusId, setSelectedCampusId] = useState('');
-  const [selectedCampusName, setSelectedCampusName] = useState('');
-
-  const [searchedUsers, setSearchedUsers] = useState<AdminUserSearchResult[]>(
+  const [reservationCount, setReservationCount] = useState(0);
+  const [busTicketPrice, setBusTicketPrice] = useState(0);
+  const [participationTarget] = useState<number>(loadTotalParticipationTarget);
+  const [campusTransfers, setCampusTransfers] = useState<CampusTransferStat[]>(
     []
   );
-  const [searchingUsers, setSearchingUsers] = useState(false);
-  const [adminActionLoading, setAdminActionLoading] = useState<string | null>(
-    null
-  );
-  const [adminManageError, setAdminManageError] = useState<string | null>(null);
-  const [adminManageSuccess, setAdminManageSuccess] = useState<string | null>(
-    null
-  );
+  const [loading, setLoading] = useState(true);
+  const [checkedScenarioStepIds, setCheckedScenarioStepIds] = useState<
+    string[]
+  >(() => {
+    const saved = localStorage.getItem('global_scenario_checklist');
 
-  const [busTicketPrice, setBusTicketPrice] = useState(0);
-  const [busTicketPriceInput, setBusTicketPriceInput] = useState('');
-  const [priceSaving, setPriceSaving] = useState(false);
+    if (!saved) return [];
 
-  const currentCampusAdmin = useMemo(() => {
-    return (
-      searchedUsers.find(
-        (user) =>
-          user.role === 'campus_admin' &&
-          user.district === selectedDistrictName &&
-          user.team === selectedTeamName &&
-          user.campus === selectedCampusName
-      ) ?? null
-    );
-  }, [
-    searchedUsers,
-    selectedDistrictName,
-    selectedTeamName,
-    selectedCampusName,
-  ]);
+    try {
+      const parsed = JSON.parse(saved);
+
+      return Array.isArray(parsed)
+        ? parsed.filter(
+            (value) =>
+              typeof value === 'string' && operationScenarioStepIds.has(value)
+          )
+        : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const handleToggleScenarioStep = (stepId: string) => {
+    setCheckedScenarioStepIds((prev) => {
+      const next = prev.includes(stepId)
+        ? prev.filter((id) => id !== stepId)
+        : [...prev, stepId];
+
+      localStorage.setItem('global_scenario_checklist', JSON.stringify(next));
+
+      return next;
+    });
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -118,25 +199,24 @@ const AdminGlobalPage = () => {
           return;
         }
 
-        const [stats, payments, districtList, ticketPrice] =
+        const [transfers, reservationCountResult, ticketPrice] =
           await Promise.all([
-            getDestinationStats(),
-            getPaymentStats(),
-            getDistrictsForAdmin(),
+            getCampusTransferStats(),
+            supabase
+              .from('reservations')
+              .select('id', { count: 'exact', head: true })
+              .neq('status', 'cancelled'),
             getBusTicketPrice(),
           ]);
 
-        const statsArray = Object.entries(stats).map(([name, data]) => ({
-          name,
-          ...(data as Omit<DestinationStat, 'name'>),
-        }));
+        if (reservationCountResult.error) {
+          throw reservationCountResult.error;
+        }
 
         if (isMounted) {
-          setDestStats(statsArray.sort((a, b) => b.total - a.total));
-          setPaymentStats(payments);
-          setDistricts(districtList);
+          setCampusTransfers(transfers);
+          setReservationCount(reservationCountResult.count ?? 0);
           setBusTicketPrice(ticketPrice);
-          setBusTicketPriceInput(String(ticketPrice));
         }
       } catch (error) {
         console.error('Failed to load data:', error);
@@ -158,700 +238,241 @@ const AdminGlobalPage = () => {
     };
   }, [navigate]);
 
-  const resetAdminManageStatus = () => {
-    setAdminManageError(null);
-    setAdminManageSuccess(null);
-  };
-
-  const handleDistrictChange = async (districtId: string) => {
-    resetAdminManageStatus();
-
-    const district = districts.find((item) => item.id === districtId);
-
-    setSelectedDistrictId(districtId);
-    setSelectedDistrictName(district?.name ?? '');
-
-    setSelectedTeamId('');
-    setSelectedTeamName('');
-    setSelectedCampusId('');
-    setSelectedCampusName('');
-
-    setTeams([]);
-    setCampuses([]);
-    setSearchedUsers([]);
-
-    if (!districtId) return;
-
-    try {
-      const teamList = await getTeamsByDistrict(districtId);
-      setTeams(teamList);
-    } catch (error) {
-      console.error('Failed to load teams:', error);
-      setAdminManageError('팀 목록을 불러올 수 없습니다.');
-    }
-  };
-
-  const handleTeamChange = async (teamId: string) => {
-    resetAdminManageStatus();
-
-    const team = teams.find((item) => item.id === teamId);
-
-    setSelectedTeamId(teamId);
-    setSelectedTeamName(team?.name ?? '');
-
-    setSelectedCampusId('');
-    setSelectedCampusName('');
-
-    setCampuses([]);
-    setSearchedUsers([]);
-
-    if (!teamId) return;
-
-    try {
-      const campusList = await getCampusesByTeam(teamId);
-      setCampuses(campusList);
-    } catch (error) {
-      console.error('Failed to load campuses:', error);
-      setAdminManageError('캠퍼스 목록을 불러올 수 없습니다.');
-    }
-  };
-
-  const handleCampusChange = (campusId: string) => {
-    resetAdminManageStatus();
-
-    const campus = campuses.find((item) => item.id === campusId);
-
-    setSelectedCampusId(campusId);
-    setSelectedCampusName(campus?.name ?? '');
-
-    setSearchedUsers([]);
-  };
-
-  const handleSearchUsers = async () => {
-    resetAdminManageStatus();
-    setSearchingUsers(true);
-
-    try {
-      const users = await searchUsersForCampusManager({
-        district: selectedDistrictName || undefined,
-        team: selectedTeamName || undefined,
-        campus: selectedCampusName || undefined,
-      });
-
-      setSearchedUsers(users);
-
-      if (users.length === 0) {
-        setAdminManageError('검색 결과가 없습니다.');
-      }
-    } catch (error) {
-      console.error('유저 검색 실패:', error);
-
-      const message =
-        error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다.';
-
-      setAdminManageError(`유저 검색 중 오류가 발생했습니다: ${message}`);
-    } finally {
-      setSearchingUsers(false);
-    }
-  };
-
-  const refreshCampusUsers = async () => {
-    const users = await searchUsersForCampusManager({
-      district: selectedDistrictName || undefined,
-      team: selectedTeamName || undefined,
-      campus: selectedCampusName || undefined,
-    });
-
-    setSearchedUsers(users);
-  };
-
-  const handleAssignOrChangeCampusAdmin = async (
-    user: AdminUserSearchResult
-  ) => {
-    resetAdminManageStatus();
-
-    const targetDistrict = selectedDistrictName || user.district;
-    const targetTeam = selectedTeamName || user.team;
-    const targetCampus = selectedCampusName || user.campus;
-
-    if (!targetDistrict || !targetTeam || !targetCampus) {
-      setAdminManageError('관리자로 등록할 유저의 지구, 팀, 캠퍼스 정보가 없습니다.');
-      return;
-    }
-
-    if (user.role === 'global_admin') {
-      setAdminManageError('전체 관리자는 캠퍼스 관리자로 변경할 수 없습니다.');
-      return;
-    }
-
-    const isChanging = Boolean(
-      currentCampusAdmin && currentCampusAdmin.userId !== user.userId
-    );
-
-    const confirmMessage = isChanging
-      ? `현재 ${targetCampus} 캠퍼스 관리자는 ${
-          currentCampusAdmin?.name || '이름 없음'
-        }님입니다.\n기존 관리자를 취소하고 ${user.name}님으로 변경할까요?`
-      : `${user.name}님을 ${targetCampus} 캠퍼스 관리자로 등록할까요?`;
-
-    const ok = window.confirm(confirmMessage);
-
-    if (!ok) return;
-
-    setAdminActionLoading(user.userId);
-
-    try {
-      await registerCampusAdmin({
-        userId: user.userId,
-        district: targetDistrict,
-        team: targetTeam,
-        campus: targetCampus,
-      });
-
-      await refreshCampusUsers();
-
-      setAdminManageSuccess(
-        isChanging
-          ? `${targetCampus} 캠퍼스 관리자를 ${user.name}님으로 변경했습니다.`
-          : `${user.name}님을 ${targetCampus} 캠퍼스 관리자로 등록했습니다.`
-      );
-    } catch (error: any) {
-      console.error('캠퍼스 관리자 등록/변경 실패:', error);
-
-      const message =
-        error?.message ||
-        error?.details ||
-        error?.hint ||
-        error?.code ||
-        JSON.stringify(error);
-
-      setAdminManageError(
-        `캠퍼스 관리자 등록 또는 변경 중 오류가 발생했습니다: ${message}`
-      );
-    } finally {
-      setAdminActionLoading(null);
-    }
-  };
-
-  const handleCancelCampusAdmin = async (user: AdminUserSearchResult) => {
-    resetAdminManageStatus();
-
-    if (!user.adminRoleId) {
-      setAdminManageError('취소할 관리자 권한 정보를 찾을 수 없습니다.');
-      return;
-    }
-
-    const ok = window.confirm(`${user.name}님의 캠퍼스 관리자 권한을 취소할까요?`);
-
-    if (!ok) return;
-
-    setAdminActionLoading(user.userId);
-
-    try {
-      await cancelCampusAdmin(user.adminRoleId);
-
-      await refreshCampusUsers();
-
-      setAdminManageSuccess(`${user.name}님의 캠퍼스 관리자 권한을 취소했습니다.`);
-    } catch (error) {
-      console.error('캠퍼스 관리자 취소 실패:', error);
-      setAdminManageError('캠퍼스 관리자 권한 취소 중 오류가 발생했습니다.');
-    } finally {
-      setAdminActionLoading(null);
-    }
-  };
-
-  const handleSaveBusTicketPrice = async () => {
-    const nextPrice = Number(busTicketPriceInput);
-
-    if (Number.isNaN(nextPrice) || nextPrice < 0) {
-      alert('인당 버스 가격은 0원 이상 숫자로 입력해주세요.');
-      return;
-    }
-
-    const ok = window.confirm(
-      `인당 버스 가격을 ${nextPrice.toLocaleString()}원으로 설정할까요?`
-    );
-
-    if (!ok) return;
-
-    setPriceSaving(true);
-
-    try {
-      const savedPrice = await updateBusTicketPrice(nextPrice);
-
-      setBusTicketPrice(savedPrice);
-      setBusTicketPriceInput(String(savedPrice));
-
-      alert('인당 버스 가격을 저장했습니다.');
-    } catch (error: any) {
-      console.error('버스 가격 저장 실패:', error);
-
-      const message =
-        error?.message ||
-        error?.details ||
-        error?.hint ||
-        '알 수 없는 오류가 발생했습니다.';
-
-      alert(`버스 가격 저장 중 오류가 발생했습니다: ${message}`);
-    } finally {
-      setPriceSaving(false);
-    }
-  };
+  const totalPeople = reservationCount;
+  const totalCompletedAmount = campusTransfers.reduce(
+    (sum, transfer) => sum + (transfer.actualConfirmedAmount ?? 0),
+    0
+  );
+  const expectedPaymentAmount = reservationCount * busTicketPrice;
+  const paymentCollectionRate =
+    expectedPaymentAmount > 0
+      ? (totalCompletedAmount / expectedPaymentAmount) * 100
+      : 0;
+  const applicationRate =
+    participationTarget > 0 ? (totalPeople / participationTarget) * 100 : 0;
+  const pendingCampusCount = campusTransfers.filter(
+    (transfer) => transfer.status === 'pending'
+  ).length;
+  const confirmedCampusCount = campusTransfers.filter(
+    (transfer) =>
+      transfer.status === 'confirmed' && !transfer.hasAdditionalSettlement
+  ).length;
+  const scenarioProgress =
+    (checkedScenarioStepIds.length / operationScenarioSteps.length) * 100;
 
   if (loading) {
     return (
       <div className={styles.pageContainer}>
-        <Header />
+        <AdminHeader />
 
         <main className={styles.main}>
-          <p>로딩 중...</p>
+          <div className={styles.loadingState}>대시보드를 불러오는 중입니다.</div>
         </main>
       </div>
     );
   }
 
-  const totalPeople = destStats.reduce((sum, stat) => sum + stat.rank1, 0);
-  const totalPreferenceCount = destStats.reduce(
-    (sum, stat) => sum + stat.total,
-    0
-  );
-
-  const totalCompletedAmount = paymentStats?.totalCompleted || 0;
-  const completedCount = paymentStats?.completed || 0;
-
   return (
     <div className={styles.pageContainer}>
-      <Header />
+      <AdminHeader />
 
       <main className={styles.main}>
-        <div className={styles.header}>
-          <h1>전체 관리 대시보드</h1>
-          <p>행선지별 신청현황 및 버스 배분 최적화</p>
-        </div>
+        <section className={styles.hero}>
+          <div>
+            <span className={styles.eyebrow}>전체 관리자</span>
+            <h1>운영 대시보드</h1>
+            <p>
+              신청 현황, 입금 상태, 배차 준비 단계를 한 화면에서 확인합니다.
+            </p>
+          </div>
 
-        <div className={styles.metricsGrid}>
+          <div className={styles.heroActions}>
+            <button type="button" onClick={() => navigate('/admin/tickets')}>
+              예매 현황
+            </button>
+            <button type="button" onClick={() => navigate('/admin/allocation')}>
+              배차 계산
+            </button>
+          </div>
+        </section>
+
+        <section className={styles.metricsGrid} aria-label="핵심 지표">
           <div className={styles.metric}>
-            <div
-              className={styles.metricIcon}
-              style={{ background: '#dbeafe' }}
-            >
-              <Users size={24} color="#0284c7" />
+            <div className={styles.metricIconBlue}>
+              <Users size={22} />
             </div>
-
-            <div>
-              <p className={styles.metricLabel}>총 신청자</p>
-              <p className={styles.metricValue}>{totalPeople}명</p>
-            </div>
+            <span>총 신청자</span>
+            <strong>
+              {participationTarget > 0
+                ? `${totalPeople.toLocaleString()} / ${participationTarget.toLocaleString()}명`
+                : `${totalPeople.toLocaleString()}명`}
+            </strong>
+            <p>
+              {participationTarget > 0
+                ? `참여 목표 대비 ${formatPercent(applicationRate)}`
+                : '참여 목표 미입력'}
+            </p>
           </div>
 
           <div className={styles.metric}>
-            <div
-              className={styles.metricIcon}
-              style={{ background: '#dcfce7' }}
-            >
-              <DollarSign size={24} color="#16a34a" />
+            <div className={styles.metricIconAmber}>
+              <Timer size={22} />
             </div>
+            <span>입금 대기 캠퍼스</span>
+            <strong>
+              {pendingCampusCount.toLocaleString()} /{' '}
+              {campusTransfers.length.toLocaleString()}개
+            </strong>
+            <p>{confirmedCampusCount.toLocaleString()}개 캠퍼스 본부 확인</p>
+          </div>
 
-            <div>
-              <p className={styles.metricLabel}>전체 확인 완료액</p>
-              <p className={styles.metricValue}>
-                {(totalCompletedAmount / 1000000).toFixed(1)}M
+          <div className={styles.metric}>
+              <div className={styles.metricIconGreen}>
+                <CreditCard size={22} />
+              </div>
+              <span>실제 입금액 / 예상 입금액</span>
+              <strong>{formatPercent(paymentCollectionRate)}</strong>
+              <p>
+                {formatCurrency(totalCompletedAmount)} /{' '}
+                {formatCurrency(expectedPaymentAmount)}
               </p>
-            </div>
-          </div>
-
-          <div className={styles.metric}>
-            <div
-              className={styles.metricIcon}
-              style={{ background: '#fef3c7' }}
-            >
-              <DollarSign size={24} color="#ca8a04" />
-            </div>
-
-            <div>
-              <p className={styles.metricLabel}>입금 확인률</p>
-              <p className={styles.metricValue}>
-                {totalPeople > 0
-                  ? ((completedCount / totalPeople) * 100).toFixed(1)
-                  : 0}
-                %
+              <p className={styles.metricFormula}>
+                예매 신청자 {reservationCount.toLocaleString()}명 × 버스표{' '}
+                {formatCurrency(busTicketPrice)}
               </p>
-            </div>
           </div>
+        </section>
 
-          <div className={styles.metric}>
-            <div
-              className={styles.metricIcon}
-              style={{ background: '#f3e8ff' }}
-            >
-              <BarChart3 size={24} color="#9333ea" />
-            </div>
-
+        <section className={styles.operationSection}>
+          <div className={styles.sectionHeader}>
             <div>
-              <p className={styles.metricLabel}>행선지 수</p>
-              <p className={styles.metricValue}>{destStats.length}개</p>
+              <h2>운영 체크리스트</h2>
+              <p>완료한 단계는 체크하고, 필요한 관리 화면으로 바로 이동하세요.</p>
             </div>
-          </div>
-        </div>
 
-        <div className={styles.section}>
-          <h2>행선지별 신청 현황</h2>
-
-          <div className={styles.statsTable}>
-            <table>
-              <thead>
-                <tr>
-                  <th>행선지</th>
-                  <th>1지망</th>
-                  <th>2지망</th>
-                  <th>총합</th>
-                  <th>비율</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {destStats.map((stat) => {
-                  const percentage =
-                    totalPreferenceCount > 0
-                      ? (stat.total / totalPreferenceCount) * 100
-                      : 0;
-
-                  return (
-                    <tr key={stat.name}>
-                      <td className={styles.stationName}>{stat.name}</td>
-                      <td>
-                        <span className={styles.rank1}>{stat.rank1}</span>
-                      </td>
-                      <td>
-                        <span className={styles.rank2}>{stat.rank2}</span>
-                      </td>
-                      <td className={styles.total}>{stat.total}</td>
-                      <td>
-                        <div className={styles.barContainer}>
-                          <div
-                            className={styles.bar}
-                            style={{ width: `${percentage}%` }}
-                          />
-                          <span className={styles.percentage}>
-                            {percentage.toFixed(1)}%
-                          </span>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div className={styles.section}>
-          <h2>인당 버스 가격 설정</h2>
-
-          <div className={styles.adminFilterPanel}>
-            <div className={styles.adminFilterGrid}>
-              <div className={styles.adminFilterField}>
-                <label>현재 인당 버스 가격</label>
-                <input
-                  type="number"
-                  min={0}
-                  value={busTicketPriceInput}
-                  onChange={(e) => setBusTicketPriceInput(e.target.value)}
-                  placeholder="예: 50000"
+            <div className={styles.progressBox}>
+              <strong>
+                {checkedScenarioStepIds.length} / {operationScenarioSteps.length}
+              </strong>
+              <span>완료</span>
+              <div className={styles.progressTrack}>
+                <div
+                  className={styles.progressBar}
+                  style={{ width: `${scenarioProgress}%` }}
                 />
               </div>
-
-              <div className={styles.adminFilterField}>
-                <label>적용 가격</label>
-                <div>
-                  <strong>{busTicketPrice.toLocaleString()}원</strong>
-                </div>
-              </div>
-            </div>
-
-            <div className={styles.adminSearchActionRow}>
-              <button
-                type="button"
-                className={styles.adminSearchButton}
-                onClick={handleSaveBusTicketPrice}
-                disabled={priceSaving}
-              >
-                {priceSaving ? '저장 중...' : '가격 저장'}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div className={styles.section}>
-          <h2>입금 현황</h2>
-
-          <div className={styles.paymentStats}>
-            <div className={styles.paymentStat}>
-              <p className={styles.statLabel}>확인완료</p>
-              <p className={styles.statNumber} style={{ color: '#10b981' }}>
-                {paymentStats?.completed || 0}명
-              </p>
-            </div>
-
-            <div className={styles.paymentStat}>
-              <p className={styles.statLabel}>대기중</p>
-              <p className={styles.statNumber} style={{ color: '#f59e0b' }}>
-                {paymentStats?.pending || 0}명
-              </p>
-            </div>
-
-            <div className={styles.paymentStat}>
-              <p className={styles.statLabel}>환불</p>
-              <p className={styles.statNumber} style={{ color: '#ef4444' }}>
-                {paymentStats?.refunded || 0}명
-              </p>
-            </div>
-
-            <div className={styles.paymentStat}>
-              <p className={styles.statLabel}>확인액</p>
-              <p className={styles.statNumber} style={{ color: '#667eea' }}>
-                {(paymentStats?.totalCompleted || 0).toLocaleString()}원
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className={styles.section}>
-          <h2>빠른 액션</h2>
-
-          <div className={styles.actionGrid}>
-            <button
-              type="button"
-              className={styles.actionCard}
-              onClick={() => navigate('/admin/allocation')}
-            >
-              <div className={styles.actionIcon}>🚌</div>
-              <h3>버스 배분 최적화</h3>
-              <p>버스 옵션 설정 및 최적 배분 계산</p>
-            </button>
-
-            <button
-              type="button"
-              className={styles.actionCard}
-              onClick={() => navigate('/admin/tickets')}
-            >
-              <div className={styles.actionIcon}>📋</div>
-              <h3>버스표 관리</h3>
-              <p>개인 버스표 확정 및 관리</p>
-            </button>
-
-            <button
-              type="button"
-              className={styles.actionCard}
-              onClick={() => navigate('/admin/campus-transfer')}
-            >
-              <div className={styles.actionIcon}>👥</div>
-              <h3>캠퍼스 관리</h3>
-              <p>캠퍼스별 입금 현황</p>
-            </button>
-          </div>
-        </div>
-
-        <div className={styles.section}>
-          <div className={styles.adminManagerHeader}>
-            <div>
-              <h2>캠퍼스 관리자 권한 관리</h2>
-              <p>
-                지구, 팀, 캠퍼스를 선택한 뒤 해당 캠퍼스 유저를 검색해서
-                관리자 권한을 등록, 취소, 변경할 수 있습니다.
-              </p>
             </div>
           </div>
 
-          <div className={styles.adminFilterPanel}>
-            <div className={styles.adminFilterGrid}>
-              <div className={styles.adminFilterField}>
-                <label>지구</label>
-                <select
-                  value={selectedDistrictId}
-                  onChange={(e) => handleDistrictChange(e.target.value)}
-                >
-                  <option value="">전체 지구</option>
-                  {districts.map((district) => (
-                    <option key={district.id} value={district.id}>
-                      {district.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className={styles.adminFilterField}>
-                <label>팀</label>
-                <select
-                  value={selectedTeamId}
-                  onChange={(e) => handleTeamChange(e.target.value)}
-                  disabled={!selectedDistrictId}
-                >
-                  <option value="">전체 팀</option>
-                  {teams.map((team) => (
-                    <option key={team.id} value={team.id}>
-                      {team.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className={styles.adminFilterField}>
-                <label>캠퍼스</label>
-                <select
-                  value={selectedCampusId}
-                  onChange={(e) => handleCampusChange(e.target.value)}
-                  disabled={!selectedTeamId}
-                >
-                  <option value="">전체 캠퍼스</option>
-                  {campuses.map((campus) => (
-                    <option key={campus.id} value={campus.id}>
-                      {campus.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className={styles.adminSearchActionRow}>
-              <button
-                type="button"
-                className={styles.adminSearchButton}
-                onClick={handleSearchUsers}
-                disabled={searchingUsers}
-              >
-                {searchingUsers ? '검색 중...' : '유저 검색'}
-              </button>
-            </div>
-          </div>
-
-          {adminManageError && (
-            <p className={styles.adminErrorText}>{adminManageError}</p>
-          )}
-
-          {adminManageSuccess && (
-            <p className={styles.adminSuccessText}>{adminManageSuccess}</p>
-          )}
-
-          {selectedDistrictName && selectedTeamName && selectedCampusName && (
-            <div className={styles.currentCampusAdminBox}>
-              <div>
-                <strong>현재 선택</strong>
-                <p>
-                  {selectedDistrictName} / {selectedTeamName} /{' '}
-                  {selectedCampusName}
-                </p>
-              </div>
-
-              <div>
-                <strong>현재 캠퍼스 관리자</strong>
-                {currentCampusAdmin ? (
-                  <p>
-                    {currentCampusAdmin.name} ·{' '}
-                    {currentCampusAdmin.phone ||
-                      currentCampusAdmin.email ||
-                      '연락처 미등록'}
-                  </p>
-                ) : (
-                  <p>등록된 캠퍼스 관리자가 없습니다.</p>
-                )}
-              </div>
-            </div>
-          )}
-
-          <div className={styles.adminUserList}>
-            {searchedUsers.map((user) => {
-              const isCampusAdmin = user.role === 'campus_admin';
-
-              const isCurrentSelectedCampusAdmin =
-                user.role === 'campus_admin' &&
-                Boolean(
-                  selectedDistrictName && selectedTeamName && selectedCampusName
-                ) &&
-                user.district === selectedDistrictName &&
-                user.team === selectedTeamName &&
-                user.campus === selectedCampusName;
-
-              const isGlobalAdmin = user.role === 'global_admin';
-              const isLoading = adminActionLoading === user.userId;
-
-              const hasUserScope = Boolean(
-                (selectedDistrictName || user.district) &&
-                  (selectedTeamName || user.team) &&
-                  (selectedCampusName || user.campus)
-              );
+          <div className={styles.scenarioList}>
+            {operationScenarioSteps.map((step, index) => {
+              const isChecked = checkedScenarioStepIds.includes(step.id);
+              const isCurrent =
+                !isChecked &&
+                !operationScenarioSteps
+                  .slice(0, index)
+                  .some((previousStep) =>
+                    !checkedScenarioStepIds.includes(previousStep.id)
+                  );
 
               return (
-                <div key={user.userId} className={styles.adminUserCard}>
-                  <div className={styles.adminUserInfo}>
-                    <div className={styles.adminUserMainRow}>
-                      <strong>{user.name}</strong>
-
-                      {isGlobalAdmin && (
-                        <span className={styles.globalAdminBadge}>
-                          전체 관리자
-                        </span>
-                      )}
-
-                      {isCampusAdmin && (
-                        <span className={styles.campusAdminBadge}>
-                          {isCurrentSelectedCampusAdmin
-                            ? '현재 캠퍼스 관리자'
-                            : '캠퍼스 관리자'}
-                        </span>
-                      )}
-                    </div>
-
-                    <div className={styles.adminUserMeta}>
-                      <span>지구: {user.district || '미등록'}</span>
-                      <span>팀: {user.team || '미등록'}</span>
-                      <span>캠퍼스: {user.campus || '미등록'}</span>
-                      <span>연락처: {user.phone || '미등록'}</span>
-                      {user.email && <span>이메일: {user.email}</span>}
-                    </div>
+                <article
+                  key={step.id}
+                  className={`${styles.scenarioItem} ${
+                    isChecked ? styles.scenarioItemDone : ''
+                  } ${isCurrent ? styles.scenarioItemCurrent : ''}`}
+                >
+                  <div className={styles.scenarioRail}>
+                    <span className={styles.scenarioDot}>{index}</span>
                   </div>
 
-                  <div className={styles.adminUserAction}>
-                    {isGlobalAdmin ? (
-                      <button
-                        type="button"
-                        className={styles.disabledAdminButton}
-                        disabled
-                      >
-                        전체 관리자
-                      </button>
-                    ) : isCampusAdmin ? (
-                      <button
-                        type="button"
-                        className={styles.removeAdminButton}
-                        onClick={() => handleCancelCampusAdmin(user)}
-                        disabled={isLoading}
-                      >
-                        {isLoading ? '처리 중...' : '관리자 취소'}
-                      </button>
+                  <button
+                    type="button"
+                    className={styles.checkButton}
+                    onClick={() => handleToggleScenarioStep(step.id)}
+                    aria-label={`${step.title} 완료 체크`}
+                  >
+                    {isChecked ? (
+                      <CheckCircle2 size={22} />
                     ) : (
-                      <button
-                        type="button"
-                        className={styles.assignAdminButton}
-                        onClick={() => handleAssignOrChangeCampusAdmin(user)}
-                        disabled={isLoading || !hasUserScope}
-                      >
-                        {isLoading
-                          ? '처리 중...'
-                          : !hasUserScope
-                            ? '정보 부족'
-                            : currentCampusAdmin
-                              ? '관리자 변경'
-                              : '관리자 등록'}
-                      </button>
+                      <Circle size={22} />
+                    )}
+                  </button>
+
+                  <div className={styles.scenarioContent}>
+                    <div className={styles.scenarioTitleRow}>
+                      <span>
+                        {isChecked ? '완료' : isCurrent ? '진행' : '대기'}
+                      </span>
+                      <h3>{step.title}</h3>
+                    </div>
+                    <p>{step.description}</p>
+
+                    {'checks' in step && step.checks && (
+                      <div className={styles.checkPills}>
+                        {step.checks.map((check) => (
+                          <small key={check}>{check}</small>
+                        ))}
+                      </div>
+                    )}
+
+                    {'actionLinks' in step && step.actionLinks && (
+                      <div className={styles.subActionButtons}>
+                        {step.actionLinks.map((action) => (
+                          <button
+                            key={action.path}
+                            type="button"
+                            onClick={() => navigate(action.path)}
+                          >
+                            <span>{action.label}</span>
+                            <ArrowRight size={14} />
+                          </button>
+                        ))}
+                      </div>
                     )}
                   </div>
-                </div>
+
+                  <button
+                    type="button"
+                    className={styles.linkButton}
+                    onClick={() => navigate(step.actionPath)}
+                  >
+                    <span>{step.actionLabel}</span>
+                    <ArrowRight size={16} />
+                  </button>
+                </article>
               );
             })}
           </div>
-        </div>
+        </section>
+
+        <section className={styles.section}>
+          <div className={styles.sectionHeader}>
+            <div>
+              <h2>빠른 액션</h2>
+              <p>반복적으로 사용하는 관리 기능만 모았습니다.</p>
+            </div>
+          </div>
+
+          <div className={styles.actionGrid}>
+            {quickActions.map((action) => {
+              const Icon = action.icon;
+
+              return (
+                <button
+                  key={action.path}
+                  type="button"
+                  className={styles.actionCard}
+                  onClick={() => navigate(action.path)}
+                >
+                  <Icon size={22} />
+                  <strong>{action.title}</strong>
+                  <span>{action.description}</span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
       </main>
     </div>
   );

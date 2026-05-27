@@ -22,12 +22,24 @@ import {
   deleteReservation,
   getReservation,
 } from '../lib/reservationService';
+import {
+  formatReservationDeadline,
+  getReservationDeadline,
+  type ReservationDeadlineSetting,
+} from '../lib/reservationDeadlineService';
 
 import { calculateDistanceKm, formatDistance } from '../utils/distance';
 
 const createReservationId = () => {
   return `reservation-${Date.now()}`;
 };
+
+const reservationSteps = [
+  '기본정보',
+  '소속 선택',
+  '도착역 선택',
+  '확인',
+] as const;
 
 const ReservationPage = () => {
   const navigate = useNavigate();
@@ -36,6 +48,12 @@ const ReservationPage = () => {
     null
   );
   const [isLoading, setIsLoading] = useState(true);
+  const [currentStep, setCurrentStep] = useState(0);
+  const [reservationDeadline, setReservationDeadline] =
+    useState<ReservationDeadlineSetting>({
+      deadlineAt: null,
+      isClosed: false,
+    });
 
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -44,15 +62,15 @@ const ReservationPage = () => {
   const [teamOptions, setTeamOptions] = useState<TeamOption[]>([]);
   const [campusOptions, setCampusOptions] = useState<CampusOption[]>([]);
 
-  const [districtSearch, setDistrictSearch] = useState('');
+  const [, setDistrictSearch] = useState('');
   const [selectedDistrictId, setSelectedDistrictId] = useState('');
   const [selectedDistrict, setSelectedDistrict] = useState('');
 
-  const [teamSearch, setTeamSearch] = useState('');
+  const [, setTeamSearch] = useState('');
   const [selectedTeamId, setSelectedTeamId] = useState('');
   const [selectedTeam, setSelectedTeam] = useState('');
 
-  const [campusSearch, setCampusSearch] = useState('');
+  const [, setCampusSearch] = useState('');
   const [selectedCampusId, setSelectedCampusId] = useState('');
   const [selectedCampus, setSelectedCampus] = useState('');
 
@@ -70,14 +88,10 @@ const [stationCandidateSearch, setStationCandidateSearch] = useState('');
 const [stationOptions, setStationOptions] = useState<StationOption[]>([]);
 const [isStationLoading, setIsStationLoading] = useState(true);
 
-
-useEffect(() => {
-  console.log('ReservationPage stationOptions:', stationOptions);
-}, [stationOptions]);
-
   const savedReservation = dbReservation;
   const isEditMode = Boolean(savedReservation);
   const isConfirmed = savedReservation?.status === 'confirmed';
+  const isReservationLocked = isConfirmed || reservationDeadline.isClosed;
 
  const [hasSearchedPlace, setHasSearchedPlace] = useState(false); 
 interface PlaceCandidate {
@@ -101,6 +115,9 @@ const [nearbyStations, setNearbyStations] = useState<
 >([]);
 const [isSearchingPlace, setIsSearchingPlace] = useState(false);
 const [isKakaoReady, setIsKakaoReady] = useState(false);
+const [stationSelectMode, setStationSelectMode] = useState<
+  'recommend' | 'direct'
+>('recommend');
 
 useEffect(() => {
   if (!window.kakao?.maps) {
@@ -119,11 +136,16 @@ useEffect(() => {
         const { data } = await supabase.auth.getSession();
 
         if (!data.session) {
-          navigate('/login');
+          navigate('/login', { state: { from: '/reservation' } });
           return;
         }
 
-        const reservation = await getReservation();
+        const [reservation, deadline] = await Promise.all([
+          getReservation(),
+          getReservationDeadline(),
+        ]);
+
+        setReservationDeadline(deadline);
         setDbReservation(reservation);
 
         if (reservation) {
@@ -300,7 +322,7 @@ const searchPlaceCandidates = (keywordValue?: string) => {
       const candidates: PlaceCandidate[] = result.slice(0, 7).map((place) => ({
         id: place.id,
         name: place.place_name,
-        address: place.road_address_name || place.address_name || '주소 정보 없음',
+        address: place.road_address_name || place.address_name || '',
         lat: Number(place.y),
         lng: Number(place.x),
       }));
@@ -323,7 +345,7 @@ const searchPlaceCandidates = (keywordValue?: string) => {
             address:
               address.road_address?.address_name ||
               address.address_name ||
-              '주소 정보 없음',
+              '',
             lat: Number(address.y),
             lng: Number(address.x),
           }));
@@ -416,28 +438,6 @@ const handleApplyRecommendation = (
 
   handleStationSelect(rank, station);
 };
-
-  const filteredDistricts = useMemo(() => {
-    return districtOptions.filter((district) =>
-      district.name.toLowerCase().includes(districtSearch.toLowerCase())
-    );
-  }, [districtOptions, districtSearch]);
-
-  const filteredTeams = useMemo(() => {
-    if (!selectedDistrictId) return [];
-
-    return teamOptions.filter((team) =>
-      team.name.toLowerCase().includes(teamSearch.toLowerCase())
-    );
-  }, [selectedDistrictId, teamOptions, teamSearch]);
-
-  const filteredCampuses = useMemo(() => {
-    if (!selectedTeamId) return [];
-
-    return campusOptions.filter((campus) =>
-      campus.name.toLowerCase().includes(campusSearch.toLowerCase())
-    );
-  }, [selectedTeamId, campusOptions, campusSearch]);
 
   const selectedStationIds = [
     firstStation?.id,
@@ -601,11 +601,72 @@ const handleCandidateStationSelect = (
     return true;
   };
 
+  const validateCurrentStep = () => {
+    if (currentStep === 0) {
+      if (!name.trim()) {
+        alert('이름을 입력해주세요.');
+        return false;
+      }
+
+      if (!phone.trim()) {
+        alert('연락처를 입력해주세요.');
+        return false;
+      }
+    }
+
+    if (currentStep === 1) {
+      if (!selectedDistrict) {
+        alert('지구를 선택해주세요.');
+        return false;
+      }
+
+      if (!selectedTeam) {
+        alert('팀을 선택해주세요.');
+        return false;
+      }
+
+      if (!selectedCampus || !selectedCampusId) {
+        alert('캠퍼스를 선택해주세요.');
+        return false;
+      }
+    }
+
+    if (currentStep === 2 && !validateStationPreferences()) {
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleNextStep = () => {
+    if (isReservationLocked) {
+      setCurrentStep((prev) => Math.min(prev + 1, reservationSteps.length - 1));
+      return;
+    }
+
+    if (!validateCurrentStep()) return;
+
+    setCurrentStep((prev) => Math.min(prev + 1, reservationSteps.length - 1));
+  };
+
+  const handlePrevStep = () => {
+    setCurrentStep((prev) => Math.max(prev - 1, 0));
+  };
+
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
     if (savedReservation?.status === 'confirmed') {
       alert('이미 버스표가 확정되어 수정할 수 없습니다. 관리자에게 문의해주세요.');
+      return;
+    }
+
+    if (reservationDeadline.isClosed) {
+      alert(
+        `신청이 마감되어 예매를 저장할 수 없습니다. 마감 시간: ${formatReservationDeadline(
+          reservationDeadline.deadlineAt
+        )}`
+      );
       return;
     }
 
@@ -629,7 +690,7 @@ const handleCandidateStationSelect = (
       return;
     }
 
-    if (!selectedCampus) {
+    if (!selectedCampus || !selectedCampusId) {
       alert('캠퍼스를 선택해주세요.');
       return;
     }
@@ -662,6 +723,9 @@ const handleCandidateStationSelect = (
         },
       ];
 
+      const isReapplyingCancelledReservation =
+        savedReservation?.status === 'cancelled';
+
       const reservation: ReturnBusReservation = {
         id: savedReservation?.id || createReservationId(),
 
@@ -674,11 +738,13 @@ const handleCandidateStationSelect = (
 
         stationPreferences,
 
-        status: savedReservation?.status || 'requested',
+        status: 'requested',
 
-        confirmedTicket: savedReservation?.confirmedTicket,
+        confirmedTicket: undefined,
 
-        requestedAt: savedReservation?.requestedAt || now,
+        requestedAt: isReapplyingCancelledReservation
+          ? now
+          : savedReservation?.requestedAt || now,
         updatedAt: isEditMode ? now : undefined,
       };
 
@@ -706,10 +772,11 @@ const handleCandidateStationSelect = (
   ) => {
     return (
       
-      <div className={styles.inputGroup}>
-        <label className={styles.label}>
-          도착역 {rank}지망 <span className={styles.required}>*</span>
-        </label>
+      <div className={styles.stationSelectCard}>
+        <div className={styles.stationSelectHeader}>
+          <span>{rank}지망</span>
+          <strong>{selectedStation?.name || '도착역 미선택'}</strong>
+        </div>
 
         <div className={styles.searchBox}>
           <Search size={18} color="#667085" />
@@ -718,7 +785,7 @@ const handleCandidateStationSelect = (
             className={styles.searchInput}
             placeholder={`예: ${rank === 1 ? '청량리역' : '건대입구역'}`}
             value={value}
-            disabled={isConfirmed}
+            disabled={isReservationLocked}
             onChange={(e) => {
               onChange(e.target.value);
 
@@ -728,7 +795,7 @@ const handleCandidateStationSelect = (
           />
         </div>
 
-        {value && !selectedStation && !isConfirmed && (
+        {value && !selectedStation && !isReservationLocked && (
           <div className={styles.searchResultBox}>
             {results.length > 0 ? (
               results.map((station) => (
@@ -749,10 +816,10 @@ const handleCandidateStationSelect = (
         )}
 
         {selectedStation && (
-          <div className={styles.selectedBox}>
+          <div className={styles.stationSelectedBox}>
             <strong>{selectedStation.name}</strong>
 <p>{selectedStation.line || '노선 정보 없음'}</p>
-<p>{selectedStation.address || '주소 정보 없음'}</p>          
+{selectedStation.address && <p>{selectedStation.address}</p>}          
 </div>
         )}
       </div>
@@ -784,7 +851,7 @@ const handleCandidateStationSelect = (
               </p>
             </div>
 
-            {isEditMode && !isConfirmed && (
+            {isEditMode && !isReservationLocked && (
               <div className={styles.editNoticeBox}>
                 이미 신청한 정보가 있습니다. 새로 신청하는 대신 기존 신청 정보를
                 수정합니다.
@@ -798,8 +865,33 @@ const handleCandidateStationSelect = (
               </div>
             )}
 
+            {reservationDeadline.isClosed && !isConfirmed && (
+              <div className={styles.closedNoticeBox}>
+                신청이 마감되어 예매를 새로 신청하거나 수정할 수 없습니다.
+                마감 시간: {formatReservationDeadline(reservationDeadline.deadlineAt)}
+              </div>
+            )}
+
             <div className={styles.formCard}>
+              <div className={styles.stepper} aria-label="예약 단계">
+                {reservationSteps.map((step, index) => (
+                  <button
+                    key={step}
+                    type="button"
+                    className={`${styles.stepItem} ${
+                      index === currentStep ? styles.stepItemActive : ''
+                    } ${index < currentStep ? styles.stepItemDone : ''}`}
+                    onClick={() => setCurrentStep(index)}
+                  >
+                    <span>{index + 1}</span>
+                    <strong>{step}</strong>
+                  </button>
+                ))}
+              </div>
+
               <form className={styles.form} onSubmit={handleSubmit}>
+                {currentStep === 0 && (
+                  <>
                 <div className={styles.inputGroup}>
                   <label className={styles.label}>
                     이름 <span className={styles.required}>*</span>
@@ -811,7 +903,7 @@ const handleCandidateStationSelect = (
                     placeholder="홍길동"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    disabled={isConfirmed}
+                    disabled={isReservationLocked}
                     required
                   />
                 </div>
@@ -827,224 +919,171 @@ const handleCandidateStationSelect = (
                     placeholder="010-1234-5678"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    disabled={isConfirmed}
+                    disabled={isReservationLocked}
                     required
                   />
                 </div>
+                  </>
+                )}
+
+                {currentStep === 1 && (
+                  <>
+                <div className={styles.inputGroup}>
+                  <label className={styles.label}>
+                    지구 선택 <span className={styles.required}>*</span>
+                  </label>
+
+                  <div className={styles.optionButtonGrid}>
+                    {districtOptions.length > 0 ? (
+                      districtOptions.map((district) => (
+                        <button
+                          key={district.id}
+                          type="button"
+                          className={`${styles.optionButton} ${
+                            selectedDistrictId === district.id
+                              ? styles.optionButtonActive
+                              : ''
+                          }`}
+                          onClick={() => handleDistrictSelect(district)}
+                          disabled={isReservationLocked}
+                        >
+                          {district.name}
+                        </button>
+                      ))
+                    ) : (
+                      <p className={styles.emptyResult}>선택 가능한 지구가 없습니다.</p>
+                    )}
+                  </div>
+
+                </div>
 
                 <div className={styles.inputGroup}>
                   <label className={styles.label}>
-                    지구 검색 및 선택 <span className={styles.required}>*</span>
+                    팀 선택 <span className={styles.required}>*</span>
                   </label>
 
-                  <div className={styles.searchBox}>
-                    <Search size={18} color="#667085" />
-                    <input
-                      type="text"
-                      className={styles.searchInput}
-                      placeholder="예: 서울지구, 경인지구, 강원지구"
-                      value={districtSearch}
-                      onChange={(e) => {
-                        setDistrictSearch(e.target.value);
-                        setSelectedDistrictId('');
-                        setSelectedDistrict('');
-
-                        setSelectedTeamId('');
-                        setSelectedTeam('');
-                        setTeamSearch('');
-                        setTeamOptions([]);
-
-                        setSelectedCampusId('');
-                        setSelectedCampus('');
-                        setCampusSearch('');
-                        setCampusOptions([]);
-                      }}
-                      disabled={isConfirmed}
-                    />
-                  </div>
-
-                  {districtSearch && !selectedDistrict && !isConfirmed && (
-                    <div className={styles.searchResultBox}>
-                      {filteredDistricts.length > 0 ? (
-                        filteredDistricts.map((district) => (
+                  {selectedDistrictId ? (
+                    <div className={styles.optionButtonGrid}>
+                      {teamOptions.length > 0 ? (
+                        teamOptions.map((team) => (
                           <button
-                            key={district.id}
+                            key={team.id}
                             type="button"
-                            className={styles.searchResultItem}
-                            onClick={() => handleDistrictSelect(district)}
+                            className={`${styles.optionButton} ${
+                              selectedTeamId === team.id
+                                ? styles.optionButtonActive
+                                : ''
+                            }`}
+                            onClick={() => handleTeamSelect(team)}
+                            disabled={isReservationLocked}
                           >
-                            <span>{district.name}</span>
-                            <small>지구</small>
+                            {team.name}
                           </button>
                         ))
                       ) : (
-                        <p className={styles.emptyResult}>검색 결과가 없습니다.</p>
+                        <p className={styles.emptyResult}>선택 가능한 팀이 없습니다.</p>
                       )}
                     </div>
+                  ) : (
+                    <p className={styles.optionHint}>먼저 지구를 선택해주세요.</p>
                   )}
 
-                  {selectedDistrict && (
-                    <div className={styles.selectedBox}>
-                      선택된 지구: <strong>{selectedDistrict}</strong>
-                    </div>
-                  )}
                 </div>
 
                 <div className={styles.inputGroup}>
                   <label className={styles.label}>
-                    팀 검색 및 선택 <span className={styles.required}>*</span>
+                    캠퍼스 선택 <span className={styles.required}>*</span>
                   </label>
 
-                  <div className={styles.searchBox}>
-                    <Search size={18} color="#667085" />
-                    <input
-                      type="text"
-                      className={styles.searchInput}
-                      placeholder={
-                        selectedDistrictId
-                          ? '예: 북동팀, 중앙팀, 남팀'
-                          : '먼저 지구를 선택해주세요'
-                      }
-                      value={teamSearch}
-                      onChange={(e) => {
-                        setTeamSearch(e.target.value);
-                        setSelectedTeamId('');
-                        setSelectedTeam('');
-
-                        setSelectedCampusId('');
-                        setSelectedCampus('');
-                        setCampusSearch('');
-                        setCampusOptions([]);
-                      }}
-                      disabled={!selectedDistrictId || isConfirmed}
-                    />
-                  </div>
-
-                  {selectedDistrictId &&
-                    teamSearch &&
-                    !selectedTeam &&
-                    !isConfirmed && (
-                      <div className={styles.searchResultBox}>
-                        {filteredTeams.length > 0 ? (
-                          filteredTeams.map((team) => (
-                            <button
-                              key={team.id}
-                              type="button"
-                              className={styles.searchResultItem}
-                              onClick={() => handleTeamSelect(team)}
-                            >
-                              <span>{team.name}</span>
-                              <small>{selectedDistrict} 팀</small>
-                            </button>
-                          ))
-                        ) : (
-                          <p className={styles.emptyResult}>검색 결과가 없습니다.</p>
-                        )}
-                      </div>
-                    )}
-
-                  {selectedTeam && (
-                    <div className={styles.selectedBox}>
-                      선택된 팀: <strong>{selectedTeam}</strong>
+                  {selectedTeamId ? (
+                    <div className={styles.optionButtonGrid}>
+                      {campusOptions.length > 0 ? (
+                        campusOptions.map((campus) => (
+                          <button
+                            key={campus.id}
+                            type="button"
+                            className={`${styles.optionButton} ${
+                              selectedCampusId === campus.id
+                                ? styles.optionButtonActive
+                                : ''
+                            }`}
+                            onClick={() => handleCampusSelect(campus)}
+                            disabled={isReservationLocked}
+                          >
+                            {campus.name}
+                          </button>
+                        ))
+                      ) : (
+                        <p className={styles.emptyResult}>
+                          선택 가능한 캠퍼스가 없습니다.
+                        </p>
+                      )}
                     </div>
+                  ) : (
+                    <p className={styles.optionHint}>먼저 팀을 선택해주세요.</p>
                   )}
+
                 </div>
 
-                <div className={styles.inputGroup}>
-                  <label className={styles.label}>
-                    캠퍼스 검색 및 선택 <span className={styles.required}>*</span>
-                  </label>
-
-                  <div className={styles.searchBox}>
-                    <Search size={18} color="#667085" />
-                    <input
-                      type="text"
-                      className={styles.searchInput}
-                      placeholder={
-                        selectedTeamId
-                          ? '캠퍼스를 검색해주세요'
-                          : '먼저 팀을 선택해주세요'
-                      }
-                      value={campusSearch}
-                      onChange={(e) => {
-                        setCampusSearch(e.target.value);
-                        setSelectedCampusId('');
-                        setSelectedCampus('');
-                      }}
-                      disabled={!selectedTeamId || isConfirmed}
-                    />
-                  </div>
-
-                  {selectedTeamId &&
-                    campusSearch &&
-                    !selectedCampus &&
-                    !isConfirmed && (
-                      <div className={styles.searchResultBox}>
-                        {filteredCampuses.length > 0 ? (
-                          filteredCampuses.map((campus) => (
-                            <button
-                              key={campus.id}
-                              type="button"
-                              className={styles.searchResultItem}
-                              onClick={() => handleCampusSelect(campus)}
-                            >
-                              <span>{campus.name}</span>
-                              <small>{selectedTeam}</small>
-                            </button>
-                          ))
-                        ) : (
-                          <p className={styles.emptyResult}>
-                            검색 결과가 없습니다.
-                          </p>
-                        )}
-                      </div>
-                    )}
-
-                  {selectedCampus && (
-                    <div className={styles.selectedBox}>
-                      선택된 캠퍼스: <strong>{selectedCampus}</strong>
-                    </div>
-                  )}
+                <div className={styles.organizationSummary}>
+                  <span>현재 선택</span>
+                  <strong>
+                    {[selectedDistrict, selectedTeam, selectedCampus]
+                      .filter(Boolean)
+                      .join(' / ') || '소속을 선택해주세요'}
+                  </strong>
                 </div>
+                  </>
+                )}
 
+                {currentStep === 2 && (
+                  <>
                 <div className={styles.sectionDivider} />
 
                 <div className={styles.preferenceHeader}>
                   <h2>희망 도착역 선택</h2>
                   <p>
-                    수련회 종료 후 귀가 버스에서 내리고 싶은 도착역을 1·2지망으로
-                    선택해주세요.
+                    가까운 역을 추천받거나 직접 검색해서 1·2지망을 선택해주세요.
                   </p>
                 </div>
-                {!isConfirmed && (
-  <button
-    type="button"
-    className={styles.candidateOpenButton}
-    onClick={() => {
-      setIsStationCandidateModalOpen(true);
-      setStationCandidateSearch('');
-    }}
-  >
-    도착역 후보 전체 보기
-  </button>
-)}
 
-                {renderStationSelector(
-                  1,
-                  firstStationSearch,
-                  firstStation,
-                  firstStationResults,
-                  setFirstStationSearch
-                )}
+                <div className={styles.preferenceSummaryGrid}>
+                  <div className={firstStation ? styles.preferenceSummaryDone : ''}>
+                    <span>1지망</span>
+                    <strong>{firstStation?.name || '아직 선택 전'}</strong>
+                  </div>
+                  <div className={secondStation ? styles.preferenceSummaryDone : ''}>
+                    <span>2지망</span>
+                    <strong>{secondStation?.name || '아직 선택 전'}</strong>
+                  </div>
+                </div>
 
-                {renderStationSelector(
-                  2,
-                  secondStationSearch,
-                  secondStation,
-                  secondStationResults,
-                  setSecondStationSearch
-                )}
+                <div className={styles.stationModeTabs}>
+                  <button
+                    type="button"
+                    className={
+                      stationSelectMode === 'recommend'
+                        ? styles.stationModeActive
+                        : ''
+                    }
+                    onClick={() => setStationSelectMode('recommend')}
+                  >
+                    가까운 역 추천
+                  </button>
+                  <button
+                    type="button"
+                    className={
+                      stationSelectMode === 'direct'
+                        ? styles.stationModeActive
+                        : ''
+                    }
+                    onClick={() => setStationSelectMode('direct')}
+                  >
+                    직접 검색
+                  </button>
+                </div>
 
+                {stationSelectMode === 'recommend' && (
 <div className={styles.recommendationBox}>
   <div className={styles.recommendationHeader}>
     <MapPin size={20} color="#2563eb" />
@@ -1071,7 +1110,7 @@ const handleCandidateStationSelect = (
           setNearbyStations([]);
           setHasSearchedPlace(false);
         }}
-        disabled={isConfirmed}
+                      disabled={isReservationLocked}
       />
     </div>
   </div>
@@ -1080,7 +1119,7 @@ const handleCandidateStationSelect = (
     <p className={styles.emptyResult}>장소를 검색하는 중입니다...</p>
   )}
 
-  {placeCandidates.length > 0 && !selectedPlace && (
+  {placeCandidates.length > 0 && !selectedPlace && !isReservationLocked && (
     <div className={styles.searchResultBox}>
       {placeCandidates.map((place) => (
         <button
@@ -1090,7 +1129,7 @@ const handleCandidateStationSelect = (
           onClick={() => handlePlaceConfirm(place)}
         >
           <strong>{place.name}</strong>
-          <small>{place.address}</small>
+          {place.address && <small>{place.address}</small>}
         </button>
       ))}
     </div>
@@ -1109,7 +1148,7 @@ const handleCandidateStationSelect = (
   {selectedPlace && (
     <div className={styles.selectedBox}>
       <strong>확정된 도착 장소: {selectedPlace.name}</strong>
-      <p>{selectedPlace.address}</p>
+      {selectedPlace.address && <p>{selectedPlace.address}</p>}
     </div>
   )}
 
@@ -1122,7 +1161,7 @@ const handleCandidateStationSelect = (
               {index + 1}. {station.name}
             </strong>
             <p>{station.line || '노선 정보 없음'}</p>
-            <p>{station.address || '주소 정보 없음'}</p>
+            {station.address && <p>{station.address}</p>}
             <small>직선거리 약 {formatDistance(distanceKm)}</small>
           </div>
 
@@ -1130,14 +1169,14 @@ const handleCandidateStationSelect = (
             <button
               type="button"
               onClick={() => handleApplyRecommendation(station, 1)}
-              disabled={secondStation?.id === station.id}
+              disabled={secondStation?.id === station.id || isReservationLocked}
             >
               1지망
             </button>
             <button
               type="button"
               onClick={() => handleApplyRecommendation(station, 2)}
-              disabled={firstStation?.id === station.id}
+              disabled={firstStation?.id === station.id || isReservationLocked}
             >
               2지망
             </button>
@@ -1153,6 +1192,76 @@ const handleCandidateStationSelect = (
     </p>
   )}
 </div>
+                )}
+
+                {stationSelectMode === 'direct' && (
+                  <div className={styles.directStationPanel}>
+                    {!isReservationLocked && (
+                      <button
+                        type="button"
+                        className={styles.candidateOpenButton}
+                        onClick={() => {
+                          setIsStationCandidateModalOpen(true);
+                          setStationCandidateSearch('');
+                        }}
+                      >
+                        도착역 후보 전체 보기
+                      </button>
+                    )}
+
+                    <div className={styles.stationSelectGrid}>
+                      {renderStationSelector(
+                        1,
+                        firstStationSearch,
+                        firstStation,
+                        firstStationResults,
+                        setFirstStationSearch
+                      )}
+
+                      {renderStationSelector(
+                        2,
+                        secondStationSearch,
+                        secondStation,
+                        secondStationResults,
+                        setSecondStationSearch
+                      )}
+                    </div>
+                  </div>
+                )}
+                  </>
+                )}
+
+                {currentStep === 3 && (
+                  <>
+                <div className={styles.confirmSummary}>
+                  <h2>신청 내용 확인</h2>
+                  <div className={styles.confirmGrid}>
+                    <div>
+                      <span>이름</span>
+                      <strong>{name || '-'}</strong>
+                    </div>
+                    <div>
+                      <span>연락처</span>
+                      <strong>{phone || '-'}</strong>
+                    </div>
+                    <div>
+                      <span>소속</span>
+                      <strong>
+                        {[selectedDistrict, selectedTeam, selectedCampus]
+                          .filter(Boolean)
+                          .join(' / ') || '-'}
+                      </strong>
+                    </div>
+                    <div>
+                      <span>1지망</span>
+                      <strong>{firstStation?.name || '-'}</strong>
+                    </div>
+                    <div>
+                      <span>2지망</span>
+                      <strong>{secondStation?.name || '-'}</strong>
+                    </div>
+                  </div>
+                </div>
 
                 <div className={styles.infoBox}>
                   <p className={styles.infoText}>
@@ -1162,9 +1271,21 @@ const handleCandidateStationSelect = (
                       : '신청 완료 후 관리자가 희망 도착역을 참고하여 버스를 배정합니다.'}
                   </p>
                 </div>
+                  </>
+                )}
 
                 <div className={styles.buttonGroup}>
-                  {isEditMode && !isConfirmed && (
+                  {currentStep > 0 && (
+                    <button
+                      type="button"
+                      className={styles.secondaryButton}
+                      onClick={handlePrevStep}
+                    >
+                      이전
+                    </button>
+                  )}
+
+                  {isEditMode && !isReservationLocked && (
                     <button
                       type="button"
                       className={styles.deleteButton}
@@ -1181,6 +1302,22 @@ const handleCandidateStationSelect = (
                       onClick={() => navigate('/ticket')}
                     >
                       확정표 확인하기
+                    </button>
+                  ) : reservationDeadline.isClosed ? (
+                    <button
+                      type="button"
+                      className={styles.submitButton}
+                      disabled
+                    >
+                      신청 마감
+                    </button>
+                  ) : currentStep < reservationSteps.length - 1 ? (
+                    <button
+                      type="button"
+                      className={styles.submitButton}
+                      onClick={handleNextStep}
+                    >
+                      다음
                     </button>
                   ) : (
                     <button type="submit" className={styles.submitButton}>
@@ -1257,7 +1394,7 @@ const handleCandidateStationSelect = (
                 <div className={styles.candidateInfo}>
                   <strong>{station.name}</strong>
                   <p>{station.line || '노선 정보 없음'}</p>
-                <small>{station.address || '주소 정보 없음'}</small>
+                {station.address && <small>{station.address}</small>}
                 </div>
 
                 <div className={styles.candidateButtonGroup}>

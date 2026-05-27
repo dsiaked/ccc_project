@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { X, LogIn, Bus, Ticket, LogOut } from 'lucide-react';
+import { X, LogIn, Bus, Ticket, LogOut, ShieldCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { getAdminRole, type AdminRole } from '../lib/adminService';
 import styles from './Sidebar.module.css';
 
 interface SidebarProps {
@@ -19,6 +20,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
 
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [adminRole, setAdminRole] = useState<AdminRole | null>(null);
 
   const handleMenuClick = (path: string) => {
     navigate(path);
@@ -31,10 +33,14 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
     if (!data.session?.user) {
       setIsLoggedIn(false);
       setProfile(null);
+      setAdminRole(null);
       return;
     }
 
     setIsLoggedIn(true);
+    const role = await getAdminRole(data.session.user.id);
+
+    setAdminRole(role);
 
     const { data: profileData, error } = await supabase
       .from('profiles')
@@ -81,9 +87,15 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
 
     setIsLoggedIn(false);
     setProfile(null);
+    setAdminRole(null);
     onClose();
     navigate('/login');
   };
+
+  const adminPath =
+    adminRole?.role === 'global_admin' ? '/admin/global' : '/admin/campus';
+  const adminLabel =
+    adminRole?.role === 'global_admin' ? '전체 관리자 페이지' : '캠퍼스 관리자 페이지';
 
   return (
     <>
@@ -161,6 +173,22 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
                 버스확인표
               </button>
             </li>
+
+            {adminRole && (
+              <li>
+                <button
+                  className={`${styles.navItem} ${styles.adminNavItem}`}
+                  onClick={() => handleMenuClick(adminPath)}
+                >
+                  <ShieldCheck
+                    size={20}
+                    color="#1d4ed8"
+                    className={styles.navIcon}
+                  />
+                  {adminLabel}
+                </button>
+              </li>
+            )}
           </ul>
         </nav>
 

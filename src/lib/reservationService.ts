@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import type { ReturnBusReservation } from '../types/reservation';
+import { getReservationDeadline } from './reservationDeadlineService';
 
 /**
  * 예약 정보를 Supabase DB에 저장 (현재 인증된 사용자만 저장 가능)
@@ -25,6 +26,12 @@ export async function saveReservation(
 
     if (fetchError && fetchError.code !== 'PGRST116') {
       throw fetchError;
+    }
+
+    const deadline = await getReservationDeadline();
+
+    if (deadline.isClosed) {
+      throw new Error('신청이 마감되어 예매를 저장할 수 없습니다.');
     }
 
     if (existingReservation) {

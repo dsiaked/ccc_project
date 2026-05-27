@@ -18,6 +18,19 @@
   margin-bottom: 32px;
 }
 
+.adminScopeBadge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 6px 10px;
+  margin-bottom: 10px;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 13px;
+  font-weight: 800;
+}
+
 .header h1 {
   font-size: 32px;
   font-weight: 700;
@@ -36,6 +49,65 @@
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 16px;
   margin-bottom: 24px;
+}
+
+.guideSection {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.guideSection > div {
+  padding: 18px;
+  border-radius: 8px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
+}
+
+.guideSection strong {
+  display: block;
+  margin-bottom: 8px;
+  color: #111827;
+  font-size: 15px;
+}
+
+.guideSection p {
+  margin: 0;
+  color: #64748b;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.guideList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding-left: 20px;
+  color: #64748b;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.guideList li::marker {
+  color: #2563eb;
+  font-weight: 800;
+}
+
+.guideWarning {
+  display: block;
+  width: fit-content;
+  margin-top: 6px;
+  padding: 7px 9px;
+  border: 1px solid #fed7aa;
+  border-radius: 8px;
+  background: #fff7ed;
+  color: #9a3412;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1.5;
 }
 
 .stat {
@@ -205,6 +277,39 @@
   color: #991b1b;
 }
 
+.ticketConfirmed {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 150px;
+}
+
+.ticketConfirmed span {
+  width: fit-content;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.ticketConfirmed small {
+  color: #475569;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.ticketPending {
+  display: inline-block;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .emptyCell {
   text-align: center;
   padding: 40px 16px !important;
@@ -256,6 +361,10 @@ input[type='checkbox'] {
     grid-template-columns: repeat(2, 1fr);
   }
 
+  .guideSection {
+    grid-template-columns: 1fr;
+  }
+
   .actionBar {
     flex-direction: column;
   }
@@ -282,25 +391,83 @@ input[type='checkbox'] {
     flex-direction: column;
     text-align: center;
   }
+
+  .transferBox {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .transferHeaderRow {
+    flex-direction: column;
+  }
+
+  .transferSummaryGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .transferActionStack {
+    min-width: 0;
+  }
+
+  .requestHelpBox {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }
 
 
 .transferBox {
   margin-top: 24px;
-  padding: 20px;
-  border-radius: 16px;
-  background: #f8fafc;
+  padding: 22px;
+  border-radius: 8px;
+  background: #ffffff;
   border: 1px solid #e2e8f0;
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
+  gap: 20px;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.05);
+}
+
+.transferBoxReported {
+  border-color: #bfdbfe;
+  background: #f8fbff;
+}
+
+.transferBoxConfirmed {
+  border-color: #bbf7d0;
+  background: #f7fef9;
+}
+
+.transferBoxNeedsUpdate {
+  border-color: #fed7aa;
+  background: #fffaf3;
+}
+
+.transferContent {
+  flex: 1;
+  min-width: 0;
+}
+
+.transferHeaderRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
   gap: 16px;
+  margin-bottom: 10px;
+}
+
+.transferEyebrow {
+  margin: 0 0 4px;
+  color: #2563eb;
+  font-size: 12px;
+  font-weight: 900;
 }
 
 .transferTitle {
-  margin: 0 0 6px;
-  font-size: 16px;
-  font-weight: 700;
+  margin: 0;
+  font-size: 18px;
+  font-weight: 900;
   color: #0f172a;
 }
 
@@ -308,6 +475,146 @@ input[type='checkbox'] {
   margin: 0;
   font-size: 14px;
   color: #64748b;
+  line-height: 1.6;
+}
+
+.transferStatusPill {
+  flex: 0 0 auto;
+  min-height: 30px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.transferSummaryGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.transferSummaryGrid > div {
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.transferSummaryGrid span {
+  display: block;
+  margin-bottom: 6px;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.transferSummaryGrid strong {
+  color: #0f172a;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.transferWarning {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid #fed7aa;
+  border-radius: 8px;
+  background: #fff7ed;
+  color: #9a3412;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.5;
+}
+
+.transferWarning strong {
+  color: #7c2d12;
+  font-weight: 900;
+}
+
+.transferStatusBox {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.transferStatusBox strong {
+  color: #0f172a;
+  font-size: 14px;
+}
+
+.transferStatusBox span {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.transferStatusMeta {
+  color: #475569 !important;
+  font-weight: 700;
+}
+
+.transferStatusReported {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.transferStatusConfirmed {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.transferStatusNeedsUpdate {
+  border-color: #fed7aa;
+  background: #fff7ed;
+}
+
+.transferStatusNeedsUpdate strong {
+  color: #c2410c;
+}
+
+.headOfficeConfirmedBox {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 13px 14px;
+  border: 1px solid #86efac;
+  border-radius: 8px;
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.headOfficeConfirmedBox svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.headOfficeConfirmedBox strong {
+  display: block;
+  margin-bottom: 4px;
+  color: #14532d;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.headOfficeConfirmedBox p {
+  margin: 0;
+  color: #166534;
+  font-size: 13px;
+  line-height: 1.55;
 }
 
 .primaryButton {
@@ -324,4 +631,81 @@ input[type='checkbox'] {
 .primaryButton:disabled {
   background: #cbd5e1;
   cursor: not-allowed;
+}
+
+.transferActionStack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: stretch;
+  min-width: 180px;
+}
+
+.transferActionHint {
+  max-width: 220px;
+  margin: 0;
+  color: #475569;
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.requestHelpBox {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-top: 14px;
+  padding: 16px 18px;
+  border: 1px solid #d7dce2;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.requestHelpText {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+  color: #475569;
+}
+
+.requestHelpText svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  color: #2563eb;
+}
+
+.requestHelpText strong {
+  display: block;
+  margin-bottom: 4px;
+  color: #0f172a;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.requestHelpText p {
+  margin: 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.outlineButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 12px 16px;
+  background: #ffffff;
+  color: #334155;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.outlineButton:hover {
+  background: #f8fafc;
 }

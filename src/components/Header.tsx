@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { LogIn, LogOut, Menu } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import Sidebar from './Sidebar';
 import styles from './Header.module.css';
@@ -9,7 +9,11 @@ const Header = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
+  const location = useLocation();
   const navigate = useNavigate();
+  const homePath = location.pathname.startsWith('/admin')
+    ? '/admin/global'
+    : '/';
 
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
 
@@ -62,7 +66,7 @@ const Header = () => {
     <header className={styles.header}>
       <div
         className={styles.logo}
-        onClick={() => navigate('/')}
+        onClick={() => navigate(homePath)}
         style={{ cursor: 'pointer' }}
       >
         CCC 여름수련회 버스

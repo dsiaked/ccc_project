@@ -50,6 +50,13 @@ alter table reservations
   add column if not exists status text default 'requested';
 
 alter table reservations
+  drop constraint if exists reservations_status_check;
+
+alter table reservations
+  add constraint reservations_status_check
+  check (status in ('requested', 'confirmed', 'cancelled'));
+
+alter table reservations
   add column if not exists confirmed_ticket jsonb;
 
 alter table reservations
@@ -118,6 +125,13 @@ alter table payments
   add column if not exists status text default 'pending';
 
 alter table payments
+  drop constraint if exists payments_status_check;
+
+alter table payments
+  add constraint payments_status_check
+  check (status in ('pending', 'completed', 'refunded'));
+
+alter table payments
   add column if not exists paid_at timestamptz;
 
 alter table payments
@@ -180,7 +194,9 @@ create table if not exists admin_roles (
   updated_at timestamptz not null default now()
 );
 
-create unique index if not exists idx_admin_roles_user_unique
+drop index if exists idx_admin_roles_user_unique;
+
+create index if not exists idx_admin_roles_user_id
   on admin_roles(user_id);
 
 create index if not exists idx_admin_roles_campus
