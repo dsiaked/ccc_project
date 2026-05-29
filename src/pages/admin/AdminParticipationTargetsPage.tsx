@@ -119,6 +119,7 @@ const AdminParticipationTargetsPage = () => {
   const [bulkText, setBulkText] = useState('');
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [participationTargets, setParticipationTargets] = useState<
     Record<string, number>
   >(() => {
@@ -238,6 +239,7 @@ const AdminParticipationTargetsPage = () => {
   const applyBulkText = (text: string) => {
     setMessage(null);
     setError(null);
+    setValidationErrors([]);
 
     const rows = parseDelimitedText(text);
 
@@ -248,24 +250,44 @@ const AdminParticipationTargetsPage = () => {
 
     const headers = rows[0].map(normalizeHeader);
     const hasHeader = headers.some((header) =>
-      ['지구', '팀', '캠퍼스', '참여인원', '인원'].includes(header)
+      ['지구', '팀', '캠퍼스', '참여인원', '인원', '전체인원'].includes(header)
     );
     const bodyRows = hasHeader ? rows.slice(1) : rows;
+
     const findColumnIndex = (names: string[], fallbackIndex: number) => {
       if (!hasHeader) return fallbackIndex;
-
       const index = headers.findIndex((header) => names.includes(header));
-
-      return index >= 0 ? index : fallbackIndex;
+      return index >= 0 ? index : -1;
     };
+
     const districtIndex = findColumnIndex(['지구'], 0);
     const teamIndex = findColumnIndex(['팀'], 1);
     const campusIndex = findColumnIndex(['캠퍼스'], 2);
     const peopleIndex = findColumnIndex(['참여인원', '전체인원', '인원'], 3);
-    const importedTargets: Record<string, number> = {};
-    let skippedCount = 0;
 
-    bodyRows.forEach((row) => {
+    if (hasHeader) {
+      const missingHeaders: string[] = [];
+      if (districtIndex === -1) missingHeaders.push('지구');
+      if (teamIndex === -1) missingHeaders.push('팀');
+      if (campusIndex === -1) missingHeaders.push('캠퍼스');
+      if (peopleIndex === -1) missingHeaders.push('참여인원(혹은 인원)');
+
+      if (missingHeaders.length > 0) {
+        setError(`필수 열 헤더가 누락되었습니다: [${missingHeaders.join(', ')}]. 템플릿의 컬럼 이름을 수정하지 마세요.`);
+        return;
+      }
+    }
+
+    const importedTargets: Record<string, number> = {};
+    const errors: string[] = [];
+
+    bodyRows.forEach((row, bodyIndex) => {
+      const lineNum = hasHeader ? bodyIndex + 2 : bodyIndex + 1;
+
+      if (row.length === 0 || (row.length === 1 && !row[0].trim())) {
+        return;
+      }
+
       const rowPeopleIndex = !hasHeader && row.length === 2 ? 1 : peopleIndex;
       const rowForMatch =
         !hasHeader && row.length === 2
@@ -275,24 +297,44 @@ const AdminParticipationTargetsPage = () => {
               row[teamIndex] || '',
               row[campusIndex] || '',
             ];
-      const participantCount = Number(
-        String(row[rowPeopleIndex] ?? '').replace(/[^0-9.-]/g, '')
-      );
 
-      if (!Number.isFinite(participantCount) || participantCount < 0) {
-        skippedCount += 1;
+      const rawPeopleVal = row[rowPeopleIndex] ?? '';
+      const cleanPeopleVal = String(rawPeopleVal).replace(/[^0-9.-]/g, '');
+      const participantCount = Number(cleanPeopleVal);
+
+      const [rowDistrict = '', rowTeam = '', rowCampus = ''] = rowForMatch.map(val => val.trim());
+
+      if (!rowDistrict && !rowTeam && !rowCampus) {
+        errors.push(`${lineNum}번째 행: 모든 소속 정보(지구/팀/캠퍼스)가 비어 있습니다.`);
+        return;
+      }
+
+      if (!rowCampus) {
+        errors.push(`${lineNum}번째 행: 캠퍼스명이 누락되었습니다.`);
+        return;
+      }
+
+      if (cleanPeopleVal === '' || !Number.isFinite(participantCount) || participantCount < 0) {
+        errors.push(`${lineNum}번째 행 (${rowCampus}): 참여 인원 값 [${rawPeopleVal}]이 올바르지 않은 양의 정수입니다.`);
         return;
       }
 
       const campusRow = findCampusRow(rowForMatch);
 
       if (!campusRow) {
-        skippedCount += 1;
+        const fullScope = [rowDistrict, rowTeam, rowCampus].filter(Boolean).join(' > ');
+        errors.push(`${lineNum}번째 행: 시스템 내에 존재하지 않는 캠퍼스 [${fullScope}] 입니다. 철자나 공백을 확인해 주세요.`);
         return;
       }
 
       importedTargets[campusRow.key] = Math.round(participantCount);
     });
+
+    if (errors.length > 0) {
+      setValidationErrors(errors);
+      setError(`엑셀 파일 유효성 검사에 실패했습니다. 총 ${errors.length}개의 오류가 감지되어 업로드가 취소되었습니다. 하단의 에러 리포트를 수정 후 다시 시도해 주세요.`);
+      return;
+    }
 
     const importedCount = Object.keys(importedTargets).length;
 
@@ -305,11 +347,8 @@ const AdminParticipationTargetsPage = () => {
       ...participationTargets,
       ...importedTargets,
     });
-    setMessage(
-      `${importedCount}개 캠퍼스 참여 인원을 반영했습니다.${
-        skippedCount > 0 ? ` ${skippedCount}개 행은 건너뛰었습니다.` : ''
-      }`
-    );
+    setValidationErrors([]);
+    setMessage(`${importedCount}개 캠퍼스 참여 인원을 성공적으로 분석하여 모두 반영했습니다! 🎉`);
   };
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -601,6 +640,17 @@ const AdminParticipationTargetsPage = () => {
 
             {message && <p className={styles.successText}>{message}</p>}
             {error && <p className={styles.errorText}>{error}</p>}
+
+            {validationErrors.length > 0 && (
+              <div className={styles.validationErrorReport}>
+                <h3>⚠️ 데이터 입력 양식 오류 ({validationErrors.length}건)</h3>
+                <ul>
+                  {validationErrors.map((err, idx) => (
+                    <li key={idx}>{err}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         </section>
 
