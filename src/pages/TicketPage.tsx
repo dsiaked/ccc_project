@@ -97,28 +97,32 @@ const TicketPage = () => {
 
             <div className={styles.infoList}>
               <div className={styles.infoItem}>
-                <User size={20} color="#475467" />
-                <div>
+                <User size={20} color="#475467" className={styles.infoIcon} />
+                <div className={styles.infoContent}>
                   <p className={styles.label}>이름 / 연락처</p>
-                  <p className={styles.value}>{reservation.name}</p>
-                  <p className={styles.subValue}>{reservation.phone}</p>
+                  <div className={styles.horizontalRow}>
+                    <span className={styles.value}>{reservation.name}</span>
+                    <span className={styles.subValue}>{reservation.phone}</span>
+                  </div>
                 </div>
               </div>
 
               <div className={styles.infoItem}>
-                <Building2 size={20} color="#475467" />
-                <div>
+                <Building2 size={20} color="#475467" className={styles.infoIcon} />
+                <div className={styles.infoContent}>
                   <p className={styles.label}>소속</p>
-                  <p className={styles.value}>
-                    {reservation.district} {reservation.team}
-                  </p>
-                  <p className={styles.subValue}>{reservation.campus}</p>
+                  <div className={styles.horizontalRow}>
+                    <span className={styles.value}>
+                      {reservation.district} {reservation.team}
+                    </span>
+                    <span className={styles.subValue}>{reservation.campus}</span>
+                  </div>
                 </div>
               </div>
 
               <div className={styles.infoItem}>
-                <MapPin size={20} color="#475467" />
-                <div>
+                <MapPin size={20} color="#475467" className={styles.infoIcon} />
+                <div className={styles.infoContent}>
                   <p className={styles.label}>희망 도착역</p>
                   <div className={styles.preferenceList}>
                     {reservation.stationPreferences.map((preference) => (
@@ -136,13 +140,15 @@ const TicketPage = () => {
               </div>
 
               <div className={styles.infoItem}>
-                <Clock size={20} color="#475467" />
-                <div>
+                <Clock size={20} color="#475467" className={styles.infoIcon} />
+                <div className={styles.infoContent}>
                   <p className={styles.label}>신청 일시</p>
-                  <p className={styles.value}>{reservation.requestedAt}</p>
-                  {reservation.updatedAt && (
-                    <p className={styles.subValue}>수정 일시: {reservation.updatedAt}</p>
-                  )}
+                  <div className={styles.horizontalRow}>
+                    <span className={styles.value}>{reservation.requestedAt}</span>
+                    {reservation.updatedAt && (
+                      <span className={styles.subValue}>수정 일시: {reservation.updatedAt}</span>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

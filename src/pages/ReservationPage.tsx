@@ -124,7 +124,6 @@ const [stationSelectMode, setStationSelectMode] = useState<
 useEffect(() => {
   if (!window.kakao?.maps) {
     console.error('카카오 SDK가 로드되지 않았습니다.');
-    setIsKakaoReady(false);
     return;
   }
 
@@ -319,6 +318,7 @@ const searchPlaceCandidates = (keywordValue?: string) => {
   const places = new window.kakao.maps.services.Places();
   const geocoder = new window.kakao.maps.services.Geocoder();
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   places.keywordSearch(keyword, (result: any[], status: string) => {
     if (status === window.kakao.maps.services.Status.OK) {
       const candidates: PlaceCandidate[] = result.slice(0, 7).map((place) => ({
@@ -334,6 +334,7 @@ const searchPlaceCandidates = (keywordValue?: string) => {
       return;
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     geocoder.addressSearch(keyword, (addressResult: any[], addressStatus: string) => {
       if (addressStatus === window.kakao.maps.services.Status.OK) {
         const candidates: PlaceCandidate[] = addressResult
@@ -367,11 +368,13 @@ useEffect(() => {
   const keyword = placeSearchInput.trim();
 
   if (!keyword) {
-    setPlaceCandidates([]);
-    setNearbyStations([]);
-    setSelectedPlace(null);
-    setHasSearchedPlace(false);
-    setIsSearchingPlace(false);
+    Promise.resolve().then(() => {
+      setPlaceCandidates([]);
+      setNearbyStations([]);
+      setSelectedPlace(null);
+      setHasSearchedPlace(false);
+      setIsSearchingPlace(false);
+    });
     return;
   }
 

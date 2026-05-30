@@ -64,7 +64,9 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
   };
 
   useEffect(() => {
-    loadUser();
+    Promise.resolve().then(() => {
+      loadUser();
+    });
 
     const {
       data: { subscription },

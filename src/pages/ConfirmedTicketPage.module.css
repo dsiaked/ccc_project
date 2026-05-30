@@ -129,11 +129,37 @@
 .infoBlockFull {
   display: flex;
   gap: 12px;
-  align-items: flex-start;
-  padding: 12px;
+  align-items: center;
+  padding: 12px 18px;
   background: white;
   border-radius: 8px;
   border: 1px solid #e5e7eb;
+}
+
+.infoIcon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.infoBlockContent {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.infoBlockContentFull {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dropoffMain {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .infoBlockFull {
@@ -143,12 +169,13 @@
 .infoLabel {
   font-size: 12px;
   color: #666666;
-  margin: 0 0 4px;
+  margin: 0;
   font-weight: 500;
+  white-space: nowrap;
 }
 
 .infoValue {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
   color: #1f2937;
   margin: 0;
@@ -157,7 +184,7 @@
 .infoSubValue {
   font-size: 12px;
   color: #888888;
-  margin: 4px 0 0;
+  margin: 0;
 }
 
 .ticketBottom {
@@ -171,14 +198,21 @@
 .passengerInfo {
   display: flex;
   gap: 12px;
-  align-items: flex-start;
+  align-items: center;
+}
+
+.passengerTextWrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .passengerLabel {
   font-size: 12px;
   color: #666666;
-  margin: 0 0 4px;
+  margin: 0;
   font-weight: 500;
+  white-space: nowrap;
 }
 
 .passengerName,
@@ -212,9 +246,11 @@
 
 .infoItem {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 12px;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
   background: #f9fafb;
   border-radius: 8px;
 }
@@ -223,12 +259,14 @@
   font-size: 12px;
   color: #666666;
   font-weight: 500;
+  white-space: nowrap;
 }
 
 .itemValue {
   font-size: 14px;
   font-weight: 600;
   color: #1f2937;
+  text-align: right;
 }
 
 .notice {
@@ -378,17 +416,21 @@
   }
 
   .ticketBottom {
-    grid-template-columns: 1fr;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
     gap: 16px;
     padding: 16px;
   }
 
   .infoRow {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
   }
 
   .infoGrid {
     grid-template-columns: 1fr;
+    gap: 12px;
   }
 
   .notice {

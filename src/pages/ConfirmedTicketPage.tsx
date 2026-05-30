@@ -167,30 +167,32 @@ const ConfirmedTicketPage = () => {
           <div className={styles.ticketMiddle}>
             <div className={styles.infoRow}>
               <div className={styles.infoBlock}>
-                <Clock size={20} color="#2563eb" />
-                <div>
-                  <p className={styles.infoLabel}>출발 시간</p>
-                  <p className={styles.infoValue}>{ticket.departureTime}</p>
+                <Clock size={20} color="#2563eb" className={styles.infoIcon} />
+                <div className={styles.infoBlockContent}>
+                  <span className={styles.infoLabel}>출발 시간</span>
+                  <span className={styles.infoValue}>{ticket.departureTime}</span>
                 </div>
               </div>
 
               <div className={styles.infoBlock}>
-                <MapPin size={20} color="#dc2626" />
-                <div>
-                  <p className={styles.infoLabel}>탑승 장소</p>
-                  <p className={styles.infoValue}>{ticket.boardingPlace}</p>
+                <MapPin size={20} color="#dc2626" className={styles.infoIcon} />
+                <div className={styles.infoBlockContent}>
+                  <span className={styles.infoLabel}>탑승 장소</span>
+                  <span className={styles.infoValue}>{ticket.boardingPlace}</span>
                 </div>
               </div>
             </div>
 
             <div className={styles.infoRow}>
               <div className={styles.infoBlockFull}>
-                <MapPin size={20} color="#16a34a" />
-                <div>
-                  <p className={styles.infoLabel}>확정 하차역</p>
-                  <p className={styles.infoValue}>{ticket.dropoffStation}</p>
+                <MapPin size={20} color="#16a34a" className={styles.infoIcon} />
+                <div className={styles.infoBlockContentFull}>
+                  <div className={styles.dropoffMain}>
+                    <span className={styles.infoLabel}>확정 하차역</span>
+                    <span className={styles.infoValue}>{ticket.dropoffStation}</span>
+                  </div>
                   {ticket.dropoffDetail && (
-                    <p className={styles.infoSubValue}>{ticket.dropoffDetail}</p>
+                    <span className={styles.infoSubValue}>{ticket.dropoffDetail}</span>
                   )}
                 </div>
               </div>
@@ -200,18 +202,18 @@ const ConfirmedTicketPage = () => {
           {/* 아래쪽 - 승객 정보 */}
           <div className={styles.ticketBottom}>
             <div className={styles.passengerInfo}>
-              <Users size={18} color="#666666" />
-              <div>
-                <p className={styles.passengerLabel}>탑승자</p>
-                <p className={styles.passengerName}>{reservation.name}</p>
+              <Users size={18} color="#666666" className={styles.infoIcon} />
+              <div className={styles.passengerTextWrapper}>
+                <span className={styles.passengerLabel}>탑승자</span>
+                <span className={styles.passengerName}>{reservation.name}</span>
               </div>
             </div>
 
             <div className={styles.passengerInfo}>
-              <Smartphone size={18} color="#666666" />
-              <div>
-                <p className={styles.passengerLabel}>연락처</p>
-                <p className={styles.passengerPhone}>{reservation.phone}</p>
+              <Smartphone size={18} color="#666666" className={styles.infoIcon} />
+              <div className={styles.passengerTextWrapper}>
+                <span className={styles.passengerLabel}>연락처</span>
+                <span className={styles.passengerPhone}>{reservation.phone}</span>
               </div>
             </div>
           </div>
