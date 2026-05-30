@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { Bus, MapPin, Search } from 'lucide-react';
+import { Bus, MapPin, Search, Coins } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
 import {
@@ -84,6 +84,8 @@ const ReservationPage = () => {
 const [isStationCandidateModalOpen, setIsStationCandidateModalOpen] =
   useState(false);
 const [stationCandidateSearch, setStationCandidateSearch] = useState('');
+const [isDepositConfirmModalOpen, setIsDepositConfirmModalOpen] =
+  useState(false);
 
 const [stationOptions, setStationOptions] = useState<StationOption[]>([]);
 const [isStationLoading, setIsStationLoading] = useState(true);
@@ -646,6 +648,11 @@ const handleCandidateStationSelect = (
 
     if (!validateCurrentStep()) return;
 
+    if (currentStep === 2) {
+      setIsDepositConfirmModalOpen(true);
+      return;
+    }
+
     setCurrentStep((prev) => Math.min(prev + 1, reservationSteps.length - 1));
   };
 
@@ -881,7 +888,35 @@ const handleCandidateStationSelect = (
                     className={`${styles.stepItem} ${
                       index === currentStep ? styles.stepItemActive : ''
                     } ${index < currentStep ? styles.stepItemDone : ''}`}
-                    onClick={() => setCurrentStep(index)}
+                    onClick={() => {
+                      if (isReservationLocked) {
+                        setCurrentStep(index);
+                        return;
+                      }
+
+                      // 이전 단계로 돌아가는 것은 상시 허용
+                      if (index < currentStep) {
+                        setCurrentStep(index);
+                        return;
+                      }
+
+                      // 다음 단계로 갈 때는 유효성 검사 및 입금 확인 팝업 적용
+                      if (index > currentStep) {
+                        if (index > currentStep + 1) {
+                          alert('이전 단계를 먼저 완료해주세요.');
+                          return;
+                        }
+
+                        if (!validateCurrentStep()) return;
+
+                        if (currentStep === 2 && index === 3) {
+                          setIsDepositConfirmModalOpen(true);
+                          return;
+                        }
+
+                        setCurrentStep(index);
+                      }
+                    }}
                   >
                     <span>{index + 1}</span>
                     <strong>{step}</strong>
@@ -1045,6 +1080,16 @@ const handleCandidateStationSelect = (
                   <p>
                     가까운 역을 추천받거나 직접 검색해서 1·2지망을 선택해주세요.
                   </p>
+                </div>
+
+                <div className={styles.depositNotice}>
+                  <div className={styles.depositNoticeIcon}>
+                    <Coins size={20} />
+                  </div>
+                  <div className={styles.depositNoticeContent}>
+                    <strong>입금 안내</strong>
+                    <p>캠퍼스 회계순장 계좌로 <strong>20,000원</strong> 입금 부탁드립니다.</p>
+                  </div>
                 </div>
 
                 <div className={styles.preferenceSummaryGrid}>
@@ -1422,6 +1467,50 @@ const handleCandidateStationSelect = (
         ) : (
           <p className={styles.emptyResult}>검색 결과가 없습니다.</p>
         )}
+      </div>
+    </div>
+  </div>
+)}
+
+{isDepositConfirmModalOpen && (
+  <div
+    className={styles.modalOverlay}
+    onClick={() => setIsDepositConfirmModalOpen(false)}
+  >
+    <div
+      className={styles.confirmModal}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className={styles.confirmModalIcon}>
+        <Coins size={28} />
+      </div>
+      <h3>입금 여부 확인</h3>
+      <p>
+        캠퍼스 회계순장 계좌로
+        <br />
+        <strong>20,000원</strong> 입금 하셨나요?
+      </p>
+      <div className={styles.confirmModalButtons}>
+        <button
+          type="button"
+          className={styles.confirmModalNoBtn}
+          onClick={() => {
+            setIsDepositConfirmModalOpen(false);
+            alert('캠퍼스 회계순장 계좌로 20,000원을 입금하셔야 귀가 버스 신청을 완료하실 수 있습니다. 입금 후 다시 신청을 진행해 주세요.');
+          }}
+        >
+          아니요
+        </button>
+        <button
+          type="button"
+          className={styles.confirmModalYesBtn}
+          onClick={() => {
+            setIsDepositConfirmModalOpen(false);
+            setCurrentStep(3);
+          }}
+        >
+          네
+        </button>
       </div>
     </div>
   </div>
