@@ -1,16 +1,19 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Camera, Loader2, X } from 'lucide-react';
-
-const JS_QR_CDN = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';
+import jsQR from 'jsqr';
+import { Camera, Loader2, RotateCcw, ScanLine, X } from 'lucide-react';
 
 const copy = {
   ko: {
     title: 'QR 스캔',
-    desc: '작품 옆 QR을 화면 안에 맞춰 주세요.',
+    desc: '작품 QR을 화면 안에 맞춰 주세요.',
     loading: '카메라를 여는 중...',
     scanning: 'QR을 찾는 중...',
+    noCamera: '이 브라우저에서 카메라를 사용할 수 없어요. QR 링크나 코드를 직접 입력해 주세요.',
     permission: '카메라 권한을 허용해야 QR을 스캔할 수 있어요.',
-    decoderError: 'QR 스캐너를 불러오지 못했어요. QR 링크를 직접 열어 주세요.',
+    directLabel: 'QR 링크 또는 코드',
+    directPlaceholder: '예: https://.../?symbol=heart_kymin',
+    submit: '적용',
+    retry: '다시 시도',
     close: '닫기',
   },
   en: {
@@ -18,33 +21,24 @@ const copy = {
     desc: 'Place the artwork QR inside the camera view.',
     loading: 'Opening camera...',
     scanning: 'Looking for a QR code...',
+    noCamera: 'This browser cannot use the camera. Enter the QR link or code directly.',
     permission: 'Camera permission is required to scan QR codes.',
-    decoderError: 'Could not load the QR scanner. Please open the QR link directly.',
+    directLabel: 'QR link or code',
+    directPlaceholder: 'Example: https://.../?symbol=heart_kymin',
+    submit: 'Apply',
+    retry: 'Try again',
     close: 'Close',
   },
 };
 
-let jsQrPromise;
-
-const loadJsQr = () => {
-  if (window.jsQR) return Promise.resolve(window.jsQR);
-
-  if (!jsQrPromise) {
-    jsQrPromise = new Promise((resolve, reject) => {
-      const script = document.createElement('script');
-      script.src = JS_QR_CDN;
-      script.async = true;
-      script.onload = () => {
-        if (window.jsQR) resolve(window.jsQR);
-        else reject(new Error('jsQR global was not found'));
-      };
-      script.onerror = () => reject(new Error('Failed to load jsQR'));
-      document.head.appendChild(script);
-    });
-  }
-
-  return jsQrPromise;
-};
+const buildCameraConstraints = () => ({
+  audio: false,
+  video: {
+    facingMode: { ideal: 'environment' },
+    width: { ideal: 1280 },
+    height: { ideal: 720 },
+  },
+});
 
 export default function QRScannerPopup({ language = 'ko', onClose, onDetected }) {
   const videoRef = useRef(null);
@@ -55,6 +49,8 @@ export default function QRScannerPopup({ language = 'ko', onClose, onDetected })
   const [errorMessage, setErrorMessage] = useState('');
   const [statusText, setStatusText] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [manualValue, setManualValue] = useState('');
+  const [retryKey, setRetryKey] = useState(0);
   const text = copy[language] || copy.ko;
 
   useEffect(() => {
@@ -66,7 +62,7 @@ export default function QRScannerPopup({ language = 'ko', onClose, onDetected })
       streamRef.current = null;
     };
 
-    const decodeWithCanvas = (video, jsQr) => {
+    const decodeWithCanvas = video => {
       const canvas = canvasRef.current;
       if (!canvas || video.videoWidth === 0 || video.videoHeight === 0) return '';
 
@@ -77,36 +73,40 @@ export default function QRScannerPopup({ language = 'ko', onClose, onDetected })
       context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
       const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-      return jsQr(imageData.data, imageData.width, imageData.height, {
-        inversionAttempts: 'dontInvert',
+      return jsQR(imageData.data, imageData.width, imageData.height, {
+        inversionAttempts: 'attemptBoth',
       })?.data || '';
     };
 
-    const startScanner = async () => {
-      let detector = null;
-      let jsQr = null;
+    const getBarcodeDetector = () => {
+      if (!('BarcodeDetector' in window)) return null;
 
       try {
-        if ('BarcodeDetector' in window) {
-          detector = new window.BarcodeDetector({ formats: ['qr_code'] });
-        } else {
-          jsQr = await loadJsQr();
-        }
+        return new window.BarcodeDetector({ formats: ['qr_code'] });
       } catch (error) {
-        console.error('QR 디코더 로드 실패:', error);
+        console.error('QR BarcodeDetector init failed:', error);
+        return null;
+      }
+    };
+
+    const startScanner = async () => {
+      const video = videoRef.current;
+      const detector = getBarcodeDetector();
+
+      detectedRef.current = false;
+      setIsLoading(true);
+      setErrorMessage('');
+      setStatusText(text.loading);
+
+      if (!navigator.mediaDevices?.getUserMedia || !video) {
         setIsLoading(false);
-        setErrorMessage(text.decoderError);
+        setStatusText('');
+        setErrorMessage(text.noCamera);
         return;
       }
 
       try {
-        setStatusText(text.loading);
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: { ideal: 'environment' },
-          },
-          audio: false,
-        });
+        const stream = await navigator.mediaDevices.getUserMedia(buildCameraConstraints());
 
         if (isCancelled) {
           stream.getTracks().forEach(track => track.stop());
@@ -114,8 +114,9 @@ export default function QRScannerPopup({ language = 'ko', onClose, onDetected })
         }
 
         streamRef.current = stream;
-        const video = videoRef.current;
         video.srcObject = stream;
+        video.setAttribute('playsinline', 'true');
+        video.setAttribute('webkit-playsinline', 'true');
         await video.play();
 
         setIsLoading(false);
@@ -127,16 +128,18 @@ export default function QRScannerPopup({ language = 'ko', onClose, onDetected })
           let rawValue = '';
 
           try {
-            if (video.readyState >= 2) {
+            if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
               if (detector) {
                 const codes = await detector.detect(video);
                 rawValue = codes[0]?.rawValue || '';
-              } else if (jsQr) {
-                rawValue = decodeWithCanvas(video, jsQr);
+              }
+
+              if (!rawValue) {
+                rawValue = decodeWithCanvas(video);
               }
             }
           } catch (error) {
-            console.error('QR 프레임 판독 실패:', error);
+            console.error('QR frame decode failed:', error);
           }
 
           if (rawValue) {
@@ -151,7 +154,7 @@ export default function QRScannerPopup({ language = 'ko', onClose, onDetected })
 
         frameRef.current = window.requestAnimationFrame(scanFrame);
       } catch (error) {
-        console.error('QR 카메라 스캔 시작 실패:', error);
+        console.error('QR camera start failed:', error);
         setIsLoading(false);
         setStatusText('');
         setErrorMessage(text.permission);
@@ -164,7 +167,13 @@ export default function QRScannerPopup({ language = 'ko', onClose, onDetected })
       isCancelled = true;
       stopCamera();
     };
-  }, [onDetected, text.decoderError, text.loading, text.permission, text.scanning]);
+  }, [onDetected, retryKey, text.loading, text.noCamera, text.permission, text.scanning]);
+
+  const handleManualSubmit = event => {
+    event.preventDefault();
+    const value = manualValue.trim();
+    if (value) onDetected(value);
+  };
 
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/70 p-5 backdrop-blur-md">
@@ -178,7 +187,7 @@ export default function QRScannerPopup({ language = 'ko', onClose, onDetected })
           <X className="h-5 w-5" />
         </button>
 
-        <div className="px-5 pb-4 pt-6">
+        <div className="px-5 pb-5 pt-6">
           <div className="mb-4 flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/10 text-sky-200">
               <Camera className="h-5 w-5" />
@@ -192,12 +201,14 @@ export default function QRScannerPopup({ language = 'ko', onClose, onDetected })
           <div className="relative aspect-square overflow-hidden rounded-[22px] border border-white/15 bg-black">
             <video
               ref={videoRef}
-              className="h-full w-full object-cover"
+              autoPlay
               muted
               playsInline
+              className="h-full w-full object-cover"
             />
             <canvas ref={canvasRef} className="hidden" />
             <div className="pointer-events-none absolute inset-8 rounded-2xl border-2 border-white/80 shadow-[0_0_0_999px_rgba(15,23,42,0.34)]" />
+            <ScanLine className="pointer-events-none absolute left-1/2 top-1/2 h-10 w-10 -translate-x-1/2 -translate-y-1/2 text-white/80" />
             {isLoading && (
               <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/70 text-sm text-slate-100">
                 <Loader2 className="mb-2 h-6 w-6 animate-spin" />
@@ -213,10 +224,40 @@ export default function QRScannerPopup({ language = 'ko', onClose, onDetected })
           )}
 
           {errorMessage && (
-            <p className="mt-4 rounded-2xl border border-amber-300/30 bg-amber-300/10 px-4 py-3 text-[13px] leading-5 text-amber-100">
-              {errorMessage}
-            </p>
+            <div className="mt-4 rounded-2xl border border-amber-300/30 bg-amber-300/10 px-4 py-3 text-[13px] leading-5 text-amber-100">
+              <p>{errorMessage}</p>
+              <button
+                type="button"
+                onClick={() => setRetryKey(key => key + 1)}
+                className="mt-3 inline-flex items-center gap-2 rounded-full bg-white/12 px-3 py-2 text-xs font-semibold text-white transition active:scale-95"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                {text.retry}
+              </button>
+            </div>
           )}
+
+          <form onSubmit={handleManualSubmit} className="mt-4">
+            <label className="mb-2 block text-[12px] font-semibold text-slate-300">
+              {text.directLabel}
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={manualValue}
+                onChange={event => setManualValue(event.target.value)}
+                placeholder={text.directPlaceholder}
+                className="min-w-0 flex-1 rounded-2xl border border-white/10 bg-white/10 px-3 py-2 text-[13px] text-white outline-none placeholder:text-slate-500 focus:border-sky-300/60"
+              />
+              <button
+                type="submit"
+                disabled={!manualValue.trim()}
+                className="rounded-2xl bg-sky-300 px-4 py-2 text-[13px] font-bold text-slate-950 transition active:scale-95 disabled:cursor-not-allowed disabled:bg-slate-600 disabled:text-slate-300"
+              >
+                {text.submit}
+              </button>
+            </div>
+          </form>
         </div>
       </div>
     </div>

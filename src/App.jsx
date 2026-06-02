@@ -21,7 +21,7 @@ import { Camera, Sparkles } from 'lucide-react';
 const Popup = lazy(() => import('./components/Popup'));
 const ParticipatePage = lazy(() => import('./components/ParticipatePage'));
 const AdminPanel = lazy(() => import('./components/AdminPanel'));
-const QRScannerPopup = lazy(() => import('./components/QRScannerPopup'));
+const QRScannerPopup = lazy(() => import('./components/QRScannerPopup.jsx'));
 
 const SYMBOLS_STORAGE_KEY = 'symbols';
 const SYMBOLS_BROADCAST_CHANNEL = 'ccc-symbols';

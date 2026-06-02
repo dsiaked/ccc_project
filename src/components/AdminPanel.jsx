@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { db, doc, getDoc, setDoc } from '../firebase';
 import { symbolData } from '../data/symbolData';
-import MapArea, { DEFAULT_MAP_PINS } from './MapArea';
+import { DEFAULT_MAP_PINS } from './MapArea';
 import AdminAnnouncementSection from './admin/AdminAnnouncementSection';
 import AdminCoordinatesSection from './admin/AdminCoordinatesSection';
 import AdminFeatureTabs from './admin/AdminFeatureTabs';
@@ -549,44 +549,7 @@ export default function AdminPanel({ onBack }) {
 
       <main className="mx-auto grid w-full max-w-7xl gap-5 px-4 py-5">
         <div className="grid content-start gap-5">
-          <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {stats.map(item => (
-              <div key={item.label} className="rounded-lg border border-slate-800 bg-slate-900/70 p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-xs text-slate-400">{item.label}</p>
-                    <strong className="mt-2 block text-3xl text-white">{item.value}</strong>
-                  </div>
-                  {item.breakdown && (
-                    <div className="grid gap-1 text-right">
-                      {item.breakdown.map(detail => (
-                        <span key={detail.label} className={`text-xs ${detail.tone}`}>
-                          {detail.label} {detail.value}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <p className="mt-2 text-xs leading-snug text-slate-500">{item.desc}</p>
-                {item.chart?.length > 0 && (
-                  <div className="mt-3 grid gap-2">
-                    {item.chart.map(row => (
-                      <div key={row.count} className="grid grid-cols-[34px_1fr_34px] items-center gap-2 text-[11px] text-slate-400">
-                        <span>{row.count}개</span>
-                        <div className="h-2 overflow-hidden rounded-full bg-slate-800">
-                          <div
-                            className="h-full rounded-full bg-cyan-300"
-                            style={{ width: `${row.percent}%` }}
-                          />
-                        </div>
-                        <span className="text-right text-slate-300">{row.visitors}명</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
-          </section>
+          <AdminStats stats={stats} />
 
           <AdminFeatureTabs activeFeature={activeFeature} onChange={setActiveFeature} />
 
@@ -713,164 +676,36 @@ export default function AdminPanel({ onBack }) {
           </section>
           )}
 
-          {activeFeature === 'map' && (
-          <section className="rounded-lg border border-slate-800 bg-slate-900/55 p-4">
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h2 className="flex items-center gap-2 text-lg font-bold text-white">
-                  <MapPinned className="h-5 w-5 text-cyan-200" />
-                  지도 핀 위치
-                </h2>
-                <p className="mt-1 text-sm text-slate-400">핀을 드래그한 뒤 저장하면 방문자 화면에 반영됩니다.</p>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={handleReset}
-                  disabled={isLoadingPins}
-                  className="flex h-10 items-center gap-2 rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-slate-200 transition active:scale-95 disabled:opacity-40"
-                >
-                  <RotateCcw className="h-4 w-4" />
-                  기본값
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSave}
-                  disabled={isSaving || isLoadingPins}
-                  className="flex h-10 items-center gap-2 rounded-lg bg-cyan-500 px-3 text-sm font-bold text-slate-950 transition active:scale-95 disabled:opacity-40"
-                >
-                  {isSaving ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                  저장
-                </button>
-              </div>
-            </div>
-
-            {isLoadingPins ? (
-              <div className="flex aspect-[345/324] items-center justify-center rounded-lg bg-slate-950/60">
-                <RefreshCw className="h-7 w-7 animate-spin text-cyan-300" />
-              </div>
-            ) : (
-              <MapArea
-                symbols={mockSymbols}
-                onSymbolClick={() => {}}
-                isQuestionUnlocked={true}
-                editable={true}
-                onPinMove={handlePinMove}
-                pins={pins}
-              />
-            )}
-          </section>
+                    {activeFeature === 'map' && (
+            <AdminMapSection
+              isLoadingPins={isLoadingPins}
+              isSaving={isSaving}
+              mockSymbols={mockSymbols}
+              pins={pins}
+              onPinMove={handlePinMove}
+              onReset={handleReset}
+              onSave={handleSave}
+            />
           )}
         </div>
 
         <div className="grid content-start gap-5">
-          {activeFeature === 'announcement' && (
-          <section className="rounded-lg border border-slate-800 bg-slate-900/55 p-4">
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <div>
-                <h2 className="flex items-center gap-2 text-lg font-bold text-white">
-                  <Megaphone className="h-5 w-5 text-amber-200" />
-                  상단 공지
-                </h2>
-                <p className="mt-1 text-sm text-slate-400">방문자 화면 상단에 안내를 노출합니다.</p>
-              </div>
-              <label className="flex h-9 items-center gap-2 rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-slate-200">
-                <input
-                  type="checkbox"
-                  name="isActive"
-                  checked={announcementDraft.isActive}
-                  onChange={handleAnnouncementChange}
-                  className="h-4 w-4 accent-cyan-400"
-                  disabled={isLoadingAnnouncement || isSavingAnnouncement}
-                />
-                노출
-              </label>
-            </div>
-
-            <div className="grid gap-3">
-              <input
-                name="title"
-                value={announcementDraft.title}
-                onChange={handleAnnouncementChange}
-                placeholder="공지 제목"
-                className="h-11 rounded-lg border border-slate-700 bg-slate-950 px-3 text-sm text-slate-100 outline-none transition placeholder:text-slate-600 focus:border-cyan-400"
-                disabled={isLoadingAnnouncement || isSavingAnnouncement}
-              />
-              <textarea
-                name="message"
-                value={announcementDraft.message}
-                onChange={handleAnnouncementChange}
-                placeholder="예: 오늘 오후 3시에 상품 부스 운영이 시작됩니다."
-                className="min-h-24 resize-y rounded-lg border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm leading-relaxed text-slate-100 outline-none transition placeholder:text-slate-600 focus:border-cyan-400"
-                disabled={isLoadingAnnouncement || isSavingAnnouncement}
-              />
-              <button
-                type="button"
-                onClick={handleSaveAnnouncement}
-                disabled={isLoadingAnnouncement || isSavingAnnouncement}
-                className="flex h-10 items-center justify-center gap-2 rounded-lg bg-amber-300 px-3 text-sm font-bold text-slate-950 transition active:scale-95 disabled:opacity-40"
-              >
-                {isSavingAnnouncement ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                공지 저장
-              </button>
-            </div>
-          </section>
+                    {activeFeature === 'announcement' && (
+            <AdminAnnouncementSection
+              draft={announcementDraft}
+              isLoading={isLoadingAnnouncement}
+              isSaving={isSavingAnnouncement}
+              onChange={handleAnnouncementChange}
+              onSave={handleSaveAnnouncement}
+            />
           )}
 
-          {activeFeature === 'links' && (
-          <section className="rounded-lg border border-slate-800 bg-slate-900/55 p-4">
-            <h2 className="flex items-center gap-2 text-lg font-bold text-white">
-              <Link2 className="h-5 w-5 text-cyan-200" />
-              운영 링크
-            </h2>
-            <div className="mt-4 grid max-h-[520px] gap-3 overflow-y-auto pr-1">
-              {adminLinks.map(link => (
-                <div key={link.path} className="rounded-lg border border-slate-800 bg-slate-950/55 p-3">
-                  <p className="font-bold text-slate-100">{link.label}</p>
-                  <p className="mt-1 text-xs leading-relaxed text-slate-400">{link.desc}</p>
-                  <code className="mt-2 block break-all rounded-md bg-slate-900 px-2.5 py-1.5 text-xs text-cyan-200">
-                    {baseUrl}{link.path}
-                  </code>
-                  <div className="mt-3 flex justify-end gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleCopy(link.path)}
-                      className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-700 bg-slate-900 text-slate-300 transition active:scale-95"
-                      aria-label={`${link.label} 복사`}
-                    >
-                      <Copy className="h-4 w-4" />
-                    </button>
-                    <a
-                      href={link.path}
-                      className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-700 bg-slate-900 text-slate-300 transition active:scale-95"
-                      aria-label={`${link.label} 열기`}
-                    >
-                      <ExternalLink className="h-4 w-4" />
-                    </a>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
+                    {activeFeature === 'links' && (
+            <AdminLinksSection links={adminLinks} baseUrl={baseUrl} onCopy={handleCopy} />
           )}
 
-          {activeFeature === 'coordinates' && (
-          <section className="rounded-lg border border-slate-800 bg-slate-900/55 p-4">
-            <h2 className="text-lg font-bold text-white">핀 좌표</h2>
-            <div className="mt-4 max-h-[360px] space-y-2 overflow-y-auto pr-1">
-              {pins.map(pin => (
-                <div key={pin.id} className="rounded-lg border border-slate-800 bg-slate-950/55 px-3 py-2.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="truncate text-sm text-slate-200">{pin.label || getSymbolLabel(pin.id)}</span>
-                    <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[10px] text-slate-400">{pin.type}</span>
-                  </div>
-                  <div className="mt-1 font-mono text-xs text-cyan-300">
-                    L {pin.pinLeft} / T {pin.pinTop}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
+                    {activeFeature === 'coordinates' && (
+            <AdminCoordinatesSection pins={pins} getSymbolLabel={getSymbolLabel} />
           )}
         </div>
       </main>

@@ -3,7 +3,7 @@ import { X, ArrowRight, ArrowLeft, Check, MessageSquare } from 'lucide-react';
 import useArtworkComments from '../hooks/useArtworkComments';
 import { crossKyeomjunContent } from '../data/artworkContent/crossKyeomjun';
 import { artistPopupEnglish } from '../data/artistPopupEnglish';
-import ArtworkCommentModal from './ArtworkCommentModal';
+import ArtistPopupFrame from './ArtistPopupFrame';
 
 const CustomCrossIcon = ({ className = "w-6 h-6", color = "currentColor", strokeWidth = "2.5", style }) => (
   <svg
@@ -67,7 +67,13 @@ export default function CrossKyeomjunPopup({ onClose, language = 'ko' }) {
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-0 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300 overflow-x-hidden touch-pan-y">
+    <ArtistPopupFrame
+      commentsApi={commentsApi}
+      commentTheme="cross"
+      showCommentModal={showCommentModal}
+      onCloseComment={() => setShowCommentModal(false)}
+      uiText={uiText}
+    >
       {/* 스타일 태그 삽입: 몽환적인 플로팅 파티클 및 피그마 전용 서체 애니메이션 정의 */}
       <style>{`
         @keyframes float-up {
@@ -431,21 +437,8 @@ export default function CrossKyeomjunPopup({ onClose, language = 'ko' }) {
         )}
 
         {/* 댓글 모달 */}
-        {showCommentModal && (
-          <ArtworkCommentModal
-            commentsApi={commentsApi}
-            onClose={() => setShowCommentModal(false)}
-            uiText={uiText}
-            accent="#10b981"
-            accentTextClass="text-emerald-500"
-            accentNameClass="text-emerald-800"
-            accentBgClass="bg-emerald-50/30 border-emerald-100/50"
-            focusRingClass="focus:ring-emerald-400"
-          />
-        )}
-
-      </div>
-    </div>
+              </div>
+    </ArtistPopupFrame>
   );
 }
 
