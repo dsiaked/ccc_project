@@ -403,11 +403,11 @@ export default function DivideYewonPopup({ onClose, language = 'ko' }) {
               </div>
 
               {/* 하단 제어 버튼: 112px X 52px 둥근 캡슐 */}
-              <div className="relative z-10 flex flex-wrap justify-center gap-3 mt-8 flex-none font-readable-sans">
+              <div className="relative z-10 grid grid-cols-[92px_1fr] gap-2.5 mt-8 flex-none font-readable-sans">
                 {/* BACK 버튼 */}
                 <button
                   onClick={() => setStep(1)}
-                  className="w-[96px] h-[52px] bg-white border border-gray-200 text-gray-600 rounded-[26px] flex items-center justify-center gap-1.5 hover:bg-gray-50 transition-all duration-200 active:scale-[0.96] cursor-pointer shadow-sm font-bold"
+                  className="h-[48px] rounded-2xl border border-gray-200 bg-white text-gray-600 flex items-center justify-center gap-1.5 transition-all duration-200 active:scale-[0.96] cursor-pointer shadow-[0_5px_14px_rgba(15,23,42,0.08)] font-bold"
                 >
                   <ArrowLeft className="w-3.5 h-3.5 text-gray-400" />
                   <span className="text-[12px] tracking-[1.2px]">BACK</span>
@@ -416,17 +416,17 @@ export default function DivideYewonPopup({ onClose, language = 'ko' }) {
                 {/* NEXT (확인 완료) 버튼 */}
                 <button
                   onClick={() => setShowCommentModal(true)}
-                  className="flex-1 min-w-[176px] h-[52px] bg-gradient-to-r from-[#f7883e] to-[#ff9069] text-white rounded-[26px] flex items-center justify-center gap-2 hover:opacity-90 transition-all duration-200 active:scale-[0.96] shadow-[0_8px_18px_rgba(247,136,62,0.26)] cursor-pointer font-bold"
+                  className="h-[48px] min-w-0 bg-gradient-to-r from-[#f7883e] to-[#ff9069] text-white rounded-2xl flex items-center justify-center gap-2 px-3 hover:opacity-90 transition-all duration-200 active:scale-[0.96] shadow-[0_8px_18px_rgba(247,136,62,0.26)] cursor-pointer font-bold"
                 >
-                  <span className="text-[13px] tracking-[0.2px]">{uiText.leaveComment}</span>
+                  <span className="min-w-0 truncate text-[13px] tracking-[0.1px]">{uiText.leaveComment}</span>
                   <Check className="w-[18px] h-[18px]" />
                 </button>
                 <button
                   type="button"
                   onClick={onClose}
-                  className="w-full h-[46px] bg-white border border-gray-200 text-gray-700 rounded-[23px] flex items-center justify-center hover:bg-gray-50 transition-all duration-200 active:scale-[0.98] cursor-pointer shadow-sm font-bold"
+                  className="col-span-2 h-[44px] rounded-2xl border border-gray-200 bg-white/95 text-gray-700 flex items-center justify-center transition-all duration-200 active:scale-[0.98] cursor-pointer shadow-[0_5px_14px_rgba(15,23,42,0.07)] font-bold"
                 >
-                  <span className="text-[13px] tracking-[0.4px]">{uiText.nextArtwork}</span>
+                  <span className="text-[13px] tracking-[0.1px]">{uiText.nextArtwork}</span>
                 </button>
               </div>
 
@@ -578,6 +578,7 @@ export default function DivideYewonPopup({ onClose, language = 'ko' }) {
     </div>
   );
 }
+
 
 
 

@@ -86,7 +86,7 @@ export default function Popup({ id, type, symbols, discovered, onClose, language
           language={language}
           onToggle={onToggleLanguage}
           tone="dark"
-          className="fixed left-[calc(50%-168px)] top-5 z-[80] flex h-10 items-center gap-1.5 rounded-full border border-white/75 bg-slate-950/82 px-3 text-xs font-bold text-white shadow-[0_10px_28px_rgba(15,23,42,0.28)] backdrop-blur transition active:scale-95"
+          className="fixed right-5 top-[max(1rem,env(safe-area-inset-top))] z-[120] flex h-10 items-center gap-1.5 rounded-full border border-white/75 bg-slate-950/82 px-3 text-xs font-bold text-white shadow-[0_10px_28px_rgba(15,23,42,0.28)] backdrop-blur transition active:scale-95"
         />
       )}
     </Suspense>
