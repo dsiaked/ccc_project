@@ -114,36 +114,6 @@ export default function ParticipatePage({ onBack }) {
           </section>
         )}
 
-        {status !== 'submitted' && (
-          <section className="mb-5 rounded-[24px] border border-sky-100 bg-white/80 p-4 shadow-[0_10px_24px_rgba(14,165,233,0.08)]">
-            <div className="flex items-start gap-3">
-              <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-sky-50 border border-sky-100">
-                <Sparkles className="w-5 h-5 text-sky-600" />
-              </div>
-              <div>
-                <h2 className="text-lg text-slate-950 mb-1">작품 투어 안내</h2>
-                <p className="text-sm leading-6 text-slate-600">
-                  지도 속 심볼을 따라 작품을 둘러보고, 마지막 부스에서 투어를 마무리하는 참여형 전시입니다.
-                </p>
-              </div>
-            </div>
-            <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-              <div className="rounded-2xl bg-slate-50 border border-slate-100 px-2 py-2">
-                <span className="block text-[11px] text-slate-500 mb-0.5">1단계</span>
-                <span className="text-sm text-slate-900">심볼 찾기</span>
-              </div>
-              <div className="rounded-2xl bg-slate-50 border border-slate-100 px-2 py-2">
-                <span className="block text-[11px] text-slate-500 mb-0.5">2단계</span>
-                <span className="text-sm text-slate-900">작품 보기</span>
-              </div>
-              <div className="rounded-2xl bg-sky-50 border border-sky-100 px-2 py-2">
-                <span className="block text-[11px] text-sky-600 mb-0.5">마무리</span>
-                <span className="text-sm text-sky-900">소감 남기기</span>
-              </div>
-            </div>
-          </section>
-        )}
-
         {status === 'submitted' ? (
           <section className="mt-auto overflow-hidden rounded-[30px] border border-emerald-100 bg-white shadow-[0_18px_40px_rgba(15,23,42,0.10)]">
             <div className="bg-gradient-to-b from-emerald-50 via-white to-white px-6 pb-5 pt-7 text-center">

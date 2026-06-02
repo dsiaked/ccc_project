@@ -428,7 +428,7 @@ export default function App() {
           setTimeout(() => {
             setToast('');
           }, 2000);
-          window.history.replaceState({}, '', window.location.pathname);
+          window.history.replaceState({}, '', '/');
           return;
         }
 
@@ -443,9 +443,12 @@ export default function App() {
           return next;
         });
 
-        setActivePopup(null);
-        setPage('participate');
-        window.history.replaceState({}, '', '/participate');
+        setPage('home');
+        setActivePopup({
+          type: 'qr',
+          id: 'question',
+        });
+        window.history.replaceState({}, '', '/');
         return;
       }
 
@@ -467,7 +470,7 @@ export default function App() {
           id: symbol,
         });
 
-        window.history.replaceState({}, '', window.location.pathname);
+        window.history.replaceState({}, '', '/');
       }
     }
   }, []);
