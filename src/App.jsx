@@ -3,6 +3,7 @@ import Header from './components/Header';
 import MapArea, { DEFAULT_MAP_PINS } from './components/MapArea';
 import SymbolCards from './components/SymbolCards';
 import useFirebaseSymbolSync from './hooks/useFirebaseSymbolSync';
+import usePublicFeedbackFeed from './hooks/usePublicFeedbackFeed';
 import {
   ADMIN_UNLOCK_CATEGORIES,
   ADMIN_UNLOCK_LABELS,
@@ -13,7 +14,7 @@ import {
   normalizeSymbols,
   resolveQrSymbol,
 } from './utils/symbols';
-import { loadFirebaseApi, saveUserSymbols, scheduleAfterInitialPaint } from './utils/firebaseApi';
+import { saveUserSymbols } from './utils/firebaseApi';
 
 import { Camera, Sparkles } from 'lucide-react';
 
@@ -143,8 +144,6 @@ export default function App() {
 
   const [activePopup, setActivePopup] = useState(null);
   const [toast, setToast] = useState('');
-  const [publishedFeedbacks, setPublishedFeedbacks] = useState([]);
-  const [publicComments, setPublicComments] = useState([]);
   const [highlightedPinId, setHighlightedPinId] = useState(null);
   const [language, setLanguage] = useState(() => localStorage.getItem('language') || 'ko');
   const [isQrScannerOpen, setIsQrScannerOpen] = useState(false);
@@ -218,12 +217,7 @@ export default function App() {
                           (isCrossDiscovered ? 1 : 0) +
                           (isQuestionDiscovered ? 1 : 0);
 
-  const featuredFeedbacks = useMemo(
-    () => [...publishedFeedbacks, ...publicComments]
-      .sort((a, b) => getTimestamp(b.createdAt) - getTimestamp(a.createdAt))
-      .slice(0, 30),
-    [publishedFeedbacks, publicComments],
-  );
+  const featuredFeedbacks = usePublicFeedbackFeed({ enabled: page === 'home' });
 
   // 0. 카카오톡 인앱 브라우저 외부 브라우저 강제 전환
   useEffect(() => {
@@ -234,102 +228,6 @@ export default function App() {
     }
   }, []);
 
-  useEffect(() => {
-    if (page !== 'home') return undefined;
-
-    let unsubscribe;
-    let isCancelled = false;
-
-    const cancelSchedule = scheduleAfterInitialPaint(() => {
-      loadFirebaseApi().then(({ collection, db, limit, onSnapshot, query, where }) => {
-      if (isCancelled) return;
-
-      const publishedFeedbackQuery = query(
-        collection(db, 'tour_feedbacks'),
-        where('isPublished', '==', true),
-        limit(30),
-      );
-
-      unsubscribe = onSnapshot(
-        publishedFeedbackQuery,
-        snapshot => {
-          const nextFeedbacks = snapshot.docs
-            .map(feedbackDoc => ({
-              id: `feedback-${feedbackDoc.id}`,
-              source: 'feedback',
-              sourceLabel: '투어 소감',
-              ...feedbackDoc.data(),
-            }))
-            .sort((a, b) => getTimestamp(b.createdAt) - getTimestamp(a.createdAt));
-          setPublishedFeedbacks(nextFeedbacks);
-        },
-        error => {
-          console.error('공개 소감 로드 실패:', error);
-          setPublishedFeedbacks([]);
-        },
-      );
-      });
-    });
-
-    return () => {
-      isCancelled = true;
-      cancelSchedule();
-      unsubscribe?.();
-    };
-  }, [page]);
-
-  useEffect(() => {
-    if (page !== 'home') return undefined;
-
-    let unsubscribe;
-    let isCancelled = false;
-
-    const cancelSchedule = scheduleAfterInitialPaint(() => {
-      loadFirebaseApi().then(({ collection, db, limit, onSnapshot, query, where }) => {
-      if (isCancelled) return;
-
-      unsubscribe = onSnapshot(
-        query(
-          collection(db, 'comments'),
-          where('isPublished', '==', true),
-          limit(30),
-        ),
-        snapshot => {
-          const nextComments = snapshot.docs
-            .map(commentDoc => {
-              const comment = commentDoc.data();
-              const content = String(comment.content || '').trim();
-
-              if (!content) return null;
-
-              return {
-                id: `comment-${commentDoc.id}`,
-                name: comment.name,
-                feedback: content,
-                createdAt: comment.createdAt,
-                source: 'comment',
-                sourceLabel: '작품 댓글',
-                symbolId: comment.artistId,
-              };
-            })
-            .filter(Boolean)
-            .sort((a, b) => getTimestamp(b.createdAt) - getTimestamp(a.createdAt));
-          setPublicComments(nextComments);
-        },
-        error => {
-          console.error('작품 댓글 로드 실패:', error);
-          setPublicComments([]);
-        },
-      );
-      });
-    });
-
-    return () => {
-      isCancelled = true;
-      cancelSchedule();
-      unsubscribe?.();
-    };
-  }, [page]);
   // 1. URL 쿼리 파라미터를 통한 즉시 해금 및 리셋 처리
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);

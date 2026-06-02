@@ -4,17 +4,12 @@ import {
   AlertCircle,
   ArrowLeft,
   CheckCircle2,
-  Copy,
-  ExternalLink,
   Eye,
   EyeOff,
-  Link2,
   MapPinned,
   Megaphone,
   MessageSquareText,
   RefreshCw,
-  RotateCcw,
-  Save,
   Search,
   ShieldAlert,
   Users,
@@ -22,7 +17,12 @@ import {
 import { db, doc, getDoc, setDoc } from '../firebase';
 import { symbolData } from '../data/symbolData';
 import MapArea, { DEFAULT_MAP_PINS } from './MapArea';
+import AdminAnnouncementSection from './admin/AdminAnnouncementSection';
+import AdminCoordinatesSection from './admin/AdminCoordinatesSection';
 import AdminFeatureTabs from './admin/AdminFeatureTabs';
+import AdminLinksSection from './admin/AdminLinksSection';
+import AdminMapSection from './admin/AdminMapSection';
+import AdminStats from './admin/AdminStats';
 
 const adminLinks = [
   { label: '관리자 대시보드', path: '/admin-panel', desc: '기록 확인과 지도 핀 위치를 관리합니다.' },
