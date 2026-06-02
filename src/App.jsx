@@ -887,6 +887,7 @@ export default function App() {
             isQuestionUnlocked={isQuestionUnlocked}
             pins={pins}
             highlightedPinId={highlightedPinId}
+            language={language}
           />
         </section>
 

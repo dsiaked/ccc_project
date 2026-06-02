@@ -8,6 +8,21 @@ const ZOOM_STEP = 0.35;
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
+const mapCopy = {
+  ko: {
+    symbol: '상징',
+    zoomIn: '지도 확대',
+    zoomOut: '지도 축소',
+    resetZoom: '지도 원래 크기로',
+  },
+  en: {
+    symbol: 'symbol',
+    zoomIn: 'Zoom in map',
+    zoomOut: 'Zoom out map',
+    resetZoom: 'Reset map zoom',
+  },
+};
+
 const CustomCrossIcon = ({ size = 14, color = "currentColor", strokeWidth = "3" }) => (
   <svg 
     viewBox="0 0 24 24" 
@@ -144,6 +159,7 @@ const MapPinMarker = React.memo(function MapPinMarker({
   pinMetrics,
   onSymbolClick,
   onPinPointerDown,
+  text,
 }) {
   const { id, type, pinTop, pinLeft, color, borderColor } = pin;
 
@@ -193,7 +209,7 @@ const MapPinMarker = React.memo(function MapPinMarker({
   return (
     <button
       type="button"
-      aria-label={`${type} symbol`}
+      aria-label={`${type} ${text.symbol}`}
       data-map-pin-id={id}
       className={[
         'absolute flex items-center justify-center cursor-pointer transition-all duration-300 active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 rounded-full',
@@ -232,7 +248,7 @@ const MapPinMarker = React.memo(function MapPinMarker({
   );
 });
 
-export default function MapArea({ symbols, onSymbolClick, isQuestionUnlocked, zoom = 1, pins = DEFAULT_MAP_PINS, editable = false, onPinMove, highlightedPinId = null }) {
+export default function MapArea({ symbols, onSymbolClick, isQuestionUnlocked, zoom = 1, pins = DEFAULT_MAP_PINS, editable = false, onPinMove, highlightedPinId = null, language = 'ko' }) {
   const mapRef = useRef(null);
   const dragRef = useRef(null);
   const interactionRef = useRef({ pan: { x: 0, y: 0 }, viewZoom: 1 });
@@ -242,6 +258,7 @@ export default function MapArea({ symbols, onSymbolClick, isQuestionUnlocked, zo
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const viewZoom = clamp(zoomLevel * zoom, MIN_ZOOM, MAX_ZOOM);
+  const text = mapCopy[language] || mapCopy.ko;
   const zoomProgress = (viewZoom - MIN_ZOOM) / (MAX_ZOOM - MIN_ZOOM);
   const zoomPinScale = clamp(1 / Math.pow(viewZoom, 1.15), 0.32, 1);
   const pinScale = clamp(mapScale * zoomPinScale, 0.36, 1.75);
@@ -256,7 +273,9 @@ export default function MapArea({ symbols, onSymbolClick, isQuestionUnlocked, zo
     hoverScale: 1 + (1 - zoomProgress) * 0.05,
   }), [pinScale, zoomProgress]);
 
-  interactionRef.current = { pan, viewZoom };
+  useEffect(() => {
+    interactionRef.current = { pan, viewZoom };
+  }, [pan, viewZoom]);
 
   const handlePinPointerDown = useCallback((event, id) => {
     if (!editable) return;
@@ -563,6 +582,7 @@ export default function MapArea({ symbols, onSymbolClick, isQuestionUnlocked, zo
             pinMetrics={pinMetrics}
             onSymbolClick={onSymbolClick}
             onPinPointerDown={handlePinPointerDown}
+            text={text}
           />
         ))}
       </div>
@@ -570,7 +590,7 @@ export default function MapArea({ symbols, onSymbolClick, isQuestionUnlocked, zo
       <div className="absolute top-3 right-3 z-30 flex flex-col gap-2" data-map-control="true">
         <button
           type="button"
-          aria-label="지도 확대"
+          aria-label={text.zoomIn}
           onClick={() => setZoom(viewZoom + ZOOM_STEP)}
           className="w-9 h-9 rounded-full bg-white/95 border border-slate-200 shadow-sm flex items-center justify-center text-slate-800 active:scale-95 disabled:opacity-45"
           disabled={viewZoom >= MAX_ZOOM}
@@ -579,7 +599,7 @@ export default function MapArea({ symbols, onSymbolClick, isQuestionUnlocked, zo
         </button>
         <button
           type="button"
-          aria-label="지도 축소"
+          aria-label={text.zoomOut}
           onClick={() => setZoom(viewZoom - ZOOM_STEP)}
           className="w-9 h-9 rounded-full bg-white/95 border border-slate-200 shadow-sm flex items-center justify-center text-slate-800 active:scale-95 disabled:opacity-45"
           disabled={viewZoom <= MIN_ZOOM}
@@ -589,7 +609,7 @@ export default function MapArea({ symbols, onSymbolClick, isQuestionUnlocked, zo
         {viewZoom > 1 && (
           <button
             type="button"
-            aria-label="지도 원래 크기로"
+            aria-label={text.resetZoom}
             onClick={resetZoom}
             className="w-9 h-9 rounded-full bg-white/95 border border-slate-200 shadow-sm flex items-center justify-center text-slate-800 active:scale-95"
           >

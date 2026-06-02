@@ -1,9 +1,8 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { X, ArrowRight, ArrowLeft, Heart, Check, MessageSquare, Pencil, Trash2 } from 'lucide-react';
 import useArtworkComments from '../hooks/useArtworkComments';
-import ArtistInlineEnglishLayer from './ArtistInlineEnglishLayer';
 
-export default function HeartEunchaePopup({ onClose, language = 'ko', onToggleLanguage }) {
+export default function HeartEunchaePopup({ onClose }) {
   const [step, setStep] = useState(1);
   const [showCommentModal, setShowCommentModal] = useState(false);
   const {
@@ -83,9 +82,6 @@ export default function HeartEunchaePopup({ onClose, language = 'ko', onToggleLa
 
       {/* 팝업 모달 몸체 */}
       <div className="relative w-[360px] h-[780px] max-h-[92vh] rounded-[32px] overflow-hidden flex flex-col shadow-[0_25px_60px_rgba(0,0,0,0.18)] border border-gray-100 bg-white animate-in zoom-in-95 duration-300 touch-pan-y">
-        {language === 'en' && (
-          <ArtistInlineEnglishLayer artistId="heart_eunchae" onClose={onClose} onToggleLanguage={onToggleLanguage} />
-        )}
 
         {/* Step 1: 첫 번째 팝업창 (감성 인트로) */}
         {step === 1 && (
@@ -412,3 +408,4 @@ export default function HeartEunchaePopup({ onClose, language = 'ko', onToggleLa
     </div>
   );
 }
+

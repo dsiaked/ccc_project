@@ -1,13 +1,25 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { X, ArrowRight, ArrowLeft, Heart, Check, MessageSquare, Pencil, Trash2 } from 'lucide-react';
 import useArtworkComments from '../hooks/useArtworkComments';
-import ArtistInlineEnglishLayer from './ArtistInlineEnglishLayer';
+import { artistPopupEnglish } from '../data/artistPopupEnglish';
 
 const ACCENT = '#fa5c5c';
 const accent = (opacity = 1) => `rgba(250, 92, 92, ${opacity})`;
-export default function HeartKyminPopup({ onClose, language = 'ko', onToggleLanguage }) {
+export default function HeartKyminPopup({ onClose, language = 'ko' }) {
   const [step, setStep] = useState(1);
   const [showCommentModal, setShowCommentModal] = useState(false);
+  const englishCopy = language === 'en' ? artistPopupEnglish.heart_kymin : null;
+  const introLines = englishCopy?.intro || [
+    '익숙한 장소',
+    '늘 지나가던 곳',
+    '잠깐 시간이 나서',
+    '',
+    '머물러본 그곳에서',
+    '줄곧 날',
+    '기다리던 존재를',
+    '만났다',
+  ];
+  const detailTitleLines = englishCopy ? [englishCopy.title] : ['늘', '기다리고', '있었다'];
   const {
     comments,
     loadingComments,
@@ -90,9 +102,6 @@ export default function HeartKyminPopup({ onClose, language = 'ko', onToggleLang
 
       {/* 팝업 모달 몸체: Figma iPhone 17-19의 가로-세로 뷰포트 비율을 1:1 복원하는 360x780px 고정형 카드 */}
       <div className="relative w-[360px] h-[780px] max-h-[92vh] rounded-[32px] overflow-hidden flex flex-col shadow-[0_25px_60px_rgba(0,0,0,0.18)] border border-gray-100 bg-white animate-in zoom-in-95 duration-300 touch-pan-y">
-        {language === 'en' && (
-          <ArtistInlineEnglishLayer artistId="heart_kymin" onClose={onClose} onToggleLanguage={onToggleLanguage} />
-        )}
         
         {/* Step 1: 피그마 iPhone 17-19 1:1 완벽 절대 좌표 복원 */}
         {step === 1 && (
@@ -182,7 +191,7 @@ export default function HeartKyminPopup({ onClose, language = 'ko', onToggleLang
             <div className="relative z-10 w-full h-full">
               {/* SYMBOL1 : HEART */}
               <span className="absolute left-[29px] top-[31px] text-[15px] tracking-[1.92px] font-medium text-[#4a3b3b] font-readable-sans">
-                SYMBOL1 : HEART
+                SYMBOL1 : {englishCopy?.symbol?.toUpperCase() || 'HEART'}
               </span>
               
               {/* Rectangle 361 (상단 얇은 가로선) */}
@@ -195,20 +204,20 @@ export default function HeartKyminPopup({ onClose, language = 'ko', onToggleLang
               
               {/* 과기대 붕어방 */}
               <div className="absolute right-[25px] top-[71px] text-[10px] text-[#4a3b3b] tracking-[1.2px] text-right font-readable-sans">
-                과기대 붕어방
+                {englishCopy ? 'Boongo Room' : '과기대 붕어방'}
               </div>
 
               {/* 대형 감성 문구: 김규민 작가 (iPhone 17 - 19) 피그마 7줄 배치 및 색감/두께 단일화 */}
               <div className="absolute left-[29px] top-[91px] w-[310px] text-left">
-                <div className="text-[34px] leading-[1.22] text-[#4a3b3b] tracking-[1.5px] font-sentiment font-normal">
-                  <p>익숙한 장소</p>
-                  <p>늘 지나가던 곳</p>
-                  <p>잠깐 시간이 나서</p>
-                  <div className="h-[18px]" /> {/* 피그마 오리지널 빈 줄 간격 정밀 복원 */}
-                  <p>머물러본 그곳에서</p>
-                  <p>줄곧 날</p>
-                  <p>기다리던 존재를</p>
-                  <p>만났다</p>
+                <div className={[
+                  'leading-[1.22] text-[#4a3b3b] tracking-[1.5px] font-sentiment font-normal',
+                  englishCopy ? 'text-[29px]' : 'text-[34px]',
+                ].join(' ')}>
+                  {introLines.map((line, index) => (
+                    line
+                      ? <p key={`${line}-${index}`}>{line}</p>
+                      : <div key={`gap-${index}`} className="h-[18px]" />
+                  ))}
                 </div>
               </div>
 
@@ -219,7 +228,7 @@ export default function HeartKyminPopup({ onClose, language = 'ko', onToggleLang
               {/* ARTIST. 김규민 및 댓글 이모지 버튼 */}
               <div className="absolute left-[26px] right-[25px] top-[492px] flex items-center justify-between">
                 <span className="text-[15px] tracking-[1.92px] font-medium text-[#4a3b3b] font-readable-sans">
-                  ARTIST. 김규민
+                  ARTIST. {englishCopy?.artist || '김규민'}
                 </span>
                 <button
                   onClick={() => setShowCommentModal(true)}
@@ -237,7 +246,7 @@ export default function HeartKyminPopup({ onClose, language = 'ko', onToggleLang
               {/* 서울과학기술대학교 중앙동아리 CCC */}
               <div className="absolute left-[25px] top-[530px] text-[10px] tracking-[1.2px] text-[#4a3b3b] leading-normal font-readable-sans">
                 <p>서울과학기술대학교</p>
-                <p className="mt-0.5">중앙동아리 CCC</p>
+                <p className="mt-0.5">{englishCopy ? 'CCC Club' : '중앙동아리 CCC'}</p>
               </div>
 
               {/* NEXT PAGE 버튼: 우측 하단 둥근 캡슐 */}
@@ -307,7 +316,7 @@ export default function HeartKyminPopup({ onClose, language = 'ko', onToggleLang
               {/* 상단 띠지 */}
               <div className="relative z-10 flex justify-between items-center pb-6 font-readable-sans">
                 <span className="text-[10px] tracking-[1.2px] font-bold text-[var(--heart-accent)]">
-                  SYMBOL1 : HEART
+                  SYMBOL1 : {englishCopy?.symbol?.toUpperCase() || 'HEART'}
                 </span>
                 <div className="w-[100px] h-[0.5px] bg-[rgba(250,92,92,0.22)]" />
               </div>
@@ -316,56 +325,70 @@ export default function HeartKyminPopup({ onClose, language = 'ko', onToggleLang
               <div className="relative z-10 flex-1 flex flex-col bg-white/75 rounded-[18px] border border-[rgba(250,92,92,0.12)] px-6 py-7 shadow-[0_4px_18px_rgba(0,0,0,0.025)]">
                 
                 {/* 헤드라인 타이틀: "늘 기다리고 있었다" */}
-                <div className="text-left font-sentiment text-[34px] leading-[1.18] text-[#4a3b3b] tracking-[2px] font-normal mt-2 select-text">
-                  <p>늘</p>
-                  <p>기다리고</p>
-                  <p>있었다</p>
+                <div className={[
+                  'text-left font-sentiment leading-[1.18] text-[#4a3b3b] tracking-[2px] font-normal mt-2 select-text',
+                  englishCopy ? 'text-[27px]' : 'text-[34px]',
+                ].join(' ')}>
+                  {detailTitleLines.map(line => <p key={line}>{line}</p>)}
                 </div>
 
                 {/* 얇은 가로선 */}
                 <div className="bg-[rgba(250,92,92,0.2)] h-px w-[31px] my-6 flex-none" />
 
                 {/* 본문 서사: 김규민 작가 수필 (온점 하나도 누락 없이 100% 반영) */}
-                <div className="text-left text-[14.5px] leading-[1.85] text-gray-700 space-y-5 tracking-normal font-readable-sans select-text break-keep">
-                  <p className="text-black">익숙한 냄새 같은 기억이 있다. 어릴 때, 교회에서 먹던 따뜻한 잔치국수, 손에 쥐고 설레던 달란트, 괜히 오래 머물고 싶었던 그 시간들.</p>
-                  
-                  <div className="h-1" />
-                  <p>그때는 이유를 몰랐고, <span className="font-bold">그저 자연스럽게 그 자리에 있었을 뿐이었다.</span></p>
-                  
-                  <div className="h-1" />
-                  <p>시간이 지나고, 나는 그곳을 스쳐 지나가는 사람이 되었고 그 기억들도 지나간 장면쯤으로 남아 있다고 생각했다.</p>
-                  
-                  <div className="py-2 text-[rgba(250,92,92,0.25)] text-center flex justify-center gap-1 select-none font-bold">
-                    <span>.</span><span>.</span><span>.</span>
+                {englishCopy ? (
+                  <div className="text-left text-[14.5px] leading-[1.85] text-gray-700 space-y-5 tracking-normal font-readable-sans select-text">
+                    {englishCopy.body.map((paragraph, index) => (
+                      <p
+                        key={paragraph}
+                        className={index === 0 || index === englishCopy.body.length - 1 ? 'text-[#4a3b3b] font-medium' : ''}
+                      >
+                        {paragraph}
+                      </p>
+                    ))}
                   </div>
-                  
-                  <p>그런데 어느 날, <span className="font-bold">익숙한 공간에서 잠깐 멈춰 서게 되었을 때</span> 문득 그때의 감각이 다시 떠올랐다.</p>
-                  
-                  <div className="h-1" />
-                  <p>따뜻했던 공기, <span>누군가 곁에 있었던 것 같은 조용한 느낌.</span></p>
-                  
-                  <div className="h-1" />
-                  <p>그 자리에, <span className="font-bold">여전히 같은 모습으로 아무 일도 없다는 듯 앉아 있는 존재.</span></p>
-                  
-                  <div className="h-1" />
-                  <p>떠난 적이 없었던 것처럼, 처음부터 계속 그 자리에 있었던 것처럼.</p>
-                  
-                  {/* 마무리 문장은 박스 없이 여백과 얇은 선으로만 구분한다. */}
-                  <div className="mt-7 pt-5 border-t border-[rgba(250,92,92,0.14)] text-[14.5px] leading-[1.85] text-[#4a3b3b] text-center">
-                    <p className="font-semibold">“어릴 때 아무렇지 않게</p>
-                    <p className="font-semibold">지나쳤던 그 마음이,</p>
-                    <p className="font-semibold">지금의 나를 향해</p>
-                    <div className="h-2.5" />
-                    <p className="font-semibold">여전히 그 자리에서</p>
-                    <p className="font-semibold">나를 기다리고 있었다.”</p>
+                ) : (
+                  <div className="text-left text-[14.5px] leading-[1.85] text-gray-700 space-y-5 tracking-normal font-readable-sans select-text break-keep">
+                    <p className="text-black">익숙한 냄새 같은 기억이 있다. 어릴 때, 교회에서 먹던 따뜻한 잔치국수, 손에 쥐고 설레던 달란트, 괜히 오래 머물고 싶었던 그 시간들.</p>
+                    
+                    <div className="h-1" />
+                    <p>그때는 이유를 몰랐고, <span className="font-bold">그저 자연스럽게 그 자리에 있었을 뿐이었다.</span></p>
+                    
+                    <div className="h-1" />
+                    <p>시간이 지나고, 나는 그곳을 스쳐 지나가는 사람이 되었고 그 기억들도 지나간 장면쯤으로 남아 있다고 생각했다.</p>
+                    
+                    <div className="py-2 text-[rgba(250,92,92,0.25)] text-center flex justify-center gap-1 select-none font-bold">
+                      <span>.</span><span>.</span><span>.</span>
+                    </div>
+                    
+                    <p>그런데 어느 날, <span className="font-bold">익숙한 공간에서 잠깐 멈춰 서게 되었을 때</span> 문득 그때의 감각이 다시 떠올랐다.</p>
+                    
+                    <div className="h-1" />
+                    <p>따뜻했던 공기, <span>누군가 곁에 있었던 것 같은 조용한 느낌.</span></p>
+                    
+                    <div className="h-1" />
+                    <p>그 자리에, <span className="font-bold">여전히 같은 모습으로 아무 일도 없다는 듯 앉아 있는 존재.</span></p>
+                    
+                    <div className="h-1" />
+                    <p>떠난 적이 없었던 것처럼, 처음부터 계속 그 자리에 있었던 것처럼.</p>
+                    
+                    {/* 마무리 문장은 박스 없이 여백과 얇은 선으로만 구분한다. */}
+                    <div className="mt-7 pt-5 border-t border-[rgba(250,92,92,0.14)] text-[14.5px] leading-[1.85] text-[#4a3b3b] text-center">
+                      <p className="font-semibold">“어릴 때 아무렇지 않게</p>
+                      <p className="font-semibold">지나쳤던 그 마음이,</p>
+                      <p className="font-semibold">지금의 나를 향해</p>
+                      <div className="h-2.5" />
+                      <p className="font-semibold">여전히 그 자리에서</p>
+                      <p className="font-semibold">나를 기다리고 있었다.”</p>
+                    </div>
+                    
+                    <div className="h-2" />
+                    <p className="text-[14.5px] font-semibold text-[#4a3b3b] text-center leading-[1.85]">
+                      늘 우리를 기다리시는<br />
+                      그 사랑.
+                    </p>
                   </div>
-                  
-                  <div className="h-2" />
-                  <p className="text-[14.5px] font-semibold text-[#4a3b3b] text-center leading-[1.85]">
-                    늘 우리를 기다리시는<br />
-                    그 사랑.
-                  </p>
-                </div>
+                )}
               </div>
 
               {/* 하단 제어 버튼: 112px X 52px 둥근 캡슐 */}
@@ -548,3 +571,4 @@ export default function HeartKyminPopup({ onClose, language = 'ko', onToggleLang
     </div>
   );
 }
+

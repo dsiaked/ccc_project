@@ -5,27 +5,6 @@ import { symbolData } from '../data/symbolData';
 import { symbolIcons } from '../data/symbolIcons';
 import { db } from '../firebase';
 
-const reflectionQuestions = [
-  {
-    label: '하트',
-    question: '나는 오늘 어떤 사랑을 발견했나요?',
-    icon: Heart,
-    tone: 'rose',
-  },
-  {
-    label: '나누기',
-    question: '내가 기꺼이 나눌 수 있는 것은 무엇인가요?',
-    icon: Divide,
-    tone: 'amber',
-  },
-  {
-    label: '십자가',
-    question: '내가 지키고 싶은 믿음은 어디에 있나요?',
-    icon: Cross,
-    tone: 'emerald',
-  },
-];
-
 const questionToneClasses = {
   rose: {
     card: 'border-rose-100 bg-rose-50/70',
@@ -46,15 +25,17 @@ const questionToneClasses = {
 
 const qrCopy = {
   ko: {
-    found: '발견완료!',
-    description: '심볼 설명',
+    close: '닫기',
+    found: '발견 완료!',
+    description: '상징 설명',
     detail: '상세 정보',
-    meaning: '심볼의 의미',
+    meaning: '상징의 의미',
     location: '발견 장소',
     message: '마지막 메시지',
     confirm: '확인',
   },
   en: {
+    close: 'Close',
     found: 'Found!',
     description: 'Symbol Description',
     detail: 'Details',
@@ -62,6 +43,83 @@ const qrCopy = {
     location: 'Location',
     message: 'Final Message',
     confirm: 'Confirm',
+  },
+};
+
+const questionCopy = {
+  ko: {
+    close: '닫기',
+    eyebrow: 'Final Question',
+    title: '작품이 남긴 질문',
+    description: '세 가지 상징을 따라 만난 작품들을 떠올리며, 잠시 나에게 질문을 건네 보세요.',
+    questions: [
+      {
+        label: '하트',
+        question: '나는 오늘 어떤 사랑을 발견했나요?',
+        icon: Heart,
+        tone: 'rose',
+      },
+      {
+        label: '나누기',
+        question: '내가 기꺼이 나눌 수 있는 것은 무엇인가요?',
+        icon: Divide,
+        tone: 'amber',
+      },
+      {
+        label: '십자가',
+        question: '내가 지키고 싶은 믿음은 어디에 있나요?',
+        icon: Cross,
+        tone: 'emerald',
+      },
+    ],
+    name: '이름',
+    namePlaceholder: '이름을 적어 주세요',
+    feedback: '작품 소감',
+    feedbackPlaceholder: '작품을 보며 떠오른 생각을 적어 주세요',
+    submit: '소감 제출하기',
+    submitting: '제출 중',
+    submittedTitle: '소감이 제출됐어요.',
+    submittedDescription: '남겨준 생각을 함께 모아둘게요.',
+    emptyError: '작품을 보며 떠오른 생각을 한 줄 이상 적어 주세요.',
+    saveError: '소감 저장 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.',
+    anonymous: '익명',
+  },
+  en: {
+    close: 'Close',
+    eyebrow: 'Final Question',
+    title: 'The Question Left by the Artworks',
+    description: 'Think back on the artworks you met through the three symbols, then offer yourself a quiet question.',
+    questions: [
+      {
+        label: 'Heart',
+        question: 'What kind of love did I discover today?',
+        icon: Heart,
+        tone: 'rose',
+      },
+      {
+        label: 'Divide',
+        question: 'What am I willing to share with others?',
+        icon: Divide,
+        tone: 'amber',
+      },
+      {
+        label: 'Cross',
+        question: 'Where is the faith I want to hold onto?',
+        icon: Cross,
+        tone: 'emerald',
+      },
+    ],
+    name: 'Name',
+    namePlaceholder: 'Write your name',
+    feedback: 'Artwork Reflection',
+    feedbackPlaceholder: 'Write the thought that came to mind while viewing the artworks',
+    submit: 'Submit Reflection',
+    submitting: 'Submitting',
+    submittedTitle: 'Your reflection was submitted.',
+    submittedDescription: 'We will keep your thought with the tour.',
+    emptyError: 'Please write at least one line of reflection.',
+    saveError: 'There was an error saving your reflection. Please try again later.',
+    anonymous: 'Anonymous',
   },
 };
 
@@ -86,7 +144,7 @@ export default function QrPopup({ id, onClose, language = 'ko' }) {
           <button
             onClick={onClose}
             className="absolute top-5 right-5 w-10 h-10 bg-white border border-gray-200 rounded-full flex items-center justify-center shadow-sm hover:bg-gray-100 transition-colors"
-            aria-label={language === 'en' ? 'Close' : '닫기'}
+            aria-label={text.close}
           >
             <X className="w-5 h-5 text-gray-500" />
           </button>
@@ -163,19 +221,20 @@ export default function QrPopup({ id, onClose, language = 'ko' }) {
   );
 }
 
-function QuestionReflectionPopup({ onClose }) {
+function QuestionReflectionPopup({ onClose, language = 'ko' }) {
   const [name, setName] = useState('');
   const [feedback, setFeedback] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const text = questionCopy[language] || questionCopy.ko;
 
   const handleSubmit = async event => {
     event.preventDefault();
     const trimmedFeedback = feedback.trim();
 
     if (!trimmedFeedback) {
-      setErrorMessage('작품을 보며 떠오른 생각을 한 줄 이상 적어 주세요.');
+      setErrorMessage(text.emptyError);
       return;
     }
 
@@ -184,15 +243,15 @@ function QuestionReflectionPopup({ onClose }) {
 
     try {
       await addDoc(collection(db, 'tour_feedbacks'), {
-        name: name.trim() || '익명',
+        name: name.trim() || text.anonymous,
         feedback: trimmedFeedback,
         createdAt: serverTimestamp(),
         isPublished: false,
       });
       setIsSubmitted(true);
     } catch (error) {
-      console.error('작품 질문 소감 저장 중 에러 발생:', error);
-      setErrorMessage('소감 저장 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
+      console.error('Question feedback save failed:', error);
+      setErrorMessage(text.saveError);
     } finally {
       setIsSubmitting(false);
     }
@@ -206,7 +265,7 @@ function QuestionReflectionPopup({ onClose }) {
             type="button"
             onClick={onClose}
             className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm"
-            aria-label="닫기"
+            aria-label={text.close}
           >
             <X className="h-5 w-5" />
           </button>
@@ -214,16 +273,16 @@ function QuestionReflectionPopup({ onClose }) {
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-sky-500 text-white shadow-[0_12px_26px_rgba(14,165,233,0.25)]">
             <HelpCircle className="h-9 w-9" />
           </div>
-          <p className="text-xs font-bold uppercase tracking-[0.28em] text-sky-600">Final Question</p>
-          <h2 className="mt-2 text-2xl font-bold text-slate-950">작품이 남긴 질문</h2>
+          <p className="text-xs font-bold uppercase tracking-[0.28em] text-sky-600">{text.eyebrow}</p>
+          <h2 className="mt-2 text-2xl font-bold text-slate-950">{text.title}</h2>
           <p className="mx-auto mt-2 max-w-[310px] text-sm leading-relaxed text-slate-600">
-            세 가지 심볼을 따라 만난 작품들을 떠올리며, 잠시 나에게 질문을 건네 보세요.
+            {text.description}
           </p>
         </div>
 
         <div className="max-h-[64vh] overflow-y-auto px-5 py-5">
           <div className="grid gap-3">
-            {reflectionQuestions.map((item, index) => {
+            {text.questions.map((item, index) => {
               const Icon = item.icon;
               const tone = questionToneClasses[item.tone];
 
@@ -248,37 +307,37 @@ function QuestionReflectionPopup({ onClose }) {
           {isSubmitted ? (
             <div className="mt-5 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-5 text-center">
               <CheckCircle2 className="mx-auto mb-2 h-8 w-8 text-emerald-500" />
-              <p className="font-bold text-emerald-800">소감이 제출됐어요.</p>
+              <p className="font-bold text-emerald-800">{text.submittedTitle}</p>
               <p className="mt-1 text-sm leading-relaxed text-emerald-700">
-                남겨준 생각을 함께 모아둘게요.
+                {text.submittedDescription}
               </p>
               <button
                 type="button"
                 onClick={onClose}
                 className="mt-4 rounded-full bg-emerald-600 px-5 py-2 text-sm font-bold text-white"
               >
-                닫기
+                {text.close}
               </button>
             </div>
           ) : (
             <form className="mt-5 grid gap-3" onSubmit={handleSubmit}>
               <label className="grid gap-1.5">
-                <span className="text-sm font-bold text-slate-700">이름</span>
+                <span className="text-sm font-bold text-slate-700">{text.name}</span>
                 <input
                   value={name}
                   onChange={event => setName(event.target.value)}
-                  placeholder="이름을 적어 주세요"
+                  placeholder={text.namePlaceholder}
                   className="h-11 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm outline-none transition focus:border-sky-400 focus:bg-white"
                   maxLength={24}
                 />
               </label>
 
               <label className="grid gap-1.5">
-                <span className="text-sm font-bold text-slate-700">작품 소감</span>
+                <span className="text-sm font-bold text-slate-700">{text.feedback}</span>
                 <textarea
                   value={feedback}
                   onChange={event => setFeedback(event.target.value)}
-                  placeholder="작품을 보며 떠오른 생각을 적어 주세요"
+                  placeholder={text.feedbackPlaceholder}
                   className="min-h-[118px] resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-relaxed outline-none transition focus:border-sky-400 focus:bg-white"
                   maxLength={500}
                 />
@@ -296,7 +355,7 @@ function QuestionReflectionPopup({ onClose }) {
                 className="flex h-12 items-center justify-center gap-2 rounded-2xl bg-slate-950 text-sm font-bold text-white shadow-[0_10px_22px_rgba(15,23,42,0.18)] transition active:scale-[0.98] disabled:opacity-60"
               >
                 {isSubmitting ? <Sparkles className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                소감 제출하기
+                {isSubmitting ? text.submitting : text.submit}
               </button>
             </form>
           )}
