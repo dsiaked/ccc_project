@@ -226,6 +226,15 @@ export default function App() {
     [publishedFeedbacks, publicComments],
   );
 
+  // 0. 카카오톡 인앱 브라우저 외부 브라우저 강제 전환
+  useEffect(() => {
+    const userAgent = navigator.userAgent.toLowerCase();
+    if (userAgent.includes('kakaotalk')) {
+      const currentUrl = window.location.href;
+      window.location.href = `kakaotalk://web/openExternalApp?url=${encodeURIComponent(currentUrl)}`;
+    }
+  }, []);
+
   useEffect(() => {
     if (page !== 'home') return undefined;
 
@@ -571,21 +580,36 @@ export default function App() {
           const cloudData = userDocSnap.data();
           const cloudSymbols = cloudData.symbols || {};
 
-          // 로컬 데이터와 클라우드 데이터의 영리한 병합 (OR 논리합 + 불필요 리렌더 방지 얕은 비교)
+          // 로컬 데이터와 클라우드 데이터의 영리한 병합 및 서버 백업 누락 감지
           setSymbols(prev => {
             const merged = {};
             let isChanged = false;
+            let cloudNeedsUpdate = false;
+
             for (const key of Object.keys(INITIAL_SYMBOLS)) {
               const val = !!(prev[key] || cloudSymbols[key]);
               if (prev[key] !== val) isChanged = true;
+              
+              // 로컬에는 기록이 있으나 클라우드(서버)에는 기록이 없는 경우
+              if (prev[key] && !cloudSymbols[key]) {
+                cloudNeedsUpdate = true;
+              }
               merged[key] = val;
             }
+
+            // 클라우드 서버 백업이 필요하다면 서명을 초기화하여 백업 useEffect가 강제 작동되도록 유도
+            if (cloudNeedsUpdate) {
+              lastSyncedSymbolsSignature.current = '';
+            }
+
             if (isChanged) {
               const mergedSignature = getSymbolsSignature(merged);
               lastStoredSymbolsSignature.current = mergedSignature;
               localStorage.setItem('symbols', JSON.stringify(merged));
             }
-            return isChanged ? merged : prev;
+
+            // 로컬 상태가 변경되었거나 서버 백업이 필요한 상태라면 새 객체(merged)를 반환해 강제 동기화 수행
+            return (isChanged || cloudNeedsUpdate) ? merged : prev;
           });
         } else {
           // 최초 접속 사용자: 로컬의 데이터를 유지하며, 아래 useEffect가 자동으로 클라우드에 백업하게 둠
