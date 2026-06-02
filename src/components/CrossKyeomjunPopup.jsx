@@ -1,6 +1,9 @@
 ﻿import React, { useState } from 'react';
-import { X, ArrowRight, ArrowLeft, Check, MessageSquare, Pencil, Trash2 } from 'lucide-react';
+import { X, ArrowRight, ArrowLeft, Check, MessageSquare } from 'lucide-react';
 import useArtworkComments from '../hooks/useArtworkComments';
+import { crossKyeomjunContent } from '../data/artworkContent/crossKyeomjun';
+import { artistPopupEnglish } from '../data/artistPopupEnglish';
+import ArtworkCommentModal from './ArtworkCommentModal';
 
 const CustomCrossIcon = ({ className = "w-6 h-6", color = "currentColor", strokeWidth = "2.5", style }) => (
   <svg
@@ -49,24 +52,9 @@ export default function CrossKyeomjunPopup({ onClose, language = 'ko' }) {
         save: '저장',
         namePlaceholder: '작성자 이름 (닉네임)',
         commentPlaceholder: '따뜻한 감상평을 남겨주세요! (최대 100자)',
-      };  const {
-    comments,
-    loadingComments,
-    newName,
-    setNewName,
-    newContent,
-    setNewContent,
-    editingCommentId,
-    editContent,
-    setEditContent,
-    handleAddComment,
-    startEditComment,
-    cancelEditComment,
-    handleUpdateComment,
-    handleDeleteComment,
-    isOwnComment,
-    formatCommentDate,
-  } = useArtworkComments('cross_kyeomjun');
+      };
+  const englishCopy = language === 'en' ? artistPopupEnglish.cross : null;
+  const commentsApi = useArtworkComments('cross_kyeomjun');
 
   // 몽환적인 흩날리는 초록색 십자가 입자 데이터 정의 (화이트-그린 테마룩)
   const floatingParticles = [
@@ -214,7 +202,7 @@ export default function CrossKyeomjunPopup({ onClose, language = 'ko' }) {
             <div className="relative z-10 w-full h-full">
               {/* SYMBOL3 : CROSS */}
               <span className="absolute left-[29px] top-[31px] text-[15px] tracking-[1.92px] font-medium text-[#2d3a2e] font-readable-sans">
-                SYMBOL3 : CROSS
+                SYMBOL3 : {englishCopy?.symbol?.toUpperCase() || 'CROSS'}
               </span>
 
               {/* Rectangle 362 (상단 얇은 가로선) */}
@@ -227,20 +215,24 @@ export default function CrossKyeomjunPopup({ onClose, language = 'ko' }) {
 
               {/* 과기대 붕어방 */}
               <div className="absolute right-[25px] top-[71px] text-[10px] text-[#2d3a2e] tracking-[1.2px] text-right font-readable-sans">
-                과기대 붕어방
+                {englishCopy ? 'Boongo Room' : '과기대 붕어방'}
               </div>
 
               {/* 대형 감성 문구: 서겸준 작가 (iPhone 17 - 14) 피그마 배치 및 그린/차콜 단일화 */}
               <div className="absolute left-[29px] top-[91px] w-[310px] text-left">
-                <div className="text-[32px] leading-[1.24] text-[#2d3a2e] tracking-[1.2px] font-sentiment font-normal">
-                  <p>눈물이 쌓여</p>
-                  <p>만들어진 검은 못</p>
-                  <div className="h-[18px]" /> {/* 피그마 오리지널 빈 줄 간격 정밀 복원 */}
-                  <p>사망을 대신할</p>
-                  <p>수 있는 사랑</p>
-                  <div className="h-[18px]" />
-                  <p>사망을 이긴</p>
-                  <p>흰 어린양</p>
+                <div className={[
+                  'leading-[1.24] text-[#2d3a2e] tracking-[1.2px] font-sentiment font-normal',
+                  englishCopy ? 'text-[29px]' : 'text-[32px]',
+                ].join(' ')}>
+                  {englishCopy ? (
+                    englishCopy.intro.map(line => <p key={line}>{line}</p>)
+                  ) : (
+                    crossKyeomjunContent.heroLines.map((line, index) => (
+                      line
+                        ? <p key={`${line}-${index}`}>{line}</p>
+                        : <div key={`spacer-${index}`} className="h-[18px]" />
+                    ))
+                  )}
                 </div>
               </div>
 
@@ -251,7 +243,7 @@ export default function CrossKyeomjunPopup({ onClose, language = 'ko' }) {
               {/* ARTIST. 서겸준 및 댓글 이모지 버튼 */}
               <div className="absolute left-[26px] right-[25px] top-[465px] flex items-center justify-between">
                 <span className="text-[15px] tracking-[1.92px] font-medium text-[#2d3a2e] font-readable-sans">
-                  ARTIST. 서겸준
+                  ARTIST. {englishCopy?.artist || '서겸준'}
                 </span>
                 <button
                   onClick={() => setShowCommentModal(true)}
@@ -261,15 +253,25 @@ export default function CrossKyeomjunPopup({ onClose, language = 'ko' }) {
                   <MessageSquare className="w-8 h-8" />
                   {/* 댓글 수 배지 */}
                   <span className="absolute -top-1 -right-1 flex h-6 min-w-[24px] px-1.5 items-center justify-center rounded-full bg-red-500 text-white text-xs font-bold shadow-sm border border-white">
-                    {comments.length}
+                    {commentsApi.comments.length}
                   </span>
                 </button>
               </div>
 
               {/* 서울과학기술대학교 중앙동아리 CCC */}
               <div className="absolute left-[25px] top-[502px] text-[10px] tracking-[1.2px] text-[#2d3a2e] leading-normal font-readable-sans">
-                <p>서울과학기술대학교</p>
-                <p className="mt-0.5">중앙동아리 CCC</p>
+                {englishCopy ? (
+                  <>
+                    <p>Seoul National University</p>
+                    <p className="mt-0.5">of Science and Technology</p>
+                    <p className="mt-0.5">CCC Club</p>
+                  </>
+                ) : (
+                  <>
+                    <p>서울과학기술대학교</p>
+                    <p className="mt-0.5">중앙동아리 CCC</p>
+                  </>
+                )}
               </div>
 
               {/* NEXT 버튼: 우측 하단 둥근 캡슐 */}
@@ -336,7 +338,7 @@ export default function CrossKyeomjunPopup({ onClose, language = 'ko' }) {
               {/* 상단 띠지 */}
               <div className="relative z-10 flex justify-between items-center pb-6 font-readable-sans">
                 <span className="text-[10px] tracking-[1.2px] font-bold text-[#2e7d32]">
-                  SYMBOL3 : CROSS
+                  SYMBOL3 : {englishCopy?.symbol?.toUpperCase() || 'CROSS'}
                 </span>
                 <div className="w-[100px] h-[0.5px] bg-[#c3dec6]" />
               </div>
@@ -346,8 +348,13 @@ export default function CrossKyeomjunPopup({ onClose, language = 'ko' }) {
 
                 {/* 헤드라인 타이틀: "검정색 못과 흰 어린양" */}
                 <div className="text-left font-sentiment text-[28px] leading-[1.2] text-[#2e7d32] tracking-[1px] font-bold mt-2 select-text">
-                  <p>검정색 못과</p>
-                  <p>흰 어린양</p>
+                  {englishCopy ? (
+                    <p>{englishCopy.title}</p>
+                  ) : (
+                    crossKyeomjunContent.detailTitle.map(line => (
+                      <p key={line}>{line}</p>
+                    ))
+                  )}
                 </div>
 
                 {/* 얇은 가로선 */}
@@ -356,39 +363,31 @@ export default function CrossKyeomjunPopup({ onClose, language = 'ko' }) {
                 {/* 본문 서사: 서겸준 작가 십자가 수필 (온점 하나도 누락 없이 100% 반영) */}
                 <div className="text-left text-[14.5px] leading-[1.85] text-gray-700 space-y-5 tracking-wide font-readable-sans select-text break-keep">
 
-                  <p className="text-gray-800 font-semibold leading-relaxed">
-                    사람 속에 있는 세 가지, 그로 인해 흐르던 눈물이 쌓여 만들어진 검정색 못.
-                  </p>
-                  <p className="text-gray-700 pl-2 border-l border-green-200">
-                    이 못은 못을 만든 이에게 박히는, 사망으로 대가를 치러야 하는 원리 아래서.
-                  </p>
+                  {englishCopy ? (
+                    englishCopy.body.map((paragraph, index) => (
+                      <p
+                        key={paragraph}
+                        className={index === 0 || index === englishCopy.body.length - 1 ? 'text-gray-800 font-medium' : ''}
+                      >
+                        {paragraph}
+                      </p>
+                    ))
+                  ) : (
+                    <>
+                      {crossKyeomjunContent.body.map(({ className, text }) => (
+                        <p key={text} className={className}>
+                          {text}
+                        </p>
+                      ))}
 
-                  <p className="text-gray-700 pl-2 border-l border-green-200">
-                    다가오는, 막을 수 없는 사망 앞에서 이미 충분히 괴로운 나날을 버티고 있는 소망이라는 빛이 들지 않는 곳에서
-                  </p>
-
-                  <p className="text-gray-700 pl-2 border-l border-green-200">
-                    내 유익을 위해 창조되지 않은 초록 풀밭 위 흰 어린양이 아무도 찾아주지 않는 암흑 속에서 나를 괴롭게 하는 검정색 못에 손과 발이 묶인 채 나 대신 울고 있었어요.
-                  </p>
-
-                  <p className="text-gray-700 pl-2 border-l border-green-200">
-                    괴롭게 하는 것은 괴롭게 하는 것으로, 사망은 사망으로. 하지만 사망을 사랑으로 대신할 수 있는 우주 밖의 원리에 의해 사망은 죽었고 결국 어린양은 사망의 붙잡음을 벗어났죠.
-                  </p>
-
-                  <p className="text-gray-700 pl-2 border-l border-green-200 font-medium">
-                    나를 찌르던 못과 상처는 씻기어 깨끗하여지고 나도 어린양처럼 흠이 없다 기록되었어요.
-                  </p>
-
-                  <p className="text-gray-700 pl-2 border-l border-green-200">
-                    어린양은 나를, 나는 어린양을, 어린양이 사랑하는 당신을, 어린양이 사랑하는 내가 서로 사랑하는 나라에서 흘리는 눈물은 희고 행복한 눈물일 거예요.
-                  </p>
-
-                  {/* 대답 상자: 서겸준 작가 수필 세가지 은유 요약 */}
-                  <div className="my-6 border border-green-150 bg-[#f1faf2] py-5 px-3.5 rounded-3xl font-sentiment text-[14.5px] leading-relaxed text-[#2e7d32] text-center shadow-sm">
-                    <p className="font-bold text-[#2d6630]">“괴롭게 하는 것은 괴롭게 하는 것으로,</p>
-                    <p className="font-bold text-[#2d6630]">사망은 사망으로. 하지만 사망을 사랑으로</p>
-                    <p className="font-bold text-[#2d6630]">대신할 수 있는 우주 밖의 원리.”</p>
-                  </div>
+                      {/* 대답 상자: 서겸준 작가 수필 세가지 은유 요약 */}
+                      <div className="my-6 border border-green-150 bg-[#f1faf2] py-5 px-3.5 rounded-3xl font-sentiment text-[14.5px] leading-relaxed text-[#2e7d32] text-center shadow-sm">
+                        {crossKyeomjunContent.quoteLines.map(line => (
+                          <p key={line} className="font-bold text-[#2d6630]">{line}</p>
+                        ))}
+                      </div>
+                    </>
+                  )}
 
                 </div>
               </div>
@@ -433,140 +432,23 @@ export default function CrossKyeomjunPopup({ onClose, language = 'ko' }) {
 
         {/* 댓글 모달 */}
         {showCommentModal && (
-          <div className="absolute inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-[2px] animate-in fade-in duration-200">
-            <div className="relative w-[310px] h-[520px] rounded-[24px] bg-white border border-emerald-100 flex flex-col p-5 shadow-2xl animate-in zoom-in-95 duration-200">
-              {/* 헤더 */}
-              <div className="flex justify-between items-center pb-3 border-b border-gray-100">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-lg font-bold text-emerald-500 font-sentiment">{uiText.leaveComment} 💬</span>
-                  <span className="bg-emerald-100 text-emerald-600 text-xs px-2 py-0.5 rounded-full font-bold">{comments.length}</span>
-                </div>
-                <button
-                  onClick={() => setShowCommentModal(false)}
-                  className="w-7 h-7 bg-gray-50 border border-gray-100 hover:bg-gray-100 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
-
-              {/* 댓글 리스트 */}
-              <div className="flex-1 overflow-y-auto popup-body-scroll my-3 pr-1 space-y-3 select-text">
-                {loadingComments ? (
-                  <div className="h-full flex flex-col items-center justify-center text-gray-400 text-xs gap-2 py-10">
-                    <div className="w-6 h-6 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
-                    <span>{uiText.loadingComments}</span>
-                  </div>
-                ) : comments.length === 0 ? (
-                  <div className="h-full flex flex-col items-center justify-center text-gray-400 text-xs py-10 text-center leading-relaxed animate-in fade-in duration-300">
-                    <span className="text-3xl mb-2">🎈</span>
-                    <span className="font-bold text-gray-600 text-sm">{uiText.firstComment}</span>
-                    <span className="opacity-70 mt-1">{uiText.noComments}</span>
-                    <span className="opacity-60 mt-0.5">{uiText.firstCommentHint}</span>
-                  </div>
-                ) : (
-                  comments.map((comment) => {
-                  const isEditing = editingCommentId === comment.id;
-                  const canManage = isOwnComment(comment);
-
-                  return (
-                    <div key={comment.id} className="bg-emerald-50/30 border border-emerald-100/50 p-3 rounded-2xl flex flex-col gap-2 shadow-sm">
-                      <div className="flex justify-between items-center gap-2">
-                        <span className="font-bold text-xs text-emerald-800 truncate">{comment.name}</span>
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <span className="text-[10px] text-gray-400">{formatCommentDate(comment.createdAt)}</span>
-                          {canManage && !isEditing && (
-                            <>
-                              <button
-                                type="button"
-                                onClick={() => startEditComment(comment)}
-                                className="w-6 h-6 rounded-full bg-white/80 border border-gray-100 text-gray-400 hover:text-gray-700 flex items-center justify-center transition-colors cursor-pointer"
-                                title={uiText.edit}
-                              >
-                                <Pencil className="w-3 h-3" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteComment(comment.id)}
-                                className="w-6 h-6 rounded-full bg-white/80 border border-gray-100 text-gray-400 hover:text-red-500 hover:border-red-100 flex items-center justify-center transition-colors cursor-pointer"
-                                title={uiText.delete}
-                              >
-                                <Trash2 className="w-3 h-3" />
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </div>
-
-                      {isEditing ? (
-                        <div className="flex flex-col gap-2">
-                          <textarea
-                            value={editContent}
-                            onChange={(e) => setEditContent(e.target.value)}
-                            maxLength={100}
-                            rows={3}
-                            className="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-gray-300 font-readable-sans resize-none bg-white/80 text-gray-800 leading-relaxed"
-                          />
-                          <div className="flex justify-end gap-1.5">
-                            <button
-                              type="button"
-                              onClick={cancelEditComment}
-                              className="h-7 px-3 rounded-full border border-gray-200 bg-white text-[11px] font-bold text-gray-500 hover:bg-gray-50 cursor-pointer"
-                            >{uiText.cancel}</button>
-                            <button
-                              type="button"
-                              onClick={() => handleUpdateComment(comment.id)}
-                              disabled={!editContent.trim()}
-                              className="h-7 px-3 rounded-full bg-gray-800 disabled:bg-gray-300 text-[11px] font-bold text-white cursor-pointer"
-                            >{uiText.save}</button>
-                          </div>
-                        </div>
-                      ) : (
-                        <p className="text-gray-700 text-xs leading-relaxed break-all whitespace-pre-wrap">{comment.content}</p>
-                      )}
-                    </div>
-                  );
-                })
-                )}
-              </div>
-
-              {/* 댓글 폼 */}
-              <form onSubmit={handleAddComment} className="flex flex-col gap-2 border-t border-gray-100 pt-3 mt-auto">
-                <input
-                  type="text"
-                  placeholder={uiText.namePlaceholder}
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
-                  maxLength={10}
-                  className="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-emerald-400 font-readable-sans bg-gray-50/50 text-gray-800"
-                  required
-                />
-                <div className="relative">
-                  <textarea
-                    placeholder={uiText.commentPlaceholder}
-                    value={newContent}
-                    onChange={(e) => setNewContent(e.target.value)}
-                    maxLength={100}
-                    rows={2}
-                    className="w-full pl-3 pr-10 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-emerald-400 font-readable-sans resize-none bg-gray-50/50 text-gray-800 leading-normal"
-                    required
-                  />
-                  <button
-                    type="submit"
-                    disabled={!newName.trim() || !newContent.trim()}
-                    className="absolute right-2 bottom-3 p-1.5 bg-[#10b981] disabled:bg-gray-300 text-white rounded-lg flex items-center justify-center transition-all duration-200 active:scale-95 shadow-sm cursor-pointer"
-                  >
-                    <Check className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
+          <ArtworkCommentModal
+            commentsApi={commentsApi}
+            onClose={() => setShowCommentModal(false)}
+            uiText={uiText}
+            accent="#10b981"
+            accentTextClass="text-emerald-500"
+            accentNameClass="text-emerald-800"
+            accentBgClass="bg-emerald-50/30 border-emerald-100/50"
+            focusRingClass="focus:ring-emerald-400"
+          />
         )}
 
       </div>
     </div>
   );
 }
+
 
 
 

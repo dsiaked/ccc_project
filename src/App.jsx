@@ -2,90 +2,28 @@
 import Header from './components/Header';
 import MapArea, { DEFAULT_MAP_PINS } from './components/MapArea';
 import SymbolCards from './components/SymbolCards';
-import { symbolData } from './data/symbolData';
+import useFirebaseSymbolSync from './hooks/useFirebaseSymbolSync';
+import {
+  ADMIN_UNLOCK_CATEGORIES,
+  ADMIN_UNLOCK_LABELS,
+  BASIC_UNLOCK_SYMBOLS,
+  INITIAL_SYMBOLS,
+  UNLOCKED_SYMBOLS,
+  hasQuestionPrerequisites,
+  normalizeSymbols,
+  resolveQrSymbol,
+} from './utils/symbols';
+import { loadFirebaseApi, saveUserSymbols, scheduleAfterInitialPaint } from './utils/firebaseApi';
 
-import { Sparkles, Shield } from 'lucide-react';
+import { Camera, Sparkles } from 'lucide-react';
 
 const Popup = lazy(() => import('./components/Popup'));
 const ParticipatePage = lazy(() => import('./components/ParticipatePage'));
 const AdminPanel = lazy(() => import('./components/AdminPanel'));
+const QRScannerPopup = lazy(() => import('./components/QRScannerPopup'));
 
-let firebaseApiPromise;
-
-const loadFirebaseApi = () => {
-  if (!firebaseApiPromise) {
-    firebaseApiPromise = Promise.all([
-      import('./firebase'),
-      import('firebase/firestore'),
-    ]).then(([firebase, firestore]) => ({
-      ...firebase,
-      collection: firestore.collection,
-      limit: firestore.limit,
-      onSnapshot: firestore.onSnapshot,
-      query: firestore.query,
-      serverTimestamp: firestore.serverTimestamp,
-      where: firestore.where,
-    }));
-  }
-
-  return firebaseApiPromise;
-};
-
-const INITIAL_SYMBOLS = Object.keys(symbolData).reduce((acc, id) => {
-  acc[id] = false;
-  return acc;
-}, {});
-
-const UNLOCKED_SYMBOLS = Object.keys(symbolData).reduce((acc, id) => {
-  acc[id] = id !== 'question';
-  return acc;
-}, {});
-
-const ADMIN_UNLOCK_CATEGORIES = {
-  heart: ['heart_kymin', 'heart_yewon', 'heart_eunhye', 'heart_jihoon', 'heart_eunchae'],
-  divide: ['divide_kyeomjun', 'divide_yewon'],
-  cross: ['cross', 'cross_jihoon'],
-};
-
-const BASIC_UNLOCK_SYMBOLS = ['heart_kymin', 'divide_kyeomjun', 'cross'];
-const FIREBASE_SYNC_TIMEOUT_MS = 4500;
-const FIREBASE_BOOT_DELAY_MS = 900;
-const FIREBASE_LOADING_FAILSAFE_MS = 7000;
-
-const QR_SYMBOL_ALIASES = {
-  heart: 'heart_kymin',
-  kymin: 'heart_kymin',
-  kim_kyumin: 'heart_kymin',
-  gyumin: 'heart_kymin',
-  heart_kim: 'heart_kymin',
-  yewon_heart: 'heart_yewon',
-  heart_son: 'heart_yewon',
-  eunhye: 'heart_eunhye',
-  eunhye_heart: 'heart_eunhye',
-  heart_kim_eunhye: 'heart_eunhye',
-  jihoon_heart: 'heart_jihoon',
-  heart_hong: 'heart_jihoon',
-  divide: 'divide_kyeomjun',
-  divide_kyeom: 'divide_kyeomjun',
-  kyeomjun: 'divide_kyeomjun',
-  divide_seo: 'divide_kyeomjun',
-  yewon_divide: 'divide_yewon',
-  divide_son: 'divide_yewon',
-  cross_kyeomjun: 'cross',
-  kyeomjun_cross: 'cross',
-  cross_seo: 'cross',
-  jihoon_cross: 'cross_jihoon',
-  cross_hong: 'cross_jihoon',
-  question_mark: 'question',
-  reward: 'question',
-  booth: 'question',
-};
-
-const ADMIN_UNLOCK_LABELS = {
-  heart: '하트',
-  divide: '나누기',
-  cross: '십자가',
-};
+const SYMBOLS_STORAGE_KEY = 'symbols';
+const SYMBOLS_BROADCAST_CHANNEL = 'ccc-symbols';
 
 const appCopy = {
   ko: {
@@ -98,6 +36,8 @@ const appCopy = {
     undiscovered: '아직 발견하지 못한 심볼이에요.',
     mapTitle: '작품 지도',
     mapDesc: '심볼을 따라 오늘의 작품을 찾아보세요.',
+    scanQrButton: 'QR 스캔',
+    invalidQr: '작품 QR을 인식하지 못했어요.',
     cardsTitle: '작품 설명 카드',
     cardsDesc: '발견한 심볼의 작품 설명을 확인하고, 마지막 상품 부스까지 이어가 보세요.',
   },
@@ -111,49 +51,12 @@ const appCopy = {
     undiscovered: 'This symbol has not been discovered yet.',
     mapTitle: 'Artwork Map',
     mapDesc: "Follow the symbols and find today's artworks.",
+    scanQrButton: 'Scan QR',
+    invalidQr: 'This QR code was not recognized.',
     cardsTitle: 'Artwork Cards',
     cardsDesc: 'Open the cards you discovered and continue to the final booth.',
   },
 };
-
-const normalizeSymbols = symbols => ({
-  ...INITIAL_SYMBOLS,
-  ...symbols,
-});
-
-const hasQuestionPrerequisites = symbols => {
-  const normalizedSymbols = normalizeSymbols(symbols);
-  const hasHeart =
-    normalizedSymbols.heart_kymin ||
-    normalizedSymbols.heart_yewon ||
-    normalizedSymbols.heart_eunhye ||
-    normalizedSymbols.heart_jihoon ||
-    normalizedSymbols.heart_eunchae;
-  const hasDivide = normalizedSymbols.divide_kyeomjun || normalizedSymbols.divide_yewon;
-  const hasCross = normalizedSymbols.cross || normalizedSymbols.cross_jihoon;
-
-  return hasHeart && hasDivide && hasCross;
-};
-
-const normalizeQrValue = value => {
-  if (!value) return '';
-  return decodeURIComponent(value)
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, '_')
-    .replace(/-/g, '_');
-};
-
-const resolveQrSymbol = value => {
-  const normalizedValue = normalizeQrValue(value);
-  if (!normalizedValue) return '';
-  if (Object.prototype.hasOwnProperty.call(INITIAL_SYMBOLS, normalizedValue)) {
-    return normalizedValue;
-  }
-  return QR_SYMBOL_ALIASES[normalizedValue] || '';
-};
-
-const getSymbolsSignature = symbols => JSON.stringify(normalizeSymbols(symbols));
 
 const getTimestamp = value => {
   if (!value) return 0;
@@ -163,35 +66,64 @@ const getTimestamp = value => {
   return new Date(value).getTime() || 0;
 };
 
-const withTimeout = (promise, timeoutMs, label) => (
-  Promise.race([
-    promise,
-    new Promise((_, reject) => {
-      window.setTimeout(() => {
-        reject(new Error(`${label} timed out`));
-      }, timeoutMs);
-    }),
-  ])
-);
+const readStoredSymbols = () => {
+  const savedSymbols = localStorage.getItem(SYMBOLS_STORAGE_KEY);
+  if (!savedSymbols) return INITIAL_SYMBOLS;
 
-const saveUserSymbols = async (userId, symbols) => {
-  const { db, doc, serverTimestamp, setDoc } = await loadFirebaseApi();
-  await setDoc(doc(db, 'users', userId), {
-    symbols,
-    updatedAt: serverTimestamp(),
-  }, { merge: true });
+  try {
+    return normalizeSymbols(JSON.parse(savedSymbols));
+  } catch {
+    return INITIAL_SYMBOLS;
+  }
 };
 
-const scheduleAfterInitialPaint = callback => {
-  const run = () => window.setTimeout(callback, FIREBASE_BOOT_DELAY_MS);
+const areAllSymbolsLocked = symbols => (
+  Object.keys(INITIAL_SYMBOLS).every(symbolId => !symbols[symbolId])
+);
 
-  if ('requestIdleCallback' in window) {
-    const idleId = window.requestIdleCallback(run, { timeout: 1800 });
-    return () => window.cancelIdleCallback(idleId);
+const mergeDeviceSymbols = (currentSymbols, incomingSymbols) => {
+  const normalizedIncoming = normalizeSymbols(incomingSymbols);
+  if (areAllSymbolsLocked(normalizedIncoming)) return normalizedIncoming;
+
+  return Object.keys(INITIAL_SYMBOLS).reduce((acc, symbolId) => {
+    acc[symbolId] = !!(currentSymbols?.[symbolId] || normalizedIncoming[symbolId]);
+    return acc;
+  }, {});
+};
+
+const publishDeviceSymbols = symbols => {
+  const normalizedSymbols = normalizeSymbols(symbols);
+  localStorage.setItem(SYMBOLS_STORAGE_KEY, JSON.stringify(normalizedSymbols));
+
+  if ('BroadcastChannel' in window) {
+    const channel = new BroadcastChannel(SYMBOLS_BROADCAST_CHANNEL);
+    channel.postMessage({ symbols: normalizedSymbols });
+    channel.close();
   }
+};
 
-  const timerId = window.setTimeout(run, FIREBASE_BOOT_DELAY_MS);
-  return () => window.clearTimeout(timerId);
+const resolveScannedQrSymbol = rawValue => {
+  const value = String(rawValue || '').trim();
+  if (!value) return '';
+
+  try {
+    const url = new URL(value, window.location.origin);
+    const normalizedPath = url.pathname.replace(/\/+$/, '');
+    const pathTarget = normalizedPath.startsWith('/qr/')
+      ? normalizedPath.slice('/qr/'.length)
+      : normalizedPath.startsWith('/symbol/')
+        ? normalizedPath.slice('/symbol/'.length)
+        : '';
+    const queryTarget =
+      url.searchParams.get('symbol') ||
+      url.searchParams.get('id') ||
+      url.searchParams.get('qr') ||
+      url.searchParams.get('s');
+
+    return resolveQrSymbol(pathTarget || queryTarget || value);
+  } catch {
+    return resolveQrSymbol(value);
+  }
 };
 
 export default function App() {
@@ -206,19 +138,8 @@ export default function App() {
   const [announcement, setAnnouncement] = useState(null);
 
   const [symbols, setSymbols] = useState(() => {
-    const savedSymbols = localStorage.getItem('symbols');
-
-    if (!savedSymbols) return INITIAL_SYMBOLS;
-
-    try {
-      return normalizeSymbols(JSON.parse(savedSymbols));
-    } catch {
-      return INITIAL_SYMBOLS;
-    }
+    return readStoredSymbols();
   });
-
-  const [userId, setUserId] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
 
   const [activePopup, setActivePopup] = useState(null);
   const [toast, setToast] = useState('');
@@ -226,14 +147,18 @@ export default function App() {
   const [publicComments, setPublicComments] = useState([]);
   const [highlightedPinId, setHighlightedPinId] = useState(null);
   const [language, setLanguage] = useState(() => localStorage.getItem('language') || 'ko');
+  const [isQrScannerOpen, setIsQrScannerOpen] = useState(false);
   const mapSectionRef = useRef(null);
   const highlightTimerRef = useRef(null);
-  const hasStartedFirebaseSession = useRef(false);
-  const lastStoredSymbolsSignature = useRef(getSymbolsSignature(symbols));
-  const lastSyncedSymbolsSignature = useRef('');
   const hasAutoOpenedQuestionGuide = useRef(
     localStorage.getItem('questionGuideAutoShown') === 'true',
   );
+  const { userId, isLoading } = useFirebaseSymbolSync({
+    symbols,
+    setSymbols,
+    setPins,
+    setAnnouncement,
+  });
 
   // 1개 이상 해금 시 해당 카테고리 발견 완료로 판정
   const isHeartDiscovered = symbols.heart_kymin || symbols.heart_yewon || symbols.heart_eunhye || symbols.heart_jihoon || symbols.heart_eunchae;
@@ -248,6 +173,40 @@ export default function App() {
     localStorage.setItem('language', language);
     document.documentElement.lang = language === 'en' ? 'en' : 'ko';
   }, [language]);
+
+  useEffect(() => {
+    const applyIncomingSymbols = incomingSymbols => {
+      setSymbols(prev => mergeDeviceSymbols(prev, incomingSymbols));
+    };
+
+    const handleStorage = event => {
+      if (event.key !== SYMBOLS_STORAGE_KEY || !event.newValue) return;
+
+      try {
+        applyIncomingSymbols(JSON.parse(event.newValue));
+      } catch (error) {
+        console.error('기기 해금 데이터 동기화 중 오류 발생:', error);
+      }
+    };
+
+    window.addEventListener('storage', handleStorage);
+
+    if (!('BroadcastChannel' in window)) {
+      return () => window.removeEventListener('storage', handleStorage);
+    }
+
+    const channel = new BroadcastChannel(SYMBOLS_BROADCAST_CHANNEL);
+    channel.onmessage = event => {
+      if (event.data?.symbols) {
+        applyIncomingSymbols(event.data.symbols);
+      }
+    };
+
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+      channel.close();
+    };
+  }, []);
 
   const toggleLanguage = () => {
     setLanguage(prev => (prev === 'en' ? 'ko' : 'en'));
@@ -405,7 +364,7 @@ export default function App() {
     if (isResetRequested) {
       localStorage.clear();
       hasAutoOpenedQuestionGuide.current = false;
-      localStorage.setItem('symbols', JSON.stringify(INITIAL_SYMBOLS));
+      publishDeviceSymbols(INITIAL_SYMBOLS);
       localStorage.setItem('needReset', 'true'); // Firebase 세션 로드 완료 시 클라우드 리셋을 처리하기 위한 플래그
       setSymbols(INITIAL_SYMBOLS);
       setToast('로컬 및 서버 데이터 초기화 중... 🔄');
@@ -423,7 +382,7 @@ export default function App() {
         for (const symbolId of BASIC_UNLOCK_SYMBOLS) {
           next[symbolId] = true;
         }
-        localStorage.setItem('symbols', JSON.stringify(next));
+        publishDeviceSymbols(next);
         return next;
       });
       setToast(text.basicUnlocked);
@@ -437,7 +396,7 @@ export default function App() {
     }
 
     if (isAdminUnlockRequested) {
-      localStorage.setItem('symbols', JSON.stringify(UNLOCKED_SYMBOLS));
+      publishDeviceSymbols(UNLOCKED_SYMBOLS);
       setSymbols(UNLOCKED_SYMBOLS);
       setToast('관리자 모드로 전체 잠금이 열렸습니다.');
 
@@ -455,7 +414,7 @@ export default function App() {
         for (const symbolId of ADMIN_UNLOCK_CATEGORIES[adminUnlockTarget]) {
           next[symbolId] = true;
         }
-        localStorage.setItem('symbols', JSON.stringify(next));
+        publishDeviceSymbols(next);
         return next;
       });
       setToast(`관리자 모드로 ${ADMIN_UNLOCK_LABELS[adminUnlockTarget]} 잠금이 열렸습니다.`);
@@ -483,7 +442,7 @@ export default function App() {
 
         setSymbols(prev => {
           const next = { ...prev, question: true };
-          localStorage.setItem('symbols', JSON.stringify(next));
+          publishDeviceSymbols(next);
           if (userId) {
             saveUserSymbols(userId, next).catch(err => {
               console.error('question QR 완료 데이터 백업 중 에러 발생:', err);
@@ -505,7 +464,7 @@ export default function App() {
         setSymbols(prev => {
           if (prev[symbol]) return prev;
           const next = { ...prev, [symbol]: true };
-          localStorage.setItem('symbols', JSON.stringify(next));
+          publishDeviceSymbols(next);
           if (userId) {
             saveUserSymbols(userId, next).catch(err => {
               console.error('QR 해금 데이터 즉시 백업 중 에러 발생:', err);
@@ -523,177 +482,6 @@ export default function App() {
       }
     }
   }, []);
-
-  // 2. Firebase 익명 로그인 및 Firestore 데이터 동기화
-  useEffect(() => {
-    if (hasStartedFirebaseSession.current) return undefined;
-    hasStartedFirebaseSession.current = true;
-
-    async function initFirebaseSession() {
-      try {
-        const { auth, db, doc, getDoc, serverTimestamp, setDoc, signInAnonymously } = await withTimeout(
-          loadFirebaseApi(),
-          FIREBASE_SYNC_TIMEOUT_MS,
-          'Firebase module load',
-        );
-        // 백그라운드 익명 로그인 처리
-        const userCredential = await withTimeout(
-          signInAnonymously(auth),
-          FIREBASE_SYNC_TIMEOUT_MS,
-          'Firebase auth',
-        );
-        const uid = userCredential.user.uid;
-        setUserId(uid);
-
-        // 🔄 지도 핀(심볼) 위치 데이터 동적 로드
-        try {
-          const pinsDocRef = doc(db, 'settings', 'map_pins');
-          const pinsDocSnap = await withTimeout(
-            getDoc(pinsDocRef),
-            FIREBASE_SYNC_TIMEOUT_MS,
-            'Map pins load',
-          );
-          if (pinsDocSnap.exists()) {
-            const cloudPins = pinsDocSnap.data().pins;
-            if (Array.isArray(cloudPins) && cloudPins.length > 0) {
-              const mergedPins = DEFAULT_MAP_PINS.map(defaultPin => {
-                const cloudMatch = cloudPins.find(cp => cp.id === defaultPin.id);
-                return cloudMatch ? { ...defaultPin, ...cloudMatch } : defaultPin;
-              });
-              setPins(mergedPins);
-            }
-          }
-        } catch (pinError) {
-          console.error('심볼 위치(pins) 데이터를 로드하는 중 에러 발생:', pinError);
-        }
-
-        try {
-          const announcementDocRef = doc(db, 'settings', 'announcement');
-          const announcementDocSnap = await withTimeout(
-            getDoc(announcementDocRef),
-            FIREBASE_SYNC_TIMEOUT_MS,
-            'Announcement load',
-          );
-
-          if (announcementDocSnap.exists()) {
-            const announcementData = announcementDocSnap.data();
-            const message = String(announcementData.message || '').trim();
-            setAnnouncement(
-              announcementData.isActive && message
-                ? {
-                    title: String(announcementData.title || '공지').trim(),
-                    message,
-                  }
-                : null,
-            );
-          }
-        } catch (announcementError) {
-          console.error('공지 데이터를 불러오는 중 오류 발생:', announcementError);
-        }
-
-        // Firestore에서 사용자 해금 데이터 로드
-        const userDocRef = doc(db, 'users', uid);
-
-        // 🔄 로컬에서 요청된 초기화(리셋) 플래그가 있는 경우 클라우드 및 로컬스토리지 강제 초기화 진행
-        if (localStorage.getItem('needReset') === 'true') {
-          await withTimeout(
-            setDoc(userDocRef, {
-              symbols: INITIAL_SYMBOLS,
-              updatedAt: serverTimestamp(),
-            }),
-            FIREBASE_SYNC_TIMEOUT_MS,
-            'Reset sync',
-          );
-          localStorage.removeItem('needReset');
-          setSymbols(INITIAL_SYMBOLS);
-          lastSyncedSymbolsSignature.current = getSymbolsSignature(INITIAL_SYMBOLS);
-          return;
-        }
-
-        const userDocSnap = await withTimeout(
-          getDoc(userDocRef),
-          FIREBASE_SYNC_TIMEOUT_MS,
-          'User symbols load',
-        );
-
-        if (userDocSnap.exists()) {
-          const cloudData = userDocSnap.data();
-          const cloudSymbols = cloudData.symbols || {};
-
-          // 로컬 데이터와 클라우드 데이터의 영리한 병합 및 서버 백업 누락 감지
-          setSymbols(prev => {
-            const merged = {};
-            let isChanged = false;
-            let cloudNeedsUpdate = false;
-
-            for (const key of Object.keys(INITIAL_SYMBOLS)) {
-              const val = !!(prev[key] || cloudSymbols[key]);
-              if (prev[key] !== val) isChanged = true;
-              
-              // 로컬에는 기록이 있으나 클라우드(서버)에는 기록이 없는 경우
-              if (prev[key] && !cloudSymbols[key]) {
-                cloudNeedsUpdate = true;
-              }
-              merged[key] = val;
-            }
-
-            // 클라우드 서버 백업이 필요하다면 서명을 초기화하여 백업 useEffect가 강제 작동되도록 유도
-            if (cloudNeedsUpdate) {
-              lastSyncedSymbolsSignature.current = '';
-            }
-
-            if (isChanged) {
-              const mergedSignature = getSymbolsSignature(merged);
-              lastStoredSymbolsSignature.current = mergedSignature;
-              localStorage.setItem('symbols', JSON.stringify(merged));
-            }
-
-            // 로컬 상태가 변경되었거나 서버 백업이 필요한 상태라면 새 객체(merged)를 반환해 강제 동기화 수행
-            return (isChanged || cloudNeedsUpdate) ? merged : prev;
-          });
-        } else {
-          // 최초 접속 사용자: 로컬의 데이터를 유지하며, 아래 useEffect가 자동으로 클라우드에 백업하게 둠
-          setSymbols(current => current);
-        }
-      } catch (error) {
-        console.error('Firebase Auth/Firestore 동기화 중 에러 발생:', error);
-        // 네트워크 장애 등으로 실패하더라도 로컬 스토리지 기반으로 정상 실행되도록 안전 보장
-      } finally {
-        setIsLoading(false);
-      }
-    }
-
-    const cancelSchedule = scheduleAfterInitialPaint(initFirebaseSession);
-    return cancelSchedule;
-  }, []);
-
-  useEffect(() => {
-    if (!isLoading) return undefined;
-
-    const failSafeTimerId = window.setTimeout(() => {
-      console.warn('Firebase sync took too long; opening with local data.');
-      setIsLoading(false);
-    }, FIREBASE_LOADING_FAILSAFE_MS);
-
-    return () => window.clearTimeout(failSafeTimerId);
-  }, [isLoading]);
-
-  // 3. 심볼 상태가 변경될 때마다 로컬 스토리지 및 Firestore에 상시 실시간 백업
-  useEffect(() => {
-    const symbolsSignature = getSymbolsSignature(symbols);
-
-    if (lastStoredSymbolsSignature.current !== symbolsSignature) {
-      localStorage.setItem('symbols', JSON.stringify(symbols));
-      lastStoredSymbolsSignature.current = symbolsSignature;
-    }
-
-    if (userId && !isLoading && lastSyncedSymbolsSignature.current !== symbolsSignature) {
-      lastSyncedSymbolsSignature.current = symbolsSignature;
-      saveUserSymbols(userId, symbols).catch(err => {
-        console.error('Firestore 백업 중 에러 발생:', err);
-      });
-    }
-  }, [symbols, userId, isLoading]);
 
   useEffect(() => {
     if (
@@ -719,6 +507,42 @@ export default function App() {
 
     return () => window.clearTimeout(timerId);
   }, [isQuestionUnlocked, isQuestionDiscovered, isLoading, page, activePopup]);
+
+  const handleQrScannerDetected = rawValue => {
+    const symbol = resolveScannedQrSymbol(rawValue);
+
+    if (!symbol || !Object.prototype.hasOwnProperty.call(INITIAL_SYMBOLS, symbol)) {
+      setToast(text.invalidQr);
+      window.setTimeout(() => setToast(''), 1600);
+      return;
+    }
+
+    if (symbol === 'question' && !hasQuestionPrerequisites(symbols)) {
+      setToast(text.needThreeSymbols);
+      window.setTimeout(() => setToast(''), 2000);
+      setIsQrScannerOpen(false);
+      return;
+    }
+
+    setSymbols(prev => {
+      const next = { ...prev, [symbol]: true };
+      publishDeviceSymbols(next);
+      if (userId) {
+        saveUserSymbols(userId, next).catch(err => {
+          console.error('QR 스캔 해금 데이터 백업 중 에러 발생:', err);
+        });
+      }
+      return next;
+    });
+
+    setIsQrScannerOpen(false);
+    setPage('home');
+    setActivePopup({
+      type: 'qr',
+      id: symbol,
+    });
+    window.history.replaceState({}, '', '/');
+  };
 
   const handleMapSymbolClick = id => {
     if (id === 'question') {
@@ -904,6 +728,14 @@ export default function App() {
                 {text.mapDesc}
               </p>
             </div>
+            <button
+              type="button"
+              onClick={() => setIsQrScannerOpen(true)}
+              className="flex h-10 shrink-0 items-center gap-1.5 rounded-full border border-sky-200 bg-white/90 px-3 text-[13px] font-bold text-sky-700 shadow-sm transition active:scale-95"
+            >
+              <Camera className="h-4 w-4" />
+              {text.scanQrButton}
+            </button>
           </div>
           <MapArea 
             symbols={symbols} 
@@ -945,6 +777,16 @@ export default function App() {
             onClose={closePopup}
             language={language}
             onToggleLanguage={toggleLanguage}
+          />
+        </Suspense>
+      )}
+
+      {isQrScannerOpen && (
+        <Suspense fallback={null}>
+          <QRScannerPopup
+            language={language}
+            onClose={() => setIsQrScannerOpen(false)}
+            onDetected={handleQrScannerDetected}
           />
         </Suspense>
       )}

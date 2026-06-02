@@ -1,6 +1,8 @@
 ﻿import React, { useState } from 'react';
-import { X, ArrowRight, ArrowLeft, Heart, Check, MessageSquare, Pencil, Trash2 } from 'lucide-react';
+import { X, ArrowRight, ArrowLeft, Heart, Check, MessageSquare } from 'lucide-react';
 import useArtworkComments from '../hooks/useArtworkComments';
+import ArtworkCommentModal from './ArtworkCommentModal';
+import { artistPopupEnglish } from '../data/artistPopupEnglish';
 
 export default function HeartYewonPopup({ onClose, language = 'ko' }) {
   const [step, setStep] = useState(1);
@@ -33,24 +35,9 @@ export default function HeartYewonPopup({ onClose, language = 'ko' }) {
         save: '저장',
         namePlaceholder: '작성자 이름 (닉네임)',
         commentPlaceholder: '따뜻한 감상평을 남겨주세요! (최대 100자)',
-      };  const {
-    comments,
-    loadingComments,
-    newName,
-    setNewName,
-    newContent,
-    setNewContent,
-    editingCommentId,
-    editContent,
-    setEditContent,
-    handleAddComment,
-    startEditComment,
-    cancelEditComment,
-    handleUpdateComment,
-    handleDeleteComment,
-    isOwnComment,
-    formatCommentDate,
-  } = useArtworkComments('heart_yewon');
+      };
+  const englishCopy = language === 'en' ? artistPopupEnglish.heart_yewon : null;
+  const commentsApi = useArtworkComments('heart_yewon');
 
   // 몽환적인 흩날리는 핑크색 하트 입자 데이터 정의
   const floatingHearts = [
@@ -198,7 +185,7 @@ export default function HeartYewonPopup({ onClose, language = 'ko' }) {
             <div className="relative z-10 w-full h-full">
               {/* SYMBOL1 : HEART */}
               <span className="absolute left-[29px] top-[31px] text-[15px] tracking-[1.92px] font-medium text-[#4a3b3b] font-readable-sans">
-                SYMBOL1 : HEART
+                SYMBOL1 : {englishCopy?.symbol?.toUpperCase() || 'HEART'}
               </span>
 
               {/* Rectangle 361 (상단 얇은 가로선) */}
@@ -211,20 +198,29 @@ export default function HeartYewonPopup({ onClose, language = 'ko' }) {
 
               {/* 과기대 붕어방 */}
               <div className="absolute right-[25px] top-[71px] text-[10px] text-[#4a3b3b] tracking-[1.2px] text-right font-readable-sans">
-                과기대 붕어방
+                {englishCopy ? 'Boongo Room' : '과기대 붕어방'}
               </div>
 
               {/* 대형 감성 문구: 손예원 작가 (iPhone 17 - 26) 피그마 배치 및 색감/두께 단일화 */}
               <div className="absolute left-[29px] top-[91px] w-[310px] text-left">
-                <div className="text-[34px] leading-[1.22] text-[#4a3b3b] tracking-[1.5px] font-sentiment font-normal">
-                  <p>간절히</p>
-                  <p>두드리던</p>
-                  <p>사랑보다,</p>
-                  <div className="h-[18px]" /> {/* 피그마 오리지널 빈 줄 간격 정밀 복원 */}
-                  <p>이미</p>
-                  <p>내 문을</p>
-                  <p>두드리고 있던</p>
-                  <p>사랑이 더 컸음을</p>
+                <div className={[
+                  'leading-[1.22] text-[#4a3b3b] tracking-[1.5px] font-sentiment font-normal',
+                  englishCopy ? 'text-[29px]' : 'text-[34px]',
+                ].join(' ')}>
+                  {englishCopy ? (
+                    englishCopy.intro.map(line => <p key={line}>{line}</p>)
+                  ) : (
+                    <>
+                      <p>간절히</p>
+                      <p>두드리던</p>
+                      <p>사랑보다,</p>
+                      <div className="h-[18px]" /> {/* 피그마 오리지널 빈 줄 간격 정밀 복원 */}
+                      <p>이미</p>
+                      <p>내 문을</p>
+                      <p>두드리고 있던</p>
+                      <p>사랑이 더 컸음을</p>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -235,7 +231,7 @@ export default function HeartYewonPopup({ onClose, language = 'ko' }) {
               {/* ARTIST. 손예원 및 댓글 이모지 버튼 */}
               <div className="absolute left-[26px] right-[25px] top-[465px] flex items-center justify-between">
                 <span className="text-[15px] tracking-[1.92px] font-medium text-[#4a3b3b] font-readable-sans">
-                  ARTIST. 손예원
+                  ARTIST. {englishCopy?.artist || '손예원'}
                 </span>
                 <button
                   onClick={() => setShowCommentModal(true)}
@@ -245,15 +241,25 @@ export default function HeartYewonPopup({ onClose, language = 'ko' }) {
                   <MessageSquare className="w-8 h-8" />
                   {/* 댓글 수 배지 */}
                   <span className="absolute -top-1 -right-1 flex h-6 min-w-[24px] px-1.5 items-center justify-center rounded-full bg-red-500 text-white text-xs font-bold shadow-sm border border-white">
-                    {comments.length}
+                    {commentsApi.comments.length}
                   </span>
                 </button>
               </div>
 
               {/* 서울과학기술대학교 중앙동아리 CCC */}
               <div className="absolute left-[25px] top-[502px] text-[10px] tracking-[1.2px] text-[#4a3b3b] leading-normal font-readable-sans">
-                <p>서울과학기술대학교</p>
-                <p className="mt-0.5">중앙동아리 CCC</p>
+                {englishCopy ? (
+                  <>
+                    <p>Seoul National University</p>
+                    <p className="mt-0.5">of Science and Technology</p>
+                    <p className="mt-0.5">CCC Club</p>
+                  </>
+                ) : (
+                  <>
+                    <p>서울과학기술대학교</p>
+                    <p className="mt-0.5">중앙동아리 CCC</p>
+                  </>
+                )}
               </div>
 
               {/* NEXT PAGE 버튼: 우측 하단 둥근 캡슐 */}
@@ -320,7 +326,7 @@ export default function HeartYewonPopup({ onClose, language = 'ko' }) {
               {/* 상단 띠지 */}
               <div className="relative z-10 flex justify-between items-center pb-6 font-readable-sans">
                 <span className="text-[10px] tracking-[1.2px] font-bold text-rose-500">
-                  SYMBOL1 : HEART
+                  SYMBOL1 : {englishCopy?.symbol?.toUpperCase() || 'HEART'}
                 </span>
                 <div className="w-[100px] h-[0.5px] bg-rose-200" />
               </div>
@@ -329,17 +335,38 @@ export default function HeartYewonPopup({ onClose, language = 'ko' }) {
               <div className="relative z-10 flex-1 flex flex-col bg-white/80 backdrop-blur-md rounded-[20px] border border-rose-100 p-7 shadow-[0_8px_32px_rgba(0,0,0,0.03)]">
 
                 {/* 헤드라인 타이틀: "문 너머의 사랑" */}
-                <div className="text-left font-sentiment text-[36px] leading-[1.15] text-rose-500 tracking-[5.88px] font-bold mt-2 select-text">
-                  <p>문 너머의</p>
-                  <p>사랑</p>
+                <div className={[
+                  'text-left font-sentiment leading-[1.15] text-rose-500 font-bold mt-2 select-text',
+                  englishCopy ? 'text-[30px] tracking-[0.5px]' : 'text-[36px] tracking-[5.88px]',
+                ].join(' ')}>
+                  {englishCopy ? (
+                    <p>{englishCopy.title}</p>
+                  ) : (
+                    <>
+                      <p>문 너머의</p>
+                      <p>사랑</p>
+                    </>
+                  )}
                 </div>
 
                 {/* 얇은 가로선 */}
                 <div className="bg-rose-300 h-px w-[31px] my-6 flex-none" />
 
                 {/* 본문 서사: 손예원 작가 수필 (온점 하나도 누락 없이 100% 반영) */}
-                <div className="text-left text-[14.5px] leading-[1.85] text-gray-700 space-y-5 tracking-wide font-readable-sans select-text break-keep">
-                  <p className="text-gray-800 font-medium">사랑이란 무엇일까요.</p>
+                {englishCopy ? (
+                  <div className="text-left text-[14.5px] leading-[1.85] text-gray-700 space-y-5 tracking-wide font-readable-sans select-text">
+                    {englishCopy.body.map((paragraph, index) => (
+                      <p
+                        key={paragraph}
+                        className={index === 0 || index === englishCopy.body.length - 1 ? 'text-gray-800 font-medium' : ''}
+                      >
+                        {paragraph}
+                      </p>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-left text-[14.5px] leading-[1.85] text-gray-700 space-y-5 tracking-wide font-readable-sans select-text break-keep">
+                    <p className="text-gray-800 font-medium">사랑이란 무엇일까요.</p>
 
                   <div className="h-1" />
                   <p className="text-gray-800">
@@ -434,7 +461,8 @@ export default function HeartYewonPopup({ onClose, language = 'ko' }) {
                     <p className="font-bold text-[#b92c2c]">당신은 그 문을 열 건가요?</p>
                   </div>
 
-                </div>
+                  </div>
+                )}
               </div>
 
               {/* 하단 제어 버튼: 112px X 52px 둥근 캡슐 */}
@@ -480,141 +508,18 @@ export default function HeartYewonPopup({ onClose, language = 'ko' }) {
       </div>
 
       {/* 댓글 모달 */}
-      {showCommentModal && (
-        <div className="absolute inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-[2px] animate-in fade-in duration-200">
-          <div className="relative w-[310px] h-[520px] rounded-[24px] bg-white border border-rose-100 flex flex-col p-5 shadow-2xl animate-in zoom-in-95 duration-200">
-            {/* 헤더 */}
-            <div className="flex justify-between items-center pb-3 border-b border-gray-100">
-              <div className="flex items-center gap-1.5">
-                <span className="text-lg font-bold text-rose-500 font-sentiment">{uiText.leaveComment} 💬</span>
-                <span className="bg-rose-100 text-rose-600 text-xs px-2 py-0.5 rounded-full font-bold">{comments.length}</span>
-              </div>
-              <button
-                onClick={() => setShowCommentModal(false)}
-                className="w-7 h-7 bg-gray-50 border border-gray-100 hover:bg-gray-100 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-
-            {/* 댓글 리스트 */}
-            <div className="flex-1 overflow-y-auto popup-body-scroll my-3 pr-1 space-y-3 select-text">
-              {loadingComments ? (
-                <div className="h-full flex flex-col items-center justify-center text-gray-400 text-xs gap-2 py-10">
-                  <div className="w-6 h-6 border-2 border-rose-400 border-t-transparent rounded-full animate-spin" />
-                  <span>{uiText.loadingComments}</span>
-                </div>
-              ) : comments.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center text-gray-400 text-xs py-10 text-center leading-relaxed animate-in fade-in duration-300">
-                  <span className="text-3xl mb-2">🎈</span>
-                  <span className="font-bold text-gray-600 text-sm">{uiText.firstComment}</span>
-                  <span className="opacity-70 mt-1">{uiText.noComments}</span>
-                  <span className="opacity-60 mt-0.5">{uiText.firstCommentHint}</span>
-                </div>
-              ) : (
-                comments.map((comment) => {
-                  const isEditing = editingCommentId === comment.id;
-                  const canManage = isOwnComment(comment);
-
-                  return (
-                    <div key={comment.id} className="bg-rose-50/30 border border-rose-100/50 p-3 rounded-2xl flex flex-col gap-2 shadow-sm">
-                      <div className="flex justify-between items-center gap-2">
-                        <span className="font-bold text-xs text-rose-800 truncate">{comment.name}</span>
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <span className="text-[10px] text-gray-400">{formatCommentDate(comment.createdAt)}</span>
-                          {canManage && !isEditing && (
-                            <>
-                              <button
-                                type="button"
-                                onClick={() => startEditComment(comment)}
-                                className="w-6 h-6 rounded-full bg-white/80 border border-gray-100 text-gray-400 hover:text-gray-700 flex items-center justify-center transition-colors cursor-pointer"
-                                title={uiText.edit}
-                              >
-                                <Pencil className="w-3 h-3" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteComment(comment.id)}
-                                className="w-6 h-6 rounded-full bg-white/80 border border-gray-100 text-gray-400 hover:text-red-500 hover:border-red-100 flex items-center justify-center transition-colors cursor-pointer"
-                                title={uiText.delete}
-                              >
-                                <Trash2 className="w-3 h-3" />
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </div>
-
-                      {isEditing ? (
-                        <div className="flex flex-col gap-2">
-                          <textarea
-                            value={editContent}
-                            onChange={(e) => setEditContent(e.target.value)}
-                            maxLength={100}
-                            rows={3}
-                            className="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-gray-300 font-readable-sans resize-none bg-white/80 text-gray-800 leading-relaxed"
-                          />
-                          <div className="flex justify-end gap-1.5">
-                            <button
-                              type="button"
-                              onClick={cancelEditComment}
-                              className="h-7 px-3 rounded-full border border-gray-200 bg-white text-[11px] font-bold text-gray-500 hover:bg-gray-50 cursor-pointer"
-                            >{uiText.cancel}</button>
-                            <button
-                              type="button"
-                              onClick={() => handleUpdateComment(comment.id)}
-                              disabled={!editContent.trim()}
-                              className="h-7 px-3 rounded-full bg-gray-800 disabled:bg-gray-300 text-[11px] font-bold text-white cursor-pointer"
-                            >{uiText.save}</button>
-                          </div>
-                        </div>
-                      ) : (
-                        <p className="text-gray-700 text-xs leading-relaxed break-all whitespace-pre-wrap">{comment.content}</p>
-                      )}
-                    </div>
-                  );
-                })
-              )}
-            </div>
-
-            {/* 댓글 폼 */}
-            <form onSubmit={handleAddComment} className="flex flex-col gap-2 border-t border-gray-100 pt-3 mt-auto">
-              <input
-                type="text"
-                placeholder={uiText.namePlaceholder}
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                maxLength={10}
-                className="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-rose-400 font-readable-sans bg-gray-50/50 text-gray-800"
-                required
-              />
-              <div className="relative">
-                <textarea
-                  placeholder={uiText.commentPlaceholder}
-                  value={newContent}
-                  onChange={(e) => setNewContent(e.target.value)}
-                  maxLength={100}
-                  rows={2}
-                  className="w-full pl-3 pr-10 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-rose-400 font-readable-sans resize-none bg-gray-50/50 text-gray-800 leading-normal"
-                  required
-                />
-                <button
-                  type="submit"
-                  disabled={!newName.trim() || !newContent.trim()}
-                  className="absolute right-2 bottom-3 p-1.5 bg-[#fa5c5c] disabled:bg-gray-300 text-white rounded-lg flex items-center justify-center transition-all duration-200 active:scale-95 shadow-sm cursor-pointer"
-                >
-                  <Check className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+            {showCommentModal && (
+        <ArtworkCommentModal
+          commentsApi={commentsApi}
+          onClose={() => setShowCommentModal(false)}
+          uiText={uiText}
+          accent="#fa5c5c"
+          accentTextClass="text-rose-500"
+          accentNameClass="text-rose-800"
+          accentBgClass="bg-rose-50/30 border border-rose-100/50"
+          focusRingClass="focus:ring-rose-400"
+        />
       )}
     </div>
   );
 }
-
-
-
-
-
