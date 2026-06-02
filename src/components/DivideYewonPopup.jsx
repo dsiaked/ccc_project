@@ -3,7 +3,6 @@ import { X, ArrowRight, ArrowLeft, Divide, Check, MessageSquare } from 'lucide-r
 import useArtworkComments from '../hooks/useArtworkComments';
 import ArtworkCommentModal from './ArtworkCommentModal';
 import { artistPopupEnglish } from '../data/artistPopupEnglish';
-import { ArtistEnglishDetailOverlay, ArtistEnglishIntroOverlay } from './ArtistEnglishContentOverlay';
 
 export default function DivideYewonPopup({ onClose, language = 'ko' }) {
   const [step, setStep] = useState(1);
@@ -184,9 +183,9 @@ export default function DivideYewonPopup({ onClose, language = 'ko' }) {
 
             {/* 3. 글자 배치 (피그마 1:1 절대좌표 이식 및 손예원 작가 사양 적용) */}
             <div className="relative z-10 w-full h-full">
-              {/* SYMBOL2 : SEPARATION */}
-              <span className="absolute left-[29px] top-[31px] text-[15px] tracking-[1.92px] font-medium text-[#4a3b3b] font-readable-sans">
-                SYMBOL2 : SEPARATION
+              {/* SYMBOL2 : DIVIDE */}
+              <span className="absolute left-[29px] top-[31px] max-w-[178px] truncate text-[13px] tracking-[1.1px] font-medium text-[#4a3b3b] font-readable-sans">
+                SYMBOL2 : DIVIDE
               </span>
               
               {/* Rectangle 361 (상단 얇은 가로선) */}
@@ -199,11 +198,11 @@ export default function DivideYewonPopup({ onClose, language = 'ko' }) {
               
               {/* 과기대 붕어방 */}
               <div className="absolute right-[25px] top-[71px] text-[10px] text-[#4a3b3b] tracking-[1.2px] text-right font-readable-sans">
-                과기대 붕어방
+                {englishCopy ? 'Bungeobang' : '과기대 붕어방'}
               </div>
 
               {/* 대형 감성 문구: 손예원 작가 (iPhone 17 - 13) 피그마 배치 및 색감/두께 단일화 */}
-              <div className="absolute left-[29px] top-[91px] w-[310px] text-left">
+              <div className={['absolute left-[29px] top-[91px] w-[310px] text-left', englishCopy ? 'hidden' : ''].join(' ')}>
                 <div className="text-[34px] leading-[1.22] text-[#4a3b3b] tracking-[1.5px] font-sentiment font-normal">
                   <p>나를</p>
                   <p>지키려 세운</p>
@@ -213,6 +212,13 @@ export default function DivideYewonPopup({ onClose, language = 'ko' }) {
                   <p>사랑이라는 꽃</p>
                 </div>
               </div>
+              {englishCopy && (
+                <div className="absolute left-[29px] top-[91px] w-[310px] text-left">
+                  <div className="text-[29px] leading-[1.22] text-[#4a3b3b] tracking-[1.5px] font-sentiment font-normal">
+                    {englishCopy.intro.map(line => <p key={line}>{line}</p>)}
+                  </div>
+                </div>
+              )}
 
               {/* 하단 작가 소개 영역 */}
               {/* Rectangle 358 (작가 위 가로선) */}
@@ -221,7 +227,7 @@ export default function DivideYewonPopup({ onClose, language = 'ko' }) {
               {/* ARTIST. 손예원 및 댓글 이모지 버튼 */}
               <div className="absolute left-[26px] right-[25px] top-[465px] flex items-center justify-between">
                 <span className="text-[15px] tracking-[1.92px] font-medium text-[#4a3b3b] font-readable-sans">
-                  ARTIST. 손예원
+                  ARTIST. {englishCopy?.artist || '손예원'}
                 </span>
                 <button
                   onClick={() => setShowCommentModal(true)}
@@ -238,10 +244,19 @@ export default function DivideYewonPopup({ onClose, language = 'ko' }) {
               
               {/* 서울과학기술대학교 중앙동아리 CCC */}
               <div className="absolute left-[25px] top-[502px] text-[10px] tracking-[1.2px] text-[#4a3b3b] leading-normal font-readable-sans">
-                <p>서울과학기술대학교</p>
-                <p className="mt-0.5">중앙동아리 CCC</p>
+                {englishCopy ? (
+                  <>
+                    <p>Seoul National University</p>
+                    <p className="mt-0.5">of Science and Technology</p>
+                    <p className="mt-0.5">CCC Club</p>
+                  </>
+                ) : (
+                  <>
+                    <p>서울과학기술대학교</p>
+                    <p className="mt-0.5">중앙동아리 CCC</p>
+                  </>
+                )}
               </div>
-              <ArtistEnglishIntroOverlay copy={englishCopy} textColor={'text-[#4a3b3b]'} />
 
               {/* NEXT 버튼: 우측 하단 둥근 캡슐 */}
               <button
@@ -306,8 +321,8 @@ export default function DivideYewonPopup({ onClose, language = 'ko' }) {
 
               {/* 상단 띠지 */}
               <div className="relative z-10 flex justify-between items-center pb-6 font-readable-sans">
-                <span className="text-[10px] tracking-[1.2px] font-bold text-orange-500">
-                  SYMBOL2 : SEPARATION
+                <span className="max-w-[148px] truncate text-[10px] tracking-[0.9px] font-bold text-orange-500">
+                  SYMBOL2 : DIVIDE
                 </span>
                 <div className="w-[100px] h-[0.5px] bg-orange-200" />
               </div>
@@ -316,14 +331,29 @@ export default function DivideYewonPopup({ onClose, language = 'ko' }) {
               <div className="relative z-10 flex-1 flex flex-col bg-white/80 backdrop-blur-md rounded-[20px] border border-orange-100 p-7 shadow-[0_8px_32px_rgba(0,0,0,0.03)]">
                 
                 {/* 헤드라인 타이틀: "가시" */}
-                <div className="text-left font-sentiment text-[36px] leading-[1.15] text-[#cf4109] tracking-[5.88px] font-bold mt-2 select-text">
-                  <p>가시</p>
+                <div className={[
+                  'text-left font-sentiment leading-[1.15] text-[#cf4109] font-bold mt-2 select-text',
+                  englishCopy ? 'text-[30px] tracking-[0.5px]' : 'text-[36px] tracking-[5.88px]',
+                ].join(' ')}>
+                  <p>{englishCopy?.title || '가시'}</p>
                 </div>
 
                 {/* 얇은 가로선 */}
                 <div className="bg-orange-300 h-px w-[31px] my-6 flex-none" />
 
                 {/* 본문 서사: 손예원 작가 수필 (온점 하나도 누락 없이 100% 반영) */}
+                {englishCopy ? (
+                  <div className="text-left text-[14.5px] leading-[1.85] text-gray-700 space-y-5 tracking-wide font-readable-sans select-text">
+                    {englishCopy.body.map((paragraph, index) => (
+                      <p
+                        key={paragraph}
+                        className={index === 0 || index === englishCopy.body.length - 1 ? 'text-gray-800 font-medium' : ''}
+                      >
+                        {paragraph}
+                      </p>
+                    ))}
+                  </div>
+                ) : (
                 <div className="text-left text-[14.5px] leading-[1.85] text-gray-700 space-y-5 tracking-wide font-readable-sans select-text break-keep">
                   <p className="text-gray-800 font-medium">당신은 어떤 하루를 살아가고 있나요.</p>
                   
@@ -389,7 +419,7 @@ export default function DivideYewonPopup({ onClose, language = 'ko' }) {
                   </div>
                   
                 </div>
-                  <ArtistEnglishDetailOverlay copy={englishCopy} accentClass={'text-orange-600'} />
+                )}
               </div>
 
               {/* 하단 제어 버튼: 112px X 52px 둥근 캡슐 */}

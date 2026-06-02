@@ -19,7 +19,7 @@ export function ArtistEnglishIntroOverlay({ copy, textColor = 'text-[#4a3b3b]' }
 
       <div className="absolute right-[25px] top-[58px] bg-white pl-2 text-right text-[10px] tracking-[1.2px] font-readable-sans">
         <p>2026.05.26/06.02</p>
-        <p className="mt-0.5">Boongo Room</p>
+        <p className="mt-0.5">Bungeobang</p>
       </div>
 
       <div className="absolute left-[21px] top-[86px] min-h-[335px] w-[322px] rounded-2xl bg-white p-2 shadow-[0_10px_25px_rgba(255,255,255,0.45)]">

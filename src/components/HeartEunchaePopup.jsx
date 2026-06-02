@@ -3,7 +3,6 @@ import { X, ArrowRight, ArrowLeft, Heart, Check, MessageSquare } from 'lucide-re
 import useArtworkComments from '../hooks/useArtworkComments';
 import ArtworkCommentModal from './ArtworkCommentModal';
 import { artistPopupEnglish } from '../data/artistPopupEnglish';
-import { ArtistEnglishDetailOverlay, ArtistEnglishIntroOverlay } from './ArtistEnglishContentOverlay';
 
 export default function HeartEunchaePopup({ onClose, language = 'ko' }) {
   const [step, setStep] = useState(1);
@@ -132,7 +131,7 @@ export default function HeartEunchaePopup({ onClose, language = 'ko' }) {
             {/* 메인 텍스트 및 라벨 */}
             <div className="relative z-10 w-full h-full">
               <span className="absolute left-[29px] top-[31px] text-[15px] tracking-[1.92px] font-medium text-[#4a3b3b] font-readable-sans">
-                SYMBOL : HEART
+                SYMBOL1 : {englishCopy?.symbol?.toUpperCase() || 'HEART'}
               </span>
 
               <div className="absolute left-[29px] top-[64px] w-[35px] h-[1.5px] bg-[#e2cece]" />
@@ -142,20 +141,28 @@ export default function HeartEunchaePopup({ onClose, language = 'ko' }) {
               </div>
 
               <div className="absolute right-[25px] top-[71px] text-[10px] text-[#4a3b3b] tracking-[1.2px] text-right font-readable-sans">
-                과기대 미술관
+                {englishCopy ? 'Boongo Room' : '과기대 미술관'}
               </div>
 
               {/* 작품 명으로 감성 인트로 구성 */}
               <div className="absolute left-[29px] top-[110px] w-[310px] text-left">
-                <h1 className="text-[36px] font-bold text-rose-500 tracking-wide font-sentiment mb-6 select-text">
-                  〈Little Lamb〉
-                </h1>
-                <div className="text-[20px] leading-[1.6] text-[#4a3b3b] font-sentiment font-normal break-keep">
-                  <p>작고 둥근 몸짓,</p>
-                  <p>보호하고 아껴주고 싶은</p>
-                  <p>연약함을 온전히 품어 안으시는</p>
-                  <p className="font-bold text-rose-500">예수님의 다정한 시선 🐑</p>
-                </div>
+                {englishCopy ? (
+                  <div className="text-[29px] leading-[1.22] text-[#4a3b3b] tracking-[1.2px] font-sentiment font-normal">
+                    {englishCopy.intro.map(line => <p key={line}>{line}</p>)}
+                  </div>
+                ) : (
+                  <>
+                    <h1 className="text-[36px] font-bold text-rose-500 tracking-wide font-sentiment mb-6 select-text">
+                      〈Little Lamb〉
+                    </h1>
+                    <div className="text-[20px] leading-[1.6] text-[#4a3b3b] font-sentiment font-normal break-keep">
+                      <p>작고 둥근 몸짓,</p>
+                      <p>보호하고 아껴주고 싶은</p>
+                      <p>연약함을 온전히 품어 안으시는</p>
+                      <p className="font-bold text-rose-500">예수님의 다정한 시선 🐑</p>
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* 아티스트 정보 하단 배치 */}
@@ -163,7 +170,7 @@ export default function HeartEunchaePopup({ onClose, language = 'ko' }) {
 
               <div className="absolute left-[26px] right-[25px] top-[465px] flex items-center justify-between">
                 <span className="text-[15px] tracking-[1.92px] font-medium text-[#4a3b3b] font-readable-sans">
-                  ARTIST. 이은채
+                  ARTIST. {englishCopy?.artist || '이은채'}
                 </span>
                 <button
                   onClick={() => setShowCommentModal(true)}
@@ -177,11 +184,19 @@ export default function HeartEunchaePopup({ onClose, language = 'ko' }) {
               </div>
 
               <div className="absolute left-[25px] top-[502px] text-[10px] tracking-[1.2px] text-[#4a3b3b] leading-normal font-readable-sans">
-                <p>서울과학기술대학교</p>
-                <p className="mt-0.5">중앙동아리 CCC</p>
+                {englishCopy ? (
+                  <>
+                    <p>Seoul National University</p>
+                    <p className="mt-0.5">of Science and Technology</p>
+                    <p className="mt-0.5">CCC Club</p>
+                  </>
+                ) : (
+                  <>
+                    <p>서울과학기술대학교</p>
+                    <p className="mt-0.5">중앙동아리 CCC</p>
+                  </>
+                )}
               </div>
-
-              <ArtistEnglishIntroOverlay copy={englishCopy} textColor={'text-[#4a3b3b]'} />
 
               <button
                 onClick={() => setStep(2)}
@@ -213,7 +228,7 @@ export default function HeartEunchaePopup({ onClose, language = 'ko' }) {
               {/* 상단 헤더 */}
               <div className="relative z-10 flex justify-between items-center pb-6 font-readable-sans">
                 <span className="text-[10px] tracking-[1.2px] font-bold text-rose-500">
-                  SYMBOL : HEART
+                  SYMBOL1 : {englishCopy?.symbol?.toUpperCase() || 'HEART'}
                 </span>
                 <div className="w-[100px] h-[0.5px] bg-rose-200" />
               </div>
@@ -223,12 +238,24 @@ export default function HeartEunchaePopup({ onClose, language = 'ko' }) {
                 
                 {/* 작품 제목 */}
                 <div className="text-left font-sentiment text-[32px] leading-[1.2] text-rose-500 tracking-[1.5px] font-bold mt-2 select-text">
-                  〈Little Lamb〉
+                  {englishCopy?.title || '〈Little Lamb〉'}
                 </div>
                 
                 <div className="bg-rose-300 h-px w-[31px] my-5 flex-none" />
 
                 {/* 사용자가 작성 요청한 3문단 작품 설명 본문 - font-sans와 leading-relaxed 적용으로 가독성 극대화 */}
+                {englishCopy ? (
+                  <div className="text-left text-[14.5px] leading-[1.85] text-gray-700 space-y-5 tracking-wide font-readable-sans select-text">
+                    {englishCopy.body.map((paragraph, index) => (
+                      <p
+                        key={paragraph}
+                        className={index === 0 || index === englishCopy.body.length - 1 ? 'text-gray-800 font-medium' : ''}
+                      >
+                        {paragraph}
+                      </p>
+                    ))}
+                  </div>
+                ) : (
                 <div className="text-left text-[14px] sm:text-[14.5px] leading-[1.9] text-gray-700 space-y-6 tracking-wide font-sans select-text break-keep">
                   
                   {/* 1문단 */}
@@ -253,8 +280,7 @@ export default function HeartEunchaePopup({ onClose, language = 'ko' }) {
                   </div>
 
                 </div>
-
-                <ArtistEnglishDetailOverlay copy={englishCopy} accentClass={'text-rose-500'} />
+                )}
               </div>
 
               {/* 하단 네비게이션 */}

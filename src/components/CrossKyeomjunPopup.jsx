@@ -215,7 +215,7 @@ export default function CrossKyeomjunPopup({ onClose, language = 'ko' }) {
 
               {/* 과기대 붕어방 */}
               <div className="absolute right-[25px] top-[71px] text-[10px] text-[#2d3a2e] tracking-[1.2px] text-right font-readable-sans">
-                {englishCopy ? 'Boongo Room' : '과기대 붕어방'}
+                {englishCopy ? 'Bungeobang' : '과기대 붕어방'}
               </div>
 
               {/* 대형 감성 문구: 서겸준 작가 (iPhone 17 - 14) 피그마 배치 및 그린/차콜 단일화 */}

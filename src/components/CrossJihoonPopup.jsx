@@ -3,7 +3,6 @@ import { X, ArrowRight, ArrowLeft, Check, MessageSquare } from 'lucide-react';
 import useArtworkComments from '../hooks/useArtworkComments';
 import ArtworkCommentModal from './ArtworkCommentModal';
 import { artistPopupEnglish } from '../data/artistPopupEnglish';
-import { ArtistEnglishDetailOverlay, ArtistEnglishIntroOverlay } from './ArtistEnglishContentOverlay';
 
 const CustomCrossIcon = ({ className = "w-6 h-6", color = "currentColor", strokeWidth = "2.5", style }) => (
   <svg
@@ -202,7 +201,7 @@ export default function CrossJihoonPopup({ onClose, language = 'ko' }) {
             <div className="relative z-10 w-full h-full">
               {/* SYMBOL3 : CROSS */}
               <span className="absolute left-[29px] top-[31px] text-[15px] tracking-[1.92px] font-medium text-[#2d3a2e] font-readable-sans">
-                SYMBOL3 : CROSS
+                SYMBOL3 : {englishCopy?.symbol?.toUpperCase() || 'CROSS'}
               </span>
 
               {/* Rectangle 362 (상단 얇은 가로선) */}
@@ -215,13 +214,20 @@ export default function CrossJihoonPopup({ onClose, language = 'ko' }) {
 
               {/* 과기대 붕어방 */}
               <div className="absolute right-[25px] top-[71px] text-[10px] text-[#2d3a2e] tracking-[1.2px] text-right font-readable-sans">
-                과기대 붕어방
+                {englishCopy ? 'Boongo Room' : '과기대 붕어방'}
               </div>
 
               {/* 대형 감성 문구: 홍지훈 작가 (iPhone 17 - 14) 피그마 배치 및 그린/차콜 단일화 */}
               <div className="absolute left-[29px] top-[91px] w-[310px] text-left">
-                <div className="text-[32px] leading-[1.24] text-[#2d3a2e] tracking-[1.2px] font-sentiment font-normal">
-                  <p className="font-bold">소중한 것</p>
+                <div className={[
+                  'leading-[1.24] text-[#2d3a2e] tracking-[1.2px] font-sentiment font-normal',
+                  englishCopy ? 'text-[29px]' : 'text-[32px]',
+                ].join(' ')}>
+                  {englishCopy ? (
+                    englishCopy.intro.map(line => <p key={line}>{line}</p>)
+                  ) : (
+                    <p className="font-bold">소중한 것</p>
+                  )}
                 </div>
               </div>
 
@@ -232,7 +238,7 @@ export default function CrossJihoonPopup({ onClose, language = 'ko' }) {
               {/* ARTIST. 홍지훈 및 댓글 이모지 버튼 */}
               <div className="absolute left-[26px] right-[25px] top-[465px] flex items-center justify-between">
                 <span className="text-[15px] tracking-[1.92px] font-medium text-[#2d3a2e] font-readable-sans">
-                  ARTIST. 홍지훈
+                  ARTIST. {englishCopy?.artist || '홍지훈'}
                 </span>
                 <button
                   onClick={() => setShowCommentModal(true)}
@@ -249,10 +255,19 @@ export default function CrossJihoonPopup({ onClose, language = 'ko' }) {
 
               {/* 서울과학기술대학교 중앙동아리 CCC */}
               <div className="absolute left-[25px] top-[502px] text-[10px] tracking-[1.2px] text-[#2d3a2e] leading-normal font-readable-sans">
-                <p>서울과학기술대학교</p>
-                <p className="mt-0.5">중앙동아리 CCC</p>
+                {englishCopy ? (
+                  <>
+                    <p>Seoul National University</p>
+                    <p className="mt-0.5">of Science and Technology</p>
+                    <p className="mt-0.5">CCC Club</p>
+                  </>
+                ) : (
+                  <>
+                    <p>서울과학기술대학교</p>
+                    <p className="mt-0.5">중앙동아리 CCC</p>
+                  </>
+                )}
               </div>
-              <ArtistEnglishIntroOverlay copy={englishCopy} textColor={'text-[#2d3a2e]'} />
 
               {/* NEXT 버튼: 우측 하단 둥근 캡슐 */}
               <button
@@ -318,7 +333,7 @@ export default function CrossJihoonPopup({ onClose, language = 'ko' }) {
               {/* 상단 띠지 */}
               <div className="relative z-10 flex justify-between items-center pb-6 font-readable-sans">
                 <span className="text-[10px] tracking-[1.2px] font-bold text-[#2e7d32]">
-                  SYMBOL3 : CROSS
+                  SYMBOL3 : {englishCopy?.symbol?.toUpperCase() || 'CROSS'}
                 </span>
                 <div className="w-[100px] h-[0.5px] bg-[#c3dec6]" />
               </div>
@@ -328,14 +343,32 @@ export default function CrossJihoonPopup({ onClose, language = 'ko' }) {
 
                 {/* 헤드라인 타이틀: "상처 대신에 남겨진 것" */}
                 <div className="text-left font-sentiment text-[28px] leading-[1.2] text-[#2e7d32] tracking-[1px] font-bold mt-2 select-text">
-                  <p>상처 대신에</p>
-                  <p>남겨진 것</p>
+                  {englishCopy ? (
+                    <p>{englishCopy.title}</p>
+                  ) : (
+                    <>
+                      <p>상처 대신에</p>
+                      <p>남겨진 것</p>
+                    </>
+                  )}
                 </div>
 
                 {/* 얇은 가로선 */}
                 <div className="bg-[#4caf50] h-px w-[31px] my-5 flex-none" />
 
                 {/* 본문 서사: 홍지훈 작가 십자가 수필 (온점 하나도 누락 없이 100% 반영) */}
+                {englishCopy ? (
+                  <div className="text-left text-[14.5px] leading-[1.85] text-gray-700 space-y-5 tracking-wide font-readable-sans select-text">
+                    {englishCopy.body.map((paragraph, index) => (
+                      <p
+                        key={paragraph}
+                        className={index === 0 || index === englishCopy.body.length - 1 ? 'text-gray-800 font-medium' : ''}
+                      >
+                        {paragraph}
+                      </p>
+                    ))}
+                  </div>
+                ) : (
                 <div className="text-left text-[14.5px] leading-[1.85] text-gray-700 space-y-5 tracking-wide font-readable-sans select-text break-keep">
                   <p className="text-gray-850 font-medium">
                     사람들은 늘 중요한 것만 지키려 했다.<br />
@@ -427,7 +460,7 @@ export default function CrossJihoonPopup({ onClose, language = 'ko' }) {
                   </div>
 
                 </div>
-                  <ArtistEnglishDetailOverlay copy={englishCopy} accentClass={'text-emerald-700'} />
+                )}
               </div>
 
               {/* 하단 제어 버튼: 112px X 52px 둥근 캡슐 */}

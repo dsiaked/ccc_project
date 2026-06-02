@@ -217,7 +217,7 @@ export default function HeartKyminPopup({ onClose, language = 'ko' }) {
               
               {/* 과기대 붕어방 */}
               <div className="absolute right-[25px] top-[71px] text-[10px] text-[#4a3b3b] tracking-[1.2px] text-right font-readable-sans">
-                {englishCopy ? 'Boongo Room' : '과기대 붕어방'}
+                {englishCopy ? 'Bungeobang' : '과기대 붕어방'}
               </div>
 
               {/* 대형 감성 문구: 김규민 작가 (iPhone 17 - 19) 피그마 7줄 배치 및 색감/두께 단일화 */}

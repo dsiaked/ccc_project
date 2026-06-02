@@ -3,7 +3,6 @@ import { X, ArrowRight, ArrowLeft, Heart, Check, MessageSquare } from 'lucide-re
 import useArtworkComments from '../hooks/useArtworkComments';
 import ArtworkCommentModal from './ArtworkCommentModal';
 import { artistPopupEnglish } from '../data/artistPopupEnglish';
-import { ArtistEnglishDetailOverlay, ArtistEnglishIntroOverlay } from './ArtistEnglishContentOverlay';
 
 export default function HeartEunhyePopup({ onClose, language = 'ko' }) {
   const [step, setStep] = useState(1);
@@ -187,7 +186,7 @@ export default function HeartEunhyePopup({ onClose, language = 'ko' }) {
             <div className="relative z-10 w-full h-full">
               {/* SYMBOL1 : HEART */}
               <span className="absolute left-[29px] top-[31px] text-[15px] tracking-[1.92px] font-medium text-[#4a3b3b] font-readable-sans">
-                SYMBOL1 : HEART
+                SYMBOL1 : {englishCopy?.symbol?.toUpperCase() || 'HEART'}
               </span>
 
               {/* Rectangle 361 (상단 얇은 가로선) */}
@@ -200,11 +199,11 @@ export default function HeartEunhyePopup({ onClose, language = 'ko' }) {
 
               {/* 과기대 붕어방 */}
               <div className="absolute right-[25px] top-[71px] text-[10px] text-[#4a3b3b] tracking-[1.2px] text-right font-readable-sans">
-                과기대 붕어방
+                {englishCopy ? 'Bungeobang' : '과기대 붕어방'}
               </div>
 
               {/* 대형 감성 문구: 피그마의 웅장한 크기와 줄 바꿈, 위치 완벽 복원 (두께 낮춤, 색감 원톤 단일화) */}
-              <div className="absolute left-[29px] top-[91px] w-[310px] text-left">
+              <div className={['absolute left-[29px] top-[91px] w-[310px] text-left', englishCopy ? 'hidden' : ''].join(' ')}>
                 <div className="text-[34px] leading-[1.22] text-[#4a3b3b] tracking-[1.5px] font-sentiment font-normal">
                   <p>사랑을</p>
                   <p>믿지 않는 내가,</p>
@@ -214,6 +213,13 @@ export default function HeartEunhyePopup({ onClose, language = 'ko' }) {
                   <p>시작하는 이야기</p>
                 </div>
               </div>
+              {englishCopy && (
+                <div className="absolute left-[29px] top-[91px] w-[310px] text-left">
+                  <div className="text-[29px] leading-[1.22] text-[#4a3b3b] tracking-[1.5px] font-sentiment font-normal">
+                    {englishCopy.intro.map(line => <p key={line}>{line}</p>)}
+                  </div>
+                </div>
+              )}
 
               {/* 하단 작가 소개 영역 */}
               {/* Rectangle 358 (작가 위 가로선) */}
@@ -222,7 +228,7 @@ export default function HeartEunhyePopup({ onClose, language = 'ko' }) {
               {/* ARTIST. 김은혜 및 댓글 이모지 버튼 */}
               <div className="absolute left-[26px] right-[25px] top-[465px] flex items-center justify-between">
                 <span className="text-[15px] tracking-[1.92px] font-medium text-[#4a3b3b] font-readable-sans">
-                  ARTIST. 김은혜
+                  ARTIST. {englishCopy?.artist || '김은혜'}
                 </span>
                 <button
                   onClick={() => setShowCommentModal(true)}
@@ -239,10 +245,19 @@ export default function HeartEunhyePopup({ onClose, language = 'ko' }) {
 
               {/* 서울과학기술대학교 중앙동아리 CCC */}
               <div className="absolute left-[25px] top-[502px] text-[10px] tracking-[1.2px] text-[#4a3b3b] leading-normal font-readable-sans">
-                <p>서울과학기술대학교</p>
-                <p className="mt-0.5">중앙동아리 CCC</p>
+                {englishCopy ? (
+                  <>
+                    <p>Seoul National University</p>
+                    <p className="mt-0.5">of Science and Technology</p>
+                    <p className="mt-0.5">CCC Club</p>
+                  </>
+                ) : (
+                  <>
+                    <p>서울과학기술대학교</p>
+                    <p className="mt-0.5">중앙동아리 CCC</p>
+                  </>
+                )}
               </div>
-              <ArtistEnglishIntroOverlay copy={englishCopy} textColor={'text-[#4a3b3b]'} />
 
               {/* NEXT 버튼: 피그마의 우측 하단 둥근 캡슐로 완벽 구현 */}
               <button
@@ -308,7 +323,7 @@ export default function HeartEunhyePopup({ onClose, language = 'ko' }) {
               {/* 상단 띠지 */}
               <div className="relative z-10 flex justify-between items-center pb-6 font-readable-sans">
                 <span className="text-[10px] tracking-[1.2px] font-bold text-rose-500">
-                  SYMBOL1 : HEART
+                  SYMBOL1 : {englishCopy?.symbol?.toUpperCase() || 'HEART'}
                 </span>
                 <div className="w-[100px] h-[0.5px] bg-rose-200" />
               </div>
@@ -317,16 +332,37 @@ export default function HeartEunhyePopup({ onClose, language = 'ko' }) {
               <div className="relative z-10 flex-1 flex flex-col bg-white/80 backdrop-blur-md rounded-[20px] border border-rose-100 p-7 shadow-[0_8px_32px_rgba(0,0,0,0.03)]">
 
                 {/* 피그마 1:1 대형 헤드라인 (좌측 정렬, 넓은 자간, 매혹적인 로즈 레드 테마) */}
-                <div className="text-left font-sentiment text-[36px] leading-[1.15] text-rose-500 tracking-[5.88px] font-bold mt-2 select-text">
-                  <p>귀하고</p>
-                  <p>아름다운</p>
-                  <p>나의 사랑아</p>
+                <div className={[
+                  'text-left font-sentiment leading-[1.15] text-rose-500 font-bold mt-2 select-text',
+                  englishCopy ? 'text-[30px] tracking-[0.5px]' : 'text-[36px] tracking-[5.88px]',
+                ].join(' ')}>
+                  {englishCopy ? (
+                    <p>{englishCopy.title}</p>
+                  ) : (
+                    <>
+                      <p>귀하고</p>
+                      <p>아름다운</p>
+                      <p>나의 사랑아</p>
+                    </>
+                  )}
                 </div>
 
                 {/* 피그마 1:1 얇은 가로선 (로즈골드 31px 수평선) */}
                 <div className="bg-rose-300 h-px w-[31px] my-6 flex-none" />
 
                 {/* 피그마 1:1 본문 서사: [폰트 가독성 대격변] Pretendard 특화 및 자간/행간 최적화 적용 */}
+                {englishCopy ? (
+                  <div className="text-left text-[14.5px] leading-[1.85] text-gray-700 space-y-5 tracking-wide font-readable-sans select-text">
+                    {englishCopy.body.map((paragraph, index) => (
+                      <p
+                        key={paragraph}
+                        className={index === 0 || index === englishCopy.body.length - 1 ? 'text-gray-800 font-medium' : ''}
+                      >
+                        {paragraph}
+                      </p>
+                    ))}
+                  </div>
+                ) : (
                 <div className="text-left text-[14.5px] leading-[1.85] text-gray-700 space-y-5 tracking-wide font-readable-sans select-text break-keep">
                   <p className="text-gray-800">나는 사람을 믿지 않는다. 내가 아끼는 사람들은 모두 떠나간다.</p>
 
@@ -430,7 +466,7 @@ export default function HeartEunhyePopup({ onClose, language = 'ko' }) {
                     나는 너무나 외로웠다.
                   </p>
                 </div>
-                  <ArtistEnglishDetailOverlay copy={englishCopy} accentClass={'text-rose-500'} />
+                )}
               </div>
 
               {/* 하단 제어 버튼: 112px X 52px 둥근 캡슐 (화이트-레드 반전 테마) */}
