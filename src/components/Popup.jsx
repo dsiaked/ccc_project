@@ -1,5 +1,4 @@
 import React, { Suspense, lazy, useState } from 'react';
-import { hasArtistEnglish } from '../data/artistPopupEnglish';
 import LanguageToggle from './LanguageToggle';
 
 const MapPopup = lazy(() => import('./MapPopup'));
@@ -82,12 +81,12 @@ export default function Popup({ id, type, symbols, discovered, onClose, language
   return (
     <Suspense fallback={<PopupLoading language={language} />}>
       {renderPopup()}
-      {hasArtistEnglish(activeArtistId) && onToggleLanguage && (
+      {activeArtistId && onToggleLanguage && (
         <LanguageToggle
           language={language}
           onToggle={onToggleLanguage}
           tone="dark"
-          className="fixed left-[calc(50%+112px)] top-5 z-[80] flex h-10 items-center gap-1.5 rounded-full border border-white/75 bg-slate-950/82 px-3 text-xs font-bold text-white shadow-[0_10px_28px_rgba(15,23,42,0.28)] backdrop-blur transition active:scale-95"
+          className="fixed left-[calc(50%-168px)] top-5 z-[80] flex h-10 items-center gap-1.5 rounded-full border border-white/75 bg-slate-950/82 px-3 text-xs font-bold text-white shadow-[0_10px_28px_rgba(15,23,42,0.28)] backdrop-blur transition active:scale-95"
         />
       )}
     </Suspense>

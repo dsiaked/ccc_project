@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { ArrowLeft, CheckCircle2, MessageSquareText, Send, Sparkles } from 'lucide-react';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { auth, db, signInAnonymously } from '../firebase';
@@ -45,7 +45,7 @@ const copy = {
     promptsTitle: 'If you are not sure what to write',
     prompts: [
       'Which artwork stayed with you the longest?',
-      'Which symbol felt closest to you: Heart, Sharing, or Cross?',
+      'Which symbol felt closest to you: Heart, Division, or Cross?',
       'What sentence would you like to take with you today?',
     ],
     nameLabel: 'Name or nickname',
@@ -64,7 +64,7 @@ const copy = {
     submittedTitle: ['Your sentence', 'stayed with the journey'],
     submittedDesc: 'We will keep today’s artworks and your thoughts together. Your reflection may become a small question for someone else.',
     journey: 'Today’s Journey',
-    symbols: ['Heart', 'Sharing', 'Cross', 'Question'],
+    symbols: ['Heart', 'Division', 'Cross', 'Question'],
     returnHome: 'Return Home',
   },
 };
@@ -284,3 +284,5 @@ export default function ParticipatePage({ onBack, language = 'ko' }) {
     </main>
   );
 }
+
+

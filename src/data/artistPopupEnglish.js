@@ -1,4 +1,4 @@
-export const artistPopupEnglish = {
+﻿export const artistPopupEnglish = {
   heart_kymin: {
     symbol: 'Heart',
     artist: 'Kim Gyumin',
@@ -85,7 +85,7 @@ export const artistPopupEnglish = {
     ],
   },
   divide_kyeomjun: {
-    symbol: 'Sharing',
+    symbol: 'Division',
     artist: 'Seo Kyeomjun',
     title: 'Three Black Tears',
     intro: [
@@ -95,13 +95,13 @@ export const artistPopupEnglish = {
     ],
     body: [
       'This work reflects on the grief that moves inside people, often unseen. The image of black tears suggests sorrow that has become dense through silence, repetition, and time. It is not a single moment of sadness, but something accumulated.',
-      'The sharing symbol becomes a way to divide and reveal that hidden weight. To share does not mean to make pain disappear instantly. It means allowing what was carried alone to be held in relation with another person.',
+      'The Division symbol becomes a way to divide and reveal that hidden weight. To share does not mean to make pain disappear instantly. It means allowing what was carried alone to be held in relation with another person.',
       'The work invites viewers to consider how sorrow can be transformed when it is no longer isolated. A tear that remains inside becomes heavy, but a tear that is shared can become the beginning of healing.',
-      'Through the language of division and sharing, the piece speaks about recovery. It asks whether pain, once divided with care, might become less destructive and more human. In that act, people become whole not alone, but together.',
+      'Through the language of division and Division, the piece speaks about recovery. It asks whether pain, once divided with care, might become less destructive and more human. In that act, people become whole not alone, but together.',
     ],
   },
   divide_yewon: {
-    symbol: 'Sharing',
+    symbol: 'Division',
     artist: 'Son Yewon',
     title: 'Thorns',
     intro: [
@@ -113,7 +113,7 @@ export const artistPopupEnglish = {
     body: [
       'This work begins with the image of thorns. They are sharp, defensive, and necessary. The thorns represent the boundaries a wounded heart builds in order to survive, even when those same boundaries make love difficult to receive.',
       'Beyond those thorns, however, the work imagines a flower. Love does not appear by destroying the thorns all at once. It approaches slowly, gently, and with enough patience to understand why the thorns were there in the first place.',
-      'The sharing symbol gives the work its emotional movement. It suggests that love is not possession, but a process of opening what has been closed and reconnecting what has been divided by hurt.',
+      'The Division symbol gives the work its emotional movement. It suggests that love is not possession, but a process of opening what has been closed and reconnecting what has been divided by hurt.',
       'The piece invites viewers to think about the parts of themselves they protect most fiercely. It asks whether love might be able to come near those guarded places, not to force them open, but to help them bloom.',
     ],
   },
@@ -152,4 +152,4 @@ export const artistPopupEnglish = {
   },
 };
 
-export const hasArtistEnglish = artistId => Boolean(artistPopupEnglish[artistId]);
+

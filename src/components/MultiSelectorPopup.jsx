@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { X, Lock, Heart, Divide, Sparkles } from 'lucide-react';
 
 const CustomCrossIcon = ({ className = 'w-5 h-5', color = 'currentColor', strokeWidth = '2.5' }) => (
@@ -54,7 +54,7 @@ const COPY = {
   en: {
     categories: {
       heart: 'Heart',
-      divide: 'Sharing',
+      divide: 'Division',
       cross: 'Cross',
     },
     titleSuffix: 'Artwork List',
@@ -63,7 +63,7 @@ const COPY = {
     close: 'Close',
     help: {
       heart: 'Scan the on-site QR codes to unlock five different heart artworks.',
-      divide: 'Scan the on-site QR codes to unlock two warm sharing artworks.',
+      divide: 'Scan the on-site QR codes to unlock two warm Division artworks.',
       cross: 'Scan the on-site QR codes to unlock two graceful cross artworks.',
     },
   },
@@ -200,3 +200,5 @@ export default function MultiSelectorPopup({ id, symbols, onClose, onSelectArtis
     </div>
   );
 }
+
+

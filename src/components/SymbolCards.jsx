@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { Divide, Gift, Heart, Lock, MapPin, MessageSquareText, Unlock } from 'lucide-react';
 
 const CustomCrossIcon = ({ className = 'w-6 h-6', color = 'currentColor', strokeWidth = '2.5' }) => (
@@ -41,13 +41,19 @@ const copy = {
     locale: 'ko-KR',
     sourceLabels: {
       feedback: '투어 소감',
+      question_qr: '투어 소감',
+      question_popup: '투어 소감',
       comment: '작품 댓글',
+    },
+    sourceLabelFallbacks: {
+      '투어 소감': '투어 소감',
+      '작품 댓글': '작품 댓글',
     },
   },
   en: {
     labels: {
       heart: 'Heart',
-      divide: 'Sharing',
+      divide: 'Division',
       cross: 'Cross',
       question: 'Question',
     },
@@ -68,7 +74,13 @@ const copy = {
     locale: 'en-US',
     sourceLabels: {
       feedback: 'Tour reflection',
+      question_qr: 'Tour reflection',
+      question_popup: 'Tour reflection',
       comment: 'Artwork comment',
+    },
+    sourceLabelFallbacks: {
+      '투어 소감': 'Tour reflection',
+      '작품 댓글': 'Artwork comment',
     },
   },
 };
@@ -331,7 +343,9 @@ export default function SymbolCards({
           <div className="grid max-h-[300px] gap-2.5 overflow-y-auto pr-1 scroll-container">
             {featuredFeedbacks.map(feedback => {
               const feedbackTime = formatFeedbackTime(feedback.createdAt, text.locale);
-              const sourceLabel = text.sourceLabels[feedback.source] || feedback.sourceLabel;
+              const sourceLabel = text.sourceLabels[feedback.source]
+                || text.sourceLabelFallbacks[feedback.sourceLabel]
+                || feedback.sourceLabel;
 
               return (
                 <article key={feedback.id} className="rounded-2xl border border-sky-100 bg-sky-50/60 px-4 py-3 text-left">
@@ -360,3 +374,5 @@ export default function SymbolCards({
     </div>
   );
 }
+
+

@@ -1,4 +1,4 @@
-export const symbolData = {
+﻿export const symbolData = {
   heart_kymin: {
     category: 'heart',
     artist: '김규민',
@@ -276,23 +276,23 @@ export const symbolData = {
     },
     en: {
       artist: 'Seo Kyeomjun',
-      title: 'Seo Kyeomjun - Sharing',
+      title: 'Seo Kyeomjun - Division',
       map: {
         undiscovered: {
-          title: 'Hidden Sharing Symbol by Seo Kyeomjun',
-          desc: 'A sharing symbol hidden by artist Seo Kyeomjun.',
+          title: 'Hidden Division Symbol by Seo Kyeomjun',
+          desc: 'A Division symbol hidden by artist Seo Kyeomjun.',
           hint: 'Find the point where two paths of the heart meet.',
         },
         discovered: {
-          title: 'Kyeomjun’s Sharing Symbol Found',
-          desc: 'You unlocked Seo Kyeomjun’s sharing symbol.',
+          title: 'Kyeomjun’s Division Symbol Found',
+          desc: 'You unlocked Seo Kyeomjun’s Division symbol.',
           message: 'When we share what is ours, everyone becomes more whole.',
         },
       },
       qr: {
-        title: 'Seo Kyeomjun - Sharing',
-        desc: 'An artwork about care and sharing that help people grow together.',
-        meaning: 'Sharing represents a promise to close emotional distance and recover together.',
+        title: 'Seo Kyeomjun - Division',
+        desc: 'An artwork about care and Division that help people grow together.',
+        meaning: 'Division represents a promise to close emotional distance and recover together.',
         location: 'Near the central fork on the map',
         message: 'When we share generously, our hearts become softer.',
       },
@@ -326,23 +326,23 @@ export const symbolData = {
     },
     en: {
       artist: 'Son Yewon',
-      title: 'Son Yewon - Sharing',
+      title: 'Son Yewon - Division',
       map: {
         undiscovered: {
-          title: 'Hidden Sharing Symbol by Son Yewon',
-          desc: 'A gentle sharing symbol hidden by artist Son Yewon.',
+          title: 'Hidden Division Symbol by Son Yewon',
+          desc: 'A gentle Division symbol hidden by artist Son Yewon.',
           hint: 'Look for the area near water, a bench, and flowers.',
         },
         discovered: {
-          title: 'Yewon’s Sharing Symbol Found',
-          desc: 'You unlocked Son Yewon’s sharing symbol.',
+          title: 'Yewon’s Division Symbol Found',
+          desc: 'You unlocked Son Yewon’s Division symbol.',
           message: 'When we share what is missing in each other, connection begins again.',
         },
       },
       qr: {
-        title: 'Son Yewon - Sharing',
-        desc: 'An artwork about sharing love that arrives beyond thorns.',
-        meaning: 'Sharing is a love that passes through wounds and defenses to reconnect people.',
+        title: 'Son Yewon - Division',
+        desc: 'An artwork about Division love that arrives beyond thorns.',
+        meaning: 'Division is a love that passes through wounds and defenses to reconnect people.',
         location: 'Beginning of the exit route in the exhibition',
         message: 'Even divided hearts can be joined again through love.',
       },
@@ -499,3 +499,5 @@ export const symbolData = {
     },
   },
 };
+
+

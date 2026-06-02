@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useMemo, useRef, useState, useEffect } from 'react';
+﻿import React, { Suspense, lazy, useMemo, useRef, useState, useEffect } from 'react';
 import Header from './components/Header';
 import MapArea, { DEFAULT_MAP_PINS } from './components/MapArea';
 import SymbolCards from './components/SymbolCards';
@@ -105,9 +105,9 @@ const appCopy = {
     loadingFallback: 'Loading...',
     syncTitle: 'Syncing Device Data',
     syncDesc: 'Your unlocked symbols are being loaded safely. Please wait a moment.',
-    basicUnlocked: 'Heart, Sharing, and Cross have been unlocked.',
-    needThreeSymbols: 'Find Heart, Sharing, and Cross first.',
-    boothLocked: 'Find Heart, Sharing, and Cross to unlock the prize booth guide.',
+    basicUnlocked: 'Heart, Division, and Cross have been unlocked.',
+    needThreeSymbols: 'Find Heart, Division, and Cross first.',
+    boothLocked: 'Find Heart, Division, and Cross to unlock the prize booth guide.',
     undiscovered: 'This symbol has not been discovered yet.',
     mapTitle: 'Artwork Map',
     mapDesc: "Follow the symbols and find today's artworks.",
@@ -935,3 +935,5 @@ export default function App() {
     </div>
   );
 }
+
+

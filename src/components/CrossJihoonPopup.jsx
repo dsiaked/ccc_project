@@ -18,10 +18,38 @@ const CustomCrossIcon = ({ className = "w-6 h-6", color = "currentColor", stroke
   </svg>
 );
 
-export default function CrossJihoonPopup({ onClose }) {
+export default function CrossJihoonPopup({ onClose, language = 'ko' }) {
   const [step, setStep] = useState(1);
   const [showCommentModal, setShowCommentModal] = useState(false);
-  const {
+  const uiText = language === 'en'
+    ? {
+        leaveComment: 'Leave a reflection',
+        nextArtwork: 'View next artwork',
+        loadingComments: 'Loading reflections...',
+        firstComment: 'Be the first to leave a reflection.',
+        noComments: 'No reflections have been written yet.',
+        firstCommentHint: 'Fill this artwork with a warm first note.',
+        edit: 'Edit',
+        delete: 'Delete',
+        cancel: 'Cancel',
+        save: 'Save',
+        namePlaceholder: 'Name or nickname',
+        commentPlaceholder: 'Leave a warm reflection. (max 100 characters)',
+      }
+    : {
+        leaveComment: '감상평 남기기',
+        nextArtwork: '다음 작품 보러 가기',
+        loadingComments: '감상평을 불러오는 중...',
+        firstComment: '첫 감상평을 남겨보세요!',
+        noComments: '아직 작성된 감상평이 없습니다.',
+        firstCommentHint: '따뜻한 첫 마디로 작품을 채워주세요 ✨',
+        edit: '수정',
+        delete: '삭제',
+        cancel: '취소',
+        save: '저장',
+        namePlaceholder: '작성자 이름 (닉네임)',
+        commentPlaceholder: '따뜻한 감상평을 남겨주세요! (최대 100자)',
+      };  const {
     comments,
     loadingComments,
     newName,
@@ -211,17 +239,17 @@ export default function CrossJihoonPopup({ onClose }) {
 
               {/* 하단 작가 소개 영역 */}
               {/* Rectangle 358 (작가 위 가로선) */}
-              <div className="absolute left-[26px] top-[475px] w-[35px] h-[1.5px] bg-[#c3dec6]" />
+              <div className="absolute left-[26px] top-[450px] w-[35px] h-[1.5px] bg-[#c3dec6]" />
 
               {/* ARTIST. 홍지훈 및 댓글 이모지 버튼 */}
-              <div className="absolute left-[26px] right-[25px] top-[492px] flex items-center justify-between">
+              <div className="absolute left-[26px] right-[25px] top-[465px] flex items-center justify-between">
                 <span className="text-[15px] tracking-[1.92px] font-medium text-[#2d3a2e] font-readable-sans">
                   ARTIST. 홍지훈
                 </span>
                 <button
                   onClick={() => setShowCommentModal(true)}
                   className="relative flex items-center justify-center w-16 h-16 rounded-full bg-emerald-50 border-2 border-emerald-100 hover:bg-emerald-100/50 text-[#10b981] cursor-pointer transition-all active:scale-95 shadow-md animate-in fade-in duration-300"
-                  title="감상평 남기기"
+                  title={uiText.leaveComment}
                 >
                   <MessageSquare className="w-8 h-8" />
                   {/* 댓글 수 배지 */}
@@ -232,7 +260,7 @@ export default function CrossJihoonPopup({ onClose }) {
               </div>
 
               {/* 서울과학기술대학교 중앙동아리 CCC */}
-              <div className="absolute left-[25px] top-[530px] text-[10px] tracking-[1.2px] text-[#2d3a2e] leading-normal font-readable-sans">
+              <div className="absolute left-[25px] top-[502px] text-[10px] tracking-[1.2px] text-[#2d3a2e] leading-normal font-readable-sans">
                 <p>서울과학기술대학교</p>
                 <p className="mt-0.5">중앙동아리 CCC</p>
               </div>
@@ -240,7 +268,7 @@ export default function CrossJihoonPopup({ onClose }) {
               {/* NEXT 버튼: 우측 하단 둥근 캡슐 */}
               <button
                 onClick={() => setStep(2)}
-                className="absolute right-[25px] bottom-[35px] w-[140px] h-[47px] bg-gradient-to-r from-[#4caf50] to-[#66bb6a] text-white rounded-[24px] flex items-center justify-between pl-6 pr-5 hover:opacity-90 transition-all duration-200 active:scale-[0.96] shadow-[0_4px_15px_rgba(76,175,80,0.25)] cursor-pointer font-readable-sans"
+                className="absolute right-[25px] bottom-[46px] w-[140px] h-[47px] bg-gradient-to-r from-[#4caf50] to-[#66bb6a] text-white rounded-[24px] flex items-center justify-between pl-6 pr-5 hover:opacity-90 transition-all duration-200 active:scale-[0.96] shadow-[0_4px_15px_rgba(76,175,80,0.25)] cursor-pointer font-readable-sans"
               >
                 <span className="text-[13px] tracking-[1.68px] font-bold">NEXT</span>
                 <ArrowRight className="w-4 h-4 text-white" />
@@ -428,7 +456,7 @@ export default function CrossJihoonPopup({ onClose }) {
                   onClick={() => setShowCommentModal(true)}
                   className="flex-1 min-w-[176px] h-[52px] bg-gradient-to-r from-[#4caf50] to-[#66bb6a] text-white rounded-[26px] flex items-center justify-center gap-2 hover:opacity-90 transition-all duration-200 active:scale-[0.96] shadow-[0_8px_18px_rgba(76,175,80,0.26)] cursor-pointer font-bold"
                 >
-                  <span className="text-[13px] tracking-[0.2px]">감상평 남기기</span>
+                  <span className="text-[13px] tracking-[0.2px]">{uiText.leaveComment}</span>
                   <Check className="w-[18px] h-[18px]" />
                 </button>
                 <button
@@ -436,7 +464,7 @@ export default function CrossJihoonPopup({ onClose }) {
                   onClick={onClose}
                   className="w-full h-[46px] bg-white border border-gray-200 text-gray-700 rounded-[23px] flex items-center justify-center hover:bg-gray-50 transition-all duration-200 active:scale-[0.98] cursor-pointer shadow-sm font-bold"
                 >
-                  <span className="text-[13px] tracking-[0.4px]">다음 작품 보러 가기</span>
+                  <span className="text-[13px] tracking-[0.4px]">{uiText.nextArtwork}</span>
                 </button>
               </div>
 
@@ -459,7 +487,7 @@ export default function CrossJihoonPopup({ onClose }) {
               {/* 헤더 */}
               <div className="flex justify-between items-center pb-3 border-b border-gray-100">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-lg font-bold text-emerald-500 font-sentiment">감상평 남기기 💬</span>
+                  <span className="text-lg font-bold text-emerald-500 font-sentiment">{uiText.leaveComment} 💬</span>
                   <span className="bg-emerald-100 text-emerald-600 text-xs px-2 py-0.5 rounded-full font-bold">{comments.length}</span>
                 </div>
                 <button
@@ -475,14 +503,14 @@ export default function CrossJihoonPopup({ onClose }) {
                 {loadingComments ? (
                   <div className="h-full flex flex-col items-center justify-center text-gray-400 text-xs gap-2 py-10">
                     <div className="w-6 h-6 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
-                    <span>감상평을 불러오는 중...</span>
+                    <span>{uiText.loadingComments}</span>
                   </div>
                 ) : comments.length === 0 ? (
                   <div className="h-full flex flex-col items-center justify-center text-gray-400 text-xs py-10 text-center leading-relaxed animate-in fade-in duration-300">
                     <span className="text-3xl mb-2">🎈</span>
-                    <span className="font-bold text-gray-600 text-sm">첫 감상평을 남겨보세요!</span>
-                    <span className="opacity-70 mt-1">아직 작성된 감상평이 없습니다.</span>
-                    <span className="opacity-60 mt-0.5">따뜻한 첫 마디로 작품을 채워주세요 ✨</span>
+                    <span className="font-bold text-gray-600 text-sm">{uiText.firstComment}</span>
+                    <span className="opacity-70 mt-1">{uiText.noComments}</span>
+                    <span className="opacity-60 mt-0.5">{uiText.firstCommentHint}</span>
                   </div>
                 ) : (
                   comments.map((comment) => {
@@ -501,7 +529,7 @@ export default function CrossJihoonPopup({ onClose }) {
                                 type="button"
                                 onClick={() => startEditComment(comment)}
                                 className="w-6 h-6 rounded-full bg-white/80 border border-gray-100 text-gray-400 hover:text-gray-700 flex items-center justify-center transition-colors cursor-pointer"
-                                title="수정"
+                                title={uiText.edit}
                               >
                                 <Pencil className="w-3 h-3" />
                               </button>
@@ -509,7 +537,7 @@ export default function CrossJihoonPopup({ onClose }) {
                                 type="button"
                                 onClick={() => handleDeleteComment(comment.id)}
                                 className="w-6 h-6 rounded-full bg-white/80 border border-gray-100 text-gray-400 hover:text-red-500 hover:border-red-100 flex items-center justify-center transition-colors cursor-pointer"
-                                title="삭제"
+                                title={uiText.delete}
                               >
                                 <Trash2 className="w-3 h-3" />
                               </button>
@@ -532,17 +560,13 @@ export default function CrossJihoonPopup({ onClose }) {
                               type="button"
                               onClick={cancelEditComment}
                               className="h-7 px-3 rounded-full border border-gray-200 bg-white text-[11px] font-bold text-gray-500 hover:bg-gray-50 cursor-pointer"
-                            >
-                              취소
-                            </button>
+                            >{uiText.cancel}</button>
                             <button
                               type="button"
                               onClick={() => handleUpdateComment(comment.id)}
                               disabled={!editContent.trim()}
                               className="h-7 px-3 rounded-full bg-gray-800 disabled:bg-gray-300 text-[11px] font-bold text-white cursor-pointer"
-                            >
-                              저장
-                            </button>
+                            >{uiText.save}</button>
                           </div>
                         </div>
                       ) : (
@@ -558,7 +582,7 @@ export default function CrossJihoonPopup({ onClose }) {
               <form onSubmit={handleAddComment} className="flex flex-col gap-2 border-t border-gray-100 pt-3 mt-auto">
                 <input
                   type="text"
-                  placeholder="작성자 이름 (닉네임)"
+                  placeholder={uiText.namePlaceholder}
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
                   maxLength={10}
@@ -567,7 +591,7 @@ export default function CrossJihoonPopup({ onClose }) {
                 />
                 <div className="relative">
                   <textarea
-                    placeholder="따뜻한 감상평을 남겨주세요! (최대 100자)"
+                    placeholder={uiText.commentPlaceholder}
                     value={newContent}
                     onChange={(e) => setNewContent(e.target.value)}
                     maxLength={100}
@@ -592,4 +616,7 @@ export default function CrossJihoonPopup({ onClose }) {
     </div>
   );
 }
+
+
+
 

@@ -2,10 +2,38 @@
 import { X, ArrowRight, ArrowLeft, Heart, Check, MessageSquare, Pencil, Trash2 } from 'lucide-react';
 import useArtworkComments from '../hooks/useArtworkComments';
 
-export default function HeartEunchaePopup({ onClose }) {
+export default function HeartEunchaePopup({ onClose, language = 'ko' }) {
   const [step, setStep] = useState(1);
   const [showCommentModal, setShowCommentModal] = useState(false);
-  const {
+  const uiText = language === 'en'
+    ? {
+        leaveComment: 'Leave a reflection',
+        nextArtwork: 'View next artwork',
+        loadingComments: 'Loading reflections...',
+        firstComment: 'Be the first to leave a reflection.',
+        noComments: 'No reflections have been written yet.',
+        firstCommentHint: 'Fill this artwork with a warm first note.',
+        edit: 'Edit',
+        delete: 'Delete',
+        cancel: 'Cancel',
+        save: 'Save',
+        namePlaceholder: 'Name or nickname',
+        commentPlaceholder: 'Leave a warm reflection. (max 100 characters)',
+      }
+    : {
+        leaveComment: '감상평 남기기',
+        nextArtwork: '다음 작품 보러 가기',
+        loadingComments: '감상평을 불러오는 중...',
+        firstComment: '첫 감상평을 남겨보세요!',
+        noComments: '아직 작성된 감상평이 없습니다.',
+        firstCommentHint: '따뜻한 첫 마디로 작품을 채워주세요 ✨',
+        edit: '수정',
+        delete: '삭제',
+        cancel: '취소',
+        save: '저장',
+        namePlaceholder: '작성자 이름 (닉네임)',
+        commentPlaceholder: '따뜻한 감상평을 남겨주세요! (최대 100자)',
+      };  const {
     comments,
     loadingComments,
     newName,
@@ -143,9 +171,9 @@ export default function HeartEunchaePopup({ onClose }) {
               </div>
 
               {/* 아티스트 정보 하단 배치 */}
-              <div className="absolute left-[26px] top-[475px] w-[35px] h-[1.5px] bg-[#e2cece]" />
+              <div className="absolute left-[26px] top-[450px] w-[35px] h-[1.5px] bg-[#e2cece]" />
 
-              <div className="absolute left-[26px] right-[25px] top-[492px] flex items-center justify-between">
+              <div className="absolute left-[26px] right-[25px] top-[465px] flex items-center justify-between">
                 <span className="text-[15px] tracking-[1.92px] font-medium text-[#4a3b3b] font-readable-sans">
                   ARTIST. 이은채
                 </span>
@@ -160,14 +188,14 @@ export default function HeartEunchaePopup({ onClose }) {
                 </button>
               </div>
 
-              <div className="absolute left-[25px] top-[530px] text-[10px] tracking-[1.2px] text-[#4a3b3b] leading-normal font-readable-sans">
+              <div className="absolute left-[25px] top-[502px] text-[10px] tracking-[1.2px] text-[#4a3b3b] leading-normal font-readable-sans">
                 <p>서울과학기술대학교</p>
                 <p className="mt-0.5">중앙동아리 CCC</p>
               </div>
 
               <button
                 onClick={() => setStep(2)}
-                className="absolute right-[25px] bottom-[35px] w-[140px] h-[47px] bg-gradient-to-r from-[#fa5c5c] to-[#ff7b7b] text-white rounded-[24px] flex items-center justify-between pl-6 pr-5 hover:opacity-90 transition-all active:scale-[0.96] shadow-[0_4px_15px_rgba(250,92,92,0.25)] cursor-pointer font-readable-sans"
+                className="absolute right-[25px] bottom-[46px] w-[140px] h-[47px] bg-gradient-to-r from-[#fa5c5c] to-[#ff7b7b] text-white rounded-[24px] flex items-center justify-between pl-6 pr-5 hover:opacity-90 transition-all active:scale-[0.96] shadow-[0_4px_15px_rgba(250,92,92,0.25)] cursor-pointer font-readable-sans"
               >
                 <span className="text-[13px] tracking-[1.68px] font-bold">NEXT</span>
                 <ArrowRight className="w-4 h-4 text-white" />
@@ -251,7 +279,7 @@ export default function HeartEunchaePopup({ onClose }) {
                   onClick={() => setShowCommentModal(true)}
                   className="flex-1 min-w-[176px] h-[52px] bg-gradient-to-r from-[#fa5c5c] to-[#ff7b7b] text-white rounded-[26px] flex items-center justify-center gap-2 hover:opacity-90 transition-all active:scale-[0.96] shadow-[0_8px_18px_rgba(250,92,92,0.26)] cursor-pointer font-bold"
                 >
-                  <span className="text-[13px] tracking-[0.2px]">감상평 남기기</span>
+                  <span className="text-[13px] tracking-[0.2px]">{uiText.leaveComment}</span>
                   <Check className="w-[18px] h-[18px]" />
                 </button>
                 <button
@@ -259,7 +287,7 @@ export default function HeartEunchaePopup({ onClose }) {
                   onClick={onClose}
                   className="w-full h-[46px] bg-white border border-gray-200 text-gray-700 rounded-[23px] flex items-center justify-center hover:bg-gray-50 transition-all duration-200 active:scale-[0.98] cursor-pointer shadow-sm font-bold"
                 >
-                  <span className="text-[13px] tracking-[0.4px]">다음 작품 보러 가기</span>
+                  <span className="text-[13px] tracking-[0.4px]">{uiText.nextArtwork}</span>
                 </button>
               </div>
 
@@ -282,7 +310,7 @@ export default function HeartEunchaePopup({ onClose }) {
           <div className="relative w-[310px] h-[520px] rounded-[24px] bg-white border border-rose-100 flex flex-col p-5 shadow-2xl animate-in zoom-in-95 duration-200">
             <div className="flex justify-between items-center pb-3 border-b border-gray-100">
               <div className="flex items-center gap-1.5">
-                <span className="text-lg font-bold text-rose-500 font-sentiment">감상평 남기기 💬</span>
+                <span className="text-lg font-bold text-rose-500 font-sentiment">{uiText.leaveComment} 💬</span>
                 <span className="bg-rose-100 text-rose-600 text-xs px-2 py-0.5 rounded-full font-bold">{comments.length}</span>
               </div>
               <button
@@ -297,13 +325,13 @@ export default function HeartEunchaePopup({ onClose }) {
               {loadingComments ? (
                 <div className="h-full flex flex-col items-center justify-center text-gray-400 text-xs gap-2 py-10">
                   <div className="w-6 h-6 border-2 border-rose-400 border-t-transparent rounded-full animate-spin" />
-                  <span>감상평을 불러오는 중...</span>
+                  <span>{uiText.loadingComments}</span>
                 </div>
               ) : comments.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-gray-400 text-xs py-10 text-center leading-relaxed">
                   <span className="text-3xl mb-2">🎈</span>
-                  <span className="font-bold text-gray-600 text-sm">첫 감상평을 남겨보세요!</span>
-                  <span className="opacity-70 mt-1">아직 작성된 감상평이 없습니다.</span>
+                  <span className="font-bold text-gray-600 text-sm">{uiText.firstComment}</span>
+                  <span className="opacity-70 mt-1">{uiText.noComments}</span>
                 </div>
               ) : (
                 comments.map((comment) => {
@@ -351,17 +379,13 @@ export default function HeartEunchaePopup({ onClose }) {
                               type="button"
                               onClick={cancelEditComment}
                               className="h-7 px-3 rounded-full border border-gray-200 bg-white text-[11px] font-bold text-gray-500 hover:bg-gray-50 cursor-pointer"
-                            >
-                              취소
-                            </button>
+                            >{uiText.cancel}</button>
                             <button
                               type="button"
                               onClick={() => handleUpdateComment(comment.id)}
                               disabled={!editContent.trim()}
                               className="h-7 px-3 rounded-full bg-gray-800 disabled:bg-gray-300 text-[11px] font-bold text-white cursor-pointer"
-                            >
-                              저장
-                            </button>
+                            >{uiText.save}</button>
                           </div>
                         </div>
                       ) : (
@@ -376,7 +400,7 @@ export default function HeartEunchaePopup({ onClose }) {
             <form onSubmit={handleAddComment} className="flex flex-col gap-2 border-t border-gray-100 pt-3 mt-auto">
               <input
                 type="text"
-                placeholder="작성자 이름 (닉네임)"
+                placeholder={uiText.namePlaceholder}
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 maxLength={10}
@@ -385,7 +409,7 @@ export default function HeartEunchaePopup({ onClose }) {
               />
               <div className="relative">
                 <textarea
-                  placeholder="따뜻한 감상평을 남겨주세요! (최대 100자)"
+                  placeholder={uiText.commentPlaceholder}
                   value={newContent}
                   onChange={(e) => setNewContent(e.target.value)}
                   maxLength={100}
@@ -408,4 +432,7 @@ export default function HeartEunchaePopup({ onClose }) {
     </div>
   );
 }
+
+
+
 
