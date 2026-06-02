@@ -352,22 +352,20 @@ export default function SymbolCards({
                   <p className="whitespace-pre-wrap break-words text-[14px] leading-5 text-slate-700">
                     {feedback.feedback}
                   </p>
-                  <div className="mt-2.5 flex flex-col gap-1.5 text-[12px] text-slate-500">
-                    <span className="break-words font-bold leading-snug text-slate-500">
+                  <div className="mt-2.5 flex items-center gap-2 overflow-hidden whitespace-nowrap text-[12px] leading-none text-slate-500">
+                    <span className="min-w-0 flex-1 truncate font-bold text-slate-500">
                       {feedback.name || text.anonymous}
                     </span>
-                    <div className="flex items-center gap-2 overflow-hidden whitespace-nowrap leading-none">
-                      {sourceLabel && (
-                        <span className="shrink-0 rounded-full bg-white/80 px-2 py-0.5 text-[10px] text-sky-600">
-                          {sourceLabel}
-                        </span>
-                      )}
-                      {feedbackTime && (
-                        <time className="min-w-0 text-[11px] text-slate-400">
-                          {feedbackTime}
-                        </time>
-                      )}
-                    </div>
+                    {sourceLabel && (
+                      <span className="shrink-0 rounded-full bg-white/80 px-2 py-0.5 text-[10px] text-sky-600">
+                        {sourceLabel}
+                      </span>
+                    )}
+                    {feedbackTime && (
+                      <time className="shrink-0 text-[11px] text-slate-400">
+                        {feedbackTime}
+                      </time>
+                    )}
                   </div>
                 </article>
               );
