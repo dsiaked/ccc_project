@@ -818,9 +818,13 @@ export default function App() {
       <div className="relative z-10 flex-1 overflow-y-auto scroll-container pb-10">
         <Header discoveredCount={discoveredCount} announcement={announcement} />
 
-        <section ref={mapSectionRef} className="px-6 pb-6" aria-labelledby="tour-map-title">
+        <section
+          ref={mapSectionRef}
+          className="border-y border-sky-100 bg-sky-50/45 px-6 py-5 backdrop-blur-sm"
+          aria-labelledby="tour-map-title"
+        >
           <div className="mb-3 flex items-end justify-between gap-3">
-            <div>
+            <div className="min-w-0">
               <h2 id="tour-map-title" className="font-['Cafe24_Ssurround'] text-[20px] font-bold text-slate-950">
                 작품 지도
               </h2>
@@ -838,11 +842,14 @@ export default function App() {
           />
         </section>
 
-        <div className="px-6 pt-5">
-          <div className="flex justify-center mb-5">
-            <div className="bg-white border-2 border-slate-200 rounded-full px-7 py-2.5 shadow-[0_4px_12px_rgba(15,23,42,0.08)]">
-              <h2 className="text-slate-900 text-2xl">작품 설명 카드</h2>
-            </div>
+        <section className="px-6 pt-6" aria-labelledby="artwork-cards-title">
+          <div className="mb-4">
+            <h2 id="artwork-cards-title" className="font-['Cafe24_Ssurround'] text-[20px] font-bold text-slate-950">
+              작품 설명 카드
+            </h2>
+            <p className="mt-1 text-[13px] leading-5 text-slate-600">
+              발견한 심볼의 작품 설명을 확인하고, 마지막 상품 부스까지 이어가 보세요.
+            </p>
           </div>
 
           <SymbolCards 
@@ -851,7 +858,7 @@ export default function App() {
             isQuestionUnlocked={isQuestionUnlocked}
             featuredFeedbacks={featuredFeedbacks}
           />
-        </div>
+        </section>
       </div>
 
       {activePopup && (

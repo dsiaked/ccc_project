@@ -1,5 +1,5 @@
 import React from 'react';
-import { Divide, Gift, Heart, Lock, MapPin, MessageSquareText, Search, Unlock } from 'lucide-react';
+import { Divide, Gift, Heart, Lock, MapPin, MessageSquareText, Unlock } from 'lucide-react';
 
 const CustomCrossIcon = ({ className = 'w-6 h-6', color = 'currentColor', strokeWidth = '2.5' }) => (
   <svg
@@ -206,7 +206,7 @@ export default function SymbolCards({ symbols, onCardClick, isQuestionUnlocked, 
             >
               <div className={`flex h-[62px] w-full shrink-0 items-center justify-center ${isLocked ? 'bg-slate-50' : isQuestionDone ? 'bg-sky-50' : accent.panel}`}>
                 {isLocked ? (
-                  <Search className="h-7 w-7 text-slate-300" />
+                  <Lock className="h-7 w-7 text-slate-300" />
                 ) : isQuestionDone ? (
                   <span className="select-none font-['Cafe24_Ssurround'] text-4xl font-bold text-sky-600">?</span>
                 ) : (
@@ -214,22 +214,22 @@ export default function SymbolCards({ symbols, onCardClick, isQuestionUnlocked, 
                 )}
               </div>
 
-              <div
-                className={[
-                  '-mt-4 mx-auto flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 bg-white shadow-sm',
-                  isLocked ? 'border-slate-200' : isQuestionDone ? 'border-sky-200' : accent.border,
-                ].join(' ')}
-              >
-                {isLocked ? (
-                  <Lock className="h-4 w-4 text-slate-400" />
-                ) : isQuestionDone ? (
-                  <span className="font-['Cafe24_Ssurround'] text-[15px] font-bold leading-none text-sky-600">?</span>
-                ) : (
-                  <Unlock className={`h-4 w-4 ${accent.text} ${isReady ? 'animate-bounce' : ''}`} />
-                )}
-              </div>
+              {!isLocked && (
+                <div
+                  className={[
+                    '-mt-4 mx-auto flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 bg-white shadow-sm',
+                    isQuestionDone ? 'border-sky-200' : accent.border,
+                  ].join(' ')}
+                >
+                  {isQuestionDone ? (
+                    <span className="font-['Cafe24_Ssurround'] text-[15px] font-bold leading-none text-sky-600">?</span>
+                  ) : (
+                    <Unlock className={`h-4 w-4 ${accent.text} ${isReady ? 'animate-bounce' : ''}`} />
+                  )}
+                </div>
+              )}
 
-              <div className="flex min-h-0 flex-1 flex-col items-center justify-end gap-1.5 px-1.5 pb-3 pt-1">
+              <div className={`flex min-h-0 flex-1 flex-col items-center justify-end gap-1.5 px-1.5 pb-3 ${isLocked ? 'pt-3' : 'pt-1'}`}>
                 <span className={`block w-full truncate text-[15px] leading-tight ${isLocked ? 'text-slate-400' : 'text-slate-900'}`}>
                   {displayLabel}
                 </span>
