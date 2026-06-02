@@ -40,14 +40,14 @@ const copy = {
     anonymous: '익명',
     locale: 'ko-KR',
     sourceLabels: {
-      feedback: '투어 소감',
-      question_qr: '투어 소감',
-      question_popup: '투어 소감',
-      comment: '작품 댓글',
+      feedback: '투어',
+      question_qr: '투어',
+      question_popup: '투어',
+      comment: '작품',
     },
     sourceLabelFallbacks: {
-      '투어 소감': '투어 소감',
-      '작품 댓글': '작품 댓글',
+      '투어 소감': '투어',
+      '작품 댓글': '작품',
     },
   },
   en: {
@@ -73,14 +73,14 @@ const copy = {
     anonymous: 'Anonymous',
     locale: 'en-US',
     sourceLabels: {
-      feedback: 'Tour reflection',
-      question_qr: 'Tour reflection',
-      question_popup: 'Tour reflection',
-      comment: 'Artwork comment',
+      feedback: 'Tour',
+      question_qr: 'Tour',
+      question_popup: 'Tour',
+      comment: 'Artwork',
     },
     sourceLabelFallbacks: {
-      '투어 소감': 'Tour reflection',
-      '작품 댓글': 'Artwork comment',
+      '투어 소감': 'Tour',
+      '작품 댓글': 'Artwork',
     },
   },
 };
@@ -135,7 +135,7 @@ const accentClasses = {
   },
 };
 
-const formatFeedbackTime = (value, locale) => {
+const formatFeedbackTime = value => {
   if (!value) return '';
   const date = typeof value.toDate === 'function'
     ? value.toDate()
@@ -145,12 +145,12 @@ const formatFeedbackTime = (value, locale) => {
 
   if (Number.isNaN(date.getTime())) return '';
 
-  return new Intl.DateTimeFormat(locale, {
-    month: 'numeric',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  }).format(date);
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  const hour = String(date.getHours()).padStart(2, '0');
+  const minute = String(date.getMinutes()).padStart(2, '0');
+
+  return `${month}/${day} ${hour}:${minute}`;
 };
 
 export default function SymbolCards({
@@ -342,7 +342,7 @@ export default function SymbolCards({
         ) : (
           <div className="grid max-h-[300px] gap-2.5 overflow-y-auto pr-1 scroll-container">
             {featuredFeedbacks.map(feedback => {
-              const feedbackTime = formatFeedbackTime(feedback.createdAt, text.locale);
+              const feedbackTime = formatFeedbackTime(feedback.createdAt);
               const sourceLabel = text.sourceLabels[feedback.source]
                 || text.sourceLabelFallbacks[feedback.sourceLabel]
                 || feedback.sourceLabel;
@@ -356,14 +356,14 @@ export default function SymbolCards({
                     <span className="break-words font-bold leading-snug text-slate-500">
                       {feedback.name || text.anonymous}
                     </span>
-                    <div className="flex flex-wrap items-center gap-2 leading-none">
+                    <div className="flex items-center gap-2 overflow-hidden whitespace-nowrap leading-none">
                       {sourceLabel && (
-                        <span className="rounded-full bg-white/80 px-2 py-0.5 text-[10px] text-sky-600">
+                        <span className="shrink-0 rounded-full bg-white/80 px-2 py-0.5 text-[10px] text-sky-600">
                           {sourceLabel}
                         </span>
                       )}
                       {feedbackTime && (
-                        <time className="text-[11px] text-slate-400">
+                        <time className="min-w-0 text-[11px] text-slate-400">
                           {feedbackTime}
                         </time>
                       )}

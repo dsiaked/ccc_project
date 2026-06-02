@@ -59,14 +59,6 @@ const appCopy = {
   },
 };
 
-const getTimestamp = value => {
-  if (!value) return 0;
-  if (typeof value.toMillis === 'function') return value.toMillis();
-  if (typeof value.toDate === 'function') return value.toDate().getTime();
-  if (typeof value === 'number') return value;
-  return new Date(value).getTime() || 0;
-};
-
 const readStoredSymbols = () => {
   const savedSymbols = localStorage.getItem(SYMBOLS_STORAGE_KEY);
   if (!savedSymbols) return INITIAL_SYMBOLS;
