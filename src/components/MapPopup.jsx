@@ -1,17 +1,32 @@
 import React from 'react';
 import { X, Lock, MapPin, CheckCircle, Sparkles } from 'lucide-react';
 import { symbolData } from '../data/symbolData';
-import { getSymbolIcon } from '../data/symbolIcons';
+import { symbolIcons } from '../data/symbolIcons';
 
-export default function MapPopup({ id, discovered, onClose }) {
+const popupCopy = {
+  ko: {
+    hint: '힌트',
+    message: '발견 메시지',
+    close: '닫기',
+  },
+  en: {
+    hint: 'Hint',
+    message: 'Discovery Message',
+    close: 'Close',
+  },
+};
+
+export default function MapPopup({ id, discovered, onClose, language = 'ko' }) {
   const symbol = symbolData[id];
 
   if (!symbol) return null;
 
-  const Icon = getSymbolIcon(symbol.iconKey);
+  const Icon = symbolIcons[symbol.iconKey] || Sparkles;
+  const localizedSymbol = language === 'en' ? symbol.en || symbol : symbol;
   const mapStateData = discovered
-    ? symbol.map.discovered
-    : symbol.map.undiscovered;
+    ? localizedSymbol.map.discovered
+    : localizedSymbol.map.undiscovered;
+  const text = popupCopy[language] || popupCopy.ko;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-6">
@@ -69,7 +84,7 @@ export default function MapPopup({ id, discovered, onClose }) {
           <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 mb-6">
             <div className="flex items-center gap-2 mb-2">
               <MapPin className="w-4 h-4 text-purple-500" />
-              <span className="text-sm text-gray-600">힌트</span>
+              <span className="text-sm text-gray-600">{text.hint}</span>
             </div>
 
             <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-line">
@@ -82,7 +97,7 @@ export default function MapPopup({ id, discovered, onClose }) {
           <div className="bg-purple-50 p-4 rounded-xl border border-purple-100 mb-6">
             <div className="flex items-center gap-2 mb-2">
               <Sparkles className="w-4 h-4 text-purple-600" />
-              <span className="text-sm text-purple-700">발견 메시지</span>
+              <span className="text-sm text-purple-700">{text.message}</span>
             </div>
 
             <p className="text-purple-700 text-sm leading-relaxed font-medium">
@@ -95,7 +110,7 @@ export default function MapPopup({ id, discovered, onClose }) {
           onClick={onClose}
           className="w-full bg-gray-800 text-white rounded-full py-3"
         >
-          닫기
+          {text.close}
         </button>
       </div>
     </div>

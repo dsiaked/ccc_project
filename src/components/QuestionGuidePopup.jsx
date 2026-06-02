@@ -9,7 +9,30 @@ const sparkleDots = [
   'left-1/2 top-10 h-1 w-1 bg-white delay-700',
 ];
 
-export default function QuestionGuidePopup({ onClose }) {
+const copy = {
+  ko: {
+    close: '닫기',
+    eyebrow: 'Final Clue',
+    title: '상품 부스 안내',
+    desc: '세 가지 심볼을 모두 모았어요. 상품 부스에서 각 작품의 설명을 다시 보고 이벤트에 참여할 수 있습니다.',
+    hintLabel: '위치 힌트',
+    hint: '광활한 잔디밭, 지붕 하나',
+    confirm: '확인',
+  },
+  en: {
+    close: 'Close',
+    eyebrow: 'Final Clue',
+    title: 'Prize Booth Guide',
+    desc: 'You found all three symbols. At the prize booth, you can review each artwork and join the event.',
+    hintLabel: 'Location Hint',
+    hint: 'A wide lawn and a single roof',
+    confirm: 'Confirm',
+  },
+};
+
+export default function QuestionGuidePopup({ onClose, language = 'ko' }) {
+  const text = copy[language] || copy.ko;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-950/55 backdrop-blur-md font-['Jua'] question-guide-overlay">
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -26,8 +49,9 @@ export default function QuestionGuidePopup({ onClose }) {
       <div className="relative w-full max-w-[320px] overflow-hidden rounded-[30px] bg-white p-6 shadow-[0_28px_70px_rgba(15,23,42,0.35)] border border-white/80 flex flex-col items-center question-guide-card">
         <div className="absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-indigo-100 via-sky-50 to-transparent pointer-events-none" />
         <button
+          type="button"
           onClick={onClose}
-          aria-label="닫기"
+          aria-label={text.close}
           className="absolute top-4 right-4 z-10 w-8 h-8 rounded-full bg-white/85 flex items-center justify-center text-slate-500 hover:bg-white hover:text-slate-700 active:scale-90 transition-all border border-slate-100 shadow-sm"
         >
           <X className="w-4 h-4 stroke-[2.5]" />
@@ -43,29 +67,30 @@ export default function QuestionGuidePopup({ onClose }) {
         </div>
 
         <p className="relative text-[11px] font-bold tracking-[0.24em] text-indigo-600 uppercase mb-2">
-          Final Clue
+          {text.eyebrow}
         </p>
 
         <h3 className="relative text-slate-950 text-[22px] font-bold mb-3 font-['Cafe24_Ssurround'] text-center">
-          상품 부스 안내
+          {text.title}
         </h3>
 
         <p className="relative text-slate-700 text-[15px] font-bold text-center leading-relaxed mb-5">
-          세 가지 심볼을 모두 모았어요. 상품 부스에서 각 작품의 설명을 다시 보고 이벤트에 참여할 수 있습니다.
+          {text.desc}
         </p>
 
         <div className="relative bg-slate-50 border border-slate-100 rounded-2xl p-4 w-full text-center mb-6 shadow-inner">
-          <span className="text-slate-500 text-xs block mb-2">위치 힌트</span>
+          <span className="text-slate-500 text-xs block mb-2">{text.hintLabel}</span>
           <p className="text-slate-800 text-sm font-bold leading-relaxed">
-            광활한 잔디밭, 지붕 하나
+            {text.hint}
           </p>
         </div>
 
         <button
+          type="button"
           onClick={onClose}
           className="relative w-full py-3.5 rounded-2xl bg-slate-950 hover:bg-indigo-950 text-white font-['Cafe24_Ssurround'] font-bold text-base shadow-[0_10px_22px_rgba(15,23,42,0.25)] transition-all active:scale-[0.98]"
         >
-          확인
+          {text.confirm}
         </button>
       </div>
     </div>

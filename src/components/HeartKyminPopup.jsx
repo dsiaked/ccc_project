@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { X, ArrowRight, ArrowLeft, Heart, Check, MessageSquare, Pencil, Trash2 } from 'lucide-react';
 import useArtworkComments from '../hooks/useArtworkComments';
+import ArtistInlineEnglishLayer from './ArtistInlineEnglishLayer';
 
 const ACCENT = '#fa5c5c';
 const accent = (opacity = 1) => `rgba(250, 92, 92, ${opacity})`;
-export default function HeartKyminPopup({ onClose }) {
+export default function HeartKyminPopup({ onClose, language = 'ko', onToggleLanguage }) {
   const [step, setStep] = useState(1);
   const [showCommentModal, setShowCommentModal] = useState(false);
   const {
@@ -89,6 +90,9 @@ export default function HeartKyminPopup({ onClose }) {
 
       {/* 팝업 모달 몸체: Figma iPhone 17-19의 가로-세로 뷰포트 비율을 1:1 복원하는 360x780px 고정형 카드 */}
       <div className="relative w-[360px] h-[780px] max-h-[92vh] rounded-[32px] overflow-hidden flex flex-col shadow-[0_25px_60px_rgba(0,0,0,0.18)] border border-gray-100 bg-white animate-in zoom-in-95 duration-300 touch-pan-y">
+        {language === 'en' && (
+          <ArtistInlineEnglishLayer artistId="heart_kymin" onClose={onClose} onToggleLanguage={onToggleLanguage} />
+        )}
         
         {/* Step 1: 피그마 iPhone 17-19 1:1 완벽 절대 좌표 복원 */}
         {step === 1 && (

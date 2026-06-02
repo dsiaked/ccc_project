@@ -84,6 +84,8 @@ const getCategoryLabel = category => ({
   question: '물음표',
 }[category] || category || '기타');
 
+const getRecordSymbolId = record => record?.symbolId || record?.artistId || '';
+
 const getViewedSymbols = symbols => (
   symbolOrder
     .filter(id => symbols?.[id])
@@ -281,6 +283,29 @@ export default function AdminPanel({ onBack }) {
   const publishedCommentCount = comments.filter(comment => comment.isPublished).length;
   const hiddenCommentCount = comments.length - publishedCommentCount;
 
+  const artworkSummaries = useMemo(() => (
+    symbolOrder.map(id => {
+      const symbol = symbolData[id];
+      const artworkComments = comments.filter(comment => getRecordSymbolId(comment) === id);
+      const discoveredVisitors = visitorRecords.filter(visitor => visitor.symbols?.[id]).length;
+      const publishedCommentsForArtwork = artworkComments.filter(comment => comment.isPublished);
+
+      return {
+        id,
+        title: symbol?.qr?.title || symbol?.title || id,
+        artist: symbol?.artist || '작가 정보 없음',
+        category: getCategoryLabel(symbol?.category),
+        desc: symbol?.qr?.desc || symbol?.map?.undiscovered?.desc || '',
+        meaning: symbol?.qr?.meaning || symbol?.map?.discovered?.message || '',
+        location: symbol?.qr?.location || symbol?.map?.undiscovered?.hint || '',
+        discoveredVisitors,
+        comments: artworkComments.length,
+        publishedComments: publishedCommentsForArtwork.length,
+        recentComments: artworkComments.slice(0, 3),
+      };
+    })
+  ), [comments, visitorRecords]);
+
   const stats = [
     { label: '발견 방문', value: visitorRecords.length, desc: 'QR을 1개 이상 발견', chart: discoveryCountDistribution },
     { label: '3분류 완료', value: completedVisitors, desc: '하트, 나누기, 십자가' },
@@ -306,7 +331,7 @@ export default function AdminPanel({ onBack }) {
 
   const tabCounts = {
     visitors: visitorRecords.length,
-    artworks: symbolOrder.length,
+    artworks: artworkSummaries.length,
     comments: `${publishedCommentCount}/${comments.length}`,
     feedbacks: feedbacks.length,
   };
@@ -324,6 +349,23 @@ export default function AdminPanel({ onBack }) {
     });
   }, [searchQuery, visitorRecords]);
 
+  const filteredArtworkSummaries = useMemo(() => {
+    const query = normalizeSearchText(searchQuery);
+    if (!query) return artworkSummaries;
+    return artworkSummaries.filter(artwork => {
+      const target = [
+        artwork.title,
+        artwork.artist,
+        artwork.category,
+        artwork.desc,
+        artwork.meaning,
+        artwork.location,
+        artwork.recentComments.map(comment => `${comment.name} ${comment.content}`).join(' '),
+      ].join(' ');
+      return normalizeSearchText(target).includes(query);
+    });
+  }, [artworkSummaries, searchQuery]);
+
   const filteredComments = useMemo(() => {
     const query = normalizeSearchText(searchQuery);
     if (!query) return comments;
@@ -331,7 +373,7 @@ export default function AdminPanel({ onBack }) {
       const target = [
         comment.name,
         comment.content,
-        getSymbolLabel(comment.symbolId),
+        getSymbolLabel(getRecordSymbolId(comment)),
         comment.isPublished ? '공개' : '비공개',
         formatDate(comment.createdAt),
       ].join(' ');
@@ -639,6 +681,10 @@ export default function AdminPanel({ onBack }) {
               />
             )}
 
+            {activeTab === 'artworks' && (
+              <ArtworkList artworks={filteredArtworkSummaries} />
+            )}
+
             {activeTab === 'comments' && (
               <RecordList
                 records={filteredComments}
@@ -647,7 +693,7 @@ export default function AdminPanel({ onBack }) {
                   <RecordCard
                     key={comment.id}
                     title={comment.name || '이름 없음'}
-                    meta={`${getSymbolLabel(comment.symbolId)} / ${formatDate(comment.createdAt)}`}
+                    meta={`${getSymbolLabel(getRecordSymbolId(comment))} / ${formatDate(comment.createdAt)}`}
                     body={comment.content}
                     badge={comment.isPublished ? '공개 중' : '비공개'}
                     action={
@@ -880,6 +926,41 @@ export default function AdminPanel({ onBack }) {
           <span className="text-sm">{notification.message}</span>
         </div>
       )}
+    </div>
+  );
+}
+
+function ArtworkList({ artworks }) {
+  if (artworks.length === 0) {
+    return <EmptyState icon={MapPinned} title="표시할 작품 정보가 없습니다." />;
+  }
+
+  return (
+    <div className="grid gap-3 lg:grid-cols-2">
+      {artworks.map(artwork => (
+        <article key={artwork.id} className="rounded-lg border border-slate-800 bg-slate-950/55 p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-xs text-cyan-200">{artwork.category}</p>
+              <h3 className="mt-1 text-lg font-bold text-white">{artwork.title}</h3>
+              <p className="mt-1 text-sm text-slate-400">{artwork.artist}</p>
+            </div>
+            <div className="flex gap-2 text-xs">
+              <span className="rounded-full bg-slate-800 px-2.5 py-1 text-slate-300">발견 {artwork.discoveredVisitors}</span>
+              <span className="rounded-full bg-slate-800 px-2.5 py-1 text-slate-300">
+                댓글 {artwork.publishedComments}/{artwork.comments}
+              </span>
+            </div>
+          </div>
+          {artwork.desc && <p className="mt-3 text-sm leading-relaxed text-slate-300">{artwork.desc}</p>}
+          {artwork.meaning && <p className="mt-2 text-sm leading-relaxed text-slate-400">{artwork.meaning}</p>}
+          {artwork.location && (
+            <p className="mt-3 rounded-md border border-slate-800 bg-slate-900 px-3 py-2 text-xs text-slate-400">
+              위치: {artwork.location}
+            </p>
+          )}
+        </article>
+      ))}
     </div>
   );
 }

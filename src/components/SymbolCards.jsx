@@ -16,28 +16,81 @@ const CustomCrossIcon = ({ className = 'w-6 h-6', color = 'currentColor', stroke
   </svg>
 );
 
+const copy = {
+  ko: {
+    labels: {
+      heart: '하트',
+      divide: '나누기',
+      cross: '십자가',
+      question: '물음표',
+    },
+    preparing: '준비 중',
+    booth: '상품 부스',
+    boothLockedDesc: '세 가지 심볼을 모두 모으면 상품 부스 안내가 열려요.',
+    findThree: '심볼 3개를 먼저 찾아주세요',
+    locationReady: '위치 확인',
+    boothReadyDesc: '세 가지 심볼을 모두 모았어요. 상품 부스를 찾아가 보세요.',
+    checkLocation: '위치 확인하기',
+    undiscovered: '미발견',
+    questionDone: '질문 완료',
+    discovered: '발견 완료',
+    feedbackTitle: '여행자들의 소감',
+    feedbackDesc: '여행자들이 남긴 소감을 함께 둘러보세요',
+    emptyFeedback: '아직 공개된 소감이 없습니다.',
+    anonymous: '익명',
+    locale: 'ko-KR',
+    sourceLabels: {
+      feedback: '투어 소감',
+      comment: '작품 댓글',
+    },
+  },
+  en: {
+    labels: {
+      heart: 'Heart',
+      divide: 'Sharing',
+      cross: 'Cross',
+      question: 'Question',
+    },
+    preparing: 'Preparing',
+    booth: 'Prize Booth',
+    boothLockedDesc: 'Find all three symbols to unlock the prize booth guide.',
+    findThree: 'Find 3 symbols first',
+    locationReady: 'Location Ready',
+    boothReadyDesc: 'You found all three symbols. Head to the prize booth.',
+    checkLocation: 'Check Location',
+    undiscovered: 'Locked',
+    questionDone: 'Question Done',
+    discovered: 'Found',
+    feedbackTitle: 'Visitor Reflections',
+    feedbackDesc: 'Read reflections selected by the tour admin',
+    emptyFeedback: 'No published reflections yet.',
+    anonymous: 'Anonymous',
+    locale: 'en-US',
+    sourceLabels: {
+      feedback: 'Tour reflection',
+      comment: 'Artwork comment',
+    },
+  },
+};
+
 const cards = [
   {
     id: 'heart',
-    label: '하트',
     accent: 'pink',
     icon: <Heart className="h-8 w-8 fill-pink-500/20 text-pink-500" />,
   },
   {
     id: 'divide',
-    label: '나누기',
     accent: 'orange',
     icon: <Divide className="h-8 w-8 text-orange-500" />,
   },
   {
     id: 'cross',
-    label: '십자가',
     accent: 'lime',
     icon: <CustomCrossIcon className="h-8 w-8" color="#4d7c0f" strokeWidth="2.5" />,
   },
   {
     id: 'question',
-    label: '물음표',
     accent: 'sky',
     icon: <span className="select-none font-['Cafe24_Ssurround'] text-4xl font-bold text-sky-500">?</span>,
   },
@@ -70,7 +123,7 @@ const accentClasses = {
   },
 };
 
-const formatFeedbackTime = value => {
+const formatFeedbackTime = (value, locale) => {
   if (!value) return '';
   const date = typeof value.toDate === 'function'
     ? value.toDate()
@@ -80,7 +133,7 @@ const formatFeedbackTime = value => {
 
   if (Number.isNaN(date.getTime())) return '';
 
-  return new Intl.DateTimeFormat('ko-KR', {
+  return new Intl.DateTimeFormat(locale, {
     month: 'numeric',
     day: 'numeric',
     hour: 'numeric',
@@ -88,7 +141,14 @@ const formatFeedbackTime = value => {
   }).format(date);
 };
 
-export default function SymbolCards({ symbols, onCardClick, isQuestionUnlocked, featuredFeedbacks = [] }) {
+export default function SymbolCards({
+  symbols,
+  onCardClick,
+  isQuestionUnlocked,
+  featuredFeedbacks = [],
+  language = 'ko',
+}) {
+  const text = copy[language] || copy.ko;
   const isQuestionDiscovered = !!symbols.question;
 
   const checkDiscovered = id => {
@@ -121,7 +181,7 @@ export default function SymbolCards({ symbols, onCardClick, isQuestionUnlocked, 
           const isQuestionPending = card.id === 'question' && isLocked;
           const isQuestionReady = card.id === 'question' && isReady;
           const isQuestionDone = card.id === 'question' && state === 'discovered';
-          const displayLabel = isQuestionDone ? '물음표' : card.label;
+          const displayLabel = text.labels[card.id];
 
           if (isQuestionPending) {
             return (
@@ -140,14 +200,14 @@ export default function SymbolCards({ symbols, onCardClick, isQuestionUnlocked, 
                   </div>
                   <div className="min-w-0 flex-1">
                     <span className="mb-2 inline-flex rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-[11px] font-bold text-slate-500">
-                      준비 중
+                      {text.preparing}
                     </span>
-                    <span className="block text-xl font-bold leading-tight text-slate-950">상품 부스</span>
+                    <span className="block text-xl font-bold leading-tight text-slate-950">{text.booth}</span>
                     <p className="mt-1 text-[13px] font-bold leading-snug text-slate-600">
-                      세 가지 심볼을 모두 모으면 상품 부스 안내가 열려요.
+                      {text.boothLockedDesc}
                     </p>
                     <span className="mt-3 inline-flex rounded-full bg-slate-900 px-3 py-1 text-[12px] font-bold text-white">
-                      심볼 3개를 먼저 찾아주세요
+                      {text.findThree}
                     </span>
                   </div>
                 </div>
@@ -173,16 +233,16 @@ export default function SymbolCards({ symbols, onCardClick, isQuestionUnlocked, 
                   <div className="min-w-0 flex-1">
                     <div className="mb-2 flex items-center gap-2">
                       <span className="rounded-full border border-sky-200 bg-sky-100 px-2.5 py-0.5 text-[11px] font-bold text-sky-700">
-                        위치 확인
+                        {text.locationReady}
                       </span>
                       <span className="h-2 w-2 animate-pulse rounded-full bg-sky-500" />
                     </div>
-                    <span className="block text-xl font-bold leading-tight text-slate-950">상품 부스</span>
+                    <span className="block text-xl font-bold leading-tight text-slate-950">{text.booth}</span>
                     <p className="mt-1 text-[13px] font-bold leading-snug text-slate-700">
-                      세 가지 심볼을 모두 모았어요. 상품 부스를 찾아가세요.
+                      {text.boothReadyDesc}
                     </p>
                     <span className="mt-3 inline-flex rounded-full bg-sky-600 px-3 py-1 text-[12px] font-bold text-white shadow-sm">
-                      위치 확인하기
+                      {text.checkLocation}
                     </span>
                   </div>
                 </div>
@@ -240,8 +300,8 @@ export default function SymbolCards({ symbols, onCardClick, isQuestionUnlocked, 
                   ].join(' ')}
                 >
                   <span className={`h-2 w-2 shrink-0 rounded-full ${isLocked ? 'bg-slate-400' : isQuestionDone ? 'bg-sky-500' : accent.dot} ${isReady ? 'animate-pulse' : ''}`} />
-                  <span className={`mt-0.5 max-w-[68px] truncate whitespace-nowrap text-[10px] ${isLocked ? 'text-slate-500' : isQuestionDone ? 'text-sky-700' : accent.text}`}>
-                    {isLocked ? '미발견' : isReady ? '위치 확인' : isQuestionDone ? '질문 완료' : '발견 완료'}
+                  <span className={`mt-0.5 max-w-[78px] truncate whitespace-nowrap text-[10px] ${isLocked ? 'text-slate-500' : isQuestionDone ? 'text-sky-700' : accent.text}`}>
+                    {isLocked ? text.undiscovered : isReady ? text.locationReady : isQuestionDone ? text.questionDone : text.discovered}
                   </span>
                 </div>
               </div>
@@ -257,20 +317,21 @@ export default function SymbolCards({ symbols, onCardClick, isQuestionUnlocked, 
               <MessageSquareText className="h-5 w-5" />
             </div>
             <div>
-              <h3 className="text-[17px] leading-tight text-slate-950">여행자들의 소감</h3>
-              <p className="text-[12px] leading-snug text-slate-500">여행자들이 남긴 소감을 함께 둘러보세요</p>
+              <h3 className="text-[17px] leading-tight text-slate-950">{text.feedbackTitle}</h3>
+              <p className="text-[12px] leading-snug text-slate-500">{text.feedbackDesc}</p>
             </div>
           </div>
         </div>
 
         {featuredFeedbacks.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-center">
-            <p className="text-sm text-slate-500">아직 공개된 소감이 없습니다.</p>
+            <p className="text-sm text-slate-500">{text.emptyFeedback}</p>
           </div>
         ) : (
           <div className="grid max-h-[300px] gap-2.5 overflow-y-auto pr-1 scroll-container">
             {featuredFeedbacks.map(feedback => {
-              const feedbackTime = formatFeedbackTime(feedback.createdAt);
+              const feedbackTime = formatFeedbackTime(feedback.createdAt, text.locale);
+              const sourceLabel = text.sourceLabels[feedback.source] || feedback.sourceLabel;
 
               return (
                 <article key={feedback.id} className="rounded-2xl border border-sky-100 bg-sky-50/60 px-4 py-3 text-left">
@@ -278,10 +339,10 @@ export default function SymbolCards({ symbols, onCardClick, isQuestionUnlocked, 
                     {feedback.feedback}
                   </p>
                   <div className="mt-2 flex items-center justify-between gap-3 text-[12px] leading-none text-slate-500">
-                    <span className="min-w-0 truncate">{feedback.name || '익명'}</span>
-                    {feedback.sourceLabel && (
+                    <span className="min-w-0 truncate">{feedback.name || text.anonymous}</span>
+                    {sourceLabel && (
                       <span className="shrink-0 rounded-full bg-white/80 px-2 py-0.5 text-[10px] text-sky-600">
-                        {feedback.sourceLabel}
+                        {sourceLabel}
                       </span>
                     )}
                     {feedbackTime && (

@@ -87,6 +87,35 @@ const ADMIN_UNLOCK_LABELS = {
   cross: '십자가',
 };
 
+const appCopy = {
+  ko: {
+    loadingFallback: '불러오는 중...',
+    syncTitle: '기기 데이터 동기화 중',
+    syncDesc: '해금 데이터를 안전하게 불러오고 있어요. 잠시만 기다려 주세요.',
+    basicUnlocked: '하트, 나누기, 십자가가 해금되었어요.',
+    needThreeSymbols: '먼저 하트, 나누기, 십자가를 모두 찾아야 해요.',
+    boothLocked: '하트, 나누기, 십자가를 모으면 상품 부스 안내가 열려요.',
+    undiscovered: '아직 발견하지 못한 심볼이에요.',
+    mapTitle: '작품 지도',
+    mapDesc: '심볼을 따라 오늘의 작품을 찾아보세요.',
+    cardsTitle: '작품 설명 카드',
+    cardsDesc: '발견한 심볼의 작품 설명을 확인하고, 마지막 상품 부스까지 이어가 보세요.',
+  },
+  en: {
+    loadingFallback: 'Loading...',
+    syncTitle: 'Syncing Device Data',
+    syncDesc: 'Your unlocked symbols are being loaded safely. Please wait a moment.',
+    basicUnlocked: 'Heart, Sharing, and Cross have been unlocked.',
+    needThreeSymbols: 'Find Heart, Sharing, and Cross first.',
+    boothLocked: 'Find Heart, Sharing, and Cross to unlock the prize booth guide.',
+    undiscovered: 'This symbol has not been discovered yet.',
+    mapTitle: 'Artwork Map',
+    mapDesc: "Follow the symbols and find today's artworks.",
+    cardsTitle: 'Artwork Cards',
+    cardsDesc: 'Open the cards you discovered and continue to the final booth.',
+  },
+};
+
 const normalizeSymbols = symbols => ({
   ...INITIAL_SYMBOLS,
   ...symbols,
@@ -196,6 +225,7 @@ export default function App() {
   const [publishedFeedbacks, setPublishedFeedbacks] = useState([]);
   const [publicComments, setPublicComments] = useState([]);
   const [highlightedPinId, setHighlightedPinId] = useState(null);
+  const [language, setLanguage] = useState(() => localStorage.getItem('language') || 'ko');
   const mapSectionRef = useRef(null);
   const highlightTimerRef = useRef(null);
   const hasStartedFirebaseSession = useRef(false);
@@ -213,6 +243,16 @@ export default function App() {
 
   // 특별 심볼 해금 조건: 3가지 심볼이 모두 최소 1개 이상 해금되었을 때
   const isQuestionUnlocked = isHeartDiscovered && isDivideDiscovered && isCrossDiscovered;
+
+  useEffect(() => {
+    localStorage.setItem('language', language);
+    document.documentElement.lang = language === 'en' ? 'en' : 'ko';
+  }, [language]);
+
+  const toggleLanguage = () => {
+    setLanguage(prev => (prev === 'en' ? 'ko' : 'en'));
+  };
+  const text = appCopy[language] || appCopy.ko;
 
   const discoveredCount = (isHeartDiscovered ? 1 : 0) + 
                           (isDivideDiscovered ? 1 : 0) + 
@@ -377,7 +417,7 @@ export default function App() {
         localStorage.setItem('symbols', JSON.stringify(next));
         return next;
       });
-      setToast('하트, 나누기, 십자가가 해금되었어요.');
+      setToast(text.basicUnlocked);
 
       setTimeout(() => {
         setToast('');
@@ -424,7 +464,7 @@ export default function App() {
     if (symbol) {
       if (symbol === 'question') {
         if (!hasQuestionPrerequisites(symbols)) {
-          setToast('먼저 하트, 나누기, 십자가를 모두 찾아야 해요.');
+          setToast(text.needThreeSymbols);
           setTimeout(() => {
             setToast('');
           }, 2000);
@@ -659,7 +699,7 @@ export default function App() {
   const handleMapSymbolClick = id => {
     if (id === 'question') {
       if (!isQuestionUnlocked) {
-        setToast('하트, 나누기, 십자가를 모으면 상품 부스 안내가 열려요.');
+        setToast(text.boothLocked);
         setTimeout(() => {
           setToast('');
         }, 2000);
@@ -682,7 +722,7 @@ export default function App() {
   const handleSymbolCardClick = id => {
     if (id === 'question') {
       if (!isQuestionUnlocked) {
-        setToast('하트, 나누기, 십자가를 모으면 상품 부스 안내가 열려요.');
+        setToast(text.boothLocked);
         setTimeout(() => {
           setToast('');
         }, 2000);
@@ -702,7 +742,7 @@ export default function App() {
       symbols[id];
 
     if (!isCategoryDiscovered) {
-      setToast('아직 발견하지 못한 심볼이에요 🔒');
+      setToast(`${text.undiscovered} 🔒`);
 
       setTimeout(() => {
         setToast('');
@@ -777,8 +817,8 @@ export default function App() {
 
   if (page === 'participate') {
     return (
-      <Suspense fallback={<div className="flex h-full items-center justify-center text-slate-500">불러오는 중...</div>}>
-        <ParticipatePage onBack={openHomePage} />
+      <Suspense fallback={<div className="flex h-full items-center justify-center text-slate-500">{text.loadingFallback}</div>}>
+        <ParticipatePage onBack={openHomePage} language={language} />
       </Suspense>
     );
   }
@@ -810,16 +850,21 @@ export default function App() {
             <Sparkles className="w-10 h-10 text-indigo-600 animate-pulse" />
           </div>
           <h3 className="font-['Cafe24_Ssurround'] font-bold text-2xl text-gray-800 text-center mb-2">
-            기기 데이터 동기화 중
+            {text.syncTitle}
           </h3>
           <p className="text-gray-500 text-sm text-center leading-relaxed max-w-[240px]">
-            해금 데이터를 안전하게 불러오고 있어요. 잠시만 기다려 주세요.
+            {text.syncDesc}
           </p>
         </div>
       )}
 
       <div className="relative z-10 flex-1 overflow-y-auto scroll-container pb-10">
-        <Header discoveredCount={discoveredCount} announcement={announcement} />
+        <Header
+          discoveredCount={discoveredCount}
+          announcement={announcement}
+          language={language}
+          onToggleLanguage={toggleLanguage}
+        />
 
         <section
           ref={mapSectionRef}
@@ -829,10 +874,10 @@ export default function App() {
           <div className="mb-3 flex items-end justify-between gap-3">
             <div className="min-w-0">
               <h2 id="tour-map-title" className="font-['Cafe24_Ssurround'] text-[20px] font-bold text-slate-950">
-                작품 지도
+                {text.mapTitle}
               </h2>
               <p className="mt-1 text-[13px] leading-5 text-slate-600">
-                심볼을 따라 오늘의 작품을 찾아보세요.
+                {text.mapDesc}
               </p>
             </div>
           </div>
@@ -848,10 +893,10 @@ export default function App() {
         <section className="px-6 pt-6" aria-labelledby="artwork-cards-title">
           <div className="mb-4">
             <h2 id="artwork-cards-title" className="font-['Cafe24_Ssurround'] text-[20px] font-bold text-slate-950">
-              작품 설명 카드
+              {text.cardsTitle}
             </h2>
             <p className="mt-1 text-[13px] leading-5 text-slate-600">
-              발견한 심볼의 작품 설명을 확인하고, 마지막 상품 부스까지 이어가 보세요.
+              {text.cardsDesc}
             </p>
           </div>
 
@@ -860,6 +905,7 @@ export default function App() {
             onCardClick={handleSymbolCardClick} 
             isQuestionUnlocked={isQuestionUnlocked}
             featuredFeedbacks={featuredFeedbacks}
+            language={language}
           />
         </section>
       </div>
@@ -872,6 +918,8 @@ export default function App() {
             symbols={symbols}
             discovered={symbols[activePopup.id]}
             onClose={closePopup}
+            language={language}
+            onToggleLanguage={toggleLanguage}
           />
         </Suspense>
       )}
