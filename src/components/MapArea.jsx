@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Divide, Heart, Minus, Plus, RotateCcw, Sparkles } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Divide, Heart, Minus, Plus, RotateCcw } from 'lucide-react';
 
 const MAP_BASE_WIDTH = 345;
 const MIN_ZOOM = 1;
@@ -135,9 +135,107 @@ export const DEFAULT_MAP_PINS = [
   }
 ];
 
+const MapPinMarker = React.memo(function MapPinMarker({
+  pin,
+  isDiscovered,
+  isHighlighted,
+  isQuestionUnlocked,
+  editable,
+  pinMetrics,
+  onSymbolClick,
+  onPinPointerDown,
+}) {
+  const { id, type, pinTop, pinLeft, color, borderColor } = pin;
+
+  let IconComponent = null;
+  if (type === 'heart') {
+    IconComponent = <Heart className="fill-current" style={{ width: pinMetrics.icon, height: pinMetrics.icon }} />;
+  } else if (type === 'cross') {
+    IconComponent = <CustomCrossIcon size={pinMetrics.icon} color="currentColor" strokeWidth="3.2" />;
+  } else if (type === 'divide') {
+    IconComponent = <Divide className="stroke-[2.5]" style={{ width: pinMetrics.icon, height: pinMetrics.icon }} />;
+  } else if (type === 'question') {
+    IconComponent = (
+      <span
+        className={[
+          'font-bold leading-none select-none',
+          isQuestionUnlocked && !isDiscovered ? 'animate-bounce' : '',
+        ].join(' ')}
+        style={{ fontSize: pinMetrics.questionText }}
+      >
+        ?
+      </span>
+    );
+  }
+
+  let finalColor = color;
+  let finalBorderColor = borderColor;
+  let extraPinClass = '';
+
+  if (id === 'question') {
+    if (!isQuestionUnlocked) {
+      finalColor = '#38bdf8';
+      finalBorderColor = '#dbeafe';
+      extraPinClass = 'opacity-75';
+    } else if (!isDiscovered) {
+      finalColor = '#0284c7';
+      finalBorderColor = '#bae6fd';
+      extraPinClass = 'animate-pulse ring-2 ring-sky-400 ring-offset-1';
+    } else {
+      finalColor = '#6b21a8';
+      finalBorderColor = '#e9d5ff';
+      extraPinClass = 'ring-2 ring-purple-400 ring-offset-1';
+    }
+  } else if (isDiscovered) {
+    extraPinClass = 'animate-pulse ring-2 ring-purple-400 ring-offset-1';
+  }
+
+  return (
+    <button
+      type="button"
+      aria-label={`${type} symbol`}
+      data-map-pin-id={id}
+      className={[
+        'absolute flex items-center justify-center cursor-pointer transition-all duration-300 active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 rounded-full',
+        isHighlighted ? 'map-pin-button-highlight' : '',
+      ].join(' ')}
+      style={{
+        top: pinTop,
+        left: pinLeft,
+        width: pinMetrics.touch,
+        height: pinMetrics.touch,
+        transform: 'translate(-50%, -50%)',
+        zIndex: isHighlighted ? 30 : 20,
+        '--pin-hover-scale': pinMetrics.hoverScale,
+      }}
+      onClick={() => {
+        if (!editable) onSymbolClick(id);
+      }}
+      onPointerDown={event => onPinPointerDown(event, id)}
+    >
+      <div className="relative">
+        <div
+          className={`rounded-full flex items-center justify-center bg-white transition-all ${extraPinClass} ${isHighlighted ? 'map-pin-highlight' : ''}`}
+          style={{
+            borderColor: finalBorderColor,
+            borderWidth: pinMetrics.border,
+            boxShadow: `0 ${pinMetrics.shadowY}px ${pinMetrics.shadowBlur}px rgba(0,0,0,0.1)`,
+            color: finalColor,
+            width: pinMetrics.marker,
+            height: pinMetrics.marker,
+          }}
+        >
+          {IconComponent}
+        </div>
+      </div>
+    </button>
+  );
+});
+
 export default function MapArea({ symbols, onSymbolClick, isQuestionUnlocked, zoom = 1, pins = DEFAULT_MAP_PINS, editable = false, onPinMove, highlightedPinId = null }) {
   const mapRef = useRef(null);
   const dragRef = useRef(null);
+  const interactionRef = useRef({ pan: { x: 0, y: 0 }, viewZoom: 1 });
   const [mapScale, setMapScale] = useState(1);
   const [mapSize, setMapSize] = useState({ width: MAP_BASE_WIDTH, height: 324 });
   const [zoomLevel, setZoomLevel] = useState(1);
@@ -147,7 +245,7 @@ export default function MapArea({ symbols, onSymbolClick, isQuestionUnlocked, zo
   const zoomProgress = (viewZoom - MIN_ZOOM) / (MAX_ZOOM - MIN_ZOOM);
   const zoomPinScale = clamp(1 / Math.pow(viewZoom, 1.15), 0.32, 1);
   const pinScale = clamp(mapScale * zoomPinScale, 0.36, 1.75);
-  const pinMetrics = {
+  const pinMetrics = useMemo(() => ({
     touch: Math.round(36 * pinScale),
     marker: Math.round(24 * pinScale),
     icon: Math.round(11 * pinScale),
@@ -156,9 +254,11 @@ export default function MapArea({ symbols, onSymbolClick, isQuestionUnlocked, zo
     shadowY: Math.max(1.5, 1.6 * pinScale),
     shadowBlur: Math.max(4, 4 * pinScale),
     hoverScale: 1 + (1 - zoomProgress) * 0.05,
-  };
+  }), [pinScale, zoomProgress]);
 
-  const handlePinPointerDown = (event, id) => {
+  interactionRef.current = { pan, viewZoom };
+
+  const handlePinPointerDown = useCallback((event, id) => {
     if (!editable) return;
     event.stopPropagation();
     event.preventDefault();
@@ -181,8 +281,9 @@ export default function MapArea({ symbols, onSymbolClick, isQuestionUnlocked, zo
       const centerX = rect.width / 2;
       const centerY = rect.height / 2;
 
-      const correctedX = (mouseX - centerX - pan.x) / viewZoom + centerX;
-      const correctedY = (mouseY - centerY - pan.y) / viewZoom + centerY;
+      const { pan: currentPan, viewZoom: currentViewZoom } = interactionRef.current;
+      const correctedX = (mouseX - centerX - currentPan.x) / currentViewZoom + centerX;
+      const correctedY = (mouseY - centerY - currentPan.y) / currentViewZoom + centerY;
 
       // 백분율 좌표 계산
       const leftPercent = clamp((correctedX / rect.width) * 100, 0, 100).toFixed(2) + '%';
@@ -205,7 +306,7 @@ export default function MapArea({ symbols, onSymbolClick, isQuestionUnlocked, zo
 
     window.addEventListener('pointermove', handlePointerMove);
     window.addEventListener('pointerup', handlePointerUp);
-  };
+  }, [editable, onPinMove]);
 
   const getClampedPan = useCallback((nextPan, nextZoom = viewZoom, nextMapSize = mapSize) => {
     if (nextZoom <= 1) return { x: 0, y: 0 };
@@ -316,111 +417,6 @@ export default function MapArea({ symbols, onSymbolClick, isQuestionUnlocked, zo
     event.preventDefault();
     const direction = event.deltaY > 0 ? -1 : 1;
     setZoom(viewZoom + direction * ZOOM_STEP);
-  };
-
-  const renderFigmaPin = (pin, index) => {
-    const { id, type, pinTop, pinLeft, color, borderColor } = pin;
-    const isDiscovered = symbols[id];
-    const isHighlighted = highlightedPinId === id;
-    
-    // 심볼 아이콘 매핑
-    let IconComponent = null;
-    if (type === 'heart') IconComponent = <Heart className="fill-current" style={{ width: pinMetrics.icon, height: pinMetrics.icon }} />;
-    else if (type === 'cross') IconComponent = <CustomCrossIcon size={pinMetrics.icon} color="currentColor" strokeWidth="3.2" />;
-    else if (type === 'divide') IconComponent = <Divide className="stroke-[2.5]" style={{ width: pinMetrics.icon, height: pinMetrics.icon }} />;
-    else if (type === 'question') {
-      if (!isQuestionUnlocked) {
-        IconComponent = <span className="font-bold leading-none select-none" style={{ fontSize: pinMetrics.questionText }}>?</span>;
-      } else if (!isDiscovered) {
-        IconComponent = <span className="font-bold leading-none select-none animate-bounce" style={{ fontSize: pinMetrics.questionText }}>?</span>;
-      } else {
-        IconComponent = <span className="font-bold leading-none select-none" style={{ fontSize: pinMetrics.questionText }}>?</span>;
-      }
-    }
-
-    // 특별 심볼에 대한 테두리 및 색상 동적 결정
-    let finalColor = color;
-    let finalBorderColor = borderColor;
-    let extraPinClass = '';
-
-    if (id === 'question') {
-      if (!isQuestionUnlocked) {
-        finalColor = '#38bdf8';
-        finalBorderColor = '#dbeafe';
-        extraPinClass = 'opacity-75';
-      } else if (!isDiscovered) {
-        finalColor = '#0284c7'; // 활기찬 하늘색
-        finalBorderColor = '#bae6fd';
-        extraPinClass = 'animate-pulse ring-2 ring-sky-400 ring-offset-1';
-      } else {
-        finalColor = '#6b21a8'; // 발견완료 시 보라색 테마 조화
-        finalBorderColor = '#e9d5ff';
-        extraPinClass = 'ring-2 ring-purple-400 ring-offset-1';
-      }
-    } else if (isDiscovered) {
-      extraPinClass = 'animate-pulse ring-2 ring-purple-400 ring-offset-1';
-    }
-
-    return (
-      <React.Fragment key={index}>
-        {/* 이름 레이블 (사용자 요청으로 제거됨) */}
-        {/*
-        {label && (
-          <p 
-            className="absolute font-['Cafe24_Ssurround',sans-serif] font-bold text-[14px] text-black select-none pointer-events-none drop-shadow-[0_1.5px_2px_rgba(255,255,255,0.9)]"
-            style={{ 
-              top: textTop, 
-              left: textLeft,
-              transform: 'translate(-50%, -50%)',
-              zIndex: 10
-            }}
-          >
-            {label}
-          </p>
-        )}
-        */}
-        
-        <button
-          type="button"
-          aria-label={`${type} symbol`}
-          data-map-pin-id={id}
-          className={[
-            'absolute flex items-center justify-center cursor-pointer transition-all duration-300 active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 rounded-full',
-            isHighlighted ? 'map-pin-button-highlight' : '',
-          ].join(' ')}
-          style={{ 
-            top: pinTop, 
-            left: pinLeft, 
-            width: pinMetrics.touch,
-            height: pinMetrics.touch,
-            transform: 'translate(-50%, -50%)',
-            zIndex: isHighlighted ? 30 : 20,
-            '--pin-hover-scale': pinMetrics.hoverScale,
-          }}
-          onClick={() => {
-            if (!editable) onSymbolClick(id);
-          }}
-          onPointerDown={(e) => handlePinPointerDown(e, id)}
-        >
-          <div className="relative">
-            {/* 원형 테두리 */}
-            <div 
-              className={`rounded-full flex items-center justify-center bg-white transition-all ${extraPinClass} ${isHighlighted ? 'map-pin-highlight' : ''}`}
-              style={{ 
-                borderColor: finalBorderColor,
-                borderWidth: pinMetrics.border,
-                boxShadow: `0 ${pinMetrics.shadowY}px ${pinMetrics.shadowBlur}px rgba(0,0,0,0.1)`,
-                color: finalColor,
-                width: pinMetrics.marker,
-                height: pinMetrics.marker,
-              }}
-            >
-              {IconComponent}
-            </div>
-          </div>
-        </button>
-      </React.Fragment>
-    );
   };
 
   return (
@@ -556,7 +552,19 @@ export default function MapArea({ symbols, onSymbolClick, isQuestionUnlocked, zo
         <div className="absolute inset-0 bg-[linear-gradient(rgba(107,33,168,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(107,33,168,0.02)_1px,transparent_1px)] bg-[size:40px_40px] pointer-events-none" />
 
         {/* Markers (피그마 맵 레이아웃과 일치하는 원형 심볼 및 아티스트 이름 핀 목록) */}
-        {pins.map(renderFigmaPin)}
+        {pins.map(pin => (
+          <MapPinMarker
+            key={pin.id}
+            pin={pin}
+            isDiscovered={!!symbols[pin.id]}
+            isHighlighted={highlightedPinId === pin.id}
+            isQuestionUnlocked={isQuestionUnlocked}
+            editable={editable}
+            pinMetrics={pinMetrics}
+            onSymbolClick={onSymbolClick}
+            onPinPointerDown={handlePinPointerDown}
+          />
+        ))}
       </div>
 
       <div className="absolute top-3 right-3 z-30 flex flex-col gap-2" data-map-control="true">

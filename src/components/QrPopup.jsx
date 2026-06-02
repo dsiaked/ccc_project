@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, BookOpen, CheckCircle2, HelpCircle, Send, Sparkles, Star } from 'lucide-react';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { symbolData } from '../data/symbolData';
+import { getSymbolIcon } from '../data/symbolIcons';
 import { db } from '../firebase';
 
 const reflectionQuestions = [
@@ -198,7 +199,7 @@ export default function QrPopup({ id, onClose }) {
     return <QuestionReflectionPopup onClose={onClose} />;
   }
 
-  const Icon = symbol.Icon;
+  const Icon = getSymbolIcon(symbol.iconKey);
   const data = symbol.qr;
 
   return (

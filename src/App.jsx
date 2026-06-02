@@ -1,16 +1,35 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { Suspense, lazy, useMemo, useRef, useState, useEffect } from 'react';
 import Header from './components/Header';
 import MapArea, { DEFAULT_MAP_PINS } from './components/MapArea';
 import SymbolCards from './components/SymbolCards';
-import Popup from './components/Popup';
-import ParticipatePage from './components/ParticipatePage';
-import AdminPanel from './components/AdminPanel';
 import { symbolData } from './data/symbolData';
 
-// Firebase imports
-import { auth, db, signInAnonymously, doc, getDoc, setDoc } from './firebase';
-import { collection, onSnapshot, query, where, serverTimestamp } from 'firebase/firestore';
 import { Sparkles, Shield } from 'lucide-react';
+
+const Popup = lazy(() => import('./components/Popup'));
+const ParticipatePage = lazy(() => import('./components/ParticipatePage'));
+const AdminPanel = lazy(() => import('./components/AdminPanel'));
+
+let firebaseApiPromise;
+
+const loadFirebaseApi = () => {
+  if (!firebaseApiPromise) {
+    firebaseApiPromise = Promise.all([
+      import('./firebase'),
+      import('firebase/firestore'),
+    ]).then(([firebase, firestore]) => ({
+      ...firebase,
+      collection: firestore.collection,
+      limit: firestore.limit,
+      onSnapshot: firestore.onSnapshot,
+      query: firestore.query,
+      serverTimestamp: firestore.serverTimestamp,
+      where: firestore.where,
+    }));
+  }
+
+  return firebaseApiPromise;
+};
 
 const INITIAL_SYMBOLS = Object.keys(symbolData).reduce((acc, id) => {
   acc[id] = false;
@@ -30,6 +49,8 @@ const ADMIN_UNLOCK_CATEGORIES = {
 
 const BASIC_UNLOCK_SYMBOLS = ['heart_kymin', 'divide_kyeomjun', 'cross'];
 const FIREBASE_SYNC_TIMEOUT_MS = 4500;
+const FIREBASE_BOOT_DELAY_MS = 900;
+const FIREBASE_LOADING_FAILSAFE_MS = 7000;
 
 const QR_SYMBOL_ALIASES = {
   heart: 'heart_kymin',
@@ -124,6 +145,26 @@ const withTimeout = (promise, timeoutMs, label) => (
   ])
 );
 
+const saveUserSymbols = async (userId, symbols) => {
+  const { db, doc, serverTimestamp, setDoc } = await loadFirebaseApi();
+  await setDoc(doc(db, 'users', userId), {
+    symbols,
+    updatedAt: serverTimestamp(),
+  }, { merge: true });
+};
+
+const scheduleAfterInitialPaint = callback => {
+  const run = () => window.setTimeout(callback, FIREBASE_BOOT_DELAY_MS);
+
+  if ('requestIdleCallback' in window) {
+    const idleId = window.requestIdleCallback(run, { timeout: 1800 });
+    return () => window.cancelIdleCallback(idleId);
+  }
+
+  const timerId = window.setTimeout(run, FIREBASE_BOOT_DELAY_MS);
+  return () => window.clearTimeout(timerId);
+};
+
 export default function App() {
   const [page, setPage] = useState(() => {
     const path = window.location.pathname;
@@ -178,71 +219,109 @@ export default function App() {
                           (isCrossDiscovered ? 1 : 0) +
                           (isQuestionDiscovered ? 1 : 0);
 
-  const featuredFeedbacks = [...publishedFeedbacks, ...publicComments]
-    .sort((a, b) => getTimestamp(b.createdAt) - getTimestamp(a.createdAt))
-    .slice(0, 30);
+  const featuredFeedbacks = useMemo(
+    () => [...publishedFeedbacks, ...publicComments]
+      .sort((a, b) => getTimestamp(b.createdAt) - getTimestamp(a.createdAt))
+      .slice(0, 30),
+    [publishedFeedbacks, publicComments],
+  );
 
   useEffect(() => {
-    const publishedFeedbackQuery = query(
-      collection(db, 'tour_feedbacks'),
-      where('isPublished', '==', true),
-    );
+    if (page !== 'home') return undefined;
 
-    return onSnapshot(
-      publishedFeedbackQuery,
-      snapshot => {
-        const nextFeedbacks = snapshot.docs
-          .map(feedbackDoc => ({
-            id: `feedback-${feedbackDoc.id}`,
-            source: 'feedback',
-            sourceLabel: '투어 소감',
-            ...feedbackDoc.data(),
-          }))
-          .sort((a, b) => getTimestamp(b.createdAt) - getTimestamp(a.createdAt));
-        setPublishedFeedbacks(nextFeedbacks);
-      },
-      error => {
-        console.error('공개 소감 로드 실패:', error);
-        setPublishedFeedbacks([]);
-      },
-    );
-  }, []);
+    let unsubscribe;
+    let isCancelled = false;
 
-  useEffect(() => (
-    onSnapshot(
-      query(
-        collection(db, 'comments'),
+    const cancelSchedule = scheduleAfterInitialPaint(() => {
+      loadFirebaseApi().then(({ collection, db, limit, onSnapshot, query, where }) => {
+      if (isCancelled) return;
+
+      const publishedFeedbackQuery = query(
+        collection(db, 'tour_feedbacks'),
         where('isPublished', '==', true),
-      ),
-      snapshot => {
-        const nextComments = snapshot.docs
-          .map(commentDoc => {
-            const comment = commentDoc.data();
-            const content = String(comment.content || '').trim();
+        limit(30),
+      );
 
-            if (!content) return null;
+      unsubscribe = onSnapshot(
+        publishedFeedbackQuery,
+        snapshot => {
+          const nextFeedbacks = snapshot.docs
+            .map(feedbackDoc => ({
+              id: `feedback-${feedbackDoc.id}`,
+              source: 'feedback',
+              sourceLabel: '투어 소감',
+              ...feedbackDoc.data(),
+            }))
+            .sort((a, b) => getTimestamp(b.createdAt) - getTimestamp(a.createdAt));
+          setPublishedFeedbacks(nextFeedbacks);
+        },
+        error => {
+          console.error('공개 소감 로드 실패:', error);
+          setPublishedFeedbacks([]);
+        },
+      );
+      });
+    });
 
-            return {
-              id: `comment-${commentDoc.id}`,
-              name: comment.name,
-              feedback: content,
-              createdAt: comment.createdAt,
-              source: 'comment',
-              sourceLabel: '작품 댓글',
-              symbolId: comment.artistId,
-            };
-          })
-          .filter(Boolean)
-          .sort((a, b) => getTimestamp(b.createdAt) - getTimestamp(a.createdAt));
-        setPublicComments(nextComments);
-      },
-      error => {
-        console.error('작품 댓글 로드 실패:', error);
-        setPublicComments([]);
-      },
-    )
-  ), []);
+    return () => {
+      isCancelled = true;
+      cancelSchedule();
+      unsubscribe?.();
+    };
+  }, [page]);
 
+  useEffect(() => {
+    if (page !== 'home') return undefined;
+
+    let unsubscribe;
+    let isCancelled = false;
+
+    const cancelSchedule = scheduleAfterInitialPaint(() => {
+      loadFirebaseApi().then(({ collection, db, limit, onSnapshot, query, where }) => {
+      if (isCancelled) return;
+
+      unsubscribe = onSnapshot(
+        query(
+          collection(db, 'comments'),
+          where('isPublished', '==', true),
+          limit(30),
+        ),
+        snapshot => {
+          const nextComments = snapshot.docs
+            .map(commentDoc => {
+              const comment = commentDoc.data();
+              const content = String(comment.content || '').trim();
+
+              if (!content) return null;
+
+              return {
+                id: `comment-${commentDoc.id}`,
+                name: comment.name,
+                feedback: content,
+                createdAt: comment.createdAt,
+                source: 'comment',
+                sourceLabel: '작품 댓글',
+                symbolId: comment.artistId,
+              };
+            })
+            .filter(Boolean)
+            .sort((a, b) => getTimestamp(b.createdAt) - getTimestamp(a.createdAt));
+          setPublicComments(nextComments);
+        },
+        error => {
+          console.error('작품 댓글 로드 실패:', error);
+          setPublicComments([]);
+        },
+      );
+      });
+    });
+
+    return () => {
+      isCancelled = true;
+      cancelSchedule();
+      unsubscribe?.();
+    };
+  }, [page]);
   // 1. URL 쿼리 파라미터를 통한 즉시 해금 및 리셋 처리
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -357,10 +436,7 @@ export default function App() {
           const next = { ...prev, question: true };
           localStorage.setItem('symbols', JSON.stringify(next));
           if (userId) {
-            setDoc(doc(db, 'users', userId), {
-              symbols: next,
-              updatedAt: serverTimestamp(),
-            }, { merge: true }).catch(err => {
+            saveUserSymbols(userId, next).catch(err => {
               console.error('question QR 완료 데이터 백업 중 에러 발생:', err);
             });
           }
@@ -379,10 +455,7 @@ export default function App() {
           const next = { ...prev, [symbol]: true };
           localStorage.setItem('symbols', JSON.stringify(next));
           if (userId) {
-            setDoc(doc(db, 'users', userId), {
-              symbols: next,
-              updatedAt: serverTimestamp(),
-            }, { merge: true }).catch(err => {
+            saveUserSymbols(userId, next).catch(err => {
               console.error('QR 해금 데이터 즉시 백업 중 에러 발생:', err);
             });
           }
@@ -406,6 +479,11 @@ export default function App() {
 
     async function initFirebaseSession() {
       try {
+        const { auth, db, doc, getDoc, serverTimestamp, setDoc, signInAnonymously } = await withTimeout(
+          loadFirebaseApi(),
+          FIREBASE_SYNC_TIMEOUT_MS,
+          'Firebase module load',
+        );
         // 백그라운드 익명 로그인 처리
         const userCredential = await withTimeout(
           signInAnonymously(auth),
@@ -518,9 +596,20 @@ export default function App() {
       }
     }
 
-    initFirebaseSession();
-
+    const cancelSchedule = scheduleAfterInitialPaint(initFirebaseSession);
+    return cancelSchedule;
   }, []);
+
+  useEffect(() => {
+    if (!isLoading) return undefined;
+
+    const failSafeTimerId = window.setTimeout(() => {
+      console.warn('Firebase sync took too long; opening with local data.');
+      setIsLoading(false);
+    }, FIREBASE_LOADING_FAILSAFE_MS);
+
+    return () => window.clearTimeout(failSafeTimerId);
+  }, [isLoading]);
 
   // 3. 심볼 상태가 변경될 때마다 로컬 스토리지 및 Firestore에 상시 실시간 백업
   useEffect(() => {
@@ -533,11 +622,7 @@ export default function App() {
 
     if (userId && !isLoading && lastSyncedSymbolsSignature.current !== symbolsSignature) {
       lastSyncedSymbolsSignature.current = symbolsSignature;
-      const userDocRef = doc(db, 'users', userId);
-      setDoc(userDocRef, {
-        symbols,
-        updatedAt: serverTimestamp(),
-      }, { merge: true }).catch(err => {
+      saveUserSymbols(userId, symbols).catch(err => {
         console.error('Firestore 백업 중 에러 발생:', err);
       });
     }
@@ -548,6 +633,7 @@ export default function App() {
       !isQuestionUnlocked ||
       isQuestionDiscovered ||
       isLoading ||
+      page !== 'home' ||
       activePopup ||
       hasAutoOpenedQuestionGuide.current
     ) {
@@ -565,7 +651,7 @@ export default function App() {
     }, 650);
 
     return () => window.clearTimeout(timerId);
-  }, [isQuestionUnlocked, isQuestionDiscovered, isLoading, activePopup]);
+  }, [isQuestionUnlocked, isQuestionDiscovered, isLoading, page, activePopup]);
 
   const handleMapSymbolClick = id => {
     if (id === 'question') {
@@ -687,11 +773,19 @@ export default function App() {
   ), []);
 
   if (page === 'participate') {
-    return <ParticipatePage onBack={openHomePage} />;
+    return (
+      <Suspense fallback={<div className="flex h-full items-center justify-center text-slate-500">불러오는 중...</div>}>
+        <ParticipatePage onBack={openHomePage} />
+      </Suspense>
+    );
   }
 
   if (page === 'admin-panel') {
-    return <AdminPanel onBack={openHomePage} />;
+    return (
+      <Suspense fallback={<div className="flex h-full items-center justify-center bg-slate-950 text-slate-300">관리자 페이지를 불러오는 중...</div>}>
+        <AdminPanel onBack={openHomePage} />
+      </Suspense>
+    );
   }
 
   return (
@@ -724,7 +818,17 @@ export default function App() {
       <div className="relative z-10 flex-1 overflow-y-auto scroll-container pb-10">
         <Header discoveredCount={discoveredCount} announcement={announcement} />
 
-        <div ref={mapSectionRef} className="px-6 pb-6">
+        <section ref={mapSectionRef} className="px-6 pb-6" aria-labelledby="tour-map-title">
+          <div className="mb-3 flex items-end justify-between gap-3">
+            <div>
+              <h2 id="tour-map-title" className="font-['Cafe24_Ssurround'] text-[20px] font-bold text-slate-950">
+                작품 지도
+              </h2>
+              <p className="mt-1 text-[13px] leading-5 text-slate-600">
+                심볼을 따라 오늘의 작품을 찾아보세요.
+              </p>
+            </div>
+          </div>
           <MapArea 
             symbols={symbols} 
             onSymbolClick={handleMapSymbolClick} 
@@ -732,7 +836,7 @@ export default function App() {
             pins={pins}
             highlightedPinId={highlightedPinId}
           />
-        </div>
+        </section>
 
         <div className="px-6 pt-5">
           <div className="flex justify-center mb-5">
@@ -751,13 +855,15 @@ export default function App() {
       </div>
 
       {activePopup && (
-        <Popup
-          id={activePopup.id}
-          type={activePopup.type}
-          symbols={symbols}
-          discovered={symbols[activePopup.id]}
-          onClose={closePopup}
-        />
+        <Suspense fallback={null}>
+          <Popup
+            id={activePopup.id}
+            type={activePopup.type}
+            symbols={symbols}
+            discovered={symbols[activePopup.id]}
+            onClose={closePopup}
+          />
+        </Suspense>
       )}
 
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 h-10 bg-gradient-to-t from-white/95 to-transparent" />

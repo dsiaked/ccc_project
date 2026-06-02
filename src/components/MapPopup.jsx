@@ -1,13 +1,14 @@
 import React from 'react';
 import { X, Lock, MapPin, CheckCircle, Sparkles } from 'lucide-react';
 import { symbolData } from '../data/symbolData';
+import { getSymbolIcon } from '../data/symbolIcons';
 
 export default function MapPopup({ id, discovered, onClose }) {
   const symbol = symbolData[id];
 
   if (!symbol) return null;
 
-  const Icon = symbol.Icon;
+  const Icon = getSymbolIcon(symbol.iconKey);
   const mapStateData = discovered
     ? symbol.map.discovered
     : symbol.map.undiscovered;

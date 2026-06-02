@@ -1,160 +1,28 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { X, ArrowRight, ArrowLeft, Heart, Check, MessageSquare, Pencil, Trash2 } from 'lucide-react';
-import { collection, addDoc, query, where, onSnapshot, serverTimestamp, doc, updateDoc, deleteDoc } from 'firebase/firestore';
-import { db } from '../firebase';
-
-const getCommentClientId = () => {
-  const existingId = localStorage.getItem('comment_client_id');
-  if (existingId) return existingId;
-
-  const newId = crypto.randomUUID();
-  localStorage.setItem('comment_client_id', newId);
-  return newId;
-};
+import useArtworkComments from '../hooks/useArtworkComments';
 
 export default function HeartEunhyePopup({ onClose }) {
   const [step, setStep] = useState(1);
   const [showCommentModal, setShowCommentModal] = useState(false);
-  const [comments, setComments] = useState([]);
-  const [loadingComments, setLoadingComments] = useState(true);
-  const [newName, setNewName] = useState(() => {
-    return localStorage.getItem('comment_author_name') || '';
-  });
-  const [clientId] = useState(getCommentClientId);
-  const [newContent, setNewContent] = useState('');
-  const [editingCommentId, setEditingCommentId] = useState(null);
-  const [editContent, setEditContent] = useState('');
-
-  // 실시간 댓글 목록 Firestore 구독
-  useEffect(() => {
-    setLoadingComments(true);
-
-    // 1.5초 무한 로딩 방지 타임아웃 설정
-    const timeoutId = setTimeout(() => {
-      setLoadingComments(false);
-    }, 1500);
-
-    const q = query(
-      collection(db, 'comments'),
-      where('artistId', '==', 'heart_eunhye')
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      clearTimeout(timeoutId);
-      const list = [];
-      snapshot.forEach((doc) => {
-        list.push({ id: doc.id, ...doc.data() });
-      });
-
-      // 클라이언트 단에서 안전하게 최신순 정렬
-      list.sort((a, b) => {
-        const timeA = a.createdAt?.seconds || (a.createdAt instanceof Date ? a.createdAt.getTime() / 1000 : 0);
-        const timeB = b.createdAt?.seconds || (b.createdAt instanceof Date ? b.createdAt.getTime() / 1000 : 0);
-        return timeB - timeA;
-      });
-
-      setComments(list);
-      setLoadingComments(false);
-    }, (error) => {
-      clearTimeout(timeoutId);
-      console.error("댓글 로드 실패 (안전 대응으로 빈 목록 대체):", error);
-      setComments([]);
-      setLoadingComments(false);
-    });
-
-    return () => {
-      clearTimeout(timeoutId);
-      unsubscribe();
-    };
-  }, []);
-
-  // 댓글 작성 기능
-  const handleAddComment = async (e) => {
-    e.preventDefault();
-    if (!newName.trim() || !newContent.trim()) return;
-
-    try {
-      await addDoc(collection(db, 'comments'), {
-        artistId: 'heart_eunhye',
-        name: newName.trim(),
-        content: newContent.trim(),
-        clientId,
-        isPublished: false,
-        createdAt: serverTimestamp()
-      });
-      setNewContent('');
-      localStorage.setItem('comment_author_name', newName.trim());
-    } catch (error) {
-      console.error("댓글 등록 실패:", error);
-    }
-  };
-  const startEditComment = (comment) => {
-    if (!isOwnComment(comment)) return;
-
-    setEditingCommentId(comment.id);
-    setEditContent(comment.content || '');
-  };
-
-  const cancelEditComment = () => {
-    setEditingCommentId(null);
-    setEditContent('');
-  };
-
-  const handleUpdateComment = async (commentId) => {
-    const comment = comments.find((item) => item.id === commentId);
-    if (!comment || !isOwnComment(comment)) return;
-    if (!editContent.trim()) return;
-
-    try {
-      await updateDoc(doc(db, 'comments', commentId), {
-        content: editContent.trim(),
-        updatedAt: serverTimestamp()
-      });
-      cancelEditComment();
-    } catch (error) {
-      console.error("댓글 수정 실패:", error);
-    }
-  };
-
-  const handleDeleteComment = async (commentId) => {
-    const comment = comments.find((item) => item.id === commentId);
-    if (!comment || !isOwnComment(comment)) return;
-    if (!window.confirm('이 감상평을 삭제할까요?')) return;
-
-    try {
-      await deleteDoc(doc(db, 'comments', commentId));
-      if (editingCommentId === commentId) {
-        cancelEditComment();
-      }
-    } catch (error) {
-      console.error("댓글 삭제 실패:", error);
-    }
-  };
-
-  const isOwnComment = (comment) => {
-    if (comment.clientId) {
-      return comment.clientId === clientId;
-    }
-
-    return comment.name?.trim() === newName.trim() && newName.trim().length > 0;
-  };
-
-  // 댓글 작성 시간 포맷팅
-  const formatCommentDate = (createdAt) => {
-    if (!createdAt) return '방금 전';
-    const date = createdAt.toDate ? createdAt.toDate() : new Date(createdAt);
-    const now = new Date();
-    const diffMs = now - date;
-    const diffMins = Math.floor(diffMs / 60000);
-
-    if (diffMins < 1) return '방금 전';
-    if (diffMins < 60) return `${diffMins}분 전`;
-
-    const diffHours = Math.floor(diffMins / 60);
-    if (diffHours < 24) return `${diffHours}시간 전`;
-
-    return date.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
-  };
+  const {
+    comments,
+    loadingComments,
+    newName,
+    setNewName,
+    newContent,
+    setNewContent,
+    editingCommentId,
+    editContent,
+    setEditContent,
+    handleAddComment,
+    startEditComment,
+    cancelEditComment,
+    handleUpdateComment,
+    handleDeleteComment,
+    isOwnComment,
+    formatCommentDate,
+  } = useArtworkComments('heart_eunhye');
 
   // 몽환적인 흩날리는 핑크색 하트 입자 데이터 정의
   const floatingHearts = [

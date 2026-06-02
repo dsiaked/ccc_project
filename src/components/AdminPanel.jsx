@@ -37,7 +37,6 @@ const adminLinks = [
 
 const recordTabs = [
   { id: 'visitors', label: '발견 기록', icon: Users },
-  { id: 'appOnly', label: '접속만', icon: BarChart3 },
   { id: 'artworks', label: '작품별', icon: MapPinned },
   { id: 'comments', label: '댓글', icon: MessageSquareText },
   { id: 'feedbacks', label: '소감', icon: Megaphone },
@@ -266,11 +265,6 @@ export default function AdminPanel({ onBack }) {
     }).filter(item => item.visitors > 0);
   }, [visitorRecords]);
 
-  const appOnlyVisitorRecords = useMemo(
-    () => visitors.filter(visitor => visitor.viewedSymbols.length === 0),
-    [visitors],
-  );
-
   const completedVisitors = useMemo(
     () => visitors.filter(visitor => {
       const symbols = visitor.symbols || {};
@@ -289,7 +283,6 @@ export default function AdminPanel({ onBack }) {
 
   const stats = [
     { label: '발견 방문', value: visitorRecords.length, desc: 'QR을 1개 이상 발견', chart: discoveryCountDistribution },
-    { label: '접속만', value: appOnlyVisitorRecords.length, desc: '아직 QR 발견 없음' },
     { label: '3분류 완료', value: completedVisitors, desc: '하트, 나누기, 십자가' },
     {
       label: '소감',
@@ -313,7 +306,7 @@ export default function AdminPanel({ onBack }) {
 
   const tabCounts = {
     visitors: visitorRecords.length,
-    appOnly: appOnlyVisitorRecords.length,
+    artworks: symbolOrder.length,
     comments: `${publishedCommentCount}/${comments.length}`,
     feedbacks: feedbacks.length,
   };
@@ -330,15 +323,6 @@ export default function AdminPanel({ onBack }) {
       return normalizeSearchText(target).includes(query);
     });
   }, [searchQuery, visitorRecords]);
-
-  const filteredAppOnlyVisitors = useMemo(() => {
-    const query = normalizeSearchText(searchQuery);
-    if (!query) return appOnlyVisitorRecords;
-    return appOnlyVisitorRecords.filter(visitor => {
-      const target = [visitor.id, formatDate(visitor.updatedAt)].join(' ');
-      return normalizeSearchText(target).includes(query);
-    });
-  }, [appOnlyVisitorRecords, searchQuery]);
 
   const filteredComments = useMemo(() => {
     const query = normalizeSearchText(searchQuery);
@@ -531,7 +515,7 @@ export default function AdminPanel({ onBack }) {
 
       <main className="mx-auto grid w-full max-w-7xl gap-5 px-4 py-5">
         <div className="grid content-start gap-5">
-          <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {stats.map(item => (
               <div key={item.label} className="rounded-lg border border-slate-800 bg-slate-900/70 p-4">
                 <div className="flex items-start justify-between gap-3">
@@ -605,7 +589,7 @@ export default function AdminPanel({ onBack }) {
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 className="text-lg font-bold text-white">기록 관리</h2>
-                <p className="mt-1 text-sm text-slate-400">검색 후 탭을 전환해 방문, 댓글, 소감을 빠르게 확인합니다.</p>
+                <p className="mt-1 text-sm text-slate-400">검색어를 입력해 방문, 댓글, 소감을 빠르게 확인합니다.</p>
               </div>
               <div className="relative w-full sm:w-80">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
@@ -618,7 +602,7 @@ export default function AdminPanel({ onBack }) {
               </div>
             </div>
 
-            <div className="mb-4 grid grid-cols-2 gap-1 rounded-lg border border-slate-800 bg-slate-950/70 p-1 md:grid-cols-5">
+            <div className="mb-4 grid grid-cols-2 gap-1 rounded-lg border border-slate-800 bg-slate-950/70 p-1 md:grid-cols-4">
               {recordTabs.map(tab => {
                 const Icon = tab.icon;
                 const isActive = activeTab === tab.id;
@@ -652,15 +636,6 @@ export default function AdminPanel({ onBack }) {
                 isLoading={isLoadingVisitors}
                 visitors={filteredVisitors}
                 emptyTitle="표시할 발견 기록이 없습니다."
-              />
-            )}
-
-            {activeTab === 'appOnly' && (
-              <VisitorList
-                isLoading={isLoadingVisitors}
-                visitors={filteredAppOnlyVisitors}
-                emptyTitle="접속만 한 방문자가 없습니다."
-                appOnly
               />
             )}
 
@@ -909,7 +884,7 @@ export default function AdminPanel({ onBack }) {
   );
 }
 
-function VisitorList({ isLoading, visitors, emptyTitle, appOnly = false }) {
+function VisitorList({ isLoading, visitors, emptyTitle }) {
   if (isLoading) {
     return <EmptyState icon={RefreshCw} title="방문 기록을 불러오는 중입니다." spinning />;
   }
@@ -928,21 +903,17 @@ function VisitorList({ isLoading, visitors, emptyTitle, appOnly = false }) {
               <p className="mt-1 text-xs text-slate-500">최근 갱신 {formatDate(visitor.updatedAt)}</p>
             </div>
             <span className="rounded-full bg-cyan-500/10 px-2.5 py-1 text-xs text-cyan-200">
-              {appOnly ? '접속만 있음' : `${visitor.viewedSymbols.length}개 발견`}
+              {visitor.viewedSymbols.length}개 발견
             </span>
           </div>
 
-          {appOnly ? (
-            <p className="mt-3 text-sm text-slate-500">아직 발견한 작품이 없습니다.</p>
-          ) : (
-            <div className="mt-3 flex flex-wrap gap-2">
-              {visitor.viewedSymbols.map(symbol => (
-                <span key={symbol.id} className="rounded-full border border-slate-700 bg-slate-900 px-2.5 py-1 text-xs text-slate-300">
-                  {symbol.label}
-                </span>
-              ))}
-            </div>
-          )}
+          <div className="mt-3 flex flex-wrap gap-2">
+            {visitor.viewedSymbols.map(symbol => (
+              <span key={symbol.id} className="rounded-full border border-slate-700 bg-slate-900 px-2.5 py-1 text-xs text-slate-300">
+                {symbol.label}
+              </span>
+            ))}
+          </div>
         </article>
       ))}
     </div>

@@ -146,6 +146,9 @@ export default function SymbolCards({ symbols, onCardClick, isQuestionUnlocked, 
                     <p className="mt-1 text-[13px] font-bold leading-snug text-slate-600">
                       세 가지 심볼을 모두 모으면 상품 부스 안내가 열려요.
                     </p>
+                    <span className="mt-3 inline-flex rounded-full bg-slate-900 px-3 py-1 text-[12px] font-bold text-white">
+                      심볼 3개를 먼저 찾아주세요
+                    </span>
                   </div>
                 </div>
               </button>
@@ -178,6 +181,9 @@ export default function SymbolCards({ symbols, onCardClick, isQuestionUnlocked, 
                     <p className="mt-1 text-[13px] font-bold leading-snug text-slate-700">
                       세 가지 심볼을 모두 모았어요. 상품 부스를 찾아가세요.
                     </p>
+                    <span className="mt-3 inline-flex rounded-full bg-sky-600 px-3 py-1 text-[12px] font-bold text-white shadow-sm">
+                      위치 확인하기
+                    </span>
                   </div>
                 </div>
               </button>
