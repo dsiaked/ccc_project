@@ -329,22 +329,20 @@ export function calculateOptimalBusAllocation(
 
     destinations.forEach((destination) => {
       const destinationPlans = buildDestinationPlans(destination);
-      const choices: Array<DestinationPlan | null> = [null, ...destinationPlans];
+      const choices: DestinationPlan[] = destinationPlans;
       const nextBeam: CombinedPlan[] = [];
 
       beam.forEach((combinedPlan) => {
         choices.forEach((plan) => {
           nextBeam.push({
-            plans: plan
-              ? [...combinedPlan.plans, plan]
-              : [...combinedPlan.plans],
-            totalCost: combinedPlan.totalCost + (plan?.totalCost ?? 0),
+            plans: [...combinedPlan.plans, plan],
+            totalCost: combinedPlan.totalCost + plan.totalCost,
             totalCapacity:
-              combinedPlan.totalCapacity + (plan?.totalCapacity ?? 0),
+              combinedPlan.totalCapacity + plan.totalCapacity,
             totalUtility:
-              combinedPlan.totalUtility + (plan?.totalUtility ?? 0),
+              combinedPlan.totalUtility + plan.totalUtility,
             passengerCount:
-              combinedPlan.passengerCount + (plan?.passengerCount ?? 0),
+              combinedPlan.passengerCount + plan.passengerCount,
           });
         });
       });
@@ -429,12 +427,7 @@ export function calculateOptimalBusAllocation(
           unservedPeople: totalPeople - passengerCount,
           routePlan,
         };
-      })
-      .filter((result) =>
-        result.routePlan.every(
-          (route) => route.passengerCount >= minimumPassengersPerBus
-        )
-      );
+      });
 
     const uniqueResults = new Map<string, BusAllocationResult>();
 
@@ -540,14 +533,6 @@ export function calculateOptimalBusAllocation(
       initialRoutePlan,
       minimumPassengersPerBus
     );
-
-    if (
-      routePlan.some(
-        (route) => route.passengerCount < minimumPassengersPerBus
-      )
-    ) {
-      return null;
-    }
 
     const totalCapacity = routePlan.reduce(
       (sum, route) => sum + route.capacity,

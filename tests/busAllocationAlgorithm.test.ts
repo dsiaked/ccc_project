@@ -15,7 +15,7 @@ describe('calculateOptimalBusAllocation', () => {
     assert.deepEqual(results, []);
   });
 
-  it('selects a standard allocation that meets the minimum passenger rule', () => {
+  it('selects the lowest-cost standard allocation with enough capacity', () => {
     const results = calculateOptimalBusAllocation(
       {
         Seoul: { rank1: 40, rank2: 0, total: 40 },
@@ -26,8 +26,8 @@ describe('calculateOptimalBusAllocation', () => {
       ]
     );
 
-    assert.equal(results[0]?.totalCapacity, 45);
-    assert.equal(results[0]?.totalCost, 900000);
+    assert.equal(results[0]?.totalCapacity, 40);
+    assert.equal(results[0]?.totalCost, 800000);
     assert.equal(
       results[0]?.routePlan.reduce(
         (sum, route) => sum + route.passengerCount,
@@ -37,7 +37,7 @@ describe('calculateOptimalBusAllocation', () => {
     );
   });
 
-  it('does not combine passengers going to different destinations', () => {
+  it('keeps different destinations on separate buses', () => {
     const results = calculateOptimalBusAllocation(
       {
         Seoul: { rank1: 20, rank2: 0, total: 20 },
@@ -46,10 +46,16 @@ describe('calculateOptimalBusAllocation', () => {
       [{ id: 'large', capacity: 45, estimated_price: 900000 }]
     );
 
-    assert.deepEqual(results, []);
+    assert.equal(results[0]?.totalBuses, 2);
+    assert.deepEqual(
+      results[0]?.routePlan
+        .map((route) => route.destinations[0]?.name)
+        .sort(),
+      ['Busan', 'Seoul']
+    );
   });
 
-  it('does not recommend a bus that remains at 35 or fewer passengers', () => {
+  it('keeps a low-occupancy recommendation for administrator override', () => {
     const results = calculateOptimalBusAllocation(
       {
         Seoul: { rank1: 35, rank2: 0, total: 35 },
@@ -57,10 +63,10 @@ describe('calculateOptimalBusAllocation', () => {
       [{ id: 'large', capacity: 45, estimated_price: 900000 }]
     );
 
-    assert.deepEqual(results, []);
+    assert.equal(results[0]?.routePlan[0]?.passengerCount, 35);
   });
 
-  it('can leave low-utility demand unserved in preference-utility mode', () => {
+  it('keeps all demand served in preference-utility mode', () => {
     const results = calculateOptimalBusAllocation(
       {
         Seoul: { rank1: 10, rank2: 0, total: 10 },
@@ -75,8 +81,13 @@ describe('calculateOptimalBusAllocation', () => {
       }
     );
 
-    assert.equal(results[0]?.unservedPeople, 1);
-    assert.equal(results[0]?.routePlan[0]?.destinations[0]?.name, 'Seoul');
+    assert.equal(results[0]?.unservedPeople, 0);
+    assert.deepEqual(
+      results[0]?.routePlan
+        .map((route) => route.destinations[0]?.name)
+        .sort(),
+      ['Busan', 'Seoul']
+    );
   });
 
   it('does not exceed the registered maximum bus count', () => {

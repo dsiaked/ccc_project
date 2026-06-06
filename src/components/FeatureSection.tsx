@@ -82,7 +82,12 @@ const FeatureSection = () => {
   return (
     <section className={styles.section}>
       <div className={styles.container}>
-        <button className={styles.card} type="button" onClick={handleClick}>
+        <button
+          className={styles.card}
+          type="button"
+          onClick={handleClick}
+          aria-label={`${statusLabel} 귀가 버스표 확인`}
+        >
           <div className={styles.topArea}>
             <div className={styles.iconContainer}>
               <Ticket size={30} color="#ffffff" />
@@ -150,24 +155,28 @@ const FeatureSection = () => {
                 <div className={styles.confirmedTicketPreview}>
                   <div className={styles.confirmedBox}>
                     <span>확정 탑승 정보</span>
-                    <strong>{confirmedTicket.busNumber}</strong>
+                    <strong>
+                      {[confirmedTicket.dropoffStation, confirmedTicket.busNumber]
+                        .filter(Boolean)
+                        .join(' ')}
+                    </strong>
                   </div>
 
                   <dl className={styles.confirmedSummaryList}>
                     <div>
-                      <dt>좌석</dt>
+                      <dt>좌석번호</dt>
                       <dd>{confirmedTicket.seatNumber || '현장 안내'}</dd>
                     </div>
                     <div>
-                      <dt>출발</dt>
+                      <dt>출발시간</dt>
                       <dd>{confirmedTicket.departureTime}</dd>
                     </div>
                     <div>
-                      <dt>탑승</dt>
+                      <dt>탑승장소</dt>
                       <dd>{confirmedTicket.boardingPlace}</dd>
                     </div>
                     <div>
-                      <dt>하차</dt>
+                      <dt>하차 도착역</dt>
                       <dd>{confirmedTicket.dropoffStation}</dd>
                     </div>
                   </dl>
@@ -198,7 +207,9 @@ const FeatureSection = () => {
                   ? '버스표 보러가기'
                   : '귀가 버스 신청하기'}
             </span>
-            <ArrowRight size={18} />
+            <span className={styles.bottomIcon} aria-hidden="true">
+              <ArrowRight size={17} />
+            </span>
           </div>
         </button>
       </div>

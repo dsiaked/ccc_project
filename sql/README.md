@@ -56,6 +56,11 @@ are intentionally patching an older DB.
    - PostgREST 최대 반환 행 수 때문에 배차 통계가 누락되는 문제 방지
    - 전체 관리자만 집계 RPC 실행 가능
 
+5c. `55_atomic_allocation_confirmation.sql`
+   - 임시 배차안 확정과 확정 취소를 단일 DB 트랜잭션 RPC로 처리
+   - 활성 승객 명단과 버스·좌석 배정을 DB에서 다시 검증
+   - 확정 중 일부 승객만 반영되는 부분 성공 상태 방지
+
 6. `30_campus_transfer_settlement.sql`
    - 캠퍼스별 본부 송금 보고/확인
    - 실제 본부 확인 금액, 추가 정산 감지, 송금 상태 체크 제약
@@ -114,6 +119,10 @@ are intentionally patching an older DB.
 
 - `53_bus_option_max_count.sql`
   - 기존 DB의 버스 옵션에 종류별 사용 가능 최대 대수 컬럼 추가
+
+- `54_fix_destination_stats_all_active_reservations.sql`
+  - 배차 수요 집계에서 확정 상태 승객이 누락되는 문제 보정
+  - 취소되지 않은 모든 예매 승객을 결제 여부와 관계없이 배차 수요에 포함
 
 ## 관리 원칙
 

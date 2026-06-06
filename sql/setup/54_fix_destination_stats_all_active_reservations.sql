@@ -1,10 +1,6 @@
--- =========================================================
--- Destination demand aggregation
--- Run after 21_atomic_reservation_save.sql.
---
--- Aggregates all non-cancelled reservations inside Postgres so allocation demand
--- is not truncated by PostgREST's maximum response row limit.
--- =========================================================
+-- Include every non-cancelled reservation in allocation demand.
+-- Run this patch on existing databases where confirmed reservations are
+-- missing from the allocation calculation.
 
 drop function if exists public.get_destination_stats();
 
