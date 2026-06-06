@@ -44,6 +44,82 @@
   margin: 0;
 }
 
+.noticeAlert {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  margin: -12px 0 24px;
+  padding: 16px 18px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #f8fbff;
+}
+
+.noticeAlertIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.noticeAlertContent {
+  min-width: 0;
+}
+
+.noticeAlertHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.noticeAlertHeader strong {
+  color: #0f172a;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.noticeAlertHeader span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.noticeAlertContent p {
+  margin: 0;
+  overflow: hidden;
+  color: #334155;
+  font-size: 14px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.noticeAlertButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid #2563eb;
+  border-radius: 8px;
+  background: #2563eb;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 900;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.noticeAlertButton:hover {
+  background: #1d4ed8;
+}
+
 .statsBar {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -142,11 +218,149 @@
   color: #1f2937;
 }
 
+.paymentRatioCard {
+  margin: -4px 0 24px;
+  padding: 18px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
+}
+
+.paymentRatioHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.paymentRatioHeader strong {
+  display: block;
+  margin-top: 4px;
+  color: #111827;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.paymentRatioLabel {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.paymentRatioPercent {
+  color: #166534;
+  font-size: 24px;
+  font-weight: 900;
+}
+
+.paymentRatioBar {
+  display: flex;
+  width: 100%;
+  height: 24px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #f59e0b;
+}
+
+.paymentRatioPaid {
+  height: 100%;
+  background: #10b981;
+}
+
+.paymentRatioUnpaid {
+  height: 100%;
+  background: #f59e0b;
+}
+
+.paymentRatioLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 18px;
+  margin-top: 12px;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.paymentRatioLegend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.paymentRatioLegend i {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+}
+
+.legendPaid {
+  background: #10b981;
+}
+
+.legendUnpaid {
+  background: #f59e0b;
+}
+
 .actionBar {
   display: flex;
   gap: 12px;
   margin-bottom: 24px;
   flex-wrap: wrap;
+}
+
+.listToolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.listTitle {
+  margin: 0 0 4px;
+  color: #111827;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.listMeta {
+  margin: 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.imageSaveButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 10px 14px;
+  border: 1px solid #2563eb;
+  border-radius: 6px;
+  background: #2563eb;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    opacity 0.2s ease;
+}
+
+.imageSaveButton:hover:not(:disabled) {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+}
+
+.imageSaveButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .verifyButton,
@@ -244,6 +458,25 @@
   color: #666666;
 }
 
+.preferenceStation {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.confirmedPreferenceBadge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #166534;
+  font-size: 12px;
+  font-weight: 900;
+}
+
 .amount {
   font-weight: 600;
   color: #1f2937;
@@ -278,26 +511,76 @@
 }
 
 .ticketConfirmed {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 150px;
+  min-width: 190px;
+  max-width: 240px;
+  padding: 10px 12px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #eff6ff;
 }
 
-.ticketConfirmed span {
-  width: fit-content;
-  padding: 5px 10px;
+.ticketTopLine {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.ticketTopLine strong {
+  color: #0f172a;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.ticketBadge,
+.seatBadge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 3px 8px;
   border-radius: 999px;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.ticketBadge {
   background: #dbeafe;
   color: #1d4ed8;
-  font-size: 12px;
-  font-weight: 800;
 }
 
-.ticketConfirmed small {
+.seatBadge {
+  background: #ffffff;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+}
+
+.ticketMetaList {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+}
+
+.ticketMetaList div {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 6px;
+}
+
+.ticketMetaList dt {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.ticketMetaList dd {
+  margin: 0;
   color: #475569;
   font-size: 12px;
-  line-height: 1.4;
+  font-weight: 700;
+  line-height: 1.35;
+  word-break: keep-all;
 }
 
 .ticketPending {
@@ -361,12 +644,44 @@ input[type='checkbox'] {
     grid-template-columns: repeat(2, 1fr);
   }
 
+  .paymentRatioHeader {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
   .guideSection {
     grid-template-columns: 1fr;
   }
 
+  .noticeAlert {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .noticeAlertIcon {
+    display: none;
+  }
+
+  .noticeAlertHeader {
+    display: grid;
+    gap: 4px;
+  }
+
+  .noticeAlertButton {
+    width: 100%;
+  }
+
   .actionBar {
     flex-direction: column;
+  }
+
+  .listToolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .imageSaveButton {
+    width: 100%;
   }
 
   .verifyButton,
@@ -476,6 +791,29 @@ input[type='checkbox'] {
   font-size: 14px;
   color: #64748b;
   line-height: 1.6;
+}
+
+.transferAccountBox {
+  display: grid;
+  gap: 6px;
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #eff6ff;
+}
+
+.transferAccountBox span {
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.transferAccountBox strong {
+  color: #0f172a;
+  font-size: 17px;
+  font-weight: 900;
+  overflow-wrap: anywhere;
 }
 
 .transferStatusPill {

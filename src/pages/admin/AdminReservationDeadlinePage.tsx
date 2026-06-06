@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { ArrowLeft, CalendarClock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
-import Header from '../../components/Header';
+import AdminHeader from './AdminHeader';
 import { getAdminRole } from '../../lib/adminService';
 import {
   formatReservationDeadline,
@@ -159,7 +159,7 @@ const AdminReservationDeadlinePage = () => {
   if (loading) {
     return (
       <div className={styles.pageContainer}>
-        <Header />
+        <AdminHeader />
         <main className={styles.main}>
           <p>로딩 중...</p>
         </main>
@@ -170,7 +170,7 @@ const AdminReservationDeadlinePage = () => {
   if (!isAdmin) {
     return (
       <div className={styles.pageContainer}>
-        <Header />
+        <AdminHeader />
         <main className={styles.main}>
           <p>관리자만 접근할 수 있습니다.</p>
         </main>
@@ -180,7 +180,7 @@ const AdminReservationDeadlinePage = () => {
 
   return (
     <div className={styles.pageContainer}>
-      <Header />
+      <AdminHeader />
 
       <main className={styles.main}>
         <button

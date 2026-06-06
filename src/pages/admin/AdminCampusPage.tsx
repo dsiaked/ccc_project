@@ -1,18 +1,25 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, CheckCircle2, MessageSquare } from 'lucide-react';
-import Header from '../../components/Header';
+import { AlertTriangle, CheckCircle2, Megaphone, MessageSquare } from 'lucide-react';
+import AdminHeader from './AdminHeader';
 import { supabase } from '../../lib/supabase';
 import {
   getAdminRole,
   getBusTicketPrice,
   getCampusTransferByScope,
   getCampusTransferStats,
+  getGlobalCampusNotices,
   getReservationsWithPaymentByTeamCampus,
   createOrUpdatePaymentStatus,
   markCampusTransferSent,
+  type CampusRequest,
   type CampusTransferStat,
 } from '../../lib/adminService';
+import {
+  getUnreadCampusNotices,
+  markCampusNoticesRead,
+} from '../../lib/adminNoticeReadState';
+import { getDistrictTransferAccountNumber } from '../../lib/districtTransferAccountService';
 import styles from './AdminCampusPage.module.css';
 
 interface PaymentInfo {
@@ -28,7 +35,7 @@ interface PaymentInfo {
 }
 
 interface StationPreference {
-  rank: 1 | 2 | 3;
+  rank: 1 | 2;
   station: {
     id: string;
     name: string;
@@ -115,8 +122,11 @@ const CampusAdminPage = () => {
   const [adminScope, setAdminScope] = useState<CampusAdminScope | null>(null);
   const [campusTransfer, setCampusTransfer] =
     useState<CampusTransferStat | null>(null);
+  const [campusNotices, setCampusNotices] = useState<CampusRequest[]>([]);
   const [campus, setCampus] = useState('');
   const [ticketPrice, setTicketPrice] = useState(0);
+  const [districtTransferAccountNumber, setDistrictTransferAccountNumber] =
+    useState('');
 
   const getPayment = (reservation: ReservationWithPayment) => {
     return reservation.payments?.[0] || null;
@@ -154,7 +164,7 @@ const CampusAdminPage = () => {
       targetTeam
     );
 
-    setReservations(data as ReservationWithPayment[]);
+    setReservations(data as unknown as ReservationWithPayment[]);
   };
 
   useEffect(() => {
@@ -195,13 +205,21 @@ const CampusAdminPage = () => {
           campus: adminRole.campus,
         };
 
-        const [data, price, transferStatus] = await Promise.all([
+        const [
+          data,
+          price,
+          transferStatus,
+          noticesResult,
+          transferAccountNumber,
+        ] = await Promise.all([
           getReservationsWithPaymentByTeamCampus(
             adminRole.campus,
             adminRole.team
           ),
           getBusTicketPrice(),
           loadCampusTransferStatus(nextScope),
+          getGlobalCampusNotices(),
+          getDistrictTransferAccountNumber(),
         ]);
 
         if (isMounted) {
@@ -213,8 +231,15 @@ const CampusAdminPage = () => {
 
           setCampus(adminRole.campus);
           setTicketPrice(price);
-          setReservations(data as ReservationWithPayment[]);
+          setDistrictTransferAccountNumber(transferAccountNumber);
+          setReservations(data as unknown as ReservationWithPayment[]);
           setCampusTransfer(transferStatus);
+          setCampusNotices(
+            await getUnreadCampusNotices(
+              session.user.id,
+              noticesResult.data ?? []
+            )
+          );
         }
       } catch (error) {
         console.error('Failed to load reservations:', error);
@@ -279,17 +304,9 @@ const CampusAdminPage = () => {
   const paymentRate =
     totalPeople > 0 ? Math.round((paidPeople / totalPeople) * 100) : 0;
 
-  const totalAmount = useMemo(() => {
-    return reservations.reduce((sum, reservation) => {
-      const payment = getPayment(reservation);
-
-      if (payment?.status === 'completed') {
-        return sum + ticketPrice;
-      }
-
-      return sum;
-    }, 0);
-  }, [reservations, ticketPrice]);
+  const totalAmount =
+    reservations.filter((reservation) => reservation.status !== 'cancelled')
+      .length * ticketPrice;
 
   const canSendCampusTransfer =
     totalPeople > 0 && paidPeople === totalPeople && !transferSending;
@@ -473,10 +490,29 @@ const CampusAdminPage = () => {
     }
   };
 
+  const handleOpenCampusRequests = () => {
+    if (adminScope && campusNotices.length > 0) {
+      void supabase.auth.getSession().then(({ data }) => {
+        const userId = data.session?.user.id;
+
+        if (userId) {
+          void markCampusNoticesRead(
+            userId,
+            campusNotices.map((notice) => notice.id)
+          ).catch((error) => {
+            console.error('Failed to mark campus notices read:', error);
+          });
+        }
+      });
+    }
+
+    navigate('/admin/campus-requests');
+  };
+
   if (loading) {
     return (
       <div className={styles.pageContainer}>
-        <Header />
+        <AdminHeader />
 
         <main className={styles.main}>
           <p>로딩 중...</p>
@@ -487,7 +523,7 @@ const CampusAdminPage = () => {
 
   return (
     <div className={styles.pageContainer}>
-      <Header />
+      <AdminHeader />
 
       <main className={styles.main}>
         <div className={styles.header}>
@@ -502,6 +538,30 @@ const CampusAdminPage = () => {
             본부 송금 금액을 집계합니다.
           </p>
         </div>
+
+        {campusNotices.length > 0 && (
+          <section className={styles.noticeAlert}>
+            <div className={styles.noticeAlertIcon}>
+              <Megaphone size={20} />
+            </div>
+            <div className={styles.noticeAlertContent}>
+              <div className={styles.noticeAlertHeader}>
+                <strong>본부 공지 {campusNotices.length}건</strong>
+                <span>
+                  최근 공지 {formatDateTime(campusNotices[0]?.createdAt ?? null)}
+                </span>
+              </div>
+              <p>{campusNotices[0]?.title}</p>
+            </div>
+            <button
+              type="button"
+              className={styles.noticeAlertButton}
+              onClick={handleOpenCampusRequests}
+            >
+              공지 확인
+            </button>
+          </section>
+        )}
 
         <section className={styles.guideSection}>
           <div>
@@ -746,6 +806,14 @@ const CampusAdminPage = () => {
             </div>
 
             <p className={styles.transferText}>{transferStatusDescription}</p>
+
+            <div className={styles.transferAccountBox}>
+              <span>서울지구 송금 계좌번호</span>
+              <strong>
+                {districtTransferAccountNumber ||
+                  '전체 관리자가 계좌번호를 아직 설정하지 않았습니다.'}
+              </strong>
+            </div>
 
             <div className={styles.transferSummaryGrid}>
               <div>

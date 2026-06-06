@@ -1,8 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, RefreshCw, Search, ShieldCheck, UserCog } from 'lucide-react';
+import {
+  ArrowLeft,
+  Building2,
+  CheckCircle2,
+  MapPin,
+  RefreshCw,
+  Search,
+  ShieldCheck,
+  UserCog,
+  Users,
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
-import Header from '../../components/Header';
+import AdminHeader from './AdminHeader';
 import {
   cancelCampusAdmin,
   getAdminRole,
@@ -15,8 +25,40 @@ import {
   type SelectOption,
 } from '../../lib/adminService';
 import { supabase } from '../../lib/supabase';
+import { getParticipationTargetsSetting } from '../../lib/participationTargetsService';
 
 import styles from './AdminCampusAdminManagePage.module.css';
+
+interface SavedCampusRow {
+  district: string;
+  team: string;
+  campus: string;
+}
+
+const makeSavedOptionId = (...parts: string[]) => parts.join('|');
+
+const toUniqueOptions = (
+  rows: SavedCampusRow[],
+  getName: (row: SavedCampusRow) => string,
+  getIdParts: (row: SavedCampusRow) => string[]
+) => {
+  const map = new Map<string, SelectOption>();
+
+  rows.forEach((row) => {
+    const name = getName(row);
+
+    if (!name || map.has(name)) return;
+
+    map.set(name, {
+      id: makeSavedOptionId(...getIdParts(row)),
+      name,
+    });
+  });
+
+  return Array.from(map.values()).sort((a, b) =>
+    a.name.localeCompare(b.name, 'ko', { numeric: true })
+  );
+};
 
 const getErrorMessage = (error: unknown) => {
   if (error instanceof Error) return error.message;
@@ -43,6 +85,7 @@ const AdminCampusAdminManagePage = () => {
   const [districts, setDistricts] = useState<SelectOption[]>([]);
   const [teams, setTeams] = useState<SelectOption[]>([]);
   const [campuses, setCampuses] = useState<SelectOption[]>([]);
+  const [savedCampusRows, setSavedCampusRows] = useState<SavedCampusRow[]>([]);
 
   const [selectedDistrictId, setSelectedDistrictId] = useState('');
   const [selectedDistrictName, setSelectedDistrictName] = useState('');
@@ -108,8 +151,29 @@ const AdminCampusAdminManagePage = () => {
         return;
       }
 
-      const districtList = await getDistrictsForAdmin();
-      setDistricts(districtList);
+      const participationSetting = await getParticipationTargetsSetting();
+      const savedRows = participationSetting.rows
+        .map((row) => ({
+          district: row.district.trim(),
+          team: row.team.trim(),
+          campus: row.campus.trim(),
+        }))
+        .filter((row) => row.district && row.team && row.campus);
+
+      setSavedCampusRows(savedRows);
+
+      if (savedRows.length > 0) {
+        setDistricts(
+          toUniqueOptions(
+            savedRows,
+            (row) => row.district,
+            (row) => ['saved-district', row.district]
+          )
+        );
+      } else {
+        const districtList = await getDistrictsForAdmin();
+        setDistricts(districtList);
+      }
     } catch (error) {
       console.error('Failed to load campus admin page:', error);
       setMessage({
@@ -146,6 +210,19 @@ const AdminCampusAdminManagePage = () => {
     if (!districtId) return;
 
     try {
+      const savedRows = savedCampusRows;
+
+      if (savedRows.length > 0) {
+        const teamList = toUniqueOptions(
+          savedRows.filter((row) => row.district === district?.name),
+          (row) => row.team,
+          (row) => ['saved-team', row.district, row.team]
+        );
+
+        setTeams(teamList);
+        return;
+      }
+
       const teamList = await getTeamsByDistrict(districtId);
       setTeams(teamList);
     } catch (error) {
@@ -172,6 +249,23 @@ const AdminCampusAdminManagePage = () => {
     if (!teamId) return;
 
     try {
+      const savedRows = savedCampusRows;
+
+      if (savedRows.length > 0) {
+        const campusList = toUniqueOptions(
+          savedRows.filter(
+            (row) =>
+              row.district === selectedDistrictName &&
+              row.team === team?.name
+          ),
+          (row) => row.campus,
+          (row) => ['saved-campus', row.district, row.team, row.campus]
+        );
+
+        setCampuses(campusList);
+        return;
+      }
+
       const campusList = await getCampusesByTeam(teamId);
       setCampuses(campusList);
     } catch (error) {
@@ -341,7 +435,7 @@ const AdminCampusAdminManagePage = () => {
   if (loading) {
     return (
       <div className={styles.pageContainer}>
-        <Header />
+        <AdminHeader />
         <main className={styles.main}>
           <p className={styles.loadingText}>권한 관리 정보를 불러오는 중...</p>
         </main>
@@ -351,7 +445,7 @@ const AdminCampusAdminManagePage = () => {
 
   return (
     <div className={styles.pageContainer}>
-      <Header />
+      <AdminHeader />
 
       <main className={styles.main}>
         <button
@@ -364,47 +458,84 @@ const AdminCampusAdminManagePage = () => {
         </button>
 
         <section className={styles.header}>
-          <div>
-            <span className={styles.eyebrow}>Campus Admin</span>
-            <h1>캠퍼스 관리자 권한 관리</h1>
-            <p>
-              캠퍼스별 회계 순장님을 검색해 관리자 권한을 등록, 변경, 취소할 수
-              있습니다.
-            </p>
+          <div className={styles.headerIntro}>
+            <div className={styles.headerIcon}>
+              <ShieldCheck size={24} />
+            </div>
+            <div>
+              <span className={styles.eyebrow}>Campus Admin</span>
+              <h1>캠퍼스 관리자 권한 관리</h1>
+              <p>
+                캠퍼스를 먼저 선택한 뒤 담당자를 검색해 관리자 권한을 등록하거나
+                변경할 수 있습니다.
+              </p>
+            </div>
           </div>
 
-          <button
-            type="button"
-            className={styles.refreshButton}
-            onClick={() => void loadDistricts()}
-          >
-            <RefreshCw size={16} />
-            새로고침
-          </button>
+          <div className={styles.headerActions}>
+            <p className={styles.headerHint}>
+              <CheckCircle2 size={15} />
+              캠퍼스별 관리자는 1명만 지정됩니다
+            </p>
+            <button
+              type="button"
+              className={styles.refreshButton}
+              onClick={() => void loadDistricts()}
+            >
+              <RefreshCw size={16} />
+              새로고침
+            </button>
+          </div>
         </section>
 
         <section className={styles.statusPanel}>
-          <div>
-            <span>선택 범위</span>
-            <strong>{selectedScopeText}</strong>
+          <div className={styles.scopeStatus}>
+            <span className={styles.statusIcon}>
+              <MapPin size={18} />
+            </span>
+            <div>
+              <span>선택한 캠퍼스</span>
+              <strong>{selectedScopeText}</strong>
+            </div>
           </div>
 
-          <div>
-            <span>현재 캠퍼스 관리자</span>
-            <strong>
-              {currentCampusAdmin
-                ? `${currentCampusAdmin.name} (${currentCampusAdmin.phone || currentCampusAdmin.email || '연락처 없음'})`
-                : selectedCampusName
-                  ? '등록된 관리자가 없습니다'
-                  : '캠퍼스를 선택해주세요'}
-            </strong>
+          <div className={styles.adminStatus}>
+            <span className={styles.statusIcon}>
+              <UserCog size={18} />
+            </span>
+            <div>
+              <span>현재 캠퍼스 관리자</span>
+              <strong>
+                {currentCampusAdmin
+                  ? currentCampusAdmin.name
+                  : selectedCampusName
+                    ? '등록된 관리자가 없습니다'
+                    : '캠퍼스를 선택해주세요'}
+              </strong>
+              {currentCampusAdmin && (
+                <small>
+                  {currentCampusAdmin.phone ||
+                    currentCampusAdmin.email ||
+                    '연락처 없음'}
+                </small>
+              )}
+            </div>
           </div>
         </section>
 
         <section className={styles.filterPanel}>
+          <div className={styles.filterHeading}>
+            <div>
+              <span className={styles.sectionLabel}>01. 캠퍼스 선택</span>
+              <h2>관리 범위를 선택하세요</h2>
+              <p>지구부터 캠퍼스까지 순서대로 선택하면 담당자를 검색할 수 있습니다.</p>
+            </div>
+            <Building2 size={22} />
+          </div>
+
           <div className={styles.filterGrid}>
             <label>
-              <span>지구</span>
+              <span><b>1</b> 지구</span>
               <select
                 value={selectedDistrictId}
                 onChange={(event) => void handleDistrictChange(event.target.value)}
@@ -419,7 +550,7 @@ const AdminCampusAdminManagePage = () => {
             </label>
 
             <label>
-              <span>팀</span>
+              <span><b>2</b> 팀</span>
               <select
                 value={selectedTeamId}
                 onChange={(event) => void handleTeamChange(event.target.value)}
@@ -435,7 +566,7 @@ const AdminCampusAdminManagePage = () => {
             </label>
 
             <label>
-              <span>캠퍼스</span>
+              <span><b>3</b> 캠퍼스</span>
               <select
                 value={selectedCampusId}
                 onChange={(event) => handleCampusChange(event.target.value)}
@@ -452,11 +583,16 @@ const AdminCampusAdminManagePage = () => {
           </div>
 
           <div className={styles.filterActions}>
+            <span>
+              {selectedCampusName
+                ? `${selectedCampusName} 캠퍼스의 사용자를 검색합니다`
+                : '캠퍼스를 선택하면 검색할 수 있습니다'}
+            </span>
             <button
               type="button"
               className={styles.primaryButton}
               onClick={() => void handleSearchUsers()}
-              disabled={searchingUsers}
+              disabled={searchingUsers || !selectedCampusName}
             >
               <Search size={16} />
               {searchingUsers ? '검색 중...' : '사용자 검색'}
@@ -479,10 +615,11 @@ const AdminCampusAdminManagePage = () => {
         <section className={styles.userListPanel}>
           <div className={styles.panelHeader}>
             <div>
+              <span className={styles.sectionLabel}>02. 관리자 지정</span>
               <h2>검색 결과</h2>
               <p>선택한 캠퍼스 범위에 맞는 사용자를 확인하고 권한을 지정합니다.</p>
             </div>
-            <span>{searchedUsers.length}명</span>
+            <span><Users size={14} /> {searchedUsers.length}명</span>
           </div>
 
           {searchedUsers.length === 0 ? (
@@ -514,7 +651,15 @@ const AdminCampusAdminManagePage = () => {
                 const isLoading = actionLoadingUserId === user.userId;
 
                 return (
-                  <article key={user.userId} className={styles.userCard}>
+                  <article
+                    key={user.userId}
+                    className={`${styles.userCard} ${
+                      isCurrentSelectedCampusAdmin ? styles.currentAdminCard : ''
+                    }`}
+                  >
+                    <div className={styles.userAvatar} aria-hidden="true">
+                      {user.name.trim().slice(0, 1) || '?'}
+                    </div>
                     <div className={styles.userInfo}>
                       <div className={styles.userTitleRow}>
                         <strong>{user.name}</strong>

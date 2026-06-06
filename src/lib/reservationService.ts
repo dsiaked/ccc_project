@@ -1,6 +1,5 @@
 import { supabase } from './supabase';
 import type { ReturnBusReservation } from '../types/reservation';
-import { getReservationDeadline } from './reservationDeadlineService';
 
 /**
  * 예약 정보를 Supabase DB에 저장 (현재 인증된 사용자만 저장 가능)
@@ -9,67 +8,17 @@ export async function saveReservation(
   reservation: ReturnBusReservation
 ) {
   try {
-    // 현재 세션의 사용자 확인
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-    
-    if (sessionError || !session?.user?.id) {
-      throw new Error('Authentication failed');
-    }
+    const { error } = await supabase.rpc('save_user_reservation', {
+      p_name: reservation.name,
+      p_phone: reservation.phone,
+      p_district: reservation.district,
+      p_team: reservation.team,
+      p_campus: reservation.campus,
+      p_station_preferences: reservation.stationPreferences,
+      p_data: reservation,
+    });
 
-    const userId = session.user.id;
-
-    const { data: existingReservation, error: fetchError } = await supabase
-      .from('reservations')
-      .select('id')
-      .eq('user_id', userId)
-      .maybeSingle();
-
-    if (fetchError && fetchError.code !== 'PGRST116') {
-      throw fetchError;
-    }
-
-    const deadline = await getReservationDeadline();
-
-    if (deadline.isClosed) {
-      throw new Error('신청이 마감되어 예매를 저장할 수 없습니다.');
-    }
-
-    if (existingReservation) {
-      // 기존 예약 업데이트
-      const { error } = await supabase
-        .from('reservations')
-        .update({
-          name: reservation.name,
-          phone: reservation.phone,
-          team: reservation.team,
-          campus: reservation.campus,
-          station_preferences: reservation.stationPreferences,
-          status: reservation.status,
-          confirmed_ticket: reservation.confirmedTicket || null,
-          updated_at: new Date().toISOString(),
-          data: reservation,
-        })
-        .eq('user_id', userId);
-
-      if (error) throw error;
-    } else {
-      // 새로운 예약 생성
-      const { error } = await supabase.from('reservations').insert({
-        user_id: userId,
-        name: reservation.name,
-        phone: reservation.phone,
-        team: reservation.team,
-        campus: reservation.campus,
-        station_preferences: reservation.stationPreferences,
-        status: reservation.status,
-        confirmed_ticket: reservation.confirmedTicket || null,
-        data: reservation,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      });
-
-      if (error) throw error;
-    }
+    if (error) throw error;
 
     return { success: true };
   } catch (error) {
@@ -92,7 +41,7 @@ export async function getReservation(): Promise<ReturnBusReservation | null> {
 
     const { data, error } = await supabase
       .from('reservations')
-      .select('data')
+      .select('data, created_at, updated_at')
       .eq('user_id', session.user.id)
       .maybeSingle();
 
@@ -101,7 +50,13 @@ export async function getReservation(): Promise<ReturnBusReservation | null> {
     }
 
     if (data && data.data) {
-      return data.data as ReturnBusReservation;
+      const savedData = data.data as ReturnBusReservation;
+
+      return {
+        ...savedData,
+        requestedAt: savedData.requestedAt || data.created_at || '',
+        updatedAt: savedData.updatedAt || data.updated_at || undefined,
+      };
     }
 
     return null;

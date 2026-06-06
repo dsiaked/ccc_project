@@ -1,5 +1,19 @@
 import { supabase } from './supabase';
 
+const logOrganizationError = (label: string, error: {
+  code?: string;
+  message?: string;
+  details?: string;
+  hint?: string;
+}) => {
+  console.error(label, {
+    code: error.code,
+    message: error.message,
+    details: error.details,
+    hint: error.hint,
+  });
+};
+
 export interface DistrictOption {
   id: string;
   name: string;
@@ -29,7 +43,7 @@ export async function getDistrictOptions() {
     .order('name', { ascending: true });
 
   if (error) {
-    console.error('Failed to get districts:', error);
+    logOrganizationError('Failed to get districts:', error);
     throw error;
   }
 
@@ -46,7 +60,7 @@ export async function getTeamOptions(districtId: string) {
     .order('name', { ascending: true });
 
   if (error) {
-    console.error('Failed to get teams:', error);
+    logOrganizationError('Failed to get teams:', error);
     throw error;
   }
 
@@ -63,7 +77,7 @@ export async function getCampusOptions(teamId: string) {
     .order('name', { ascending: true });
 
   if (error) {
-    console.error('Failed to get campuses:', error);
+    logOrganizationError('Failed to get campuses:', error);
     throw error;
   }
 

@@ -36,7 +36,10 @@ execute function set_app_settings_updated_at();
 insert into app_settings (key, value)
 values
   ('bus_ticket_price', '{"price": 0}'::jsonb),
-  ('first_reservation_deadline', '{"deadline_at": null}'::jsonb)
+  ('first_reservation_deadline', '{"deadline_at": null}'::jsonb),
+  ('seoul_district_transfer_account', '{"account_number": ""}'::jsonb),
+  ('participation_targets', '{"rows": [], "targets": {}}'::jsonb),
+  ('global_scenario_checklist', '{"checked_step_ids": []}'::jsonb)
 on conflict (key) do nothing;
 
 alter table app_settings enable row level security;

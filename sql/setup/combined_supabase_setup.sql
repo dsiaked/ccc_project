@@ -1,13 +1,12 @@
 -- =========================================================
 -- Combined Supabase setup SQL
--- Generated from sql/*.sql in recommended execution order.
+-- Generated from canonical sql files in recommended execution order.
 -- Copy this whole file into Supabase SQL Editor and run it.
--- Review sql/82_seed_stations_template.sql section before running if stations differ.
+-- Destructive maintenance scripts such as 62_delete_all_users.sql are excluded.
 -- =========================================================
 
-
 -- =========================================================
--- BEGIN sql/00_base_schema_and_rls.sql
+-- BEGIN sql/setup/00_base_schema_and_rls.sql
 -- =========================================================
 
 -- =========================================================
@@ -226,6 +225,7 @@ create table if not exists bus_options (
   id uuid primary key default gen_random_uuid(),
   capacity integer not null,
   estimated_price integer not null default 0,
+  max_count integer not null default 999 check (max_count > 0),
   notes text,
   created_at timestamptz not null default now()
 );
@@ -530,6 +530,24 @@ with check (
 -- =========================================================
 
 -- 일반 사용자: 자기 관리자 권한 조회 가능
+create or replace function public.is_global_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.admin_roles
+    where admin_roles.user_id = auth.uid()
+      and admin_roles.role = 'global_admin'
+  );
+$$;
+
+revoke all on function public.is_global_admin() from public;
+grant execute on function public.is_global_admin() to authenticated;
+
 create policy "Users can view own admin role"
 on admin_roles
 for select
@@ -543,36 +561,15 @@ create policy "Global admins can view admin roles"
 on admin_roles
 for select
 to authenticated
-using (
-  exists (
-    select 1
-    from admin_roles ar
-    where ar.user_id = auth.uid()
-      and ar.role = 'global_admin'
-  )
-);
+using (public.is_global_admin());
 
 -- 전체 관리자: 관리자 권한 관리
 create policy "Global admins can manage admin roles"
 on admin_roles
 for all
 to authenticated
-using (
-  exists (
-    select 1
-    from admin_roles ar
-    where ar.user_id = auth.uid()
-      and ar.role = 'global_admin'
-  )
-)
-with check (
-  exists (
-    select 1
-    from admin_roles ar
-    where ar.user_id = auth.uid()
-      and ar.role = 'global_admin'
-  )
-);
+using (public.is_global_admin())
+with check (public.is_global_admin());
 
 
 -- =========================================================
@@ -688,12 +685,11 @@ with check (
 -- from admin_roles;
 
 -- =========================================================
--- END sql/00_base_schema_and_rls.sql
+-- END sql/setup/00_base_schema_and_rls.sql
 -- =========================================================
 
-
 -- =========================================================
--- BEGIN sql/01_profiles_organization_stations.sql
+-- BEGIN sql/setup/01_profiles_organization_stations.sql
 -- =========================================================
 
 -- =========================================================
@@ -749,6 +745,110 @@ create unique index if not exists idx_profiles_email_unique
 
 create index if not exists idx_profiles_scope
   on profiles(district, team, campus);
+
+create or replace function public.email_exists(p_email text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from auth.users
+    where lower(auth.users.email) = lower(trim(p_email))
+  );
+$$;
+
+revoke all on function public.email_exists(text) from public;
+grant execute on function public.email_exists(text) to anon, authenticated;
+
+-- Create the application profile in the same transaction as the Auth user.
+-- This also works when email confirmation is enabled and signup has no session yet.
+create or replace function public.handle_new_auth_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.profiles (
+    id, email, name, phone,
+    district_id, district, team_id, team, campus_id, campus,
+    updated_at
+  )
+  values (
+    new.id,
+    lower(new.email),
+    new.raw_user_meta_data ->> 'name',
+    new.raw_user_meta_data ->> 'phone',
+    nullif(new.raw_user_meta_data ->> 'district_id', '')::uuid,
+    new.raw_user_meta_data ->> 'district',
+    nullif(new.raw_user_meta_data ->> 'team_id', '')::uuid,
+    new.raw_user_meta_data ->> 'team',
+    nullif(new.raw_user_meta_data ->> 'campus_id', '')::uuid,
+    new.raw_user_meta_data ->> 'campus',
+    now()
+  )
+  on conflict (id) do update
+  set
+    email = excluded.email,
+    name = excluded.name,
+    phone = excluded.phone,
+    district_id = excluded.district_id,
+    district = excluded.district,
+    team_id = excluded.team_id,
+    team = excluded.team,
+    campus_id = excluded.campus_id,
+    campus = excluded.campus,
+    updated_at = now();
+
+  return new;
+end;
+$$;
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_trigger
+    where tgname = 'on_auth_user_created'
+      and tgrelid = 'auth.users'::regclass
+      and not tgisinternal
+  ) then
+    create trigger on_auth_user_created
+    after insert on auth.users
+    for each row execute function public.handle_new_auth_user();
+  end if;
+exception
+  when insufficient_privilege then
+    raise exception using
+      message = 'Cannot create auth.users trigger with the current database role.',
+      hint = 'Run this setup once in the Supabase Dashboard SQL Editor as the postgres role. Do not change the owner of auth.users.';
+end $$;
+
+insert into public.profiles (
+  id, email, name, phone,
+  district_id, district, team_id, team, campus_id, campus,
+  updated_at
+)
+select
+  users.id,
+  lower(users.email),
+  users.raw_user_meta_data ->> 'name',
+  users.raw_user_meta_data ->> 'phone',
+  nullif(users.raw_user_meta_data ->> 'district_id', '')::uuid,
+  users.raw_user_meta_data ->> 'district',
+  nullif(users.raw_user_meta_data ->> 'team_id', '')::uuid,
+  users.raw_user_meta_data ->> 'team',
+  nullif(users.raw_user_meta_data ->> 'campus_id', '')::uuid,
+  users.raw_user_meta_data ->> 'campus',
+  now()
+from auth.users as users
+where not exists (
+  select 1 from public.profiles where profiles.id = users.id
+)
+on conflict (id) do nothing;
 
 -- =========================================================
 -- 2. organization options
@@ -1082,18 +1182,21 @@ with check (
 drop policy if exists "Authenticated users can view districts" on districts;
 drop policy if exists "Authenticated users can view teams" on teams;
 drop policy if exists "Authenticated users can view campuses" on campuses;
+drop policy if exists "Anyone can view active districts" on districts;
+drop policy if exists "Anyone can view active teams" on teams;
+drop policy if exists "Anyone can view active campuses" on campuses;
 drop policy if exists "Global admins can manage districts" on districts;
 drop policy if exists "Global admins can manage teams" on teams;
 drop policy if exists "Global admins can manage campuses" on campuses;
 
-create policy "Authenticated users can view districts"
-on districts for select to authenticated using (is_active = true);
+create policy "Anyone can view active districts"
+on districts for select to anon, authenticated using (is_active = true);
 
-create policy "Authenticated users can view teams"
-on teams for select to authenticated using (is_active = true);
+create policy "Anyone can view active teams"
+on teams for select to anon, authenticated using (is_active = true);
 
-create policy "Authenticated users can view campuses"
-on campuses for select to authenticated using (is_active = true);
+create policy "Anyone can view active campuses"
+on campuses for select to anon, authenticated using (is_active = true);
 
 create policy "Global admins can manage districts"
 on districts for all to authenticated
@@ -1276,12 +1379,11 @@ with check (
 );
 
 -- =========================================================
--- END sql/01_profiles_organization_stations.sql
+-- END sql/setup/01_profiles_organization_stations.sql
 -- =========================================================
 
-
 -- =========================================================
--- BEGIN sql/05_app_settings.sql
+-- BEGIN sql/setup/05_app_settings.sql
 -- =========================================================
 
 -- =========================================================
@@ -1322,7 +1424,10 @@ execute function set_app_settings_updated_at();
 insert into app_settings (key, value)
 values
   ('bus_ticket_price', '{"price": 0}'::jsonb),
-  ('first_reservation_deadline', '{"deadline_at": null}'::jsonb)
+  ('first_reservation_deadline', '{"deadline_at": null}'::jsonb),
+  ('seoul_district_transfer_account', '{"account_number": ""}'::jsonb),
+  ('participation_targets', '{"rows": [], "targets": {}}'::jsonb),
+  ('global_scenario_checklist', '{"checked_step_ids": []}'::jsonb)
 on conflict (key) do nothing;
 
 alter table app_settings enable row level security;
@@ -1358,12 +1463,11 @@ with check (
 );
 
 -- =========================================================
--- END sql/05_app_settings.sql
+-- END sql/setup/05_app_settings.sql
 -- =========================================================
 
-
 -- =========================================================
--- BEGIN sql/10_payment_and_price_functions.sql
+-- BEGIN sql/setup/10_payment_and_price_functions.sql
 -- =========================================================
 
 -- =========================================================
@@ -1501,12 +1605,11 @@ end;
 $$;
 
 -- =========================================================
--- END sql/10_payment_and_price_functions.sql
+-- END sql/setup/10_payment_and_price_functions.sql
 -- =========================================================
 
-
 -- =========================================================
--- BEGIN sql/20_reservation_deadline.sql
+-- BEGIN sql/setup/20_reservation_deadline.sql
 -- =========================================================
 
 -- =========================================================
@@ -1523,12 +1626,297 @@ values ('first_reservation_deadline', '{"deadline_at": null}'::jsonb)
 on conflict (key) do nothing;
 
 -- =========================================================
--- END sql/20_reservation_deadline.sql
+-- END sql/setup/20_reservation_deadline.sql
 -- =========================================================
 
+-- =========================================================
+-- BEGIN sql/setup/21_atomic_reservation_save.sql
+-- =========================================================
 
 -- =========================================================
--- BEGIN sql/30_campus_transfer_settlement.sql
+-- Atomic user reservation save
+-- Run after 20_reservation_deadline.sql.
+-- =========================================================
+
+update public.reservations
+set
+  station_preferences = jsonb_path_query_array(
+    station_preferences,
+    '$[*] ? (@.rank == 1 || @.rank == 2)'
+  ),
+  data = jsonb_set(
+    coalesce(data, '{}'::jsonb),
+    '{stationPreferences}',
+    jsonb_path_query_array(
+      station_preferences,
+      '$[*] ? (@.rank == 1 || @.rank == 2)'
+    ),
+    true
+  ),
+  updated_at = now()
+where station_preferences is distinct from jsonb_path_query_array(
+  station_preferences,
+  '$[*] ? (@.rank == 1 || @.rank == 2)'
+);
+
+create or replace function public.save_user_reservation(
+  p_name text,
+  p_phone text,
+  p_district text,
+  p_team text,
+  p_campus text,
+  p_station_preferences jsonb,
+  p_data jsonb
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user_id uuid := auth.uid();
+  v_now timestamptz;
+  v_deadline_value jsonb;
+  v_deadline_at timestamptz;
+  v_district_id uuid;
+  v_team_id uuid;
+  v_campus_id uuid;
+  v_data jsonb;
+  v_reservation_id uuid;
+begin
+  if v_user_id is null then
+    raise exception 'Authentication failed.';
+  end if;
+
+  if nullif(trim(p_name), '') is null
+    or nullif(trim(p_phone), '') is null
+    or nullif(trim(p_district), '') is null
+    or nullif(trim(p_team), '') is null
+    or nullif(trim(p_campus), '') is null then
+    raise exception 'Reservation fields are required.';
+  end if;
+
+  if jsonb_typeof(coalesce(p_station_preferences, 'null'::jsonb)) <> 'array' then
+    raise exception 'Station preferences must be a JSON array.';
+  end if;
+
+  if jsonb_array_length(p_station_preferences) <> 2
+    or p_station_preferences -> 0 ->> 'rank' <> '1'
+    or p_station_preferences -> 1 ->> 'rank' <> '2' then
+    raise exception 'Station preferences must contain first and second choices.';
+  end if;
+
+  if jsonb_typeof(coalesce(p_data, 'null'::jsonb)) <> 'object' then
+    raise exception 'Reservation data must be a JSON object.';
+  end if;
+
+  -- Serialize deadline changes with reservation writes.
+  select value
+  into v_deadline_value
+  from public.app_settings
+  where key = 'first_reservation_deadline'
+  for share;
+
+  if v_deadline_value is null then
+    raise exception 'Reservation deadline setting is missing.';
+  end if;
+
+  v_now := clock_timestamp();
+  v_deadline_at :=
+    nullif(v_deadline_value ->> 'deadline_at', '')::timestamptz;
+
+  if v_deadline_at is not null and v_deadline_at <= v_now then
+    raise exception 'Reservation deadline has passed.';
+  end if;
+
+  select district_id, team_id, campus_id
+  into v_district_id, v_team_id, v_campus_id
+  from public.campus_options
+  where district = trim(p_district)
+    and team = trim(p_team)
+    and campus = trim(p_campus)
+  limit 1;
+
+  if v_campus_id is null then
+    raise exception 'Invalid reservation organization scope.';
+  end if;
+
+  v_data := p_data || jsonb_build_object(
+    'name', trim(p_name),
+    'phone', trim(p_phone),
+    'district', trim(p_district),
+    'team', trim(p_team),
+    'campus', trim(p_campus),
+    'stationPreferences', p_station_preferences,
+    'status', 'requested',
+    'confirmedTicket', null,
+    'requestedAt', v_now::text
+  );
+
+  insert into public.reservations as target (
+    user_id,
+    name,
+    phone,
+    district_id,
+    district,
+    team_id,
+    team,
+    campus_id,
+    campus,
+    station_preferences,
+    status,
+    confirmed_ticket,
+    data,
+    created_at,
+    updated_at
+  )
+  values (
+    v_user_id,
+    trim(p_name),
+    trim(p_phone),
+    v_district_id,
+    trim(p_district),
+    v_team_id,
+    trim(p_team),
+    v_campus_id,
+    trim(p_campus),
+    p_station_preferences,
+    'requested',
+    null,
+    v_data,
+    v_now,
+    v_now
+  )
+  on conflict (user_id)
+  do update set
+    name = excluded.name,
+    phone = excluded.phone,
+    district_id = excluded.district_id,
+    district = excluded.district,
+    team_id = excluded.team_id,
+    team = excluded.team,
+    campus_id = excluded.campus_id,
+    campus = excluded.campus,
+    station_preferences = excluded.station_preferences,
+    status = 'requested',
+    confirmed_ticket = null,
+    data = jsonb_set(
+      jsonb_set(
+        excluded.data,
+        '{requestedAt}',
+        case
+          when target.status = 'cancelled' then to_jsonb(v_now::text)
+          else coalesce(
+            target.data -> 'requestedAt',
+            to_jsonb(target.created_at::text)
+          )
+        end,
+        true
+      ),
+      '{updatedAt}',
+      to_jsonb(v_now::text),
+      true
+    ),
+    updated_at = v_now
+  where target.status in ('requested', 'cancelled')
+  returning id into v_reservation_id;
+
+  if v_reservation_id is null then
+    raise exception 'Confirmed reservations cannot be changed.';
+  end if;
+
+  return v_reservation_id;
+end;
+$$;
+
+revoke all on function public.save_user_reservation(
+  text, text, text, text, text, jsonb, jsonb
+) from public;
+
+grant execute on function public.save_user_reservation(
+  text, text, text, text, text, jsonb, jsonb
+) to authenticated;
+
+notify pgrst, 'reload schema';
+
+-- =========================================================
+-- END sql/setup/21_atomic_reservation_save.sql
+-- =========================================================
+
+-- =========================================================
+-- BEGIN sql/setup/22_destination_stats_rpc.sql
+-- =========================================================
+
+-- =========================================================
+-- Destination demand aggregation
+-- Run after 21_atomic_reservation_save.sql.
+--
+-- Aggregates all requested reservations inside Postgres so allocation demand
+-- is not truncated by PostgREST's maximum response row limit.
+-- =========================================================
+
+drop function if exists public.get_destination_stats();
+
+create or replace function public.get_destination_stats()
+returns table (
+  station_name text,
+  rank1 bigint,
+  rank2 bigint,
+  total bigint
+)
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+begin
+  if not public.is_global_admin() then
+    raise exception 'Only global admins can view destination statistics.';
+  end if;
+
+  return query
+  select
+    demand.station_name,
+    demand.rank1,
+    demand.rank2,
+    demand.total
+  from (
+    select
+      preference -> 'station' ->> 'name' as station_name,
+      count(*) filter (where (preference ->> 'rank')::integer = 1) as rank1,
+      count(*) filter (where (preference ->> 'rank')::integer = 2) as rank2,
+      count(*) as total
+    from public.reservations
+    cross join lateral jsonb_array_elements(
+      case
+        when jsonb_typeof(reservations.station_preferences) = 'array'
+          then reservations.station_preferences
+        else '[]'::jsonb
+      end
+    ) as preference
+    where reservations.status = 'requested'
+      and nullif(trim(preference -> 'station' ->> 'name'), '') is not null
+      and (preference ->> 'rank') ~ '^[12]$'
+    group by preference -> 'station' ->> 'name'
+  ) as demand
+  order by
+    demand.rank1 desc,
+    demand.rank2 desc,
+    demand.station_name;
+end;
+$$;
+
+revoke all on function public.get_destination_stats() from public, anon;
+grant execute on function public.get_destination_stats() to authenticated;
+
+notify pgrst, 'reload schema';
+
+-- =========================================================
+-- END sql/setup/22_destination_stats_rpc.sql
+-- =========================================================
+
+-- =========================================================
+-- BEGIN sql/setup/30_campus_transfer_settlement.sql
 -- =========================================================
 
 -- =========================================================
@@ -1603,6 +1991,50 @@ create unique index if not exists idx_campus_transfers_campus_unique
 create index if not exists idx_campus_transfers_scope_ids
   on campus_transfers(district_id, team_id, campus_id);
 
+alter table campus_transfers enable row level security;
+
+drop policy if exists "Admins can view campus transfers" on campus_transfers;
+create policy "Admins can view campus transfers"
+on campus_transfers
+for select
+using (
+  exists (
+    select 1
+    from admin_roles
+    where admin_roles.user_id = auth.uid()
+      and (
+        admin_roles.role = 'global_admin'
+        or (
+          admin_roles.role = 'campus_admin'
+          and admin_roles.district = campus_transfers.district
+          and admin_roles.team = campus_transfers.team
+          and admin_roles.campus = campus_transfers.campus
+        )
+      )
+  )
+);
+
+drop policy if exists "Global admins can update campus transfers" on campus_transfers;
+create policy "Global admins can update campus transfers"
+on campus_transfers
+for update
+using (
+  exists (
+    select 1
+    from admin_roles
+    where admin_roles.user_id = auth.uid()
+      and admin_roles.role = 'global_admin'
+  )
+)
+with check (
+  exists (
+    select 1
+    from admin_roles
+    where admin_roles.user_id = auth.uid()
+      and admin_roles.role = 'global_admin'
+  )
+);
+
 update campus_transfers
 set
   district_id = coalesce(campus_transfers.district_id, campus_options.district_id),
@@ -1668,6 +2100,23 @@ as $$
 declare
   v_transfer campus_transfers;
 begin
+  if auth.uid() is null or not exists (
+    select 1
+    from admin_roles
+    where admin_roles.user_id = auth.uid()
+      and (
+        admin_roles.role = 'global_admin'
+        or (
+          admin_roles.role = 'campus_admin'
+          and admin_roles.district = p_district
+          and admin_roles.team = p_team
+          and admin_roles.campus = p_campus
+        )
+      )
+  ) then
+    raise exception 'Not authorized to report this campus transfer.';
+  end if;
+
   insert into campus_transfers (
     district_id,
     team_id,
@@ -1718,7 +2167,7 @@ begin
     p_paid_people,
     p_total_amount,
     'sent',
-    p_sent_by,
+    auth.uid(),
     now(),
     null,
     null,
@@ -1787,9 +2236,8 @@ as $$
       count(reservations.id)::integer as current_total_people,
       count(payments.id) filter (where payments.status = 'completed')::integer
         as current_paid_people,
-      coalesce(
-        sum(payments.amount) filter (where payments.status = 'completed'),
-        0
+      (
+        count(reservations.id) * get_bus_ticket_price()
       )::integer as current_total_amount
     from reservations
     left join payments on payments.reservation_id = reservations.id
@@ -1859,16 +2307,31 @@ as $$
     on campus_admins.district = active_campuses.district
    and campus_admins.team = active_campuses.team
    and campus_admins.campus = active_campuses.campus
+  where exists (
+    select 1
+    from admin_roles
+    where admin_roles.user_id = auth.uid()
+      and admin_roles.role = 'global_admin'
+  )
   order by active_campuses.district, active_campuses.team, active_campuses.campus;
 $$;
 
+revoke execute on function mark_campus_transfer_sent(
+  text, text, text, integer, integer, integer, uuid
+) from public, anon;
+grant execute on function mark_campus_transfer_sent(
+  text, text, text, integer, integer, integer, uuid
+) to authenticated;
+
+revoke execute on function get_global_campus_transfer_stats() from public, anon;
+grant execute on function get_global_campus_transfer_stats() to authenticated;
+
 -- =========================================================
--- END sql/30_campus_transfer_settlement.sql
+-- END sql/setup/30_campus_transfer_settlement.sql
 -- =========================================================
 
-
 -- =========================================================
--- BEGIN sql/33_confirm_campus_transfer_amount.sql
+-- BEGIN sql/setup/33_confirm_campus_transfer_amount.sql
 -- =========================================================
 
 -- Confirm campus transfer amount through a security definer RPC.
@@ -1887,10 +2350,19 @@ as $$
 declare
   v_transfer campus_transfers;
 begin
+  if auth.uid() is null or not exists (
+    select 1
+    from admin_roles
+    where admin_roles.user_id = auth.uid()
+      and admin_roles.role = 'global_admin'
+  ) then
+    raise exception 'Only global admins can confirm campus transfers.';
+  end if;
+
   update campus_transfers
   set
     status = 'confirmed',
-    confirmed_by = p_confirmed_by,
+    confirmed_by = auth.uid(),
     confirmed_at = now(),
     actual_confirmed_amount = greatest(
       coalesce(p_actual_confirmed_amount, 0),
@@ -1908,16 +2380,20 @@ begin
 end;
 $$;
 
+revoke execute on function confirm_campus_transfer_amount(uuid, uuid, integer)
+from public, anon;
+grant execute on function confirm_campus_transfer_amount(uuid, uuid, integer)
+to authenticated;
+
 -- Ask Supabase/PostgREST to refresh its schema cache immediately.
 notify pgrst, 'reload schema';
 
 -- =========================================================
--- END sql/33_confirm_campus_transfer_amount.sql
+-- END sql/setup/33_confirm_campus_transfer_amount.sql
 -- =========================================================
 
-
 -- =========================================================
--- BEGIN sql/40_campus_requests_board.sql
+-- BEGIN sql/setup/40_campus_requests_board.sql
 -- =========================================================
 
 -- =========================================================
@@ -1939,6 +2415,7 @@ create table if not exists campus_requests (
   title text not null,
   content text not null,
   admin_response text,
+  is_global_notice boolean not null default false,
   district_id uuid references districts(id),
   team_id uuid references teams(id),
   campus_id uuid references campuses(id),
@@ -1953,6 +2430,7 @@ create table if not exists campus_requests (
   constraint campus_requests_type_check check (
     type in (
       'late_signup',
+      'notice',
       'cancel_refund',
       'payment_issue',
       'roster_change',
@@ -1970,6 +2448,7 @@ alter table campus_requests add column if not exists status text not null defaul
 alter table campus_requests add column if not exists title text not null default '';
 alter table campus_requests add column if not exists content text not null default '';
 alter table campus_requests add column if not exists admin_response text;
+alter table campus_requests add column if not exists is_global_notice boolean not null default false;
 alter table campus_requests add column if not exists district_id uuid references districts(id);
 alter table campus_requests add column if not exists team_id uuid references teams(id);
 alter table campus_requests add column if not exists campus_id uuid references campuses(id);
@@ -1990,6 +2469,7 @@ alter table campus_requests
   check (
     type in (
       'late_signup',
+      'notice',
       'cancel_refund',
       'payment_issue',
       'roster_change',
@@ -2013,6 +2493,9 @@ create index if not exists idx_campus_requests_scope_ids_status
 
 create index if not exists idx_campus_requests_created_at
   on campus_requests(created_at desc);
+
+create index if not exists idx_campus_requests_global_notice_created_at
+  on campus_requests(is_global_notice, created_at desc);
 
 update campus_requests
 set
@@ -2081,6 +2564,7 @@ alter table campus_requests enable row level security;
 
 drop policy if exists "Admins can view campus requests" on campus_requests;
 drop policy if exists "Campus admins can create campus requests" on campus_requests;
+drop policy if exists "Global admins can create campus notices" on campus_requests;
 drop policy if exists "Global admins can update campus requests" on campus_requests;
 
 create policy "Admins can view campus requests"
@@ -2093,6 +2577,15 @@ using (
     from admin_roles
     where admin_roles.user_id = auth.uid()
       and admin_roles.role = 'global_admin'
+  )
+  or (
+    campus_requests.is_global_notice = true
+    and exists (
+      select 1
+      from admin_roles
+      where admin_roles.user_id = auth.uid()
+        and admin_roles.role = 'campus_admin'
+    )
   )
   or exists (
     select 1
@@ -2120,6 +2613,8 @@ for insert
 to authenticated
 with check (
   created_by = auth.uid()
+  and campus_requests.is_global_notice = false
+  and campus_requests.type <> 'notice'
   and exists (
     select 1
     from admin_roles
@@ -2139,6 +2634,105 @@ with check (
       )
   )
 );
+
+create policy "Global admins can create campus notices"
+on campus_requests
+for insert
+to authenticated
+with check (
+  created_by = auth.uid()
+  and campus_requests.is_global_notice = true
+  and campus_requests.type = 'notice'
+  and exists (
+    select 1
+    from admin_roles
+    where admin_roles.user_id = auth.uid()
+      and admin_roles.role = 'global_admin'
+  )
+);
+
+drop function if exists create_global_campus_notice(text, text);
+
+create or replace function create_global_campus_notice(
+  p_title text,
+  p_content text
+)
+returns campus_requests
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_notice campus_requests;
+begin
+  if not exists (
+    select 1
+    from admin_roles
+    where admin_roles.user_id = auth.uid()
+      and admin_roles.role = 'global_admin'
+  ) then
+    raise exception 'Only global admins can create campus notices.';
+  end if;
+
+  insert into campus_requests (
+    type,
+    status,
+    title,
+    content,
+    is_global_notice,
+    district,
+    team,
+    campus,
+    created_by
+  )
+  values (
+    'notice',
+    'open',
+    trim(p_title),
+    trim(p_content),
+    true,
+    '전체',
+    '전체',
+    '전체',
+    auth.uid()
+  )
+  returning * into v_notice;
+
+  return v_notice;
+end;
+$$;
+
+grant execute on function create_global_campus_notice(text, text) to authenticated;
+
+drop function if exists get_global_campus_notices();
+
+create or replace function get_global_campus_notices()
+returns setof campus_requests
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not exists (
+    select 1
+    from admin_roles
+    where admin_roles.user_id = auth.uid()
+      and admin_roles.role in ('global_admin', 'campus_admin')
+  ) then
+    raise exception 'Only admins can view campus notices.';
+  end if;
+
+  return query
+  select campus_requests.*
+  from campus_requests
+  where campus_requests.is_global_notice = true
+  order by campus_requests.created_at desc;
+end;
+$$;
+
+grant execute on function get_global_campus_notices() to authenticated;
+
+notify pgrst, 'reload schema';
 
 create policy "Global admins can update campus requests"
 on campus_requests
@@ -2211,6 +2805,14 @@ using (
     from admin_roles
     where admin_roles.user_id = auth.uid()
       and admin_roles.role = 'global_admin'
+  )
+  or exists (
+    select 1
+    from campus_requests
+    join admin_roles on admin_roles.user_id = auth.uid()
+    where campus_requests.id = campus_request_messages.request_id
+      and campus_requests.is_global_notice = true
+      and admin_roles.role = 'campus_admin'
   )
   or exists (
     select 1
@@ -2374,12 +2976,61 @@ using (
 );
 
 -- =========================================================
--- END sql/40_campus_requests_board.sql
+-- END sql/setup/40_campus_requests_board.sql
 -- =========================================================
 
+-- =========================================================
+-- BEGIN sql/setup/41_campus_notice_reads.sql
+-- =========================================================
+
+create table if not exists campus_notice_reads (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  notice_id uuid not null references campus_requests(id) on delete cascade,
+  read_at timestamptz not null default now(),
+  primary key (user_id, notice_id)
+);
+
+create index if not exists idx_campus_notice_reads_notice_id
+  on campus_notice_reads(notice_id);
+
+alter table campus_notice_reads enable row level security;
+
+drop policy if exists "Users can view own campus notice reads" on campus_notice_reads;
+drop policy if exists "Users can create own campus notice reads" on campus_notice_reads;
+drop policy if exists "Users can delete own campus notice reads" on campus_notice_reads;
+
+create policy "Users can view own campus notice reads"
+on campus_notice_reads
+for select
+to authenticated
+using (user_id = auth.uid());
+
+create policy "Users can create own campus notice reads"
+on campus_notice_reads
+for insert
+to authenticated
+with check (
+  user_id = auth.uid()
+  and exists (
+    select 1
+    from campus_requests
+    where campus_requests.id = campus_notice_reads.notice_id
+      and campus_requests.is_global_notice = true
+  )
+);
+
+create policy "Users can delete own campus notice reads"
+on campus_notice_reads
+for delete
+to authenticated
+using (user_id = auth.uid());
 
 -- =========================================================
--- BEGIN sql/50_home_announcements.sql
+-- END sql/setup/41_campus_notice_reads.sql
+-- =========================================================
+
+-- =========================================================
+-- BEGIN sql/setup/50_home_announcements.sql
 -- =========================================================
 
 -- =========================================================
@@ -2453,12 +3104,130 @@ with check (
 );
 
 -- =========================================================
--- END sql/50_home_announcements.sql
+-- END sql/setup/50_home_announcements.sql
 -- =========================================================
 
+-- =========================================================
+-- BEGIN sql/setup/60_reset_reservation_data.sql
+-- =========================================================
 
 -- =========================================================
--- BEGIN sql/80_seed_seoul_organization.sql
+-- Reset reservation operation data
+-- Run this in Supabase SQL Editor.
+--
+-- Keeps setup data:
+-- - districts / teams / campuses
+-- - stations
+-- - admin_roles
+-- - bus_options
+-- - app_settings
+--
+-- Clears selected operation data:
+-- - reservations and payments
+-- - campus_transfers
+-- - bus_allocations
+-- - campus_requests and messages
+-- =========================================================
+
+drop function if exists reset_reservation_data(
+  boolean,
+  boolean,
+  boolean,
+  boolean,
+  boolean
+);
+drop function if exists reset_reservation_data();
+
+create or replace function reset_reservation_data(
+  p_reset_reservations boolean default true,
+  p_reset_payments boolean default true,
+  p_reset_campus_transfers boolean default true,
+  p_reset_bus_allocations boolean default true,
+  p_reset_campus_requests boolean default true
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_deleted_reservations integer := 0;
+  v_deleted_payments integer := 0;
+  v_deleted_campus_transfers integer := 0;
+  v_deleted_bus_allocations integer := 0;
+  v_deleted_campus_requests integer := 0;
+  v_deleted_campus_request_messages integer := 0;
+begin
+  if not exists (
+    select 1
+    from admin_roles
+    where admin_roles.user_id = auth.uid()
+      and admin_roles.role = 'global_admin'
+  ) then
+    raise exception 'Only global admins can reset reservation data.';
+  end if;
+
+  if p_reset_campus_requests then
+    delete from campus_request_messages
+    where true;
+    get diagnostics v_deleted_campus_request_messages = row_count;
+
+    delete from campus_requests
+    where true;
+    get diagnostics v_deleted_campus_requests = row_count;
+  end if;
+
+  if p_reset_campus_transfers then
+    delete from campus_transfers
+    where true;
+    get diagnostics v_deleted_campus_transfers = row_count;
+  end if;
+
+  if p_reset_bus_allocations then
+    delete from bus_allocations
+    where true;
+    get diagnostics v_deleted_bus_allocations = row_count;
+  end if;
+
+  if p_reset_payments or p_reset_reservations then
+    delete from payments
+    where true;
+    get diagnostics v_deleted_payments = row_count;
+  end if;
+
+  if p_reset_reservations then
+    delete from reservations
+    where true;
+    get diagnostics v_deleted_reservations = row_count;
+  end if;
+
+  return jsonb_build_object(
+    'reservations', v_deleted_reservations,
+    'payments', v_deleted_payments,
+    'campusTransfers', v_deleted_campus_transfers,
+    'busAllocations', v_deleted_bus_allocations,
+    'campusRequests', v_deleted_campus_requests,
+    'campusRequestMessages', v_deleted_campus_request_messages
+  );
+end;
+$$;
+
+grant execute on function reset_reservation_data(
+  boolean,
+  boolean,
+  boolean,
+  boolean,
+  boolean
+) to authenticated;
+
+notify pgrst, 'reload schema';
+
+-- =========================================================
+-- END sql/setup/60_reset_reservation_data.sql
+-- =========================================================
+
+-- =========================================================
+-- BEGIN sql/setup/80_seed_seoul_organization.sql
 -- =========================================================
 
 -- =========================================================
@@ -2597,6 +3366,8 @@ with seed_campuses(team_name, campus_name, sort_order) as (
     ('동팀', '한양대학교', 30),
     ('동팀', '한양여자대학교', 40),
     ('동팀', '건국대학교', 50),
+    ('동팀', '한국체육대학교', 60),
+    ('동팀', '장로회신학대학교', 70),
 
     ('서팀', '명지전문대학', 10),
     ('서팀', '명지대학교', 20),
@@ -2692,12 +3463,11 @@ group by districts.name, teams.name, teams.sort_order
 order by teams.sort_order;
 
 -- =========================================================
--- END sql/80_seed_seoul_organization.sql
+-- END sql/setup/80_seed_seoul_organization.sql
 -- =========================================================
 
-
 -- =========================================================
--- BEGIN sql/82_seed_stations_template.sql
+-- BEGIN sql/setup/82_seed_stations_template.sql
 -- =========================================================
 
 -- =========================================================
@@ -2736,9 +3506,269 @@ do update set
   updated_at = now();
 
 -- =========================================================
--- END sql/82_seed_stations_template.sql
+-- END sql/setup/82_seed_stations_template.sql
 -- =========================================================
 
+-- =========================================================
+-- BEGIN sql/setup/99_finalize_setup.sql
+-- =========================================================
 
--- Refresh Supabase/PostgREST schema cache
+-- =========================================================
+-- Final setup guarantees and health check
+-- =========================================================
+
+create or replace function public.is_global_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.admin_roles
+    where admin_roles.user_id = auth.uid()
+      and admin_roles.role = 'global_admin'
+  );
+$$;
+
+revoke all on function public.is_global_admin() from public;
+grant execute on function public.is_global_admin() to authenticated;
+
+drop policy if exists "Global admins can view admin roles" on public.admin_roles;
+drop policy if exists "Global admins can manage admin roles" on public.admin_roles;
+
+create policy "Global admins can view admin roles"
+on public.admin_roles
+for select
+to authenticated
+using (public.is_global_admin());
+
+create policy "Global admins can manage admin roles"
+on public.admin_roles
+for all
+to authenticated
+using (public.is_global_admin())
+with check (public.is_global_admin());
+
+alter table public.districts enable row level security;
+alter table public.teams enable row level security;
+alter table public.campuses enable row level security;
+
+grant usage on schema public to anon, authenticated;
+grant select on table public.districts to anon, authenticated;
+grant select on table public.teams to anon, authenticated;
+grant select on table public.campuses to anon, authenticated;
+grant select on table public.campus_options to anon, authenticated;
+
+drop policy if exists "Anyone can view active districts" on public.districts;
+drop policy if exists "Anyone can view active teams" on public.teams;
+drop policy if exists "Anyone can view active campuses" on public.campuses;
+
+create policy "Anyone can view active districts"
+on public.districts
+for select
+to anon, authenticated
+using (is_active = true);
+
+create policy "Anyone can view active teams"
+on public.teams
+for select
+to anon, authenticated
+using (is_active = true);
+
+create policy "Anyone can view active campuses"
+on public.campuses
+for select
+to anon, authenticated
+using (is_active = true);
+
+grant execute on function public.email_exists(text) to anon, authenticated;
+
+notify pgrst, 'reload schema';
+
+select
+  (select count(*) from public.districts where is_active = true) as active_districts,
+  (select count(*) from public.teams where is_active = true) as active_teams,
+  (select count(*) from public.campuses where is_active = true) as active_campuses;
+
+-- =========================================================
+-- END sql/setup/99_finalize_setup.sql
+-- =========================================================
+
+-- =========================================================
+-- FINAL OVERRIDE sql/setup/60_reset_reservation_data.sql
+-- Keeps the combined setup aligned with the expanded reset UI.
+-- =========================================================
+
+drop function if exists reset_reservation_data(boolean, boolean, boolean, boolean, boolean);
+drop function if exists reset_reservation_data(boolean, boolean, boolean, boolean, boolean, boolean, boolean, boolean, boolean, boolean, boolean);
+drop function if exists reset_reservation_data(boolean, boolean, boolean, boolean, boolean, boolean, boolean, boolean, boolean, boolean, boolean, boolean);
+drop function if exists reset_reservation_data();
+drop function if exists get_deletable_user_count();
+
+create or replace function get_deletable_user_count()
+returns integer
+language plpgsql
+security definer
+set search_path = public, auth
+as $$
+begin
+  if not exists (
+    select 1 from public.admin_roles
+    where user_id = auth.uid() and role = 'global_admin'
+  ) then
+    raise exception 'Only global admins can view deletable user count.';
+  end if;
+  return (select count(*)::integer from auth.users where id <> auth.uid());
+end;
+$$;
+
+create or replace function reset_reservation_data(
+  p_reset_reservations boolean default true,
+  p_reset_payments boolean default true,
+  p_reset_campus_transfers boolean default true,
+  p_reset_bus_allocations boolean default true,
+  p_reset_campus_requests boolean default true,
+  p_reset_stations boolean default false,
+  p_reset_bus_options boolean default false,
+  p_reset_app_settings boolean default false,
+  p_reset_home_announcements boolean default false,
+  p_reset_campus_admin_roles boolean default false,
+  p_reset_organization boolean default false,
+  p_reset_user_accounts boolean default false
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_reservations integer := 0;
+  v_payments integer := 0;
+  v_transfers integer := 0;
+  v_allocations integer := 0;
+  v_requests integer := 0;
+  v_messages integer := 0;
+  v_stations integer := 0;
+  v_bus_options integer := 0;
+  v_app_settings integer := 0;
+  v_announcements integer := 0;
+  v_campus_admins integer := 0;
+  v_districts integer := 0;
+  v_teams integer := 0;
+  v_campuses integer := 0;
+  v_user_accounts integer := 0;
+begin
+  if not exists (
+    select 1 from admin_roles
+    where user_id = auth.uid() and role = 'global_admin'
+  ) then
+    raise exception 'Only global admins can reset data.';
+  end if;
+
+  if p_reset_organization or p_reset_user_accounts then
+    p_reset_reservations := true;
+    p_reset_payments := true;
+    p_reset_campus_transfers := true;
+    p_reset_bus_allocations := true;
+    p_reset_campus_requests := true;
+    p_reset_campus_admin_roles := true;
+  end if;
+
+  if p_reset_campus_requests then
+    delete from campus_request_messages where true;
+    get diagnostics v_messages = row_count;
+    delete from campus_requests where true;
+    get diagnostics v_requests = row_count;
+  end if;
+  if p_reset_campus_transfers then
+    delete from campus_transfers where true;
+    get diagnostics v_transfers = row_count;
+  end if;
+  if p_reset_bus_allocations then
+    delete from bus_allocations where true;
+    get diagnostics v_allocations = row_count;
+  end if;
+  if p_reset_payments or p_reset_reservations then
+    delete from payments where true;
+    get diagnostics v_payments = row_count;
+  end if;
+  if p_reset_reservations then
+    delete from reservations where true;
+    get diagnostics v_reservations = row_count;
+  end if;
+  if p_reset_home_announcements then
+    delete from home_announcements where true;
+    get diagnostics v_announcements = row_count;
+  end if;
+  if p_reset_stations then
+    delete from stations where true;
+    get diagnostics v_stations = row_count;
+  end if;
+  if p_reset_bus_options then
+    delete from bus_options where true;
+    get diagnostics v_bus_options = row_count;
+  end if;
+  if p_reset_app_settings then
+    delete from app_settings where true;
+    get diagnostics v_app_settings = row_count;
+    insert into app_settings (key, value)
+    values
+      ('bus_ticket_price', '{"price": 0}'::jsonb),
+      ('first_reservation_deadline', '{"deadline_at": null}'::jsonb),
+      ('seoul_district_transfer_account', '{"account_number": ""}'::jsonb),
+      ('participation_targets', '{"rows": [], "targets": {}}'::jsonb),
+      ('global_scenario_checklist', '{"checked_step_ids": []}'::jsonb)
+    on conflict (key) do update set value = excluded.value, updated_at = now();
+  end if;
+  if p_reset_campus_admin_roles then
+    delete from admin_roles where role = 'campus_admin';
+    get diagnostics v_campus_admins = row_count;
+  end if;
+
+  if p_reset_organization then
+    update admin_roles
+    set district_id = null, team_id = null, campus_id = null,
+        district = null, team = null, campus = null, updated_at = now()
+    where role = 'global_admin';
+    update profiles
+    set district_id = null, team_id = null, campus_id = null,
+        district = null, team = null, campus = null, updated_at = now()
+    where district_id is not null or team_id is not null or campus_id is not null
+       or district is not null or team is not null or campus is not null;
+    select count(*) into v_districts from districts;
+    select count(*) into v_teams from teams;
+    select count(*) into v_campuses from campuses;
+    delete from districts where true;
+  end if;
+
+  if p_reset_user_accounts then
+    update admin_roles set granted_by = null where granted_by is not null;
+    delete from auth.users where id <> auth.uid();
+    get diagnostics v_user_accounts = row_count;
+  end if;
+
+  return jsonb_build_object(
+    'reservations', v_reservations,
+    'payments', v_payments,
+    'campusTransfers', v_transfers,
+    'busAllocations', v_allocations,
+    'campusRequests', v_requests,
+    'campusRequestMessages', v_messages,
+    'stations', v_stations,
+    'busOptions', v_bus_options,
+    'appSettings', v_app_settings,
+    'homeAnnouncements', v_announcements,
+    'campusAdminRoles', v_campus_admins,
+    'organization', v_districts + v_teams + v_campuses,
+    'userAccounts', v_user_accounts
+  );
+end;
+$$;
+
+revoke all on function reset_reservation_data(boolean, boolean, boolean, boolean, boolean, boolean, boolean, boolean, boolean, boolean, boolean, boolean) from public;
+grant execute on function reset_reservation_data(boolean, boolean, boolean, boolean, boolean, boolean, boolean, boolean, boolean, boolean, boolean, boolean) to authenticated;
+revoke all on function get_deletable_user_count() from public;
+grant execute on function get_deletable_user_count() to authenticated;
 notify pgrst, 'reload schema';

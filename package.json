@@ -7,6 +7,9 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "test:unit": "tsc -p tsconfig.test.json && node --test .tmp/test-dist/tests/*.test.js",
+    "simulation": "node --env-file=.env scripts/simulation.mjs",
+    "simulation:seed": "node --env-file=.env scripts/simulation.mjs seed",
     "preview": "vite preview"
   },
   "dependencies": {

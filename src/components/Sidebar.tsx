@@ -1,8 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { X, LogIn, Bus, Ticket, LogOut, ShieldCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { getAdminRole, type AdminRole } from '../lib/adminService';
+import {
+  getAdminRole,
+  getGlobalCampusNotices,
+  type AdminRole,
+} from '../lib/adminService';
+import {
+  campusNoticeReadEventName,
+  getUnreadCampusNotices,
+} from '../lib/adminNoticeReadState';
 import styles from './Sidebar.module.css';
 
 interface SidebarProps {
@@ -17,10 +25,13 @@ interface Profile {
 
 const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
   const navigate = useNavigate();
+  const isMountedRef = useRef(false);
+  const loadUserRequestIdRef = useRef(0);
 
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [adminRole, setAdminRole] = useState<AdminRole | null>(null);
+  const [campusNoticeCount, setCampusNoticeCount] = useState(0);
 
   const handleMenuClick = (path: string) => {
     navigate(path);
@@ -28,25 +39,52 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
   };
 
   const loadUser = async () => {
+    const requestId = (loadUserRequestIdRef.current += 1);
+    const isActiveRequest = () =>
+      isMountedRef.current && loadUserRequestIdRef.current === requestId;
     const { data } = await supabase.auth.getSession();
+
+    if (!isActiveRequest()) return;
 
     if (!data.session?.user) {
       setIsLoggedIn(false);
       setProfile(null);
       setAdminRole(null);
+      setCampusNoticeCount(0);
       return;
     }
 
     setIsLoggedIn(true);
     const role = await getAdminRole(data.session.user.id);
 
+    if (!isActiveRequest()) return;
+
     setAdminRole(role);
+
+    if (role?.role === 'campus_admin') {
+      const noticesResult = await getGlobalCampusNotices();
+
+      if (!isActiveRequest()) return;
+
+      setCampusNoticeCount(
+        (
+          await getUnreadCampusNotices(
+            data.session.user.id,
+            noticesResult.data ?? []
+          )
+        ).length
+      );
+    } else {
+      setCampusNoticeCount(0);
+    }
 
     const { data: profileData, error } = await supabase
       .from('profiles')
       .select('name, email')
       .eq('id', data.session.user.id)
       .maybeSingle();
+
+    if (!isActiveRequest()) return;
 
     if (error) {
       console.error('프로필 로드 실패:', error);
@@ -64,6 +102,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
   };
 
   useEffect(() => {
+    isMountedRef.current = true;
     Promise.resolve().then(() => {
       loadUser();
     });
@@ -74,8 +113,13 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
       loadUser();
     });
 
+    window.addEventListener(campusNoticeReadEventName, loadUser);
+
     return () => {
+      isMountedRef.current = false;
+      loadUserRequestIdRef.current += 1;
       subscription.unsubscribe();
+      window.removeEventListener(campusNoticeReadEventName, loadUser);
     };
   }, []);
 
@@ -162,7 +206,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
                 onClick={() => handleMenuClick('/reservation')}
               >
                 <Bus size={20} color="#364153" className={styles.navIcon} />
-                버스예매
+                버스 신청
               </button>
             </li>
 
@@ -172,7 +216,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
                 onClick={() => handleMenuClick('/ticket')}
               >
                 <Ticket size={20} color="#364153" className={styles.navIcon} />
-                버스확인표
+                버스표
               </button>
             </li>
 
@@ -187,7 +231,12 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
                     color="#1d4ed8"
                     className={styles.navIcon}
                   />
-                  {adminLabel}
+                  <span className={styles.navLabel}>{adminLabel}</span>
+                  {adminRole.role === 'campus_admin' && campusNoticeCount > 0 && (
+                    <span className={styles.navBadge}>
+                      공지 {campusNoticeCount}
+                    </span>
+                  )}
                 </button>
               </li>
             )}

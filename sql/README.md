@@ -1,5 +1,23 @@
 # SQL Setup Files
 
+## Simulation rehearsal
+
+The end-to-end simulation SQL is split by execution stage under
+`simulation/`. Follow `simulation/README.md` and run the numbered files in order.
+The old single-file `90_simulation_rehearsal_seed.sql` has been replaced by these
+smaller, independently transactional steps.
+
+## Combined setup note
+
+All non-simulation SQL files are grouped under `setup/`.
+
+`setup/combined_supabase_setup.sql` already includes the base schema, Seoul organization seed
+(`setup/80_seed_seoul_organization.sql`), and station seed template
+(`setup/82_seed_stations_template.sql`). When setting up a fresh test Supabase project with
+`setup/combined_supabase_setup.sql`, do not run `setup/80_seed_seoul_organization.sql`,
+`setup/82_seed_stations_template.sql`, or `setup/83_add_dong_team_campuses.sql` again unless you
+are intentionally patching an older DB.
+
 이 폴더는 Supabase SQL Editor에서 실행할 프로젝트 DB 스키마, RLS 정책, RPC, 시드 데이터를 목적별로 정리한 곳입니다.
 
 ## 새 DB 권장 실행 순서
@@ -9,7 +27,7 @@
    - `reservations.status`와 `payments.status` 체크 제약까지 기준값으로 보정
 
 2. `01_profiles_organization_stations.sql`
-   - 회원 프로필, 서울지구/팀/캠퍼스, 하차역 테이블
+   - 회원 프로필, 서울지구/팀/캠퍼스, 도착역 테이블
    - `campus_options` view
    - 캠퍼스 관리자 권한 범위 정책 보강
    - `district_id/team_id/campus_id` 기준 컬럼과 기존 text 값의 backfill
@@ -29,6 +47,15 @@
    - 1차 신청 마감 설정 기본값 보정
    - 공통 설정 테이블은 `05_app_settings.sql`에서 생성
 
+5a. `21_atomic_reservation_save.sql`
+   - 마감 확인과 사용자 예약 insert/update를 단일 트랜잭션 RPC로 처리
+   - 동일 사용자 동시 저장은 `reservations.user_id` unique 인덱스로 직렬화
+
+5b. `22_destination_stats_rpc.sql`
+   - 모든 신청자의 도착역 선호도를 Postgres 내부에서 집계
+   - PostgREST 최대 반환 행 수 때문에 배차 통계가 누락되는 문제 방지
+   - 전체 관리자만 집계 RPC 실행 가능
+
 6. `30_campus_transfer_settlement.sql`
    - 캠퍼스별 본부 송금 보고/확인
    - 실제 본부 확인 금액, 추가 정산 감지, 송금 상태 체크 제약
@@ -45,15 +72,23 @@
    - 캠퍼스 text 값과 함께 `district_id/team_id/campus_id`를 저장해 권한 매칭 안정성 보강
    - text 범위만 들어와도 id 범위를 자동 보정하는 트리거
 
+8a. `41_campus_notice_reads.sql`
+   - 사용자별 캠퍼스 공지 읽음 상태 저장 및 기기 간 동기화
+
 9. `50_home_announcements.sql`
    - 홈 공지 관리
 
-10. `80_seed_seoul_organization.sql`
+10. `60_reset_reservation_data.sql`
+   - Step 0 세팅 확인 화면의 선택형 DB 정보 초기화 RPC
+   - 운영 데이터와 행선지/버스 옵션/앱 설정/홈 공지/캠퍼스 관리자/조직 구조/유저 계정을 선택적으로 초기화
+   - 유저 계정 삭제 시 현재 로그인한 전체 관리자 계정과 프로필은 항상 보호
+
+11. `80_seed_seoul_organization.sql`
    - 서울지구 팀/캠퍼스 조직 옵션 시드
 
-11. `82_seed_stations_template.sql`
-    - 하차역 후보 시드 템플릿
-    - 실제 운영 하차역에 맞게 수정한 뒤 실행
+12. `82_seed_stations_template.sql`
+    - 도착역 후보 시드 템플릿
+    - 실제 운영 도착역에 맞게 수정한 뒤 실행
 
 ## 선택 실행 파일
 
@@ -76,6 +111,9 @@
 
 - `52_fix_bus_allocations_policies.sql`
   - 배차 결과 정책/스키마 캐시 보정
+
+- `53_bus_option_max_count.sql`
+  - 기존 DB의 버스 옵션에 종류별 사용 가능 최대 대수 컬럼 추가
 
 ## 관리 원칙
 

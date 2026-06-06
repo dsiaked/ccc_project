@@ -18,18 +18,26 @@ const HomeNoticeSection = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    let isMounted = true;
+
     const loadAnnouncements = async () => {
       try {
         const items = await getPublishedHomeAnnouncements();
+        if (!isMounted) return;
+
         setAnnouncements(items);
       } catch (error) {
         console.error('홈 공지 로드 실패:', error);
       } finally {
-        setIsLoading(false);
+        if (isMounted) setIsLoading(false);
       }
     };
 
     loadAnnouncements();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   if (!isLoading && announcements.length === 0) {

@@ -16,6 +16,21 @@ import styles from './SignupPage.module.css';
 const validateEmail = (value: string) => /^\S+@\S+\.\S+$/.test(value);
 const validatePhone = (value: string) => /^010-\d{4}-\d{4}$/.test(value);
 
+const getDuplicateCheckErrorMessage = (error: {
+  code?: string;
+  message?: string;
+}) => {
+  if (
+    error.code === 'PGRST202' ||
+    error.message?.includes('email_exists') ||
+    error.message?.includes('schema cache')
+  ) {
+    return '이메일 중복확인 기능이 아직 서버에 설치되지 않았습니다. 관리자에게 문의해주세요.';
+  }
+
+  return '이메일 중복확인 중 오류가 발생했습니다.';
+};
+
 const formatPhoneNumber = (value: string) => {
   const numbersOnly = value.replace(/\D/g, '').slice(0, 11);
 
@@ -171,15 +186,13 @@ const SignupPage = () => {
     setCheckingEmail(true);
 
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('email', normalizedEmail)
-        .maybeSingle();
+      const { data, error } = await supabase.rpc('email_exists', {
+        p_email: normalizedEmail,
+      });
 
       if (error) {
         console.error('이메일 중복확인 실패:', error);
-        setEmailMessage('이메일 중복확인 중 오류가 발생했습니다.');
+        setEmailMessage(getDuplicateCheckErrorMessage(error));
         setEmailMessageType('error');
         setEmailChecked(false);
         setEmailAvailable(false);
@@ -282,15 +295,13 @@ const SignupPage = () => {
 
     try {
       const { data: existingProfile, error: duplicateCheckError } =
-        await supabase
-          .from('profiles')
-          .select('id')
-          .eq('email', normalizedEmail)
-          .maybeSingle();
+        await supabase.rpc('email_exists', {
+          p_email: normalizedEmail,
+        });
 
       if (duplicateCheckError) {
         console.error('이메일 중복 재확인 실패:', duplicateCheckError);
-        setEmailMessage('이메일 중복확인 중 오류가 발생했습니다.');
+        setEmailMessage(getDuplicateCheckErrorMessage(duplicateCheckError));
         setEmailMessageType('error');
         return;
       }
@@ -329,8 +340,8 @@ const SignupPage = () => {
         return;
       }
 
-      if (data.user) {
-        const { error: profileError } = await supabase.from('profiles').insert({
+      if (data.user && data.session) {
+        const { error: profileError } = await supabase.from('profiles').upsert({
           id: data.user.id,
           email: normalizedEmail,
           name: name.trim(),

@@ -17,6 +17,7 @@ create table if not exists campus_requests (
   title text not null,
   content text not null,
   admin_response text,
+  is_global_notice boolean not null default false,
   district_id uuid references districts(id),
   team_id uuid references teams(id),
   campus_id uuid references campuses(id),
@@ -31,6 +32,7 @@ create table if not exists campus_requests (
   constraint campus_requests_type_check check (
     type in (
       'late_signup',
+      'notice',
       'cancel_refund',
       'payment_issue',
       'roster_change',
@@ -48,6 +50,7 @@ alter table campus_requests add column if not exists status text not null defaul
 alter table campus_requests add column if not exists title text not null default '';
 alter table campus_requests add column if not exists content text not null default '';
 alter table campus_requests add column if not exists admin_response text;
+alter table campus_requests add column if not exists is_global_notice boolean not null default false;
 alter table campus_requests add column if not exists district_id uuid references districts(id);
 alter table campus_requests add column if not exists team_id uuid references teams(id);
 alter table campus_requests add column if not exists campus_id uuid references campuses(id);
@@ -68,6 +71,7 @@ alter table campus_requests
   check (
     type in (
       'late_signup',
+      'notice',
       'cancel_refund',
       'payment_issue',
       'roster_change',
@@ -91,6 +95,9 @@ create index if not exists idx_campus_requests_scope_ids_status
 
 create index if not exists idx_campus_requests_created_at
   on campus_requests(created_at desc);
+
+create index if not exists idx_campus_requests_global_notice_created_at
+  on campus_requests(is_global_notice, created_at desc);
 
 update campus_requests
 set
@@ -159,6 +166,7 @@ alter table campus_requests enable row level security;
 
 drop policy if exists "Admins can view campus requests" on campus_requests;
 drop policy if exists "Campus admins can create campus requests" on campus_requests;
+drop policy if exists "Global admins can create campus notices" on campus_requests;
 drop policy if exists "Global admins can update campus requests" on campus_requests;
 
 create policy "Admins can view campus requests"
@@ -171,6 +179,15 @@ using (
     from admin_roles
     where admin_roles.user_id = auth.uid()
       and admin_roles.role = 'global_admin'
+  )
+  or (
+    campus_requests.is_global_notice = true
+    and exists (
+      select 1
+      from admin_roles
+      where admin_roles.user_id = auth.uid()
+        and admin_roles.role = 'campus_admin'
+    )
   )
   or exists (
     select 1
@@ -198,6 +215,8 @@ for insert
 to authenticated
 with check (
   created_by = auth.uid()
+  and campus_requests.is_global_notice = false
+  and campus_requests.type <> 'notice'
   and exists (
     select 1
     from admin_roles
@@ -217,6 +236,105 @@ with check (
       )
   )
 );
+
+create policy "Global admins can create campus notices"
+on campus_requests
+for insert
+to authenticated
+with check (
+  created_by = auth.uid()
+  and campus_requests.is_global_notice = true
+  and campus_requests.type = 'notice'
+  and exists (
+    select 1
+    from admin_roles
+    where admin_roles.user_id = auth.uid()
+      and admin_roles.role = 'global_admin'
+  )
+);
+
+drop function if exists create_global_campus_notice(text, text);
+
+create or replace function create_global_campus_notice(
+  p_title text,
+  p_content text
+)
+returns campus_requests
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_notice campus_requests;
+begin
+  if not exists (
+    select 1
+    from admin_roles
+    where admin_roles.user_id = auth.uid()
+      and admin_roles.role = 'global_admin'
+  ) then
+    raise exception 'Only global admins can create campus notices.';
+  end if;
+
+  insert into campus_requests (
+    type,
+    status,
+    title,
+    content,
+    is_global_notice,
+    district,
+    team,
+    campus,
+    created_by
+  )
+  values (
+    'notice',
+    'open',
+    trim(p_title),
+    trim(p_content),
+    true,
+    '전체',
+    '전체',
+    '전체',
+    auth.uid()
+  )
+  returning * into v_notice;
+
+  return v_notice;
+end;
+$$;
+
+grant execute on function create_global_campus_notice(text, text) to authenticated;
+
+drop function if exists get_global_campus_notices();
+
+create or replace function get_global_campus_notices()
+returns setof campus_requests
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not exists (
+    select 1
+    from admin_roles
+    where admin_roles.user_id = auth.uid()
+      and admin_roles.role in ('global_admin', 'campus_admin')
+  ) then
+    raise exception 'Only admins can view campus notices.';
+  end if;
+
+  return query
+  select campus_requests.*
+  from campus_requests
+  where campus_requests.is_global_notice = true
+  order by campus_requests.created_at desc;
+end;
+$$;
+
+grant execute on function get_global_campus_notices() to authenticated;
+
+notify pgrst, 'reload schema';
 
 create policy "Global admins can update campus requests"
 on campus_requests
@@ -289,6 +407,14 @@ using (
     from admin_roles
     where admin_roles.user_id = auth.uid()
       and admin_roles.role = 'global_admin'
+  )
+  or exists (
+    select 1
+    from campus_requests
+    join admin_roles on admin_roles.user_id = auth.uid()
+    where campus_requests.id = campus_request_messages.request_id
+      and campus_requests.is_global_notice = true
+      and admin_roles.role = 'campus_admin'
   )
   or exists (
     select 1

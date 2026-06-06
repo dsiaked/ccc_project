@@ -180,6 +180,13 @@
   font-size: 15px;
   font-weight: 800;
   text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.confirmedTicketPreview {
+  display: grid;
+  gap: 10px;
+  margin-top: 8px;
 }
 
 .confirmedBox {
@@ -204,6 +211,51 @@
   color: #ffffff;
   font-size: 16px;
   font-weight: 900;
+}
+
+.confirmedSummaryList {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 12px 0 0;
+  border-top: 1px solid rgba(187, 247, 208, 0.28);
+}
+
+.confirmedSummaryList div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.18);
+}
+
+.confirmedSummaryList div:first-child {
+  padding-top: 0;
+}
+
+.confirmedSummaryList div:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.confirmedSummaryList dt {
+  flex-shrink: 0;
+  margin: 0;
+  color: #bbf7d0;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.confirmedSummaryList dd {
+  min-width: 0;
+  margin: 0;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1.35;
+  text-align: right;
+  overflow-wrap: anywhere;
 }
 
 .emptyBox {
@@ -274,7 +326,8 @@
     gap: 4px;
   }
 
-  .infoRow strong {
+  .infoRow strong,
+  .confirmedSummaryList dd {
     text-align: left;
   }
 

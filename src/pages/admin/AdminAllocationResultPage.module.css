@@ -1,0 +1,557 @@
+.page {
+  min-height: 100vh;
+  background: #f3f4f6;
+}
+
+.main {
+  width: min(1400px, 100%);
+  margin: 0 auto;
+  padding: 100px 20px 40px;
+}
+
+.titleRow,
+.titleActions,
+.sectionHeading,
+.busMeta,
+.legend,
+.filters,
+.warningBar,
+.errorBox {
+  display: flex;
+  align-items: center;
+}
+
+.titleRow {
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.titleRow h1 {
+  margin: 8px 0 4px;
+  color: #111827;
+  font-size: 30px;
+}
+
+.titleRow p {
+  margin: 0;
+  color: #667085;
+  font-size: 14px;
+}
+
+.backButton {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #475467;
+}
+
+.titleActions {
+  gap: 8px;
+}
+
+.titleActions button,
+.backButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.titleActions button {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #344054;
+}
+
+.summaryGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.summaryItem {
+  padding: 18px;
+  border: 1px solid #e4e7ec;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.summaryItem span {
+  display: block;
+  margin-bottom: 10px;
+  color: #667085;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.summaryItem strong {
+  color: #101828;
+  font-size: 26px;
+}
+
+.summaryItem small {
+  margin-left: 3px;
+  color: #667085;
+  font-size: 13px;
+}
+
+.warningBar,
+.errorBox {
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border: 1px solid #fed7aa;
+  border-radius: 6px;
+  background: #fff7ed;
+  color: #9a3412;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.errorBox {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #b42318;
+}
+
+.warningBar span {
+  padding-right: 8px;
+  border-right: 1px solid #fdba74;
+}
+
+.busSection,
+.busDetail,
+.listSection {
+  margin-bottom: 16px;
+  padding: 20px;
+  border: 1px solid #e4e7ec;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.sectionHeading {
+  gap: 8px;
+  margin-bottom: 16px;
+  color: #344054;
+}
+
+.sectionHeading h2 {
+  margin: 0;
+  color: #101828;
+  font-size: 18px;
+}
+
+.sectionHeading span {
+  margin-left: auto;
+  color: #667085;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.busTabs {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 8px;
+}
+
+.busTabs button {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 13px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #475467;
+  text-align: left;
+  cursor: pointer;
+}
+
+.busTabs button strong {
+  color: #101828;
+  font-size: 15px;
+}
+
+.busTabs button span,
+.busTabs button small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.busTabs button span {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.busTabs button small {
+  color: #667085;
+  font-size: 12px;
+}
+
+.busTabs .activeBus {
+  border-color: #2563eb;
+  background: #eff6ff;
+  box-shadow: 0 0 0 1px #2563eb;
+}
+
+.busMeta,
+.legend {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.busMeta {
+  margin-bottom: 14px;
+}
+
+.busMeta span {
+  padding: 6px 8px;
+  border: 1px solid #eaecf0;
+  border-radius: 4px;
+  color: #475467;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.legend {
+  margin-bottom: 12px;
+  color: #667085;
+  font-size: 12px;
+}
+
+.legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.legend i {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+.assignedDot {
+  background: #dbeafe;
+}
+
+.emptyDot {
+  background: #f2f4f7;
+}
+
+.unpaidDot {
+  background: #fed7aa;
+}
+
+.seatMap {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(86px, 1fr));
+  gap: 8px;
+  max-width: 720px;
+  padding: 16px;
+  border: 1px solid #d0d5dd;
+  border-radius: 8px;
+  background: #f9fafb;
+}
+
+.seat {
+  position: relative;
+  display: grid;
+  align-content: center;
+  gap: 3px;
+  min-height: 70px;
+  padding: 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  text-align: center;
+}
+
+.seat span {
+  color: #667085;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.seat strong {
+  overflow: hidden;
+  color: #344054;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.seat small {
+  color: #9a3412;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.assignedSeat {
+  border-color: #93c5fd;
+  background: #eff6ff;
+}
+
+.emptySeat {
+  border-color: #e4e7ec;
+  background: #f2f4f7;
+}
+
+.unpaidSeat {
+  border-color: #fb923c;
+  background: #fff7ed;
+}
+
+.duplicateSeat {
+  box-shadow: 0 0 0 2px #dc2626;
+}
+
+.filters {
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.searchBox {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  min-width: 220px;
+  padding: 0 10px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #667085;
+}
+
+.searchBox input,
+.filters select {
+  height: 40px;
+  border: 0;
+  background: transparent;
+  color: #344054;
+  font: inherit;
+  outline: none;
+}
+
+.searchBox input {
+  width: 100%;
+  min-width: 0;
+}
+
+.filters select {
+  padding: 0 30px 0 10px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+}
+
+.tableWrap {
+  overflow-x: auto;
+}
+
+.tableWrap table {
+  width: 100%;
+  border-collapse: collapse;
+  white-space: nowrap;
+}
+
+.tableWrap th,
+.tableWrap td {
+  padding: 11px 10px;
+  border-bottom: 1px solid #eaecf0;
+  color: #344054;
+  font-size: 13px;
+  text-align: left;
+}
+
+.tableWrap th {
+  background: #f9fafb;
+  color: #667085;
+  font-size: 12px;
+}
+
+.paymentBadge {
+  display: inline-block;
+  padding: 4px 7px;
+  border-radius: 4px;
+  background: #f2f4f7;
+  color: #475467;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.paymentBadge.completed {
+  background: #ecfdf3;
+  color: #027a48;
+}
+
+.paymentBadge.pending,
+.paymentBadge.none {
+  background: #fff7ed;
+  color: #c2410c;
+}
+
+.paymentBadge.refunded {
+  background: #fef2f2;
+  color: #b42318;
+}
+
+.iconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #475467;
+  cursor: pointer;
+}
+
+.pagination,
+.pageButtons {
+  display: flex;
+  align-items: center;
+}
+
+.pagination {
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+  color: #667085;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.pageButtons {
+  gap: 4px;
+}
+
+.pageButtons button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 32px;
+  padding: 0 7px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #475467;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.pageButtons button:hover:not(:disabled) {
+  border-color: #98a2b3;
+  background: #f9fafb;
+}
+
+.pageButtons button:disabled {
+  color: #d0d5dd;
+  cursor: not-allowed;
+}
+
+.pageButtons .activePage {
+  border-color: #2563eb;
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.emptyState,
+.inlineEmpty {
+  padding: 40px 20px;
+  color: #667085;
+  text-align: center;
+}
+
+.emptyState {
+  margin-bottom: 16px;
+  border: 1px solid #e4e7ec;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.inlineEmpty {
+  padding: 16px;
+}
+
+@media (max-width: 768px) {
+  .main {
+    padding: 80px 12px 24px;
+  }
+
+  .titleRow {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .titleRow h1 {
+    font-size: 24px;
+  }
+
+  .titleActions button {
+    flex: 1;
+  }
+
+  .summaryGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .summaryItem {
+    padding: 14px;
+  }
+
+  .busSection,
+  .busDetail,
+  .listSection {
+    padding: 14px;
+  }
+
+  .busTabs {
+    display: flex;
+    overflow-x: auto;
+  }
+
+  .busTabs button {
+    flex: 0 0 190px;
+  }
+
+  .seatMap {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: 10px;
+  }
+
+  .filters {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .searchBox {
+    min-width: 0;
+  }
+
+  .filters select {
+    width: 100%;
+  }
+
+  .pagination {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .pageButtons {
+    justify-content: center;
+  }
+}

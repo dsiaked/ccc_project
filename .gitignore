@@ -10,6 +10,8 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+outputs
+.tmp
 *.local
 
 # Editor directories and files
@@ -26,3 +28,6 @@ dist-ssr
 .env
 .env.local
 .env.*.local
+
+# Supabase CLI local project link metadata
+supabase/.temp/

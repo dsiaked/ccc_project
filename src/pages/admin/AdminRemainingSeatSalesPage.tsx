@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, CheckCircle2, RefreshCw, Search, Ticket } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
-import Header from '../../components/Header';
+import AdminHeader from './AdminHeader';
 import { getAdminRole, getBusAllocations } from '../../lib/adminService';
 import { supabase } from '../../lib/supabase';
 import type {
@@ -38,7 +38,6 @@ interface AllocationRoute {
     name: string;
     passengerCount: number;
     rank2Demand: number;
-    rank3Demand: number;
   }>;
 }
 
@@ -275,8 +274,10 @@ const AdminRemainingSeatSalesPage = () => {
     null;
 
   const selectedRoute = selectedRouteStatus?.route ?? null;
-  const routeDestinationNames =
-    selectedRoute?.destinations.map((destination) => destination.name) ?? [];
+  const routeDestinationNames = useMemo(
+    () => selectedRoute?.destinations.map((destination) => destination.name) ?? [],
+    [selectedRoute]
+  );
 
   const candidateReservations = useMemo(() => {
     const keyword = normalize(searchKeyword);
@@ -427,7 +428,7 @@ const AdminRemainingSeatSalesPage = () => {
   if (loading) {
     return (
       <div className={styles.pageContainer}>
-        <Header />
+        <AdminHeader />
         <main className={styles.main}>
           <p>로딩 중...</p>
         </main>
@@ -437,7 +438,7 @@ const AdminRemainingSeatSalesPage = () => {
 
   return (
     <div className={styles.pageContainer}>
-      <Header />
+      <AdminHeader />
 
       <main className={styles.main}>
         <button
@@ -494,7 +495,7 @@ const AdminRemainingSeatSalesPage = () => {
               <p>{loadError}</p>
               {loadError.includes('bus_allocations') && (
                 <small>
-                  Supabase SQL Editor에서 sql/52_fix_bus_allocations_policies.sql을
+                  Supabase SQL Editor에서 sql/setup/52_fix_bus_allocations_policies.sql을
                   실행한 뒤 새로고침해주세요.
                 </small>
               )}
@@ -554,7 +555,7 @@ const AdminRemainingSeatSalesPage = () => {
                       <p>
                         {item.route.destinations
                           .map((destination) => destination.name)
-                          .join(' / ') || '행선지 없음'}
+                          .join(' / ') || '도착역 없음'}
                       </p>
                     </div>
                     <span>
@@ -619,7 +620,7 @@ const AdminRemainingSeatSalesPage = () => {
               <div className={styles.candidateList}>
                 {candidateReservations.length === 0 ? (
                   <p className={styles.emptyText}>
-                    선택한 버스 행선지와 매칭되는 미확정 신청자가 없습니다.
+                    선택한 버스 도착역과 매칭되는 미확정 신청자가 없습니다.
                   </p>
                 ) : (
                   candidateReservations.map((reservation) => {

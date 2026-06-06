@@ -15,8 +15,8 @@ const Footer = () => {
         <div className={styles.section}>
           <h4 className={styles.subtitle}>바로가기</h4>
           <ul className={styles.linkList}>
-            <li><a href="#" className={styles.link}>버스예매</a></li>
-            <li><a href="#" className={styles.link}>버스확인표</a></li>
+            <li><a href="#" className={styles.link}>버스 신청</a></li>
+            <li><a href="#" className={styles.link}>버스표</a></li>
             <li><a href="#" className={styles.link}>문의하기</a></li>
           </ul>
         </div>

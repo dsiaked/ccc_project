@@ -70,6 +70,50 @@ create unique index if not exists idx_campus_transfers_campus_unique
 create index if not exists idx_campus_transfers_scope_ids
   on campus_transfers(district_id, team_id, campus_id);
 
+alter table campus_transfers enable row level security;
+
+drop policy if exists "Admins can view campus transfers" on campus_transfers;
+create policy "Admins can view campus transfers"
+on campus_transfers
+for select
+using (
+  exists (
+    select 1
+    from admin_roles
+    where admin_roles.user_id = auth.uid()
+      and (
+        admin_roles.role = 'global_admin'
+        or (
+          admin_roles.role = 'campus_admin'
+          and admin_roles.district = campus_transfers.district
+          and admin_roles.team = campus_transfers.team
+          and admin_roles.campus = campus_transfers.campus
+        )
+      )
+  )
+);
+
+drop policy if exists "Global admins can update campus transfers" on campus_transfers;
+create policy "Global admins can update campus transfers"
+on campus_transfers
+for update
+using (
+  exists (
+    select 1
+    from admin_roles
+    where admin_roles.user_id = auth.uid()
+      and admin_roles.role = 'global_admin'
+  )
+)
+with check (
+  exists (
+    select 1
+    from admin_roles
+    where admin_roles.user_id = auth.uid()
+      and admin_roles.role = 'global_admin'
+  )
+);
+
 update campus_transfers
 set
   district_id = coalesce(campus_transfers.district_id, campus_options.district_id),
@@ -135,6 +179,23 @@ as $$
 declare
   v_transfer campus_transfers;
 begin
+  if auth.uid() is null or not exists (
+    select 1
+    from admin_roles
+    where admin_roles.user_id = auth.uid()
+      and (
+        admin_roles.role = 'global_admin'
+        or (
+          admin_roles.role = 'campus_admin'
+          and admin_roles.district = p_district
+          and admin_roles.team = p_team
+          and admin_roles.campus = p_campus
+        )
+      )
+  ) then
+    raise exception 'Not authorized to report this campus transfer.';
+  end if;
+
   insert into campus_transfers (
     district_id,
     team_id,
@@ -185,7 +246,7 @@ begin
     p_paid_people,
     p_total_amount,
     'sent',
-    p_sent_by,
+    auth.uid(),
     now(),
     null,
     null,
@@ -254,9 +315,8 @@ as $$
       count(reservations.id)::integer as current_total_people,
       count(payments.id) filter (where payments.status = 'completed')::integer
         as current_paid_people,
-      coalesce(
-        sum(payments.amount) filter (where payments.status = 'completed'),
-        0
+      (
+        count(reservations.id) * get_bus_ticket_price()
       )::integer as current_total_amount
     from reservations
     left join payments on payments.reservation_id = reservations.id
@@ -326,5 +386,21 @@ as $$
     on campus_admins.district = active_campuses.district
    and campus_admins.team = active_campuses.team
    and campus_admins.campus = active_campuses.campus
+  where exists (
+    select 1
+    from admin_roles
+    where admin_roles.user_id = auth.uid()
+      and admin_roles.role = 'global_admin'
+  )
   order by active_campuses.district, active_campuses.team, active_campuses.campus;
 $$;
+
+revoke execute on function mark_campus_transfer_sent(
+  text, text, text, integer, integer, integer, uuid
+) from public, anon;
+grant execute on function mark_campus_transfer_sent(
+  text, text, text, integer, integer, integer, uuid
+) to authenticated;
+
+revoke execute on function get_global_campus_transfer_stats() from public, anon;
+grant execute on function get_global_campus_transfer_stats() to authenticated;

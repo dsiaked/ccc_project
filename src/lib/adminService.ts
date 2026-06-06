@@ -4,6 +4,7 @@ import { supabase } from './supabase';
 
 export type AdminRoleType = 'global_admin' | 'campus_admin';
 export type CampusRequestType =
+  | 'notice'
   | 'late_signup'
   | 'cancel_refund'
   | 'payment_issue'
@@ -142,6 +143,7 @@ type CampusRequestRow = {
   title: string;
   content: string;
   admin_response: string | null;
+  is_global_notice?: boolean | null;
   district: string;
   team: string;
   campus: string;
@@ -161,15 +163,11 @@ type CampusRequestMessageRow = {
   created_at: string;
 };
 
-type DestinationPreference = {
-  rank?: number | string | null;
-  station?: {
-    name?: string | null;
-  } | null;
-};
-
-type DestinationReservationRow = {
-  station_preferences: unknown;
+type DestinationStatsRow = {
+  station_name: string;
+  rank1: number | string;
+  rank2: number | string;
+  total: number | string;
 };
 
 export type ReservationDataResetStats = {
@@ -179,6 +177,28 @@ export type ReservationDataResetStats = {
   busAllocations: number;
   campusRequests: number;
   campusRequestMessages: number;
+  stations: number;
+  busOptions: number;
+  appSettings: number;
+  homeAnnouncements: number;
+  campusAdminRoles: number;
+  organization: number;
+  userAccounts: number;
+};
+
+export type ReservationDataResetOptions = {
+  reservations: boolean;
+  payments: boolean;
+  campusTransfers: boolean;
+  busAllocations: boolean;
+  campusRequests: boolean;
+  stations: boolean;
+  busOptions: boolean;
+  appSettings: boolean;
+  homeAnnouncements: boolean;
+  campusAdminRoles: boolean;
+  organization: boolean;
+  userAccounts: boolean;
 };
 
 const emptyReservationDataResetStats = (): ReservationDataResetStats => ({
@@ -188,6 +208,13 @@ const emptyReservationDataResetStats = (): ReservationDataResetStats => ({
   busAllocations: 0,
   campusRequests: 0,
   campusRequestMessages: 0,
+  stations: 0,
+  busOptions: 0,
+  appSettings: 0,
+  homeAnnouncements: 0,
+  campusAdminRoles: 0,
+  organization: 0,
+  userAccounts: 0,
 });
 
 const toReservationDataResetStats = (
@@ -203,6 +230,13 @@ const toReservationDataResetStats = (
     busAllocations: Number(source.busAllocations ?? 0),
     campusRequests: Number(source.campusRequests ?? 0),
     campusRequestMessages: Number(source.campusRequestMessages ?? 0),
+    stations: Number(source.stations ?? 0),
+    busOptions: Number(source.busOptions ?? 0),
+    appSettings: Number(source.appSettings ?? 0),
+    homeAnnouncements: Number(source.homeAnnouncements ?? 0),
+    campusAdminRoles: Number(source.campusAdminRoles ?? 0),
+    organization: Number(source.organization ?? 0),
+    userAccounts: Number(source.userAccounts ?? 0),
   };
 };
 
@@ -216,30 +250,100 @@ async function getTableCount(tableName: string) {
   return count ?? 0;
 }
 
+async function getCampusAdminRoleCount() {
+  const { count, error } = await supabase
+    .from('admin_roles')
+    .select('*', { count: 'exact', head: true })
+    .eq('role', 'campus_admin');
+
+  if (error) throw error;
+
+  return count ?? 0;
+}
+
+async function getDeletableUserCount() {
+  const { data, error } = await supabase.rpc('get_deletable_user_count');
+
+  if (error) {
+    console.warn(
+      'Failed to load deletable auth user count, using profile count:',
+      error
+    );
+    return Math.max(0, (await getTableCount('profiles')) - 1);
+  }
+
+  return Number(data ?? 0);
+}
+
 
 // ===== 관리자 권한 기본 =====
 
-export async function getAdminRole(userId: string) {
-  const { data, error } = await supabase
-    .from('admin_roles')
-    .select('*')
-    .eq('user_id', userId)
-    .order('role', { ascending: false })
-    .order('updated_at', { ascending: false, nullsFirst: false })
-    .order('created_at', { ascending: false, nullsFirst: false });
+const ADMIN_ROLE_CACHE_TTL_MS = 30_000;
+const adminRoleCache = new Map<
+  string,
+  { value: AdminRole | null; expiresAt: number }
+>();
+const adminRoleRequests = new Map<string, Promise<AdminRole | null>>();
 
-  if (error) {
-    console.error('Failed to get admin role:', error);
-    return null;
+const invalidateAdminRoleCache = (userId?: string) => {
+  if (userId) {
+    adminRoleCache.delete(userId);
+    adminRoleRequests.delete(userId);
+    return;
   }
 
-  const roles = (data ?? []) as AdminRole[];
+  adminRoleCache.clear();
+  adminRoleRequests.clear();
+};
 
-  return (
-    roles.find((role) => role.role === 'global_admin') ||
-    roles.find((role) => role.role === 'campus_admin') ||
-    null
-  );
+export async function getAdminRole(userId: string) {
+  const cached = adminRoleCache.get(userId);
+
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.value;
+  }
+
+  const pendingRequest = adminRoleRequests.get(userId);
+
+  if (pendingRequest) {
+    return pendingRequest;
+  }
+
+  const request = (async () => {
+    const { data, error } = await supabase
+      .from('admin_roles')
+      .select('*')
+      .eq('user_id', userId)
+      .order('role', { ascending: false })
+      .order('updated_at', { ascending: false, nullsFirst: false })
+      .order('created_at', { ascending: false, nullsFirst: false });
+
+    if (error) {
+      console.error('Failed to get admin role:', error);
+      return null;
+    }
+
+    const roles = (data ?? []) as AdminRole[];
+    const role =
+      roles.find((item) => item.role === 'global_admin') ||
+      roles.find((item) => item.role === 'campus_admin') ||
+      null;
+
+    adminRoleCache.set(userId, {
+      value: role,
+      expiresAt: Date.now() + ADMIN_ROLE_CACHE_TTL_MS,
+    });
+
+    return role;
+  })();
+
+  adminRoleRequests.set(userId, request);
+
+  try {
+    return await request;
+  } finally {
+    adminRoleRequests.delete(userId);
+  }
 }
 
 export async function setAdminRole(
@@ -262,6 +366,8 @@ export async function setAdminRole(
     });
 
     if (insertError) throw insertError;
+
+    invalidateAdminRoleCache(userId);
 
     return { success: true };
   } catch (error) {
@@ -631,6 +737,8 @@ export async function registerCampusAdmin({
 
   if (insertError) throw insertError;
 
+  invalidateAdminRoleCache();
+
   return { success: true };
 }
 
@@ -642,6 +750,8 @@ export async function cancelCampusAdmin(adminRoleId: string) {
     .eq('role', 'campus_admin');
 
   if (error) throw error;
+
+  invalidateAdminRoleCache();
 
   return { success: true };
 }
@@ -672,6 +782,8 @@ export async function assignCampusAdmin(userId: string, campus: string) {
     throw error;
   }
 
+  invalidateAdminRoleCache(userId);
+
   return { success: true };
 }
 
@@ -687,6 +799,8 @@ export async function removeCampusAdmin(userId: string) {
     console.error('Failed to remove campus admin:', error);
     throw error;
   }
+
+  invalidateAdminRoleCache(userId);
 
   return { success: true };
 }
@@ -1212,6 +1326,7 @@ export interface CampusRequest {
   title: string;
   content: string;
   adminResponse: string | null;
+  isGlobalNotice: boolean;
   district: string;
   team: string;
   campus: string;
@@ -1232,6 +1347,29 @@ export interface CampusRequestMessage {
   createdAt: string;
 }
 
+export interface CampusRequestPageResult {
+  items: CampusRequest[];
+  total: number;
+}
+
+export interface CampusRequestPageParams {
+  page: number;
+  pageSize: number;
+  kind?: 'requests' | 'notices';
+  status?: CampusRequestStatus | 'all';
+  type?: CampusRequestType | 'all';
+  search?: string;
+}
+
+export interface CampusRequestSummary {
+  total: number;
+  notices: number;
+  unresolved: number;
+  open: number;
+  inProgress: number;
+  resolved: number;
+}
+
 const mapCampusRequestMessage = (
   row: CampusRequestMessageRow
 ): CampusRequestMessage => ({
@@ -1249,6 +1387,43 @@ const sortCampusRequestMessages = (messages: CampusRequestMessage[]) =>
       new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
   );
 
+const isMissingGlobalNoticeColumnError = (error: unknown) => {
+  if (!error || typeof error !== 'object') return false;
+
+  const source = error as Record<string, unknown>;
+  const message = String(source.message ?? '');
+  const details = String(source.details ?? '');
+
+  return (
+    message.includes('is_global_notice') ||
+    details.includes('is_global_notice')
+  );
+};
+
+const isRowLevelSecurityError = (error: unknown) => {
+  if (!error || typeof error !== 'object') return false;
+
+  const source = error as Record<string, unknown>;
+  const message = String(source.message ?? '');
+  const code = String(source.code ?? '');
+
+  return code === '42501' || message.includes('row-level security');
+};
+
+const getSupabaseErrorMessage = (error: unknown) => {
+  if (!error || typeof error !== 'object') return String(error);
+
+  const source = error as Record<string, unknown>;
+  const parts = [
+    source.code ? `code=${String(source.code)}` : null,
+    source.message ? String(source.message) : null,
+    source.details ? `details=${String(source.details)}` : null,
+    source.hint ? `hint=${String(source.hint)}` : null,
+  ].filter(Boolean);
+
+  return parts.join(' / ') || JSON.stringify(source);
+};
+
 const mapCampusRequest = (
   row: CampusRequestRow,
   messages: CampusRequestMessage[] = []
@@ -1259,6 +1434,7 @@ const mapCampusRequest = (
   title: row.title,
   content: row.content,
   adminResponse: row.admin_response,
+  isGlobalNotice: Boolean(row.is_global_notice),
   district: row.district,
   team: row.team,
   campus: row.campus,
@@ -1270,27 +1446,93 @@ const mapCampusRequest = (
   messages: sortCampusRequestMessages(messages),
 });
 
+async function getGlobalCampusNoticeRows() {
+  const { data, error } = await supabase.rpc('get_global_campus_notices');
+
+  return {
+    data: (data ?? []) as CampusRequestRow[],
+    error,
+  };
+}
+
 export async function getCampusRequests(adminRole: AdminRole) {
-  let query = supabase
-    .from('campus_requests')
-    .select('*')
-    .order('created_at', { ascending: false });
+  const baseQuery = () =>
+    supabase
+      .from('campus_requests')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+  let requestRows: CampusRequestRow[];
 
   if (adminRole.role === 'campus_admin') {
-    query = query
-      .eq('district', adminRole.district)
-      .eq('team', adminRole.team)
-      .eq('campus', adminRole.campus);
+    const [scopedResult, noticeResult] = await Promise.all([
+      baseQuery()
+        .eq('district', adminRole.district)
+        .eq('team', adminRole.team)
+        .eq('campus', adminRole.campus)
+        .eq('is_global_notice', false),
+      getGlobalCampusNoticeRows(),
+    ]);
+
+    if (
+      isMissingGlobalNoticeColumnError(scopedResult.error) ||
+      isMissingGlobalNoticeColumnError(noticeResult.error)
+    ) {
+      const { data, error } = await baseQuery()
+        .eq('district', adminRole.district)
+        .eq('team', adminRole.team)
+        .eq('campus', adminRole.campus);
+
+      if (error) {
+        console.error('캠퍼스 문의 조회 실패:', error);
+        throw new Error(error.message);
+      }
+
+      requestRows = (data ?? []) as CampusRequestRow[];
+    } else {
+      if (scopedResult.error) {
+        console.error('캠퍼스 문의 조회 실패:', scopedResult.error);
+        throw new Error(scopedResult.error.message);
+      }
+
+      if (
+        'error' in noticeResult &&
+        noticeResult.error &&
+        !String(noticeResult.error.code ?? '').includes('PGRST202')
+      ) {
+        console.error('전체 공지 조회 실패:', noticeResult.error);
+        throw new Error(noticeResult.error.message);
+      }
+
+      const rowMap = new Map<string, CampusRequestRow>();
+
+      [
+        ...(scopedResult.data ?? []),
+        ...(('error' in noticeResult && noticeResult.error
+          ? []
+          : noticeResult.data) ?? []),
+      ].forEach(
+        (request) => {
+          rowMap.set(request.id, request as CampusRequestRow);
+        }
+      );
+
+      requestRows = Array.from(rowMap.values()).sort(
+        (a, b) =>
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+    }
+  } else {
+    const { data, error } = await baseQuery();
+
+    if (error) {
+      console.error('캠퍼스 문의 조회 실패:', error);
+      throw new Error(error.message);
+    }
+
+    requestRows = (data ?? []) as CampusRequestRow[];
   }
 
-  const { data, error } = await query;
-
-  if (error) {
-    console.error('캠퍼스 문의 조회 실패:', error);
-    throw new Error(error.message);
-  }
-
-  const requestRows = (data ?? []) as CampusRequestRow[];
   const requestIds = requestRows.map((request) => request.id);
 
   if (requestIds.length === 0) {
@@ -1304,7 +1546,7 @@ export async function getCampusRequests(adminRole: AdminRole) {
     .order('created_at', { ascending: true });
 
   if (messageError) {
-    console.error('罹좏띁??臾몄쓽 硫붿떆吏 議고쉶 ?ㅽ뙣:', messageError);
+    console.error('캠퍼스 문의 메시지 조회 실패:', messageError);
     throw new Error(messageError.message);
   }
 
@@ -1323,6 +1565,211 @@ export async function getCampusRequests(adminRole: AdminRole) {
   return requestRows.map((request) =>
     mapCampusRequest(request, messagesByRequest.get(request.id) ?? [])
   );
+}
+
+export async function getCampusRequestsPage(
+  adminRole: AdminRole,
+  {
+    page,
+    pageSize,
+    kind = 'requests',
+    status = 'all',
+    type = 'all',
+    search = '',
+  }: CampusRequestPageParams
+): Promise<CampusRequestPageResult> {
+  const from = Math.max(0, page - 1) * pageSize;
+  const to = from + pageSize - 1;
+  let query = supabase
+    .from('campus_requests')
+    .select('*', { count: 'exact' })
+    .order('created_at', { ascending: false })
+    .range(from, to);
+
+  if (adminRole.role === 'campus_admin') {
+    query = query
+      .eq('district', adminRole.district)
+      .eq('team', adminRole.team)
+      .eq('campus', adminRole.campus)
+      .eq('is_global_notice', false);
+  } else {
+    query = query.eq('is_global_notice', kind === 'notices');
+  }
+
+  if (kind === 'requests' && status !== 'all') {
+    query = query.eq('status', status);
+  }
+
+  if (type !== 'all') {
+    query = query.eq('type', type);
+  }
+
+  const normalizedSearch = search.trim().replaceAll(',', ' ');
+  if (normalizedSearch) {
+    const keyword = `%${normalizedSearch}%`;
+    query = query.or(
+      `title.ilike.${keyword},content.ilike.${keyword},admin_response.ilike.${keyword},district.ilike.${keyword},team.ilike.${keyword},campus.ilike.${keyword}`
+    );
+  }
+
+  const { data, count, error } = await query;
+
+  if (error) {
+    console.error('캠퍼스 문의 페이지 조회 실패:', error);
+    throw new Error(error.message);
+  }
+
+  const requestRows = (data ?? []) as CampusRequestRow[];
+  const requestIds = requestRows.map((request) => request.id);
+
+  if (requestIds.length === 0) {
+    return { items: [], total: count ?? 0 };
+  }
+
+  const { data: messageData, error: messageError } = await supabase
+    .from('campus_request_messages')
+    .select('*')
+    .in('request_id', requestIds)
+    .order('created_at', { ascending: true });
+
+  if (messageError) {
+    console.error('캠퍼스 문의 페이지 메시지 조회 실패:', messageError);
+    throw new Error(messageError.message);
+  }
+
+  const messagesByRequest = new Map<string, CampusRequestMessage[]>();
+
+  ((messageData ?? []) as CampusRequestMessageRow[]).forEach((messageRow) => {
+    const nextMessage = mapCampusRequestMessage(messageRow);
+    const currentMessages = messagesByRequest.get(nextMessage.requestId) ?? [];
+    currentMessages.push(nextMessage);
+    messagesByRequest.set(nextMessage.requestId, currentMessages);
+  });
+
+  return {
+    items: requestRows.map((request) =>
+      mapCampusRequest(request, messagesByRequest.get(request.id) ?? [])
+    ),
+    total: count ?? 0,
+  };
+}
+
+export async function getCampusRequestSummary(
+  adminRole: AdminRole
+): Promise<CampusRequestSummary> {
+  const countRequests = async (status?: CampusRequestStatus) => {
+    let query = supabase
+      .from('campus_requests')
+      .select('id', { count: 'exact', head: true })
+      .eq('is_global_notice', false);
+
+    if (adminRole.role === 'campus_admin') {
+      query = query
+        .eq('district', adminRole.district)
+        .eq('team', adminRole.team)
+        .eq('campus', adminRole.campus);
+    }
+
+    if (status) query = query.eq('status', status);
+
+    const { count, error } = await query;
+    if (error) throw new Error(error.message);
+    return count ?? 0;
+  };
+
+  const countNotices = async () => {
+    const { count, error } = await supabase
+      .from('campus_requests')
+      .select('id', { count: 'exact', head: true })
+      .eq('is_global_notice', true);
+
+    if (error) throw new Error(error.message);
+    return count ?? 0;
+  };
+
+  const [total, notices, open, inProgress, resolved] = await Promise.all([
+    countRequests(),
+    countNotices(),
+    countRequests('open'),
+    countRequests('in_progress'),
+    countRequests('resolved'),
+  ]);
+
+  return {
+    total,
+    notices,
+    unresolved: Math.max(0, total - resolved),
+    open,
+    inProgress,
+    resolved,
+  };
+}
+
+export async function getGlobalCampusNotices() {
+  const { data, error } = await getGlobalCampusNoticeRows();
+
+  if (error) {
+    return { data: null, error };
+  }
+
+  return {
+    data: (data ?? []).map((row) => mapCampusRequest(row)),
+    error: null,
+  };
+}
+
+export async function createGlobalCampusNotice(params: {
+  title: string;
+  content: string;
+  createdBy: string;
+}) {
+  const { data, error } = await supabase
+    .from('campus_requests')
+    .insert({
+      type: 'notice',
+      status: 'open',
+      title: params.title,
+      content: params.content,
+      is_global_notice: true,
+      district: '전체',
+      team: '전체',
+      campus: '전체',
+      created_by: params.createdBy,
+    })
+    .select('*')
+    .single();
+
+  if (error) {
+    console.error('전체 공지 작성 실패:', error);
+    if (isMissingGlobalNoticeColumnError(error)) {
+      throw new Error(
+        '전체 공지 기능을 사용하려면 Supabase에 문의 게시판 SQL 업데이트를 먼저 적용해야 합니다.'
+      );
+    }
+
+    if (isRowLevelSecurityError(error)) {
+      const { data: rpcData, error: rpcError } = await supabase.rpc(
+        'create_global_campus_notice',
+        {
+          p_title: params.title,
+          p_content: params.content,
+        }
+      );
+
+      if (rpcError) {
+        console.error('전체 공지 작성 RPC 실패:', rpcError);
+        throw new Error(
+          `전체 공지 저장 권한 설정 확인이 필요합니다: ${getSupabaseErrorMessage(rpcError)}`
+        );
+      }
+
+      return mapCampusRequest(rpcData as CampusRequestRow);
+    }
+
+    throw new Error(error.message);
+  }
+
+  return mapCampusRequest(data as CampusRequestRow);
 }
 
 export async function createCampusRequest(params: {
@@ -1537,44 +1984,21 @@ export async function getReservationsWithPaymentByTeamCampus(
 
 export async function getDestinationStats() {
   try {
-    const { data: reservations, error } = await supabase
-      .from('reservations')
-      .select('station_preferences, status')
-      .eq('status', 'requested');
+    const { data, error } = await supabase.rpc('get_destination_stats');
 
     if (error) throw error;
 
     const stats: Record<
       string,
-      { rank1: number; rank2: number; rank3: number; total: number }
+      { rank1: number; rank2: number; total: number }
     > = {};
 
-    ((reservations || []) as DestinationReservationRow[]).forEach((res) => {
-      const prefs = res.station_preferences;
-
-      if (!Array.isArray(prefs)) return;
-
-      (prefs as DestinationPreference[]).forEach((pref) => {
-        const stationName = pref.station?.name;
-        const rank = Number(pref.rank);
-
-        if (!stationName) return;
-        if (![1, 2, 3].includes(rank)) return;
-
-        if (!stats[stationName]) {
-          stats[stationName] = {
-            rank1: 0,
-            rank2: 0,
-            rank3: 0,
-            total: 0,
-          };
-        }
-
-        const rankKey = `rank${rank}` as 'rank1' | 'rank2' | 'rank3';
-
-        stats[stationName][rankKey] += 1;
-        stats[stationName].total += 1;
-      });
+    ((data || []) as DestinationStatsRow[]).forEach((row) => {
+      stats[row.station_name] = {
+        rank1: Number(row.rank1),
+        rank2: Number(row.rank2),
+        total: Number(row.total),
+      };
     });
 
     return stats;
@@ -1589,13 +2013,15 @@ export async function getDestinationStats() {
 export async function addBusOption(
   capacity: number,
   estimatedPrice: number,
-  notes?: string
+  notes?: string,
+  maxCount = 999
 ) {
   try {
     const { error } = await supabase.from('bus_options').insert({
       capacity,
       estimated_price: estimatedPrice,
       notes,
+      max_count: maxCount,
     });
 
     if (error) throw error;
@@ -1679,529 +2105,13 @@ export async function getBusAllocations() {
   }
 }
 
-// ===== 자동 배분 알고리즘 =====
-
-interface BusAllocationResult {
-  combination: Array<{ count: number; capacity: number; price: number }>;
-  totalCost: number;
-  totalCapacity: number;
-  totalBuses: number;
-  efficiency: number;
-  emptySeats: number;
-  costPerPerson: number;
-  qualityScore: number;
-  totalUtility?: number;
-  netValue?: number;
-  unservedPeople?: number;
-  routePlan: Array<{
-    busLabel: string;
-    capacity: number;
-    price: number;
-    passengerCount: number;
-    emptySeats: number;
-    destinations: Array<{
-      name: string;
-      passengerCount: number;
-      rank2Demand: number;
-      rank3Demand: number;
-    }>;
-  }>;
-}
-
-type BusAllocationCalculateOptions = {
-  firstChoiceWeight?: number;
-  secondChoiceWeight?: number;
-  usePreferenceUtility?: boolean;
-};
-
-export function calculateOptimalBusAllocation(
-  destinationStats: Record<
-    string,
-    { rank1: number; rank2: number; rank3: number; total: number }
-  >,
-  busOptions: Array<{ id: string; capacity: number; estimated_price: number }>,
-  options: BusAllocationCalculateOptions = {}
-): BusAllocationResult[] {
-  const MAX_DESTINATION_PLAN_CANDIDATES = 200;
-  const MAX_STANDARD_CANDIDATES = 1200;
-  const firstChoiceWeight = Math.max(0, Number(options.firstChoiceWeight ?? 1));
-  const secondChoiceWeight = Math.max(
-    0,
-    Number(options.secondChoiceWeight ?? 0.5)
-  );
-  const destinations = Object.entries(destinationStats)
-    .map(([name, stats]) => ({
-      name,
-      passengerCount: Number(stats.rank1 || 0),
-      rank2Demand: Number(stats.rank2 || 0),
-      rank3Demand: Number(stats.rank3 || 0),
-      weightedDemand:
-        Number(stats.rank1 || 0) * firstChoiceWeight +
-        Number(stats.rank2 || 0) * secondChoiceWeight,
-    }))
-    .filter((destination) => destination.passengerCount > 0)
-    .sort(
-      (a, b) =>
-        b.weightedDemand - a.weightedDemand ||
-        b.passengerCount - a.passengerCount
-    );
-  const normalizedOptions = busOptions
-    .filter((option) => option.capacity > 0 && option.estimated_price >= 0)
-    .sort(
-      (a, b) =>
-        a.estimated_price / a.capacity - b.estimated_price / b.capacity ||
-        b.capacity - a.capacity
-    );
-  const totalPeople = destinations.reduce(
-    (sum, destination) => sum + destination.passengerCount,
-    0
-  );
-
-  if (totalPeople === 0 || normalizedOptions.length === 0) {
-    return [];
-  }
-
-  if (options.usePreferenceUtility) {
-    type DestinationPlan = {
-      destinationName: string;
-      passengerCount: number;
-      rank2Demand: number;
-      totalCapacity: number;
-      totalCost: number;
-      totalUtility: number;
-      netValue: number;
-      routePlan: BusAllocationResult['routePlan'];
-    };
-
-    const buildDestinationPlans = (
-      destination: (typeof destinations)[number]
-    ): DestinationPlan[] => {
-      const maxCapacity = Math.max(
-        ...normalizedOptions.map((option) => option.capacity)
-      );
-      const maxBusesForDestination =
-        Math.ceil(destination.passengerCount / maxCapacity) + 3;
-      const destinationCandidates: DestinationPlan[] = [];
-      const utility =
-        destination.passengerCount * firstChoiceWeight +
-        destination.rank2Demand * secondChoiceWeight;
-
-      const searchDestination = (
-        startIndex: number,
-        buses: Array<{ capacity: number; price: number }>,
-        capacity = 0,
-        cost = 0
-      ) => {
-        if (capacity >= destination.passengerCount) {
-          const sortedBuses = [...buses].sort((a, b) => b.capacity - a.capacity);
-          let remaining = destination.passengerCount;
-          const routePlan = sortedBuses.map((bus, index) => {
-            const passengerCount = Math.min(remaining, bus.capacity);
-            remaining -= passengerCount;
-
-            return {
-              busLabel: '',
-              capacity: bus.capacity,
-              price: bus.price,
-              passengerCount,
-              emptySeats: bus.capacity - passengerCount,
-              destinations: [
-                {
-                  name: destination.name,
-                  passengerCount,
-                  rank2Demand: destination.rank2Demand,
-                  rank3Demand: destination.rank3Demand,
-                },
-              ],
-              routeIndex: index,
-            };
-          });
-          destinationCandidates.push({
-            destinationName: destination.name,
-            passengerCount: destination.passengerCount,
-            rank2Demand: destination.rank2Demand,
-            totalCapacity: capacity,
-            totalCost: cost,
-            totalUtility: utility,
-            netValue: utility - cost,
-            routePlan,
-          });
-
-          if (destinationCandidates.length >= MAX_DESTINATION_PLAN_CANDIDATES) {
-            return;
-          }
-        }
-
-        if (buses.length >= maxBusesForDestination) return;
-
-        for (let i = startIndex; i < normalizedOptions.length; i += 1) {
-          if (destinationCandidates.length >= MAX_DESTINATION_PLAN_CANDIDATES) {
-            return;
-          }
-
-          const option = normalizedOptions[i];
-
-          searchDestination(
-            i,
-            [
-              ...buses,
-              {
-                capacity: option.capacity,
-                price: option.estimated_price,
-              },
-            ],
-            capacity + option.capacity,
-            cost + option.estimated_price
-          );
-        }
-      };
-
-      searchDestination(0, [], 0, 0);
-
-      const uniquePlans = new Map<string, DestinationPlan>();
-
-      destinationCandidates.forEach((candidate) => {
-        const key = candidate.routePlan
-          .map((route) => `${route.capacity}:${route.price}`)
-          .sort()
-          .join('|');
-        const existing = uniquePlans.get(key);
-
-        if (!existing || candidate.netValue > existing.netValue) {
-          uniquePlans.set(key, candidate);
-        }
-      });
-
-      return Array.from(uniquePlans.values())
-        .sort(
-          (a, b) =>
-            b.netValue - a.netValue ||
-            a.totalCost - b.totalCost ||
-            a.totalCapacity - b.totalCapacity
-        )
-        .slice(0, 4);
-    };
-
-    type CombinedPlan = {
-      plans: DestinationPlan[];
-      totalCost: number;
-      totalCapacity: number;
-      totalUtility: number;
-      passengerCount: number;
-    };
-
-    let beam: CombinedPlan[] = [
-      {
-        plans: [],
-        totalCost: 0,
-        totalCapacity: 0,
-        totalUtility: 0,
-        passengerCount: 0,
-      },
-    ];
-
-    destinations.forEach((destination) => {
-      const destinationPlans = buildDestinationPlans(destination);
-      const choices: Array<DestinationPlan | null> = [null, ...destinationPlans];
-      const nextBeam: CombinedPlan[] = [];
-
-      beam.forEach((combinedPlan) => {
-        choices.forEach((plan) => {
-          nextBeam.push({
-            plans: plan
-              ? [...combinedPlan.plans, plan]
-              : [...combinedPlan.plans],
-            totalCost: combinedPlan.totalCost + (plan?.totalCost ?? 0),
-            totalCapacity:
-              combinedPlan.totalCapacity + (plan?.totalCapacity ?? 0),
-            totalUtility:
-              combinedPlan.totalUtility + (plan?.totalUtility ?? 0),
-            passengerCount:
-              combinedPlan.passengerCount + (plan?.passengerCount ?? 0),
-          });
-        });
-      });
-
-      beam = nextBeam
-        .sort(
-          (a, b) =>
-            b.totalUtility -
-              b.totalCost -
-              (a.totalUtility - a.totalCost) ||
-            b.passengerCount - a.passengerCount ||
-            a.totalCost - b.totalCost
-        )
-        .slice(0, 20);
-    });
-
-    const combinedResults = beam
-      .filter((plan) => plan.plans.length > 0)
-      .map((plan): BusAllocationResult => {
-        const routePlan = plan.plans
-          .flatMap((destinationPlan) => destinationPlan.routePlan)
-          .map((route, index) => ({
-            busLabel: `${index + 1}호차`,
-            capacity: route.capacity,
-            price: route.price,
-            passengerCount: route.passengerCount,
-            emptySeats: route.emptySeats,
-            destinations: route.destinations,
-          }));
-        const totalBuses = routePlan.length;
-        const emptySeats = plan.totalCapacity - plan.passengerCount;
-        const efficiency =
-          plan.totalCapacity > 0
-            ? (plan.passengerCount / plan.totalCapacity) * 100
-            : 0;
-        const costPerPerson =
-          plan.passengerCount > 0 ? plan.totalCost / plan.passengerCount : 0;
-        const combinationMap = new Map<
-          string,
-          { count: number; capacity: number; price: number }
-        >();
-
-        routePlan.forEach((route) => {
-          const key = `${route.capacity}-${route.price}`;
-          const current = combinationMap.get(key);
-
-          if (current) {
-            current.count += 1;
-          } else {
-            combinationMap.set(key, {
-              count: 1,
-              capacity: route.capacity,
-              price: route.price,
-            });
-          }
-        });
-
-        return {
-          combination: Array.from(combinationMap.values()),
-          totalCost: plan.totalCost,
-          totalCapacity: plan.totalCapacity,
-          totalBuses,
-          efficiency,
-          emptySeats,
-          costPerPerson,
-          qualityScore: plan.totalUtility - plan.totalCost,
-          totalUtility: plan.totalUtility,
-          netValue: plan.totalUtility - plan.totalCost,
-          unservedPeople: totalPeople - plan.passengerCount,
-          routePlan,
-        };
-      });
-
-    const uniqueResults = new Map<string, BusAllocationResult>();
-
-    combinedResults.forEach((candidate) => {
-      const key = candidate.routePlan
-        .map(
-          (route) =>
-            `${route.destinations[0]?.name}:${route.capacity}:${route.price}`
-        )
-        .sort()
-        .join('|');
-      const existing = uniqueResults.get(key);
-
-      if (!existing || (candidate.netValue ?? 0) > (existing.netValue ?? 0)) {
-        uniqueResults.set(key, candidate);
-      }
-    });
-
-    return Array.from(uniqueResults.values())
-      .sort(
-        (a, b) =>
-          (b.netValue ?? 0) - (a.netValue ?? 0) ||
-          (a.unservedPeople ?? 0) - (b.unservedPeople ?? 0) ||
-          a.totalCost - b.totalCost
-      )
-      .slice(0, 5);
-  }
-
-  const maxCapacity = Math.max(
-    ...normalizedOptions.map((option) => option.capacity)
-  );
-  const maxBuses = Math.min(
-    totalPeople,
-    Math.ceil(totalPeople / maxCapacity) + destinations.length + 4
-  );
-  const candidates: BusAllocationResult[] = [];
-
-  const buildResult = (
-    buses: Array<{ capacity: number; price: number }>
-  ): BusAllocationResult | null => {
-    const sortedBuses = [...buses].sort((a, b) => b.capacity - a.capacity);
-    const routePlan = sortedBuses.map((bus, index) => ({
-      busLabel: `${index + 1}호차`,
-      capacity: bus.capacity,
-      price: bus.price,
-      passengerCount: 0,
-      emptySeats: bus.capacity,
-      destinations: [] as BusAllocationResult['routePlan'][number]['destinations'],
-    }));
-    const remainingDestinations = destinations.map((destination) => ({
-      ...destination,
-      remaining: destination.passengerCount,
-    }));
-
-    remainingDestinations.forEach((destination) => {
-      while (destination.remaining > 0) {
-        const targetBus = routePlan
-          .filter((bus) => bus.destinations.length === 0)
-          .sort(
-            (a, b) => {
-              const aCanFit = a.capacity >= destination.remaining;
-              const bCanFit = b.capacity >= destination.remaining;
-
-              if (aCanFit && bCanFit) {
-                return (
-                  a.capacity -
-                  destination.remaining -
-                  (b.capacity - destination.remaining)
-                );
-              }
-
-              if (aCanFit !== bCanFit) {
-                return aCanFit ? -1 : 1;
-              }
-
-              return b.capacity - a.capacity;
-            }
-          )[0];
-
-        if (!targetBus) break;
-
-        const passengerCount = Math.min(
-          destination.remaining,
-          targetBus.emptySeats
-        );
-
-        targetBus.destinations.push({
-          name: destination.name,
-          passengerCount,
-          rank2Demand: destination.rank2Demand,
-          rank3Demand: destination.rank3Demand,
-        });
-        targetBus.passengerCount += passengerCount;
-        targetBus.emptySeats -= passengerCount;
-        destination.remaining -= passengerCount;
-      }
-    });
-
-    if (remainingDestinations.some((destination) => destination.remaining > 0)) {
-      return null;
-    }
-
-    const totalCapacity = sortedBuses.reduce(
-      (sum, bus) => sum + bus.capacity,
-      0
-    );
-    const totalCost = sortedBuses.reduce((sum, bus) => sum + bus.price, 0);
-    const totalBuses = sortedBuses.length;
-    const emptySeats = totalCapacity - totalPeople;
-    const efficiency = totalCapacity > 0 ? (totalPeople / totalCapacity) * 100 : 0;
-    const costPerPerson = totalPeople > 0 ? totalCost / totalPeople : 0;
-    const qualityScore =
-      efficiency * 1000 -
-      totalCost / 10000 -
-      emptySeats * 25 -
-      totalBuses * 100;
-    const combinationMap = new Map<
-      string,
-      { count: number; capacity: number; price: number }
-    >();
-
-    sortedBuses.forEach((bus) => {
-      const key = `${bus.capacity}-${bus.price}`;
-      const current = combinationMap.get(key);
-
-      if (current) {
-        current.count += 1;
-      } else {
-        combinationMap.set(key, {
-          count: 1,
-          capacity: bus.capacity,
-          price: bus.price,
-        });
-      }
-    });
-
-    return {
-      combination: Array.from(combinationMap.values()),
-      totalCost,
-      totalCapacity,
-      totalBuses,
-      efficiency,
-      emptySeats,
-      costPerPerson,
-      qualityScore,
-      routePlan,
-    };
-  };
-
-  const search = (
-    startIndex: number,
-    buses: Array<{ capacity: number; price: number }>,
-    capacity = 0
-  ) => {
-    if (capacity >= totalPeople) {
-      const result = buildResult(buses);
-
-      if (result) {
-        candidates.push(result);
-      }
-
-      if (candidates.length >= MAX_STANDARD_CANDIDATES) return;
-      if (buses.length >= maxBuses) return;
-    }
-
-    if (buses.length >= maxBuses) return;
-
-    for (let i = startIndex; i < normalizedOptions.length; i += 1) {
-      if (candidates.length >= MAX_STANDARD_CANDIDATES) return;
-
-      const option = normalizedOptions[i];
-
-      search(
-        i,
-        [
-          ...buses,
-          {
-            capacity: option.capacity,
-            price: option.estimated_price,
-          },
-        ],
-        capacity + option.capacity
-      );
-    }
-  };
-
-  search(0, [], 0);
-
-  const uniqueResults = new Map<string, BusAllocationResult>();
-
-  candidates.forEach((candidate) => {
-    const key = candidate.combination
-      .map((bus) => `${bus.count}x${bus.capacity}:${bus.price}`)
-      .sort()
-      .join('|');
-    const existing = uniqueResults.get(key);
-
-    if (!existing || candidate.qualityScore > existing.qualityScore) {
-      uniqueResults.set(key, candidate);
-    }
-  });
-
-  return Array.from(uniqueResults.values())
-    .sort(
-      (a, b) =>
-        b.qualityScore - a.qualityScore ||
-        a.totalCost - b.totalCost ||
-        a.emptySeats - b.emptySeats
-    )
-    .slice(0, 5);
-}
-
+export { calculateOptimalBusAllocation } from './admin/busAllocationAlgorithm';
+export type {
+  BusAllocationCalculateOptions,
+  BusAllocationResult,
+  BusOptionInput,
+  DestinationStats,
+} from './admin/busAllocationAlgorithm';
 
 export async function getBusTicketPrice(): Promise<number> {
   const { data, error } = await supabase.rpc('get_bus_ticket_price');
@@ -2236,12 +2146,32 @@ export async function getReservationDataResetStats(): Promise<ReservationDataRes
     campusTransfers,
     busAllocations,
     campusRequests,
+    campusRequestMessages,
+    stations,
+    busOptions,
+    appSettings,
+    homeAnnouncements,
+    campusAdminRoles,
+    districts,
+    teams,
+    campuses,
+    userAccounts,
   ] = await Promise.all([
     getTableCount('reservations'),
     getTableCount('payments'),
     getTableCount('campus_transfers'),
     getTableCount('bus_allocations'),
     getTableCount('campus_requests'),
+    getTableCount('campus_request_messages'),
+    getTableCount('stations'),
+    getTableCount('bus_options'),
+    getTableCount('app_settings'),
+    getTableCount('home_announcements'),
+    getCampusAdminRoleCount(),
+    getTableCount('districts'),
+    getTableCount('teams'),
+    getTableCount('campuses'),
+    getDeletableUserCount(),
   ]);
 
   return {
@@ -2251,16 +2181,89 @@ export async function getReservationDataResetStats(): Promise<ReservationDataRes
     campusTransfers,
     busAllocations,
     campusRequests,
+    campusRequestMessages,
+    stations,
+    busOptions,
+    appSettings,
+    homeAnnouncements,
+    campusAdminRoles,
+    organization: districts + teams + campuses,
+    userAccounts,
   };
 }
 
-export async function resetReservationData(): Promise<ReservationDataResetStats> {
-  const { data, error } = await supabase.rpc('reset_reservation_data');
+export async function resetReservationData(
+  options: ReservationDataResetOptions
+): Promise<ReservationDataResetStats> {
+  const operationOptions = {
+    p_reset_reservations: options.reservations,
+    p_reset_payments: options.payments,
+    p_reset_campus_transfers: options.campusTransfers,
+    p_reset_bus_allocations: options.busAllocations,
+    p_reset_campus_requests: options.campusRequests,
+  };
+  const hasSelectedSetupReset =
+    options.stations ||
+    options.busOptions ||
+    options.appSettings ||
+    options.homeAnnouncements ||
+    options.campusAdminRoles ||
+    options.organization ||
+    options.userAccounts;
+  const isMissingResetRpc = (error: { code?: string; message: string }) =>
+    error.code === 'PGRST202' ||
+    error.code === '42883' ||
+    error.message.includes('schema cache') ||
+    error.message.includes('Could not find the function');
 
-  if (error) {
+  const { data, error } = await supabase.rpc('reset_reservation_data', {
+    ...operationOptions,
+    p_reset_stations: options.stations,
+    p_reset_bus_options: options.busOptions,
+    p_reset_app_settings: options.appSettings,
+    p_reset_home_announcements: options.homeAnnouncements,
+    p_reset_campus_admin_roles: options.campusAdminRoles,
+    p_reset_organization: options.organization,
+    p_reset_user_accounts: options.userAccounts,
+  });
+
+  if (!error) {
+    return toReservationDataResetStats(data);
+  }
+
+  if (!isMissingResetRpc(error)) {
     console.error('Failed to reset reservation data:', error);
     throw new Error(error.message);
   }
 
-  return toReservationDataResetStats(data);
+  if (hasSelectedSetupReset) {
+    throw new Error(
+      '선택한 확장 초기화 항목을 처리하려면 Supabase에 sql/setup/60_reset_reservation_data.sql을 적용해야 합니다.'
+    );
+  }
+
+  const legacyResult = await supabase.rpc(
+    'reset_reservation_data',
+    operationOptions
+  );
+
+  if (!legacyResult.error) {
+    return toReservationDataResetStats(legacyResult.data);
+  }
+
+  const resetsAllOperationData = Object.values(operationOptions).every(Boolean);
+
+  if (isMissingResetRpc(legacyResult.error) && resetsAllOperationData) {
+    const oldestResult = await supabase.rpc('reset_reservation_data');
+
+    if (!oldestResult.error) {
+      return toReservationDataResetStats(oldestResult.data);
+    }
+
+    console.error('Failed to reset reservation data:', oldestResult.error);
+    throw new Error(oldestResult.error.message);
+  }
+
+  console.error('Failed to reset reservation data:', legacyResult.error);
+  throw new Error(legacyResult.error.message);
 }

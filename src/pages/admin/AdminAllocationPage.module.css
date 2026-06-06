@@ -628,7 +628,7 @@
 
 .primaryMetricGrid {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 10px;
 }
 
@@ -768,7 +768,7 @@
 
 .compareTable {
   width: 100%;
-  min-width: 1320px;
+  min-width: 1200px;
   border-collapse: collapse;
   overflow: hidden;
   border-radius: 10px;
@@ -1195,6 +1195,12 @@
   line-height: 1.5;
 }
 
+.autoAssignResult {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .allocationNameInput {
   flex: 1;
   padding: 10px 12px;
@@ -1355,6 +1361,11 @@
   .autoAssignFooter {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .autoAssignResult {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .autoAssignFields {

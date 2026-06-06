@@ -150,22 +150,302 @@
   gap: 12px;
 }
 
-.bulkPanel textarea {
-  min-height: 112px;
-  padding: 12px;
+.sheetToolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
   border: 1px solid #d1d5db;
   border-radius: 8px;
+  background: #f9fafb;
+}
+
+.sheetToolbar button {
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #ffffff;
   color: #1f2937;
-  font-size: 14px;
-  line-height: 1.5;
-  resize: vertical;
+  font-size: 12px;
+  font-weight: 800;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.sheetToolbar button:hover {
+  border-color: #667eea;
+  background: #eef4ff;
+  color: #667eea;
+}
+
+.bulkSheetWrap {
+  overflow: auto;
+  max-height: 460px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.bulkSheet {
+  width: 100%;
+  min-width: 900px;
+  border-collapse: collapse;
+  border-spacing: 0;
+}
+
+.bulkSheet th,
+.bulkSheet td {
+  height: 42px;
+  padding: 0;
+  border-right: 1px solid #e5e7eb;
+  border-bottom: 1px solid #e5e7eb;
+  color: #1f2937;
+  font-size: 13px;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.bulkSheet th {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  padding: 0 10px;
+  background: #f3f4f6;
+  color: #4b5563;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.rowNumberHeader,
+.rowNumberCell {
+  width: 48px;
+  min-width: 48px;
+  max-width: 48px;
+  text-align: center;
+}
+
+.bulkSheet .rowNumberHeader {
+  padding: 0;
+  background: #e5e7eb;
+}
+
+.bulkSheet .rowNumberCell {
+  padding: 0;
+  background: #f3f4f6;
+}
+
+.rowNumberButton {
+  width: 100%;
+  height: 42px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: #4b5563;
+  font-size: 12px;
+  font-weight: 800;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.rowNumberButton:hover {
+  background: #e0e7ff;
+  color: #667eea;
+}
+
+.headerFilterCell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.filterButton {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: #4b5563;
+  font-size: 10px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.filterButton:hover,
+.filterButtonActive {
+  border-color: #667eea;
+  background: #eef4ff;
+  color: #667eea;
+}
+
+.filterMenu {
+  position: absolute;
+  top: calc(100% - 4px);
+  left: 8px;
+  z-index: 20;
+  width: 240px;
+  padding: 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.18);
+}
+
+.filterMenu input[type='search'] {
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  color: #1f2937;
+  font-size: 13px;
   font-family: inherit;
 }
 
-.bulkPanel textarea:focus,
+.filterMenuActions {
+  display: flex;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.filterMenuActions button {
+  flex: 1;
+  height: 30px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #f9fafb;
+  color: #1f2937;
+  font-size: 12px;
+  font-weight: 800;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.filterOptionList {
+  display: grid;
+  gap: 2px;
+  max-height: 220px;
+  overflow: auto;
+}
+
+.filterOptionList label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  color: #1f2937;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.filterOptionList label:hover {
+  background: #f3f4f6;
+}
+
+.filterOptionList input {
+  width: 14px;
+  height: 14px;
+}
+
+.filterOptionList span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.filterOptionList p {
+  margin: 8px 0 4px;
+  color: #888888;
+  font-size: 12px;
+  text-align: center;
+}
+
+.bulkSheet td:last-child,
+.bulkSheet th:last-child {
+  border-right: none;
+}
+
+.bulkSheet tr:last-child td {
+  border-bottom: none;
+}
+
+.bulkSheet td.selectedCell {
+  background: #eef4ff;
+  outline: 1px solid #667eea;
+  outline-offset: -1px;
+}
+
+.bulkSheet tbody td > input {
+  width: 100%;
+  height: 42px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: #1f2937;
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.rowDeleteButton {
+  width: 100%;
+  height: 42px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: #b42318;
+  font-size: 12px;
+  font-weight: 800;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.rowDeleteButton:hover {
+  background: #fee2e2;
+}
+
+.deleteVisibleRowsButton {
+  width: 100%;
+  min-height: 30px;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  background: #fef2f2;
+  color: #b42318;
+  font-size: 12px;
+  font-weight: 800;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.deleteVisibleRowsButton:hover {
+  background: #fee2e2;
+}
+
+.bulkSheet tbody td > input:focus,
 .filterControls input[type='search']:focus,
 .campusRow input:focus {
   outline: none;
+}
+
+.bulkSheet tbody td > input:focus {
+  background: #ffffff;
+  box-shadow: none;
+}
+
+.bulkSheet td:focus-within {
+  outline: 1px solid #667eea;
+  outline-offset: -1px;
+}
+
+.filterControls input[type='search']:focus,
+.campusRow input:focus {
   border-color: #667eea;
   box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }

@@ -14,6 +14,7 @@ import type { ReturnBusReservation } from '../types/reservation';
 import styles from './ConfirmedTicketPage.module.css';
 import { supabase } from '../lib/supabase';
 import { getReservation } from '../lib/reservationService';
+import { formatKoreanDateTime } from '../utils/dateTime';
 
 const ConfirmedTicketPage = () => {
   const navigate = useNavigate();
@@ -23,9 +24,13 @@ const ConfirmedTicketPage = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let isMounted = true;
+
     const loadReservation = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
+
+        if (!isMounted) return;
 
         if (!session) {
           navigate('/login');
@@ -34,6 +39,8 @@ const ConfirmedTicketPage = () => {
 
         // DB에서 예약 정보 조회
         const dbReservation = await getReservation();
+        if (!isMounted) return;
+
 
         if (dbReservation) {
           setReservation(dbReservation);
@@ -42,13 +49,17 @@ const ConfirmedTicketPage = () => {
         }
       } catch (error) {
         console.error('예약 정보 로드 실패:', error);
-        setReservation(null);
+        if (isMounted) setReservation(null);
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
 
     loadReservation();
+
+    return () => {
+      isMounted = false;
+    };
   }, [navigate]);
 
   if (loading) {
@@ -79,13 +90,13 @@ const ConfirmedTicketPage = () => {
 
           <div className={styles.emptyContainer}>
             <AlertCircle size={48} color="#94a3b8" />
-            <h2>예약 정보가 없습니다</h2>
+            <h2>신청 정보가 없습니다</h2>
             <p>먼저 귀가 버스를 신청해주세요.</p>
             <button
               className={styles.primaryButton}
               onClick={() => navigate('/reservation')}
             >
-              예약하기
+              신청하기
             </button>
           </div>
         </main>
@@ -114,7 +125,7 @@ const ConfirmedTicketPage = () => {
               className={styles.secondaryButton}
               onClick={() => navigate('/ticket')}
             >
-              예약 현황 확인
+              신청 현황 확인
             </button>
           </div>
         </main>
@@ -123,6 +134,8 @@ const ConfirmedTicketPage = () => {
   }
 
   const ticket = reservation.confirmedTicket;
+  const activityDateLabel = reservation.updatedAt ? '최종 수정일' : '신청일';
+  const activityDate = reservation.updatedAt || reservation.requestedAt;
 
   return (
     <div className={styles.pageContainer}>
@@ -188,7 +201,7 @@ const ConfirmedTicketPage = () => {
                 <MapPin size={20} color="#16a34a" className={styles.infoIcon} />
                 <div className={styles.infoBlockContentFull}>
                   <div className={styles.dropoffMain}>
-                    <span className={styles.infoLabel}>확정 하차역</span>
+                    <span className={styles.infoLabel}>확정 도착역</span>
                     <span className={styles.infoValue}>{ticket.dropoffStation}</span>
                   </div>
                   {ticket.dropoffDetail && (
@@ -221,7 +234,7 @@ const ConfirmedTicketPage = () => {
 
         {/* 추가 정보 섹션 */}
         <div className={styles.additionalInfo}>
-          <h3>예약 정보</h3>
+          <h3>신청 정보</h3>
           <div className={styles.infoGrid}>
             <div className={styles.infoItem}>
               <span className={styles.itemLabel}>소속</span>
@@ -234,15 +247,11 @@ const ConfirmedTicketPage = () => {
               <span className={styles.itemValue}>{reservation.campus}</span>
             </div>
             <div className={styles.infoItem}>
-              <span className={styles.itemLabel}>신청일</span>
-              <span className={styles.itemValue}>{reservation.requestedAt}</span>
+              <span className={styles.itemLabel}>{activityDateLabel}</span>
+              <span className={styles.itemValue}>
+                {formatKoreanDateTime(activityDate)}
+              </span>
             </div>
-            {reservation.updatedAt && (
-              <div className={styles.infoItem}>
-                <span className={styles.itemLabel}>수정일</span>
-                <span className={styles.itemValue}>{reservation.updatedAt}</span>
-              </div>
-            )}
           </div>
         </div>
 

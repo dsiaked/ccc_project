@@ -21,6 +21,43 @@
   text-align: center;
 }
 
+.errorState {
+  display: grid;
+  gap: 12px;
+  padding: 28px;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  background: #fff7f7;
+  color: #991b1b;
+}
+
+.errorState strong {
+  color: #7f1d1d;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.errorState p {
+  margin: 0;
+  color: #b42318;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.errorState button {
+  width: fit-content;
+  min-height: 40px;
+  border: 0;
+  border-radius: 8px;
+  padding: 0 14px;
+  background: #dc2626;
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
 .hero {
   display: flex;
   align-items: flex-end;
@@ -55,36 +92,70 @@
   line-height: 1.6;
 }
 
-.heroActions {
-  display: flex;
-  gap: 10px;
-  flex-shrink: 0;
+.nextActionPanel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 18px;
+  padding: 20px 22px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #eff6ff;
+  box-shadow: 0 8px 24px rgba(16, 24, 40, 0.05);
 }
 
-.heroActions button {
-  min-height: 44px;
+.nextActionLabel {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.nextActionPanel h2 {
+  margin: 8px 0 6px;
+  color: #101828;
+  font-size: 20px;
+  font-weight: 900;
+}
+
+.nextActionPanel p {
+  margin: 0;
+  color: #475467;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.nextActionButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 42px;
   border: 0;
   border-radius: 8px;
   padding: 0 16px;
   background: #2563eb;
   color: #ffffff;
+  font-family: inherit;
   font-size: 14px;
   font-weight: 900;
-  font-family: inherit;
+  white-space: nowrap;
   cursor: pointer;
 }
 
-.heroActions button:nth-child(2) {
-  background: #0f766e;
-}
-
-.heroActions button:hover {
-  filter: brightness(0.94);
+.nextActionButton:hover {
+  background: #1d4ed8;
 }
 
 .metricsGrid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
   margin-bottom: 18px;
 }
@@ -105,6 +176,95 @@
   padding: 18px;
 }
 
+.peopleMetric {
+  grid-column: span 2;
+  align-items: center;
+}
+
+.peopleMetricValues {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.peopleMetricValues > div {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  padding-left: 16px;
+  border-left: 1px solid #e4e7ec;
+}
+
+.peopleMetricValues > div:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+
+.peopleMetricValues strong {
+  font-size: 24px;
+}
+
+button.metric {
+  width: 100%;
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+button.metric:hover {
+  border-color: #93c5fd;
+  background: #f8fbff;
+}
+
+.deadlineMetric {
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease;
+}
+
+.deadlineMetricOpen {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+
+.deadlineMetricOpen strong {
+  color: #15803d;
+}
+
+.deadlineMetricOpen:hover {
+  border-color: #86efac;
+  background: #ecfdf3;
+}
+
+.deadlineMetricClosed {
+  border-color: #fecaca;
+  background: #fff7f7;
+}
+
+.deadlineMetricClosed strong {
+  color: #b42318;
+}
+
+.deadlineMetricClosed:hover {
+  border-color: #fca5a5;
+  background: #fff1f1;
+}
+
+.deadlineMetricUnset {
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+
+.deadlineMetricUnset strong {
+  color: #b45309;
+}
+
+.deadlineMetricUnset:hover {
+  border-color: #fcd34d;
+  background: #fff8dc;
+}
+
 .metric div:first-child {
   grid-row: span 3;
 }
@@ -117,13 +277,11 @@
 
 .metric strong {
   min-width: 0;
-  overflow: hidden;
   color: #101828;
   font-size: 24px;
   font-weight: 900;
   line-height: 1.2;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .metric p {
@@ -207,8 +365,8 @@
 
 .progressBox {
   flex-shrink: 0;
-  width: 160px;
-  padding: 12px;
+  width: 210px;
+  padding: 14px;
   border: 1px solid #dbeafe;
   border-radius: 8px;
   background: #eff6ff;
@@ -221,7 +379,7 @@
 
 .progressBox strong {
   color: #1d4ed8;
-  font-size: 22px;
+  font-size: 18px;
   font-weight: 900;
 }
 
@@ -246,6 +404,13 @@
   background: #2563eb;
 }
 
+.progressHint {
+  margin: 8px 0 0;
+  color: #475467;
+  font-size: 11px;
+  font-weight: 800;
+}
+
 .scenarioList {
   display: grid;
   gap: 0;
@@ -257,8 +422,8 @@
 
 .scenarioItem {
   display: grid;
-  grid-template-columns: 42px auto minmax(0, 1fr) auto;
-  gap: 14px;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  gap: 16px;
   position: relative;
   padding: 18px;
   border-bottom: 1px solid #eaecf0;
@@ -279,6 +444,7 @@
 
 .scenarioItemCurrent {
   background: #eff6ff;
+  box-shadow: inset 4px 0 0 #2563eb;
 }
 
 .scenarioItemCurrent:hover {
@@ -289,6 +455,13 @@
   position: relative;
   display: flex;
   justify-content: center;
+  align-self: stretch;
+  width: 42px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  font-family: inherit;
+  cursor: pointer;
 }
 
 .scenarioRail::after {
@@ -322,6 +495,15 @@
   color: #667085;
   font-size: 13px;
   font-weight: 900;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.scenarioRail:hover .scenarioDot {
+  border-color: #98a2b3;
+  box-shadow: 0 0 0 4px #f2f4f7;
 }
 
 .scenarioItemCurrent .scenarioDot {
@@ -336,25 +518,10 @@
   color: #ffffff;
 }
 
-.checkButton {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  margin-top: 2px;
-  border: 0;
-  background: transparent;
-  color: #98a2b3;
-  cursor: pointer;
-}
-
-.scenarioItemDone .checkButton {
-  color: #16a34a;
-}
-
-.scenarioItemCurrent .checkButton {
-  color: #2563eb;
+.scenarioItemCurrent .scenarioRail:hover .scenarioDot {
+  border-color: #1d4ed8;
+  background: #1d4ed8;
+  box-shadow: 0 0 0 4px #dbeafe;
 }
 
 .scenarioContent {
@@ -405,31 +572,22 @@
   line-height: 1.5;
 }
 
-.checkPills {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 10px;
+.relatedActions {
+  display: grid;
+  gap: 7px;
+  margin-top: 14px;
 }
 
-.checkPills small {
-  display: inline-flex;
-  align-items: center;
-  min-height: 24px;
-  padding: 0 8px;
-  border: 1px solid #d0d5dd;
-  border-radius: 999px;
-  background: #ffffff;
-  color: #344054;
+.relatedActions > strong {
+  color: #475467;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 900;
 }
 
 .subActionButtons {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-top: 12px;
 }
 
 .subActionButtons button {
@@ -489,6 +647,20 @@
   color: #ffffff;
 }
 
+.scenarioItemDone .linkButton {
+  border-color: transparent;
+  background: transparent;
+  color: #475467;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.scenarioItemDone .linkButton:hover {
+  border-color: #d0d5dd;
+  background: #ffffff;
+  color: #1d4ed8;
+}
+
 .actionGrid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -511,6 +683,17 @@
 .actionCard:hover {
   border-color: #2563eb;
   background: #eff6ff;
+}
+
+.errorState button:focus-visible,
+.nextActionButton:focus-visible,
+button.metric:focus-visible,
+.scenarioRail:focus-visible,
+.subActionButtons button:focus-visible,
+.linkButton:focus-visible,
+.actionCard:focus-visible {
+  outline: 3px solid rgba(37, 99, 235, 0.28);
+  outline-offset: 2px;
 }
 
 .actionCard svg {
@@ -542,17 +725,14 @@
   }
 
   .hero,
-  .sectionHeader {
+  .sectionHeader,
+  .nextActionPanel {
     align-items: stretch;
     flex-direction: column;
   }
 
-  .heroActions {
-    width: 100%;
-  }
-
-  .heroActions button {
-    flex: 1;
+  .nextActionPanel {
+    grid-template-columns: 1fr;
   }
 
   .progressBox {
@@ -560,18 +740,50 @@
   }
 
   .scenarioItem {
-    grid-template-columns: 34px auto minmax(0, 1fr);
-    gap: 10px;
+    grid-template-columns: 38px minmax(0, 1fr);
+    gap: 12px;
     padding: 16px;
+  }
+
+  .scenarioRail {
+    width: 38px;
+  }
+
+  .scenarioContent {
+    grid-column: 2;
   }
 
   .metricFormula {
     grid-column: 1 / -1;
   }
 
-  .linkButton {
+  .peopleMetric {
     grid-column: 1 / -1;
+  }
+
+  .linkButton {
+    grid-column: 2;
     width: 100%;
+    min-height: 44px;
+    height: auto;
+    margin-top: 2px;
+  }
+
+  .scenarioItemDone .linkButton {
+    border-color: #d0d5dd;
+    background: #ffffff;
+    text-decoration: none;
+  }
+
+  .subActionButtons {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .subActionButtons button {
+    justify-content: space-between;
+    min-height: 44px;
+    padding: 0 12px;
   }
 }
 
@@ -583,5 +795,46 @@
   .metricsGrid,
   .actionGrid {
     grid-template-columns: 1fr;
+  }
+
+  .peopleMetricValues {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .peopleMetricValues > div,
+  .peopleMetricValues > div:first-child {
+    padding: 0 0 12px;
+    border-left: 0;
+    border-bottom: 1px solid #e4e7ec;
+  }
+
+  .peopleMetricValues > div:last-child {
+    padding-bottom: 0;
+    border-bottom: 0;
+  }
+
+  .operationSection,
+  .section {
+    padding: 16px;
+  }
+
+  .scenarioItem {
+    padding: 16px 12px;
+  }
+
+  .scenarioTitleRow {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .scenarioTitleRow h3 {
+    font-size: 16px;
+    line-height: 1.4;
+  }
+
+  .scenarioContent p {
+    font-size: 14px;
+    line-height: 1.55;
   }
 }

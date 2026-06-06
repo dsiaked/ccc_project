@@ -3,7 +3,7 @@ import type { StationOption } from '../types/station';
 export type ReservationStatus = 'requested' | 'confirmed' | 'cancelled';
 
 export interface StationPreference {
-  rank: 1 | 2 | 3;
+  rank: 1 | 2;
   station: StationOption;
 }
 
