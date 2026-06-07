@@ -795,6 +795,14 @@ const AdminPersonalTicketPage = () => {
           <div className={styles.headerActions}>
             <button
               type="button"
+              className={styles.boardingManagerButton}
+              onClick={() => navigate('/admin/boarding-managers')}
+            >
+              <ShieldCheck size={16} />
+              선탑자 권한 관리
+            </button>
+            <button
+              type="button"
               className={styles.issueReviewButton}
               onClick={() => navigate('/admin/campus-issues')}
             >

@@ -11,6 +11,7 @@ node_modules
 dist
 dist-ssr
 outputs
+outputs/windows-installer/
 .tmp
 .venv
 __pycache__/

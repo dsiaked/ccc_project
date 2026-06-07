@@ -43,7 +43,11 @@ const AdminProtectedRoute = ({
 
   if (!adminRole || !allowedRoles.includes(adminRole.role)) {
     const unauthorizedPath =
-      adminRole?.role === 'campus_admin' ? '/admin/campus' : '/admin/global';
+      adminRole?.role === 'campus_admin'
+        ? '/admin/campus'
+        : adminRole?.role === 'boarding_manager'
+          ? '/admin/boarding'
+          : '/admin/global';
 
     return <Navigate to={unauthorizedPath} replace />;
   }

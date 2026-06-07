@@ -170,8 +170,9 @@ const AdminRemainingSeatSalesPage = () => {
       visible: !settings.hiddenBusIds.includes(bus.id),
     };
   });
+  const busesWithRemainingSeats = busStatuses.filter((item) => item.available > 0);
 
-  const totalAvailable = busStatuses
+  const totalAvailable = busesWithRemainingSeats
     .filter((item) => item.visible && settings.enabled)
     .reduce((sum, item) => sum + item.available, 0);
 
@@ -325,7 +326,7 @@ const AdminRemainingSeatSalesPage = () => {
           </div>
           <div>
             <span>공개 중인 버스</span>
-            <strong>{busStatuses.filter((item) => item.visible).length}대</strong>
+            <strong>{busesWithRemainingSeats.filter((item) => item.visible).length}대</strong>
           </div>
         </section>
 
@@ -397,11 +398,11 @@ const AdminRemainingSeatSalesPage = () => {
             <strong>{allocation?.allocation_name ?? '확정 배차안 없음'}</strong>
           </div>
 
-          {busStatuses.length === 0 ? (
-            <p className={styles.emptyText}>확정 배차안에 등록된 버스가 없습니다.</p>
+          {busesWithRemainingSeats.length === 0 ? (
+            <p className={styles.emptyText}>현재 잔여좌석이 있는 버스가 없습니다.</p>
           ) : (
             <div className={styles.busGrid}>
-              {busStatuses.map((item) => (
+              {busesWithRemainingSeats.map((item) => (
                 <article
                   key={item.bus.id}
                   className={`${styles.busCard} ${!item.visible ? styles.hiddenBusCard : ''}`}

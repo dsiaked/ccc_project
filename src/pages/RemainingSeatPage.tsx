@@ -35,10 +35,12 @@ const RemainingSeatPage = () => {
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [depositorName, setDepositorName] = useState('');
+  const [hasActiveReservation, setHasActiveReservation] = useState(false);
 
   const loadOptions = async () => {
     setLoading(true);
     setErrorMessage('');
+    setHasActiveReservation(false);
 
     try {
       const {
@@ -60,8 +62,9 @@ const RemainingSeatPage = () => {
         return;
       }
 
-      if (reservation) {
-        navigate('/ticket', { replace: true });
+      if (reservation && reservation.status !== 'cancelled') {
+        setHasActiveReservation(true);
+        setOptions([]);
         return;
       }
 
@@ -161,6 +164,18 @@ const RemainingSeatPage = () => {
 
         {loading ? (
           <section className={styles.emptyState}>잔여 좌석을 확인하는 중...</section>
+        ) : hasActiveReservation ? (
+          <section className={styles.emptyState}>
+            <strong>이미 확정되었거나 진행 중인 버스 신청이 있습니다.</strong>
+            <p>
+              잔여좌석 임시확보는 버스 신청이 없는 사용자만 가능합니다.
+              기존 버스표를 확인해주세요.
+            </p>
+            <button type="button" onClick={() => navigate('/ticket')}>
+              <CheckCircle2 size={16} />
+              내 버스표 확인하기
+            </button>
+          </section>
         ) : options.length === 0 ? (
           <section className={styles.emptyState}>
             <strong>현재 선택 가능한 잔여 좌석이 없습니다.</strong>

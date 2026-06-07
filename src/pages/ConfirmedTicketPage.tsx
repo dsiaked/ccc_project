@@ -8,12 +8,13 @@ import {
   Users,
   Smartphone,
   AlertCircle,
+  CircleCheckBig,
 } from 'lucide-react';
 import Header from '../components/Header';
 import type { ReturnBusReservation } from '../types/reservation';
 import styles from './ConfirmedTicketPage.module.css';
 import { supabase } from '../lib/supabase';
-import { getReservation } from '../lib/reservationService';
+import { confirmBoarding, getReservation } from '../lib/reservationService';
 import { formatKoreanDateTime } from '../utils/dateTime';
 
 const ConfirmedTicketPage = () => {
@@ -22,6 +23,10 @@ const ConfirmedTicketPage = () => {
     null
   );
   const [loading, setLoading] = useState(true);
+  const [confirmingBoarding, setConfirmingBoarding] = useState(false);
+  const [showBoardingConfirmation, setShowBoardingConfirmation] =
+    useState(false);
+  const [boardingError, setBoardingError] = useState('');
 
   useEffect(() => {
     let isMounted = true;
@@ -136,6 +141,27 @@ const ConfirmedTicketPage = () => {
   const ticket = reservation.confirmedTicket;
   const activityDateLabel = reservation.updatedAt ? '최종 수정일' : '신청일';
   const activityDate = reservation.updatedAt || reservation.requestedAt;
+  const boardingConfirmedAt = reservation.boardingConfirmedAt;
+
+  const handleConfirmBoarding = async () => {
+    if (boardingConfirmedAt || confirmingBoarding) return;
+
+    setConfirmingBoarding(true);
+    setBoardingError('');
+
+    try {
+      const confirmedAt = await confirmBoarding();
+      setReservation((current) =>
+        current ? { ...current, boardingConfirmedAt: confirmedAt } : current
+      );
+      setShowBoardingConfirmation(false);
+    } catch (error) {
+      console.error('탑승 확인 실패:', error);
+      setBoardingError('탑승 확인을 저장하지 못했습니다. 다시 눌러주세요.');
+    } finally {
+      setConfirmingBoarding(false);
+    }
+  };
 
   return (
     <div className={styles.pageContainer}>
@@ -231,6 +257,83 @@ const ConfirmedTicketPage = () => {
             </div>
           </div>
         </div>
+
+        <section
+          className={`${styles.boardingCheckCard} ${
+            boardingConfirmedAt ? styles.boardingCheckCardComplete : ''
+          }`}
+          aria-live="polite"
+        >
+          <div className={styles.boardingCheckCopy}>
+            <CircleCheckBig size={32} aria-hidden="true" />
+            <div>
+              <h2>
+                {boardingConfirmedAt ? '탑승 확인 완료' : '선탑자 탑승 확인'}
+              </h2>
+              <p>
+                {boardingConfirmedAt
+                  ? `${formatKoreanDateTime(boardingConfirmedAt)}에 확인했습니다.`
+                  : '승객이 버스에 타고 있는지 확인한 뒤 선탑자가 눌러주세요.'}
+              </p>
+            </div>
+          </div>
+          {boardingConfirmedAt ? (
+            <button
+              type="button"
+              className={styles.boardingConfirmButton}
+              disabled
+            >
+              탑승 확인됨
+            </button>
+          ) : showBoardingConfirmation ? (
+            <div className={styles.boardingConfirmation}>
+              <div className={styles.boardingConfirmationDetails}>
+                <strong>{reservation.name}</strong>
+                <span>
+                  {ticket.busNumber} · {ticket.seatNumber || '현장 안내 좌석'}
+                </span>
+              </div>
+              <p>실제로 버스에 탑승한 승객이 맞나요?</p>
+              <div className={styles.boardingConfirmationActions}>
+                <button
+                  type="button"
+                  className={styles.boardingCancelButton}
+                  disabled={confirmingBoarding}
+                  onClick={() => {
+                    setShowBoardingConfirmation(false);
+                    setBoardingError('');
+                  }}
+                >
+                  취소
+                </button>
+                <button
+                  type="button"
+                  className={styles.boardingFinalConfirmButton}
+                  disabled={confirmingBoarding}
+                  onClick={handleConfirmBoarding}
+                >
+                  {confirmingBoarding ? '저장 중...' : '네, 탑승 확인합니다'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className={styles.boardingConfirmButton}
+              onClick={() => {
+                setShowBoardingConfirmation(true);
+                setBoardingError('');
+              }}
+            >
+              탑승 확인하기
+            </button>
+          )}
+          {boardingError && (
+            <p className={styles.boardingError} role="alert">
+              {boardingError}
+            </p>
+          )}
+        </section>
 
         {/* 추가 정보 섹션 */}
         <div className={styles.additionalInfo}>

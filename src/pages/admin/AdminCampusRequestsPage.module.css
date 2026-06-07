@@ -83,7 +83,7 @@
 
 .summaryGrid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 10px;
   margin-bottom: 14px;
 }
@@ -818,6 +818,23 @@
   -webkit-line-clamp: 2;
 }
 
+.unreadRequestCard {
+  border-color: #60a5fa;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.08);
+}
+
+.unreadBadge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 900;
+}
+
 .targetSummary {
   margin: 8px 0 0;
 }
@@ -912,6 +929,16 @@
   font-weight: 900;
 }
 
+.originalMessageBadge {
+  margin-right: auto;
+  border-radius: 999px;
+  background: #eef4ff;
+  color: #1d4ed8;
+  padding: 2px 7px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
 .messageBody {
   margin: 0;
   color: #344054;
@@ -1002,6 +1029,49 @@
   padding: 16px;
   border-left: 1px solid #d7e3ff;
   background: #f8fbff;
+}
+
+.auditPanel {
+  border-top: 1px solid #d7e3ff;
+  padding-top: 12px;
+}
+
+.auditPanel summary {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #344054;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.auditList {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.auditList p {
+  margin: 0;
+  color: #667085;
+  font-size: 12px;
+}
+
+.auditItem {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px;
+  border: 1px solid #d7e3ff;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #475467;
+  font-size: 11px;
+}
+
+.auditItem strong {
+  color: #344054;
 }
 
 .emptyBox {

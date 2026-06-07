@@ -35,6 +35,34 @@ To process pending work and exit:
 npm run optimizer:local:once
 ```
 
+## Windows installer
+
+Build a standalone Windows setup executable:
+
+```powershell
+npm.cmd run optimizer:installer:build
+```
+
+The output is written to:
+
+```text
+outputs/windows-installer/CCC-Bus-Allocation-Optimizer-Setup.exe
+```
+
+The setup executable includes Python, OR-Tools, and the local worker. Its guided
+console menu asks for the Supabase URL and service-role key, stores the key
+using Windows DPAPI, installs under the current user's Local AppData directory,
+and registers the worker in the current user's Startup folder. No separate
+Node.js or Python installation is required on the target computer.
+
+Enter the project URL in `https://<project-ref>.supabase.co` format without a
+dashboard or `/rest/v1` path. Both legacy JWT service-role keys and newer
+`sb_secret_...` secret keys are supported.
+
+The generated executable is not code-signed. Sign it with the organization's
+Windows code-signing certificate before distributing it outside a controlled
+administrator group.
+
 ## Cloud Run Job
 
 Build the image from this directory. Each execution must provide

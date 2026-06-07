@@ -73,6 +73,157 @@
   margin-bottom: 24px;
 }
 
+.boardingCheckCard {
+  display: grid;
+  grid-template-columns: 1fr minmax(180px, 240px);
+  align-items: center;
+  gap: 20px;
+  padding: 24px;
+  margin-bottom: 24px;
+  border: 2px solid #1d4ed8;
+  border-radius: 12px;
+  background: #eff6ff;
+  box-shadow: 0 8px 22px rgba(30, 64, 175, 0.18);
+}
+
+.boardingCheckCardComplete {
+  border-color: #15803d;
+  background: #f0fdf4;
+  box-shadow: 0 8px 22px rgba(21, 128, 61, 0.16);
+}
+
+.boardingCheckCopy {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  color: #1d4ed8;
+}
+
+.boardingCheckCardComplete .boardingCheckCopy {
+  color: #15803d;
+}
+
+.boardingCheckCopy h2 {
+  margin: 0 0 5px;
+  color: #172554;
+  font-size: 19px;
+  font-weight: 800;
+}
+
+.boardingCheckCardComplete .boardingCheckCopy h2 {
+  color: #14532d;
+}
+
+.boardingCheckCopy p {
+  margin: 0;
+  color: #475569;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.boardingConfirmButton {
+  min-height: 58px;
+  padding: 14px 22px;
+  border: none;
+  border-radius: 10px;
+  background: #1d4ed8;
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 17px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.boardingConfirmButton:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 16px rgba(29, 78, 216, 0.28);
+}
+
+.boardingConfirmButton:disabled {
+  background: #15803d;
+  cursor: default;
+}
+
+.boardingConfirmation {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid #f59e0b;
+  border-radius: 10px;
+  background: #fffbeb;
+}
+
+.boardingConfirmationDetails {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.boardingConfirmationDetails strong {
+  color: #78350f;
+  font-size: 17px;
+  font-weight: 900;
+}
+
+.boardingConfirmationDetails span {
+  color: #92400e;
+  font-size: 12px;
+  font-weight: 800;
+  text-align: right;
+}
+
+.boardingConfirmation p {
+  margin: 0;
+  color: #78350f;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.boardingConfirmationActions {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  gap: 8px;
+}
+
+.boardingCancelButton,
+.boardingFinalConfirmButton {
+  min-height: 46px;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.boardingCancelButton {
+  border: 1px solid #d0d5dd;
+  background: #ffffff;
+  color: #475467;
+}
+
+.boardingFinalConfirmButton {
+  border: none;
+  background: #1d4ed8;
+  color: #ffffff;
+}
+
+.boardingCancelButton:disabled,
+.boardingFinalConfirmButton:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.boardingError {
+  grid-column: 1 / -1;
+  margin: -8px 0 0;
+  color: #b42318;
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .ticketTop {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -423,6 +574,32 @@
     padding: 16px;
   }
 
+  .boardingCheckCard {
+    grid-template-columns: 1fr;
+    gap: 16px;
+    padding: 20px;
+  }
+
+  .boardingConfirmButton {
+    width: 100%;
+    min-height: 64px;
+    font-size: 18px;
+  }
+
+  .boardingConfirmation {
+    padding: 14px;
+  }
+
+  .boardingConfirmationActions {
+    grid-template-columns: 88px 1fr;
+  }
+
+  .boardingCancelButton,
+  .boardingFinalConfirmButton {
+    min-height: 54px;
+    font-size: 14px;
+  }
+
   .infoRow {
     grid-template-columns: repeat(2, 1fr);
     gap: 12px;
@@ -462,6 +639,7 @@
   .backButton,
   .notice,
   .buttonGroup,
+  .boardingCheckCard,
   .additionalInfo {
     display: none;
   }

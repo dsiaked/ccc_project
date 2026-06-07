@@ -347,7 +347,10 @@ export const mergeActivePassengersIntoDraft = (
         return left.label.localeCompare(right.label);
       });
 
-  const pending = passengers.filter((passenger) => !passenger.busId);
+  const pending = passengers.filter(
+    (passenger) =>
+      newPassengerIds.has(passenger.reservationId) && !passenger.busId
+  );
   pending.forEach((passenger) => {
     const bus = preferredAvailableBuses(passenger)[0];
     if (bus) assign(passenger, bus);
@@ -522,6 +525,13 @@ export const validateWorkspace = (
     passengersByBus.set(passenger.busId, assigned);
   });
 
+  if (workspace.buses.some((bus) => !bus.departureTime.trim())) {
+    errors.push('출발 시간이 없습니다.');
+  }
+  if (workspace.buses.some((bus) => !bus.boardingPlace.trim())) {
+    errors.push('탑승 장소가 없습니다.');
+  }
+
   workspace.buses.forEach((bus) => {
     if (!bus.label.trim()) errors.push('이름이 없는 버스가 있습니다.');
     if (labels.has(bus.label.trim())) {
@@ -530,8 +540,6 @@ export const validateWorkspace = (
     labels.add(bus.label.trim());
 
     if (!bus.destination.trim()) errors.push(`${bus.label}: 행선지가 없습니다.`);
-    if (!bus.departureTime.trim()) errors.push(`${bus.label}: 출발 시간이 없습니다.`);
-    if (!bus.boardingPlace.trim()) errors.push(`${bus.label}: 탑승 장소가 없습니다.`);
 
     const passengers = passengersByBus.get(bus.id) ?? [];
     const seats = new Set<number>();
@@ -829,6 +837,12 @@ const throwAllocationRpcError = (error: {
       '임시 배차안 생성 후 활성 신청자가 변경되었습니다. 최신 신청자를 반영해주세요.',
     'Not every active reservation was confirmed.':
       '일부 활성 신청자의 배차 확정 처리가 누락되었습니다.',
+    'Allocation is available only after the reservation deadline.':
+      '신청 마감 후에만 배차를 진행할 수 있습니다.',
+    'Cancel the existing confirmed allocation before confirming another.':
+      '기존 확정 배차를 먼저 취소한 뒤 새 배차를 확정해주세요.',
+    'No-show status is available after bus departure.':
+      '호차 출발 완료 이후에 미탑승 처리할 수 있습니다.',
   };
   const translatedMessage = error.message
     ? confirmationErrorMessages[error.message]

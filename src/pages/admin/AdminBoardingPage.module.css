@@ -1,0 +1,269 @@
+.pageContainer { min-height: 100vh; background: #f4f6f8; }
+.main { width: 100%; padding: 32px; }
+.hero { display: flex; justify-content: space-between; gap: 20px; padding: 26px; border-radius: 16px; background: #172554; color: white; }
+.hero span { color: #93c5fd; font-size: 12px; font-weight: 900; text-transform: uppercase; }
+.hero h1 { margin: 6px 0; font-size: 30px; }
+.hero p { margin: 0; color: #cbd5e1; }
+.hero button, .departure, .cancelDeparture { align-self: center; min-height: 44px; padding: 0 16px; border: 0; border-radius: 9px; font-weight: 900; cursor: pointer; }
+.hero button { display: flex; align-items: center; gap: 7px; background: white; color: #172554; }
+.error { padding: 12px; border: 1px solid #fecaca; border-radius: 8px; background: #fff1f2; color: #be123c; font-weight: 800; }
+.empty { margin-top: 18px; padding: 70px 20px; border: 1px dashed #cbd5e1; border-radius: 14px; background: white; text-align: center; color: #64748b; }
+.empty h2 { color: #172554; }
+.allocationTitle { display: flex; justify-content: space-between; gap: 10px; margin: 20px 0 12px; }
+.allocationTitle strong { color: #172554; font-size: 18px; }
+.allocationTitle span { color: #b45309; font-size: 12px; font-weight: 800; }
+.busGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+.busCard { padding: 16px; border: 2px solid transparent; border-radius: 12px; background: white; text-align: left; cursor: pointer; }
+.busCardActive { border-color: #2563eb; box-shadow: 0 6px 18px rgba(37, 99, 235, .15); }
+.busCard > div:first-child { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.busCard strong { color: #172554; font-size: 19px; }
+.busCard p { margin: 7px 0 12px; color: #64748b; }
+.departedBadge { padding: 4px 7px; border-radius: 999px; background: #dcfce7; color: #166534; font-size: 11px; font-weight: 900; }
+.busCounts { display: flex; flex-wrap: wrap; gap: 5px; }
+.busCounts span, .statusBadge { padding: 5px 8px; border-radius: 999px; font-size: 11px; font-weight: 900; }
+.boarded { background: #dcfce7; color: #166534; }.unchecked { background: #fef3c7; color: #92400e; }.noShow { background: #fee2e2; color: #991b1b; }
+.roster { margin-top: 18px; padding: 20px; border: 1px solid #dfe3e8; border-radius: 14px; background: white; }
+.rosterHeader { display: flex; justify-content: space-between; gap: 16px; padding-bottom: 18px; border-bottom: 1px solid #e5e7eb; }
+.rosterHeader span { color: #2563eb; font-size: 12px; font-weight: 900; }.rosterHeader h2 { margin: 4px 0; color: #172554; }.rosterHeader p { margin: 0; color: #64748b; }
+.departure { background: #b91c1c; color: white; }.cancelDeparture { background: #fff1f2; color: #be123c; border: 1px solid #fecaca; }
+.filters { display: grid; grid-template-columns: 1fr 220px auto; align-items: center; gap: 10px; margin: 16px 0; }
+.filters label { display: flex; align-items: center; gap: 8px; padding: 0 12px; border: 1px solid #cbd5e1; border-radius: 9px; }
+.filters input, .filters select { width: 100%; height: 44px; border: 0; background: white; font: inherit; }.filters select { padding: 0 12px; border: 1px solid #cbd5e1; border-radius: 9px; }
+.resultCount { min-width: 52px; color: #2563eb; font-size: 14px; text-align: right; }
+.passengerList { display: grid; gap: 9px; }
+.noResults { display: grid; justify-items: center; gap: 6px; padding: 48px 20px; border: 1px dashed #cbd5e1; border-radius: 10px; color: #64748b; text-align: center; }
+.noResults strong { color: #334155; }
+.noResults span { font-size: 13px; }
+.passenger { display: grid; grid-template-columns: 1fr auto; gap: 12px; padding: 15px; border: 1px solid #e5e7eb; border-left-width: 5px; border-radius: 10px; }
+.status_unchecked { border-left-color: #f59e0b; }.status_boarded { border-left-color: #16a34a; background: #fbfffc; }.status_no_show { border-left-color: #dc2626; background: #fffafa; }
+.nameRow { display: flex; align-items: center; gap: 8px; }.nameRow strong { color: #172554; font-size: 17px; }
+.status_unchecked .statusBadge { background: #fef3c7; color: #92400e; }.status_boarded .statusBadge { background: #dcfce7; color: #166534; }.status_no_show .statusBadge { background: #fee2e2; color: #991b1b; }
+.meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }.meta span { padding: 4px 7px; border-radius: 6px; background: #f1f5f9; color: #475569; font-size: 12px; font-weight: 700; }
+.changeSummary { display: flex; align-items: center; flex-wrap: wrap; gap: 5px 8px; margin-top: 9px; font-size: 12px; }
+.changeSummary strong { padding: 4px 7px; border-radius: 6px; font-size: 11px; }
+.changeSummary span { color: #64748b; }
+.change_passenger strong { background: #dbeafe; color: #1d4ed8; }
+.change_boarding_manager strong { background: #ede9fe; color: #6d28d9; }
+.change_automatic strong { background: #f1f5f9; color: #475569; }
+.change_unknown strong { background: #f8fafc; color: #64748b; }
+.actions { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 5px; }
+.actions button { display: flex; align-items: center; gap: 4px; min-height: 36px; padding: 0 9px; border-radius: 7px; font-weight: 800; cursor: pointer; }
+.actions button:disabled { opacity: .42; cursor: default; }
+.boardButton { border: 1px solid #86efac; background: #f0fdf4; color: #166534; }.noShowButton { border: 1px solid #fecaca; background: #fff1f2; color: #be123c; }.resetButton { border: 1px solid #cbd5e1; background: white; color: #475569; }
+.noteEditor { grid-column: 1 / -1; display: grid; grid-template-columns: auto minmax(180px, 1fr) auto; align-items: center; gap: 8px; padding-top: 11px; border-top: 1px solid #e5e7eb; }
+.noteEditor label { color: #475569; font-size: 12px; font-weight: 900; }
+.noteEditor input { width: 100%; min-width: 0; height: 38px; padding: 0 10px; border: 1px solid #cbd5e1; border-radius: 7px; background: white; color: #172554; font: inherit; }
+.noteEditor button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 38px; padding: 0 11px; border: 1px solid #bfdbfe; border-radius: 7px; background: #eff6ff; color: #1d4ed8; font-weight: 900; cursor: pointer; }
+.noteEditor button:disabled { opacity: .45; cursor: default; }
+@media (max-width: 900px) {
+  .main {
+    padding: 14px 12px calc(40px + env(safe-area-inset-bottom));
+  }
+
+  .hero {
+    align-items: flex-start;
+    padding: 20px;
+  }
+
+  .hero,
+  .rosterHeader,
+  .allocationTitle {
+    flex-direction: column;
+  }
+
+  .hero button,
+  .departure,
+  .cancelDeparture {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .allocationTitle {
+    gap: 4px;
+    margin: 16px 2px 10px;
+  }
+
+  .busGrid {
+    display: flex;
+    gap: 8px;
+    margin: 0 -12px;
+    padding: 2px 12px 10px;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+  }
+
+  .busGrid::-webkit-scrollbar {
+    display: none;
+  }
+
+  .busCard {
+    flex: 0 0 min(78vw, 300px);
+    min-height: 126px;
+    scroll-snap-align: start;
+  }
+
+  .roster {
+    margin: 8px -12px 0;
+    padding: 0 12px 16px;
+    border-right: 0;
+    border-left: 0;
+    border-radius: 0;
+  }
+
+  .rosterHeader {
+    gap: 14px;
+    padding: 18px 0 14px;
+  }
+
+  .rosterHeader h2 {
+    margin-top: 5px;
+    font-size: 21px;
+  }
+
+  .rosterHeader p {
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  .filters {
+    position: sticky;
+    top: 104px;
+    z-index: 5;
+    grid-template-columns: 1fr 112px;
+    gap: 7px;
+    margin: 0 -12px 12px;
+    padding: 10px 12px;
+    border-top: 1px solid #e5e7eb;
+    border-bottom: 1px solid #e5e7eb;
+    background: rgba(255, 255, 255, .96);
+    box-shadow: 0 5px 12px rgba(15, 23, 42, .06);
+    backdrop-filter: blur(8px);
+  }
+
+  .filters label,
+  .filters select {
+    min-width: 0;
+    background: #f8fafc;
+  }
+
+  .resultCount {
+    grid-column: 1 / -1;
+    min-width: 0;
+    font-size: 12px;
+    text-align: left;
+  }
+
+  .passenger {
+    grid-template-columns: 1fr;
+    gap: 13px;
+    padding: 14px 12px;
+    border-left-width: 4px;
+    border-radius: 12px;
+  }
+
+  .nameRow {
+    justify-content: space-between;
+  }
+
+  .nameRow strong {
+    font-size: 18px;
+  }
+
+  .meta {
+    gap: 5px;
+    margin-top: 8px;
+  }
+
+  .meta span {
+    padding: 5px 7px;
+  }
+
+  .actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 7px;
+  }
+
+  .actions button {
+    justify-content: center;
+    min-height: 48px;
+    padding: 0 8px;
+    touch-action: manipulation;
+  }
+
+  .boardButton {
+    border-color: #4ade80;
+    background: #dcfce7;
+    font-size: 15px;
+  }
+
+  .changeSummary {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .noteEditor {
+    grid-template-columns: 1fr auto;
+  }
+
+  .noteEditor label {
+    grid-column: 1 / -1;
+  }
+
+  .noteEditor input {
+    height: 44px;
+  }
+
+  .noteEditor button {
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 560px) {
+  .hero {
+    gap: 14px;
+    border-radius: 12px;
+  }
+
+  .hero h1 {
+    margin: 4px 0;
+    font-size: 24px;
+  }
+
+  .hero p {
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  .hero button {
+    min-height: 46px;
+  }
+
+  .busCard {
+    flex-basis: 82vw;
+  }
+
+  .busCard strong {
+    font-size: 18px;
+  }
+
+  .busCounts span,
+  .statusBadge {
+    padding: 6px 8px;
+    font-size: 12px;
+  }
+
+  .filters {
+    top: 102px;
+  }
+
+  .filters input,
+  .filters select {
+    font-size: 14px;
+  }
+
+  .noResults {
+    padding: 38px 16px;
+  }
+}

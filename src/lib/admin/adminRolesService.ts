@@ -7,6 +7,7 @@ export {
   getTeamsByDistrict,
   registerCampusAdmin,
   searchUsersForCampusManager,
+  setActiveAdminRole,
   setActiveCampusAdminRole,
 } from '../adminService';
 

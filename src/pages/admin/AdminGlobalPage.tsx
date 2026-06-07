@@ -111,6 +111,12 @@ const quickActions = [
     path: '/admin/allocation/logic',
     icon: Bus,
   },
+  {
+    title: '선탑자 권한 관리',
+    description: '선탑자 계정을 지정하고 전체 호차 탑승 확인 권한을 관리합니다.',
+    path: '/admin/boarding-managers',
+    icon: Users,
+  },
 ] as const;
 
 const formatCurrency = (amount: number) => `${amount.toLocaleString()}원`;

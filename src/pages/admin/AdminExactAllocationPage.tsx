@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, LoaderCircle, Play, Square } from 'lucide-react';
+import {
+  BookOpen,
+  CheckCircle2,
+  FolderOpen,
+  LoaderCircle,
+  Play,
+  RotateCcw,
+  Square,
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 import AdminHeader from './AdminHeader';
@@ -14,13 +22,29 @@ import {
   getAllocationWorkspaceForExactJob,
   getRecentExactAllocationJobs,
   launchExactAllocationJob,
+  resetExactAllocationJobs,
   saveExactAllocationOptimizerConfig,
+  type ExactAllocationExecutionMode,
   type ExactAllocationJob,
   type ExactAllocationOptimizerConfig,
 } from '../../lib/admin/exactAllocationOptimizationService';
+import {
+  getConfirmedAllocationWorkspaceSummaries,
+  getDraftAllocationWorkspaceSummaries,
+  type AllocationWorkspaceSummary,
+} from '../../lib/admin/allocationWorkspaceService';
 import styles from './AdminExactAllocationPage.module.css';
 
 const activeStatuses = new Set(['PENDING', 'RUNNING', 'CANCEL_REQUESTED']);
+const executionModeStorageKey = 'ccc-bus-allocation-execution-mode';
+
+const getInitialExecutionMode = (): ExactAllocationExecutionMode => {
+  const savedMode = window.localStorage.getItem(executionModeStorageKey);
+  if (savedMode === 'cloud' || savedMode === 'local') return savedMode;
+  return import.meta.env.VITE_ALLOCATION_OPTIMIZER_EXECUTION_MODE === 'local'
+    ? 'local'
+    : 'cloud';
+};
 
 const optimizationPhases = [
   'starting',
@@ -81,12 +105,24 @@ const phaseGroups = [
   },
 ] as const;
 
+const skippableDetailedPhases = [
+  { id: 'campus_bus_uses', label: '캠퍼스 분산 최소화' },
+  { id: 'campus_distribution_imbalance', label: '캠퍼스별 인원 균형' },
+  { id: 'campus_isolated_groups', label: '캠퍼스 고립 인원 최소화' },
+  { id: 'campus_odd_groups', label: '캠퍼스 홀수 그룹 최소화' },
+  { id: 'team_bus_uses', label: '팀 분산 최소화' },
+  { id: 'team_distribution_imbalance', label: '팀별 인원 균형' },
+  { id: 'destination_occupancy_imbalance', label: '버스별 탑승 인원 균형' },
+] as const;
+
 type PhaseGroupState = 'completed' | 'current' | 'pending' | 'halted';
 
 const formatError = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
 
 const getRecordedElapsedSeconds = (job: ExactAllocationJob) => {
+  if (job.result_reused) return 0;
+
   if (job.elapsed_seconds > 0 || !job.started_at || !job.completed_at) {
     return job.elapsed_seconds;
   }
@@ -112,16 +148,27 @@ const AdminExactAllocationPage = () => {
   const [config, setConfig] = useState(initialConfig);
   const [currentJob, setCurrentJob] = useState<ExactAllocationJob | null>(null);
   const [recentJobs, setRecentJobs] = useState<ExactAllocationJob[]>([]);
+  const [draftWorkspaces, setDraftWorkspaces] = useState<
+    AllocationWorkspaceSummary[]
+  >([]);
+  const [confirmedWorkspaces, setConfirmedWorkspaces] = useState<
+    AllocationWorkspaceSummary[]
+  >([]);
   const [busOptionCount, setBusOptionCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [savingConfig, setSavingConfig] = useState(false);
   const [starting, setStarting] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const [creatingDraft, setCreatingDraft] = useState(false);
   const [linkedWorkspace, setLinkedWorkspace] = useState<{
     jobId: string;
     workspaceId: string | null;
   } | null>(null);
   const [startingDetailedBalance, setStartingDetailedBalance] = useState(false);
+  const [executionMode, setExecutionMode] =
+    useState<ExactAllocationExecutionMode>(getInitialExecutionMode);
+  const [resumeDetailedBalance, setResumeDetailedBalance] = useState(true);
+  const [skippedDetailedPhases, setSkippedDetailedPhases] = useState<string[]>([]);
   const [allocationName, setAllocationName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [clock, setClock] = useState(() => Date.now());
@@ -139,11 +186,15 @@ const AdminExactAllocationPage = () => {
     setLoading(true);
     setError(null);
     try {
-      const [nextConfig, busOptions] = await Promise.all([
+      const [nextConfig, busOptions, drafts, confirmed] = await Promise.all([
         getExactAllocationOptimizerConfig(),
         getExactAllocationBusOptions(),
+        getDraftAllocationWorkspaceSummaries(),
+        getConfirmedAllocationWorkspaceSummaries(),
         loadRecentJobs(),
       ]);
+      setDraftWorkspaces(drafts);
+      setConfirmedWorkspaces(confirmed);
       setBusOptionCount(busOptions.length);
       const busOption = busOptions[0];
       setConfig({
@@ -191,6 +242,10 @@ const AdminExactAllocationPage = () => {
   }, [currentJob]);
 
   useEffect(() => {
+    window.localStorage.setItem(executionModeStorageKey, executionMode);
+  }, [executionMode]);
+
+  useEffect(() => {
     if (!currentJob || currentJob.status !== 'OPTIMAL') return;
 
     let cancelled = false;
@@ -214,6 +269,7 @@ const AdminExactAllocationPage = () => {
   }, [currentJob]);
 
   const activeJob = currentJob && activeStatuses.has(currentJob.status);
+  const reusedResult = currentJob?.result_reused === true;
   const linkedWorkspaceId =
     linkedWorkspace && linkedWorkspace.jobId === currentJob?.id
       ? linkedWorkspace.workspaceId
@@ -270,6 +326,14 @@ const AdminExactAllocationPage = () => {
   }, [currentJob, visiblePhaseGroups]);
   const currentPhaseGroup =
     visiblePhaseGroups[phaseGroupStates.indexOf('current')];
+  const displayedProgress =
+    currentJob?.optimization_scope === 'BASELINE'
+      ? Math.round(
+          (phaseGroupStates.filter((state) => state === 'completed').length /
+            visiblePhaseGroups.length) *
+            100
+        )
+      : (currentJob?.progress ?? 0);
 
   const handleSaveConfig = async () => {
     if (!hasSingleBusOption) {
@@ -296,10 +360,12 @@ const AdminExactAllocationPage = () => {
     setError(null);
     try {
       await saveExactAllocationOptimizerConfig(config);
-      const jobId = await createExactAllocationJob();
+      const jobId = await createExactAllocationJob(executionMode);
       const job = await getExactAllocationJob(jobId);
       if (job) setCurrentJob(job);
-      await launchExactAllocationJob(jobId);
+      if (job?.status === 'PENDING') {
+        await launchExactAllocationJob(jobId, executionMode);
+      }
       await loadRecentJobs();
     } catch (startError) {
       setError(formatError(startError));
@@ -319,6 +385,28 @@ const AdminExactAllocationPage = () => {
       await loadRecentJobs();
     } catch (cancelError) {
       setError(formatError(cancelError));
+    }
+  };
+
+  const handleReset = async () => {
+    if (
+      !window.confirm(
+        '완료된 최적화 계산 기록과 재사용 캐시를 모두 삭제합니다. 생성된 임시·확정 배차안은 유지됩니다. 계속할까요?'
+      )
+    ) {
+      return;
+    }
+    setResetting(true);
+    setError(null);
+    try {
+      await resetExactAllocationJobs();
+      setCurrentJob(null);
+      setRecentJobs([]);
+      setLinkedWorkspace(null);
+    } catch (resetError) {
+      setError(formatError(resetError));
+    } finally {
+      setResetting(false);
     }
   };
 
@@ -352,10 +440,26 @@ const AdminExactAllocationPage = () => {
     setStartingDetailedBalance(true);
     setError(null);
     try {
-      const jobId = await createDetailedBalanceJob(currentJob.id);
+      const resumeFromJobId = resumeDetailedBalance
+        ? currentJob.optimization_scope === 'DETAILED'
+          ? currentJob.id
+          : recentJobs.find(
+              (job) =>
+                job.optimization_scope === 'DETAILED' &&
+                job.status === 'OPTIMAL'
+            )?.id ?? null
+        : null;
+      const jobId = await createDetailedBalanceJob(
+        currentJob.id,
+        skippedDetailedPhases,
+        resumeFromJobId,
+        executionMode
+      );
       const job = await getExactAllocationJob(jobId);
       if (job) setCurrentJob(job);
-      await launchExactAllocationJob(jobId);
+      if (job?.status === 'PENDING') {
+        await launchExactAllocationJob(jobId, executionMode);
+      }
       await loadRecentJobs();
     } catch (balanceError) {
       setError(formatError(balanceError));
@@ -377,12 +481,146 @@ const AdminExactAllocationPage = () => {
               증명된 결과만 사용합니다.
             </p>
           </div>
-          <span className={styles.proofBadge}>
-            로컬 Python Worker · OPTIMAL 증명 필수
-          </span>
+          <div className={styles.heroActions}>
+            <button
+              className={styles.secondary}
+              type="button"
+              onClick={() => navigate('/admin/allocation/logic')}
+            >
+              <BookOpen size={15} /> 로직 설명
+            </button>
+            <span className={styles.proofBadge}>
+              {executionMode === 'cloud' ? 'Cloud Run' : '로컬 Worker'} · OPTIMAL
+              증명 필수
+            </span>
+          </div>
         </header>
 
         {error && <div className={styles.error}>{error}</div>}
+
+        <section className={styles.section}>
+          <div className={styles.sectionHeader}>
+            <div>
+              <h2><FolderOpen size={18} /> 저장된 배차안</h2>
+              <p className={styles.muted}>
+                임시 배차안을 이어서 편집하거나 확정된 배차 결과를 확인합니다.
+              </p>
+            </div>
+            <div className={styles.workspaceCounts}>
+              <span className={styles.draftCount}>
+                임시 {draftWorkspaces.length.toLocaleString()}
+              </span>
+              <span className={styles.confirmedCount}>
+                확정 {confirmedWorkspaces.length.toLocaleString()}
+              </span>
+            </div>
+          </div>
+          {draftWorkspaces.length + confirmedWorkspaces.length > 0 ? (
+            <div className={styles.draftList}>
+              {[...draftWorkspaces, ...confirmedWorkspaces].map((workspace) => (
+                <button
+                  className={`${styles.draftItem} ${
+                    workspace.status === 'confirmed' ? styles.confirmedItem : ''
+                  }`}
+                  key={workspace.id}
+                  type="button"
+                  onClick={() =>
+                    navigate(`/admin/allocation/workspace?id=${workspace.id}`)
+                  }
+                >
+                  <span className={styles.draftItemTitle}>
+                    <strong>{workspace.allocation_name}</strong>
+                    <em>{workspace.status === 'confirmed' ? '확정' : '임시'}</em>
+                  </span>
+                  <span className={styles.draftItemMetrics}>
+                    <small>버스 {workspace.bus_count.toLocaleString()}대</small>
+                    <small>승객 {workspace.passenger_count.toLocaleString()}명</small>
+                    <small>{workspace.total_cost.toLocaleString()}원</small>
+                  </span>
+                  <span className={styles.draftItemFooter}>
+                    <small>{new Date(workspace.created_at).toLocaleString('ko-KR')}</small>
+                    <strong>
+                      {workspace.status === 'confirmed'
+                        ? '확정 배차 확인'
+                        : '이어서 편집'}
+                    </strong>
+                  </span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className={styles.draftEmpty}>
+              아직 저장된 배차안이 없습니다.
+            </div>
+          )}
+        </section>
+
+        <details className={styles.installGuide}>
+          <summary>
+            <span>
+              <strong>다른 노트북에서 로컬 배차 계산 준비하기</strong>
+              <small>최초 설치 방법과 계산할 때마다 실행할 명령어를 확인합니다.</small>
+            </span>
+            <em>설치 안내 열기</em>
+          </summary>
+          <div className={styles.installGuideBody}>
+            <div className={styles.installNotice}>
+              <strong>보안 주의</strong>
+              <p>
+                로컬 워커에는 관리자급 비밀키인 <code>SUPABASE_SERVICE_ROLE_KEY</code>가
+                필요합니다. 신뢰할 수 있는 관리자 노트북에만 설치하고, 키를 메신저나
+                공개 저장소에 올리지 마세요. 현재 설치 파일은 코드서명되지 않아 Windows
+                보안 경고가 표시될 수 있습니다.
+              </p>
+            </div>
+            <ol className={styles.installSteps}>
+              <li>
+                <strong>설치 프로그램 다운로드</strong>
+                <p>
+                  아래 버튼으로 설치 프로그램을 받은 뒤 실행합니다. Node.js, Python,
+                  프로젝트 소스 코드는 따로 설치할 필요가 없습니다.
+                </p>
+                <a
+                  className={styles.downloadLink}
+                  href="/downloads/CCC-Bus-Allocation-Optimizer-Setup.exe"
+                  download
+                >
+                  Windows 배차 계산기 설치 프로그램 다운로드
+                </a>
+              </li>
+              <li>
+                <strong>메뉴에서 설치 / 업데이트 선택</strong>
+                <p>
+                  설치 창에서 <code>1</code>을 입력하고, 시스템 관리자로부터 전달받은
+                  Supabase URL과 service-role 키를 입력합니다. URL은
+                  <code>https://프로젝트참조.supabase.co</code> 형식으로 입력하고,
+                  대시보드 주소나 <code>/rest/v1</code> 경로는 붙이지 않습니다.
+                  기존 JWT 키와 <code>sb_secret_...</code> 형식의 새 비밀 키를 모두
+                  사용할 수 있습니다.
+                </p>
+              </li>
+              <li>
+                <strong>설치 완료</strong>
+                <p>
+                  연결 확인 후 워커가 바로 실행되며, 다음 Windows 로그인부터 자동으로
+                  실행됩니다.
+                </p>
+              </li>
+              <li>
+                <strong>문제가 있을 때</strong>
+                <p>
+                  설치 프로그램을 다시 실행해 <code>2</code>로 연결을 확인하거나,
+                  <code>3</code>으로 워커를 다시 실행할 수 있습니다.
+                </p>
+              </li>
+            </ol>
+            <p className={styles.installFootnote}>
+              여러 노트북에서 워커를 실행해도 하나의 계산 작업은 한 대만 선점합니다.
+              설치 프로그램은 현재 Windows 사용자 계정에만 설치되며 관리자 권한을
+              요구하지 않습니다.
+            </p>
+          </div>
+        </details>
 
         <section className={styles.section}>
           <div className={styles.sectionHeader}>
@@ -460,7 +698,7 @@ const AdminExactAllocationPage = () => {
             <div>
               <h2>최적해 계산</h2>
               <p className={styles.muted}>
-                이 PC에서 로컬 Python Worker가 실행 중이면 브라우저를 닫아도 계산이 계속됩니다.
+                예약 정보와 버스 설정이 같으면 저장된 최적해를 즉시 불러오고, 변경된 경우에만 새로 계산합니다.
               </p>
             </div>
             <div className={styles.actions}>
@@ -469,15 +707,68 @@ const AdminExactAllocationPage = () => {
                   <Square size={14} /> 계산 취소
                 </button>
               ) : (
-                <button
-                  className={styles.primary}
-                  type="button"
-                  disabled={starting || loading || !hasSingleBusOption}
-                  onClick={handleStart}
-                >
-                  <Play size={15} /> {starting ? '시작 중...' : '정확 계산 시작'}
-                </button>
+                <>
+                  <button
+                    className={styles.secondary}
+                    type="button"
+                    disabled={resetting || recentJobs.length === 0}
+                    onClick={handleReset}
+                  >
+                    <RotateCcw size={15} /> {resetting ? '리셋 중...' : '계산 리셋'}
+                  </button>
+                  <button
+                    className={styles.primary}
+                    type="button"
+                    disabled={starting || resetting || loading || !hasSingleBusOption}
+                    onClick={handleStart}
+                  >
+                    <Play size={15} /> {starting ? '시작 중...' : '정확 계산 시작'}
+                  </button>
+                </>
               )}
+            </div>
+          </div>
+
+          <div className={styles.executionModePanel}>
+            <div>
+              <strong>계산 실행 위치</strong>
+              <p className={styles.muted}>
+                새 기본 계산과 상세 균형 계산에 적용됩니다.
+              </p>
+            </div>
+            <div className={styles.executionModeOptions}>
+              <label
+                className={executionMode === 'cloud' ? styles.selectedMode : ''}
+              >
+                <input
+                  type="radio"
+                  name="allocation-execution-mode"
+                  value="cloud"
+                  checked={executionMode === 'cloud'}
+                  disabled={Boolean(activeJob)}
+                  onChange={() => setExecutionMode('cloud')}
+                />
+                <span>
+                  <strong>Cloud Run</strong>
+                  <small>설치 없이 서버에서 계산합니다.</small>
+                </span>
+              </label>
+              <label
+                className={executionMode === 'local' ? styles.selectedMode : ''}
+              >
+                <input
+                  type="radio"
+                  name="allocation-execution-mode"
+                  value="local"
+                  checked={executionMode === 'local'}
+                  disabled={Boolean(activeJob)}
+                  onChange={() => setExecutionMode('local')}
+                />
+                <span>
+                  <strong>로컬 Worker</strong>
+                  <small>이 PC에서 로컬 Worker가 실행 중이어야 합니다.</small>
+                </span>
+              </label>
             </div>
           </div>
 
@@ -493,7 +784,9 @@ const AdminExactAllocationPage = () => {
                     {currentJob.id}
                   </strong>
                   <p className={styles.muted}>
-                    {currentJob.status === 'OPTIMAL'
+                    {reusedResult
+                      ? '예약 정보와 버스 설정의 변동이 없어 이전에 증명된 최적해를 즉시 불러왔습니다.'
+                      : currentJob.status === 'OPTIMAL'
                       ? currentJob.optimization_scope === 'BASELINE'
                         ? '최저비용 기본 배차가 완료되었습니다. 지금 임시 배차안을 생성해 확정할 수 있습니다.'
                         : '최저비용 조건을 유지한 상세 균형 계산이 완료되었습니다.'
@@ -506,59 +799,76 @@ const AdminExactAllocationPage = () => {
                             : '계산 결과를 확인해주세요.'}
                   </p>
                 </div>
-                <span className={styles.jobStatus}>{currentJob.status}</span>
+                <span
+                  className={
+                    reusedResult ? styles.reusedJobStatus : styles.jobStatus
+                  }
+                >
+                  {reusedResult ? '즉시 재사용' : currentJob.status}
+                </span>
               </div>
-              <div className={styles.progressTrack}>
-                <span style={{ width: `${currentJob.progress}%` }} />
-              </div>
-              <ol className={styles.phaseList} aria-label="최적화 계산 단계">
-                {visiblePhaseGroups.map((phase, index) => {
-                  const state = phaseGroupStates[index] ?? 'pending';
-                  const stateLabel =
-                    state === 'completed'
-                      ? '완료'
-                      : state === 'current'
-                        ? currentJob.status === 'CANCEL_REQUESTED'
-                          ? '취소 처리 중'
-                          : '진행 중'
-                        : state === 'halted'
-                          ? '중단됨'
-                          : '대기';
-                  return (
-                    <li className={styles[`phase_${state}`]} key={phase.label}>
-                      <span className={styles.phaseMarker}>
-                        {state === 'completed' ? (
-                          <CheckCircle2 size={17} />
-                        ) : state === 'current' ? (
-                          <LoaderCircle size={17} />
-                        ) : (
-                          index + 1
-                        )}
-                      </span>
-                      <span className={styles.phaseContent}>
-                        <strong>{phase.label}</strong>
-                        <small>{phase.description}</small>
-                      </span>
-                      <em>{stateLabel}</em>
-                    </li>
-                  );
-                })}
-              </ol>
+              {reusedResult ? (
+                <div className={styles.reusedResultNotice}>
+                  <CheckCircle2 size={22} />
+                  <div>
+                    <strong>저장된 최적해 재사용</strong>
+                    <p>
+                      동일한 예약 스냅샷의 검증된 결과를 가져왔습니다. Python
+                      Worker를 실행하지 않았으며 최적화 계산 단계도 생략했습니다.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className={styles.progressTrack}>
+                    <span style={{ width: `${displayedProgress}%` }} />
+                  </div>
+                  <ol className={styles.phaseList} aria-label="최적화 계산 단계">
+                    {visiblePhaseGroups.map((phase, index) => {
+                      const state = phaseGroupStates[index] ?? 'pending';
+                      const stateLabel =
+                        state === 'completed'
+                          ? '완료'
+                          : state === 'current'
+                            ? currentJob.status === 'CANCEL_REQUESTED'
+                              ? '취소 처리 중'
+                              : '진행 중'
+                            : state === 'halted'
+                              ? '중단됨'
+                              : '대기';
+                      return (
+                        <li className={styles[`phase_${state}`]} key={phase.label}>
+                          <span className={styles.phaseMarker}>
+                            {state === 'completed' ? (
+                              <CheckCircle2 size={17} />
+                            ) : state === 'current' ? (
+                              <LoaderCircle size={17} />
+                            ) : (
+                              index + 1
+                            )}
+                          </span>
+                          <span className={styles.phaseContent}>
+                            <strong>{phase.label}</strong>
+                            <small>{phase.description}</small>
+                          </span>
+                          <em>{stateLabel}</em>
+                        </li>
+                      );
+                    })}
+                  </ol>
+                </>
+              )}
               <div className={styles.metricGrid}>
                 <article>
                   <span>진행률</span>
-                  <strong>{currentJob.progress}%</strong>
+                  <strong>{displayedProgress}%</strong>
                 </article>
                 <article>
                   <span>경과 시간</span>
-                  <strong>{displayedElapsedSeconds.toLocaleString()}초</strong>
-                </article>
-                <article>
-                  <span>현재 최저</span>
                   <strong>
-                    {currentJob.best_known_bus_count === null
-                      ? '-'
-                      : `${currentJob.best_known_bus_count}대`}
+                    {reusedResult
+                      ? '계산 생략'
+                      : `${displayedElapsedSeconds.toLocaleString()}초`}
                   </strong>
                 </article>
                 <article>
@@ -570,15 +880,65 @@ const AdminExactAllocationPage = () => {
                   </strong>
                 </article>
               </div>
-              {currentJob.optimization_scope === 'BASELINE' && (
+              {currentJob.status === 'OPTIMAL' && (
                 <div className={styles.detailedBalancePanel}>
                   <div>
                     <span className={styles.optionalBadge}>선택 단계</span>
-                    <h3>상세 균형 최적화</h3>
+                    <h3>
+                      {currentJob.optimization_scope === 'DETAILED'
+                        ? '상세 균형 이어서 최적화'
+                        : '상세 균형 최적화'}
+                    </h3>
                     <p className={styles.muted}>
                       최저비용과 최소 2지망 인원을 유지한 채 캠퍼스 분산,
                       캠퍼스별 인원 균형, 팀 분산, 버스별 탑승 균형을 추가로 계산합니다.
                     </p>
+                    <label className={styles.resumeOption}>
+                      <input
+                        type="checkbox"
+                        checked={resumeDetailedBalance}
+                        onChange={(event) =>
+                          setResumeDetailedBalance(event.target.checked)
+                        }
+                      />
+                      이전 상세 균형 결과를 기억해 이어서 탐색
+                    </label>
+                    <div className={styles.skipPhaseOptions}>
+                      <strong>건너뛸 계산 선택</strong>
+                      <div>
+                        {skippableDetailedPhases.map((phase) => (
+                          <label key={phase.id}>
+                            <input
+                              type="checkbox"
+                              checked={skippedDetailedPhases.includes(phase.id)}
+                              onChange={(event) =>
+                                setSkippedDetailedPhases((current) =>
+                                  event.target.checked
+                                    ? [...current, phase.id]
+                                    : current.filter((id) => id !== phase.id)
+                                )
+                              }
+                            />
+                            {phase.label}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                    {currentJob.optimization_scope === 'DETAILED' &&
+                      (currentJob.detailed_settings?.skipped_phases?.length ?? 0) >
+                        0 && (
+                        <p className={styles.skippedSummary}>
+                          현재 결과에서 건너뜀:{' '}
+                          {currentJob.detailed_settings?.skipped_phases
+                            ?.map(
+                              (id) =>
+                                skippableDetailedPhases.find(
+                                  (phase) => phase.id === id
+                                )?.label ?? id
+                            )
+                            .join(', ')}
+                        </p>
+                      )}
                   </div>
                   <button
                     className={styles.secondary}
@@ -592,9 +952,9 @@ const AdminExactAllocationPage = () => {
                   >
                     {startingDetailedBalance
                       ? '상세 균형 작업 생성 중...'
-                      : currentJob.status === 'OPTIMAL'
-                        ? '상세 균형 최적화 실행'
-                        : '기본 계산 완료 후 실행 가능'}
+                      : currentJob.optimization_scope === 'DETAILED'
+                        ? '설정대로 이어서 계산'
+                        : '상세 균형 최적화 실행'}
                   </button>
                 </div>
               )}
@@ -721,12 +1081,15 @@ const AdminExactAllocationPage = () => {
                 <strong>
                   {job.optimization_scope === 'DETAILED' ? '상세 균형' : '기본 최저비용'}
                   {' · '}
-                  {job.status} · {job.proven_bus_count ?? '-'}대
+                  {job.result_reused ? '즉시 재사용' : job.status} ·{' '}
+                  {job.proven_bus_count ?? '-'}대
                 </strong>
                 <div className={styles.historyMeta}>
                   <span>{new Date(job.requested_at).toLocaleString('ko-KR')}</span>
                   <span>
-                    소요 {getRecordedElapsedSeconds(job).toLocaleString()}초
+                    {job.result_reused
+                      ? '저장된 최적해 사용 · 계산 생략'
+                      : `소요 ${getRecordedElapsedSeconds(job).toLocaleString()}초`}
                   </span>
                 </div>
               </button>

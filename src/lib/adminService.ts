@@ -3,7 +3,9 @@ import type { ConfirmedTicket, ReturnBusReservation } from '../types/reservation
 
 // ===== 공통 타입 =====
 
-export type AdminRoleType = 'global_admin' | 'campus_admin';
+export const campusRequestReadEventName = 'campus-request-read';
+
+export type AdminRoleType = 'global_admin' | 'campus_admin' | 'boarding_manager';
 export type CampusRequestType =
   | 'notice'
   | 'late_signup'
@@ -167,6 +169,22 @@ type CampusRequestMessageRow = {
   created_at: string;
 };
 
+type AtomicCampusRequestMutationRow = {
+  request: CampusRequestRow;
+  message: CampusRequestMessageRow | null;
+};
+
+type CampusRequestAuditLogRow = {
+  id: string;
+  request_id: string;
+  message_id: string | null;
+  actor_id: string | null;
+  action: CampusRequestAuditAction;
+  before_data: Record<string, unknown> | null;
+  after_data: Record<string, unknown> | null;
+  created_at: string;
+};
+
 type DestinationStatsRow = {
   station_name: string;
   rank1: number | string;
@@ -283,7 +301,7 @@ async function getDeletableUserCount() {
 // ===== 관리자 권한 기본 =====
 
 const ADMIN_ROLE_CACHE_TTL_MS = 30_000;
-const ACTIVE_CAMPUS_ADMIN_ROLE_KEY = 'ccc-bus-active-campus-admin-role';
+const ACTIVE_ADMIN_ROLE_KEY = 'ccc-bus-active-admin-role';
 const adminRoleCache = new Map<
   string,
   { value: AdminRole[]; expiresAt: number }
@@ -291,7 +309,7 @@ const adminRoleCache = new Map<
 const adminRoleRequests = new Map<string, Promise<AdminRole[]>>();
 
 const getActiveCampusAdminRoleStorageKey = (userId: string) =>
-  `${ACTIVE_CAMPUS_ADMIN_ROLE_KEY}:${userId}`;
+  `${ACTIVE_ADMIN_ROLE_KEY}:${userId}`;
 
 const getStoredActiveCampusAdminRoleId = (userId: string) => {
   if (typeof window === 'undefined') return null;
@@ -362,26 +380,30 @@ export async function getAdminRole(userId: string) {
 
   if (globalAdminRole) return globalAdminRole;
 
+  const activeRoleId = getStoredActiveCampusAdminRoleId(userId);
+  const storedRole = roles.find((item) => item.id === activeRoleId);
+  if (storedRole) return storedRole;
+
+  const boardingManagerRole = roles.find(
+    (item) => item.role === 'boarding_manager'
+  );
+  if (boardingManagerRole) return boardingManagerRole;
+
   const campusAdminRoles = roles.filter(
     (item) => item.role === 'campus_admin'
   );
-  const activeRoleId = getStoredActiveCampusAdminRoleId(userId);
 
-  return (
-    campusAdminRoles.find((item) => item.id === activeRoleId) ||
-    campusAdminRoles[0] ||
-    null
-  );
+  return campusAdminRoles[0] || null;
 }
 
-export async function setActiveCampusAdminRole(userId: string, roleId: string) {
+export async function setActiveAdminRole(userId: string, roleId: string) {
   const roles = await getAdminRoles(userId);
   const targetRole = roles.find(
-    (item) => item.id === roleId && item.role === 'campus_admin'
+    (item) => item.id === roleId && item.role !== 'global_admin'
   );
 
   if (!targetRole) {
-    throw new Error('선택한 캠퍼스 관리자 권한을 찾을 수 없습니다.');
+    throw new Error('선택한 관리자 권한을 찾을 수 없습니다.');
   }
 
   if (typeof window !== 'undefined') {
@@ -394,6 +416,9 @@ export async function setActiveCampusAdminRole(userId: string, roleId: string) {
   return targetRole;
 }
 
+export async function setActiveCampusAdminRole(userId: string, roleId: string) {
+  return setActiveAdminRole(userId, roleId);
+}
 // ===== campus_options view 기반 지구/팀/캠퍼스 조회 =====
 
 export async function getDistrictsForAdmin() {
@@ -1134,6 +1159,7 @@ export interface CampusRequestSummary {
   open: number;
   inProgress: number;
   resolved: number;
+  onHold: number;
 }
 
 const mapCampusRequestMessage = (
@@ -1148,10 +1174,12 @@ const mapCampusRequestMessage = (
 });
 
 const sortCampusRequestMessages = (messages: CampusRequestMessage[]) =>
-  [...messages].sort(
-    (a, b) =>
-      new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-  );
+  [...messages].sort((a, b) => {
+    const createdAtDifference =
+      new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+
+    return createdAtDifference || a.id.localeCompare(b.id);
+  });
 
 const isMissingGlobalNoticeColumnError = (error: unknown) => {
   if (!error || typeof error !== 'object') return false;
@@ -1237,6 +1265,23 @@ async function getCampusNoticeTargets(noticeIds: string[]) {
   return targetsByNotice;
 }
 
+export type CampusRequestAuditAction =
+  | 'status_changed'
+  | 'response_changed'
+  | 'message_updated'
+  | 'message_deleted';
+
+export interface CampusRequestAuditLog {
+  id: string;
+  requestId: string;
+  messageId: string | null;
+  actorId: string | null;
+  action: CampusRequestAuditAction;
+  beforeData: Record<string, unknown> | null;
+  afterData: Record<string, unknown> | null;
+  createdAt: string;
+}
+
 async function getGlobalCampusNoticeRows() {
   const { data, error } = await supabase.rpc('get_global_campus_notices');
 
@@ -1244,6 +1289,31 @@ async function getGlobalCampusNoticeRows() {
     data: (data ?? []) as CampusRequestRow[],
     error,
   };
+}
+
+async function getCampusRequestIdsMatchingMessages(search: string) {
+  const requestIds = new Set<string>();
+  const pageSize = 1000;
+  let from = 0;
+
+  while (true) {
+    const { data, error } = await supabase
+      .from('campus_request_messages')
+      .select('request_id')
+      .ilike('message', `%${search}%`)
+      .order('created_at', { ascending: false })
+      .range(from, from + pageSize - 1);
+
+    if (error) throw new Error(error.message);
+
+    const rows = (data ?? []) as Array<{ request_id: string }>;
+    rows.forEach((row) => requestIds.add(row.request_id));
+
+    if (rows.length < pageSize) break;
+    from += pageSize;
+  }
+
+  return [...requestIds];
 }
 
 export async function getCampusRequestsPage(
@@ -1286,9 +1356,22 @@ export async function getCampusRequestsPage(
   const normalizedSearch = search.trim().replaceAll(',', ' ');
   if (normalizedSearch) {
     const keyword = `%${normalizedSearch}%`;
-    query = query.or(
-      `title.ilike.${keyword},content.ilike.${keyword},admin_response.ilike.${keyword},district.ilike.${keyword},team.ilike.${keyword},campus.ilike.${keyword}`
-    );
+    const matchingMessageRequestIds =
+      await getCampusRequestIdsMatchingMessages(normalizedSearch);
+    const searchFilters = [
+      `title.ilike.${keyword}`,
+      `content.ilike.${keyword}`,
+      `admin_response.ilike.${keyword}`,
+      `district.ilike.${keyword}`,
+      `team.ilike.${keyword}`,
+      `campus.ilike.${keyword}`,
+    ];
+
+    if (matchingMessageRequestIds.length > 0) {
+      searchFilters.push(`id.in.(${matchingMessageRequestIds.join(',')})`);
+    }
+
+    query = query.or(searchFilters.join(','));
   }
 
   const { data, count, error } = await query;
@@ -1378,12 +1461,13 @@ export async function getCampusRequestSummary(
     return count ?? 0;
   };
 
-  const [total, notices, open, inProgress, resolved] = await Promise.all([
+  const [total, notices, open, inProgress, resolved, onHold] = await Promise.all([
     countRequests(),
     countNotices(),
     countRequests('open'),
     countRequests('in_progress'),
     countRequests('resolved'),
+    countRequests('on_hold'),
   ]);
 
   return {
@@ -1393,7 +1477,48 @@ export async function getCampusRequestSummary(
     open,
     inProgress,
     resolved,
+    onHold,
   };
+}
+
+export async function getUnreadCampusRequestIds() {
+  const { data, error } = await supabase.rpc('get_unread_campus_request_ids');
+
+  if (error) throw new Error(error.message);
+  return new Set((data ?? []) as string[]);
+}
+
+export async function markCampusRequestRead(requestId: string) {
+  const { error } = await supabase.rpc('mark_campus_request_read', {
+    p_request_id: requestId,
+  });
+
+  if (error) throw new Error(error.message);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(campusRequestReadEventName));
+  }
+}
+
+export async function getCampusRequestAuditLogs(requestId: string) {
+  const { data, error } = await supabase
+    .from('campus_request_audit_logs')
+    .select('*')
+    .eq('request_id', requestId)
+    .order('created_at', { ascending: false })
+    .limit(50);
+
+  if (error) throw new Error(error.message);
+
+  return ((data ?? []) as CampusRequestAuditLogRow[]).map((row) => ({
+    id: row.id,
+    requestId: row.request_id,
+    messageId: row.message_id,
+    actorId: row.actor_id,
+    action: row.action,
+    beforeData: row.before_data,
+    afterData: row.after_data,
+    createdAt: row.created_at,
+  })) satisfies CampusRequestAuditLog[];
 }
 
 export async function getGlobalCampusNotices() {
@@ -1516,39 +1641,30 @@ export async function createCampusRequest(params: {
   district: string;
   team: string;
   campus: string;
-  createdBy: string;
 }) {
-  const { data, error } = await supabase
-    .from('campus_requests')
-    .insert({
-      type: params.type,
-      title: params.title,
-      content: params.content,
-      district: params.district,
-      team: params.team,
-      campus: params.campus,
-      created_by: params.createdBy,
-    })
-    .select('*')
-    .single();
+  const { data, error } = await supabase.rpc(
+    'create_campus_request_with_message',
+    {
+      p_type: params.type,
+      p_title: params.title,
+      p_content: params.content,
+      p_district: params.district,
+      p_team: params.team,
+      p_campus: params.campus,
+    }
+  );
 
   if (error) {
     console.error('캠퍼스 문의 작성 실패:', error);
     throw new Error(error.message);
   }
 
-  const createdRequest = mapCampusRequest(data as CampusRequestRow);
-  const firstMessage = await createCampusRequestMessage({
-    requestId: createdRequest.id,
-    senderId: params.createdBy,
-    senderRole: 'campus_admin',
-    message: params.content,
-  });
+  const result = data as AtomicCampusRequestMutationRow;
+  const messages = result.message
+    ? [mapCampusRequestMessage(result.message)]
+    : [];
 
-  return {
-    ...createdRequest,
-    messages: [firstMessage],
-  };
+  return mapCampusRequest(result.request, messages);
 }
 
 export async function createCampusRequestMessage(params: {
@@ -1576,10 +1692,37 @@ export async function createCampusRequestMessage(params: {
   return mapCampusRequestMessage(data as CampusRequestMessageRow);
 }
 
+async function assertCampusRequestMessageIsEditable(messageId: string) {
+  const { data: targetMessage, error: targetError } = await supabase
+    .from('campus_request_messages')
+    .select('request_id')
+    .eq('id', messageId)
+    .single();
+
+  if (targetError) throw new Error(targetError.message);
+
+  const { data: firstMessage, error: firstMessageError } = await supabase
+    .from('campus_request_messages')
+    .select('id')
+    .eq('request_id', (targetMessage as { request_id: string }).request_id)
+    .order('created_at', { ascending: true })
+    .order('id', { ascending: true })
+    .limit(1)
+    .single();
+
+  if (firstMessageError) throw new Error(firstMessageError.message);
+
+  if ((firstMessage as { id: string }).id === messageId) {
+    throw new Error('최초 문의 내용은 수정하거나 삭제할 수 없습니다.');
+  }
+}
+
 export async function updateCampusRequestMessage(params: {
   messageId: string;
   message: string;
 }) {
+  await assertCampusRequestMessageIsEditable(params.messageId);
+
   const { data, error } = await supabase
     .from('campus_request_messages')
     .update({
@@ -1598,6 +1741,8 @@ export async function updateCampusRequestMessage(params: {
 }
 
 export async function deleteCampusRequestMessage(messageId: string) {
+  await assertCampusRequestMessageIsEditable(messageId);
+
   const { error } = await supabase
     .from('campus_request_messages')
     .delete()
@@ -1613,29 +1758,27 @@ export async function updateCampusRequestStatus(params: {
   requestId: string;
   status: CampusRequestStatus;
   adminResponse: string;
-  handledBy: string;
 }) {
-  const isResolved = params.status === 'resolved';
-
-  const { data, error } = await supabase
-    .from('campus_requests')
-    .update({
-      status: params.status,
-      admin_response: params.adminResponse.trim() || null,
-      handled_by: params.handledBy,
-      handled_at: isResolved ? new Date().toISOString() : null,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', params.requestId)
-    .select('*')
-    .single();
+  const { data, error } = await supabase.rpc(
+    'update_campus_request_status_with_response',
+    {
+      p_request_id: params.requestId,
+      p_status: params.status,
+      p_admin_response: params.adminResponse,
+    }
+  );
 
   if (error) {
     console.error('캠퍼스 문의 처리 실패:', error);
     throw new Error(error.message);
   }
 
-  return mapCampusRequest(data as CampusRequestRow);
+  const result = data as AtomicCampusRequestMutationRow;
+
+  return {
+    request: mapCampusRequest(result.request),
+    message: result.message ? mapCampusRequestMessage(result.message) : null,
+  };
 }
 
 export async function getReservationsWithPaymentByTeamCampus(

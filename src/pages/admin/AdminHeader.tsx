@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Banknote,
   Bus,
+  ClipboardList,
   ClipboardCheck,
   LayoutDashboard,
   LogOut,
@@ -17,9 +18,11 @@ import {
 } from 'lucide-react';
 
 import {
+  campusRequestReadEventName,
   getAdminRoles,
   getGlobalCampusNotices,
-  setActiveCampusAdminRole,
+  getUnreadCampusRequestIds,
+  setActiveAdminRole,
   type AdminRole,
   type AdminRoleType,
 } from '../../lib/adminService';
@@ -70,6 +73,13 @@ const navItems: AdminNavItem[] = [
     allowedRoles: ['global_admin'],
   },
   {
+    label: '선탑자 탑승 현황',
+    path: '/admin/boarding',
+    icon: ClipboardList,
+    group: 'overview',
+    allowedRoles: ['global_admin', 'boarding_manager'],
+  },
+  {
     label: '캠퍼스 관리',
     path: '/admin/campus',
     icon: Banknote,
@@ -111,6 +121,7 @@ const navItems: AdminNavItem[] = [
     matchPaths: [
       '/admin/personal-tickets',
       '/admin/campus-admins',
+      '/admin/boarding-managers',
       '/admin/campus-issues',
     ],
     allowedRoles: ['global_admin'],
@@ -137,8 +148,8 @@ const AdminHeader = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { session, adminRole: activeAdminRole } = useAdminAuth();
-  const [campusAdminRoles, setCampusAdminRoles] = useState<AdminRole[]>([]);
-  const [activeCampusAdminRoleId, setActiveCampusAdminRoleId] = useState('');
+  const [switchableRoles, setSwitchableRoles] = useState<AdminRole[]>([]);
+  const [activeRoleId, setActiveRoleId] = useState('');
   const [campusNoticeCount, setCampusNoticeCount] = useState(0);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
     try {
@@ -154,7 +165,7 @@ const AdminHeader = () => {
     const loadAdminRole = async () => {
       if (!session) {
         if (isMounted) {
-          setCampusAdminRoles([]);
+          setSwitchableRoles([]);
           setCampusNoticeCount(0);
         }
         return;
@@ -163,26 +174,34 @@ const AdminHeader = () => {
       const roles = await getAdminRoles(session.user.id);
 
       if (isMounted) {
-        setCampusAdminRoles(
-          roles.filter((item) => item.role === 'campus_admin')
+        setSwitchableRoles(
+          roles.filter((item) => item.role !== 'global_admin')
         );
-        setActiveCampusAdminRoleId(
-          activeAdminRole?.role === 'campus_admin' ? activeAdminRole.id : ''
-        );
+        setActiveRoleId(activeAdminRole?.id ?? '');
       }
 
-      if (activeAdminRole?.role === 'campus_admin') {
-        const noticesResult = await getGlobalCampusNotices();
+      if (
+        activeAdminRole?.role === 'campus_admin' ||
+        activeAdminRole?.role === 'global_admin'
+      ) {
+        const [unreadRequestIds, noticesResult] = await Promise.all([
+          getUnreadCampusRequestIds(),
+          activeAdminRole.role === 'campus_admin'
+            ? getGlobalCampusNotices()
+            : Promise.resolve({ data: [], error: null }),
+        ]);
+        const unreadNoticeCount =
+          activeAdminRole.role === 'campus_admin'
+            ? (
+                await getUnreadCampusNotices(
+                  session.user.id,
+                  noticesResult.data ?? []
+                )
+              ).length
+            : 0;
 
         if (isMounted) {
-          setCampusNoticeCount(
-            (
-              await getUnreadCampusNotices(
-                session.user.id,
-                noticesResult.data ?? []
-              )
-            ).length
-          );
+          setCampusNoticeCount(unreadRequestIds.size + unreadNoticeCount);
         }
       } else if (isMounted) {
         setCampusNoticeCount(0);
@@ -190,14 +209,61 @@ const AdminHeader = () => {
     };
 
     loadAdminRole().catch(() => {
-      if (isMounted) setCampusAdminRoles([]);
+      if (isMounted) setSwitchableRoles([]);
     });
 
     window.addEventListener(campusNoticeReadEventName, loadAdminRole);
+    window.addEventListener(campusRequestReadEventName, loadAdminRole);
 
     return () => {
       isMounted = false;
       window.removeEventListener(campusNoticeReadEventName, loadAdminRole);
+      window.removeEventListener(campusRequestReadEventName, loadAdminRole);
+    };
+  }, [session, activeAdminRole]);
+
+  useEffect(() => {
+    if (
+      !session ||
+      (activeAdminRole?.role !== 'campus_admin' &&
+        activeAdminRole?.role !== 'global_admin')
+    ) {
+      return;
+    }
+
+    const refreshBadge = async () => {
+      const unreadRequestIds = await getUnreadCampusRequestIds();
+      let unreadNoticeCount = 0;
+
+      if (activeAdminRole.role === 'campus_admin') {
+        const noticesResult = await getGlobalCampusNotices();
+        unreadNoticeCount = (
+          await getUnreadCampusNotices(
+            session.user.id,
+            noticesResult.data ?? []
+          )
+        ).length;
+      }
+
+      setCampusNoticeCount(unreadRequestIds.size + unreadNoticeCount);
+    };
+
+    const channel = supabase
+      .channel(`campus-request-badge-${activeAdminRole.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'campus_requests' },
+        () => void refreshBadge()
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'campus_request_messages' },
+        () => void refreshBadge()
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
     };
   }, [session, activeAdminRole]);
 
@@ -206,13 +272,13 @@ const AdminHeader = () => {
     navigate('/admin/login');
   };
 
-  const handleCampusAdminRoleChange = async (roleId: string) => {
+  const handleAdminRoleChange = async (roleId: string) => {
     if (!session) {
       navigate('/admin/login');
       return;
     }
 
-    await setActiveCampusAdminRole(session.user.id, roleId);
+    await setActiveAdminRole(session.user.id, roleId);
     window.location.reload();
   };
 
@@ -240,7 +306,12 @@ const AdminHeader = () => {
   const visibleNavItems = adminRole
     ? navItems.filter((item) => item.allowedRoles.includes(adminRole))
     : [];
-  const homePath = adminRole === 'campus_admin' ? '/admin/campus' : '/admin/global';
+  const homePath =
+    adminRole === 'campus_admin'
+      ? '/admin/campus'
+      : adminRole === 'boarding_manager'
+        ? '/admin/boarding'
+        : '/admin/global';
 
   return (
     <header
@@ -303,8 +374,7 @@ const AdminHeader = () => {
                     >
                       <Icon size={18} />
                       <span className={styles.navItemLabel}>{item.label}</span>
-                      {adminRole === 'campus_admin' &&
-                        item.path === '/admin/campus-requests' &&
+                      {item.path === '/admin/campus-requests' &&
                         campusNoticeCount > 0 && (
                           <span className={styles.navBadge}>
                             {campusNoticeCount}
@@ -320,20 +390,22 @@ const AdminHeader = () => {
       </nav>
 
       <div className={styles.headerActions}>
-        {adminRole === 'campus_admin' && campusAdminRoles.length > 1 && (
+        {adminRole !== 'global_admin' && switchableRoles.length > 1 && (
           <label className={styles.campusSwitcher}>
-            <span>관리 캠퍼스</span>
+            <span>사용 권한</span>
             <select
-              value={activeCampusAdminRoleId}
+              value={activeRoleId}
               onChange={(event) =>
-                void handleCampusAdminRoleChange(event.target.value)
+                void handleAdminRoleChange(event.target.value)
               }
             >
-              {campusAdminRoles.map((role) => (
+              {switchableRoles.map((role) => (
                 <option key={role.id} value={role.id}>
-                  {[role.district, role.team, role.campus]
-                    .filter(Boolean)
-                    .join(' / ')}
+                  {role.role === 'boarding_manager'
+                    ? '선탑자'
+                    : [role.district, role.team, role.campus]
+                        .filter(Boolean)
+                        .join(' / ')}
                 </option>
               ))}
             </select>

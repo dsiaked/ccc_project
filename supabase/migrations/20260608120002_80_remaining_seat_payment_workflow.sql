@@ -70,7 +70,12 @@ begin
     return;
   end if;
 
-  if exists (select 1 from public.reservations where user_id = v_actor_id) then
+  if exists (
+    select 1
+    from public.reservations
+    where user_id = v_actor_id
+      and status <> 'cancelled'
+  ) then
     return;
   end if;
 
@@ -132,6 +137,7 @@ declare
   v_passenger jsonb;
   v_price integer := 0;
   v_transfer_account text := '';
+  v_existing_reservation_status text;
 begin
   if v_actor_id is null then raise exception 'Authentication is required.'; end if;
   if nullif(btrim(p_depositor_name), '') is null then raise exception 'Depositor name is required.'; end if;
@@ -157,8 +163,17 @@ begin
   lock table public.bus_allocations in share row exclusive mode;
   lock table public.reservations in share row exclusive mode;
 
-  if exists (select 1 from public.reservations where user_id = v_actor_id) then
+  select id, status
+  into v_reservation_id, v_existing_reservation_status
+  from public.reservations
+  where user_id = v_actor_id
+  for update;
+
+  if found and v_existing_reservation_status <> 'cancelled' then
     raise exception 'A reservation already exists for this user.';
+  end if;
+  if not found then
+    v_reservation_id := gen_random_uuid();
   end if;
 
   select allocation_name, allocation_data into v_allocation_name, v_allocation_data
@@ -213,8 +228,23 @@ begin
     v_profile.district_id, coalesce(v_profile.district, ''), v_profile.team_id,
     coalesce(v_profile.team, ''), v_profile.campus_id, coalesce(v_profile.campus, ''),
     '[]'::jsonb, 'requested', null, v_reservation_data, v_now, v_now
-  );
+  )
+  on conflict (id) do update set
+    name = excluded.name,
+    phone = excluded.phone,
+    district_id = excluded.district_id,
+    district = excluded.district,
+    team_id = excluded.team_id,
+    team = excluded.team,
+    campus_id = excluded.campus_id,
+    campus = excluded.campus,
+    station_preferences = excluded.station_preferences,
+    status = excluded.status,
+    confirmed_ticket = null,
+    data = excluded.data,
+    updated_at = excluded.updated_at;
 
+  delete from public.payments where reservation_id = v_reservation_id;
   insert into public.payments (user_id, reservation_id, amount, status, notes, updated_at)
   values (v_actor_id, v_reservation_id, v_price, 'pending', '잔여좌석 입금자명: ' || btrim(p_depositor_name), v_now);
 

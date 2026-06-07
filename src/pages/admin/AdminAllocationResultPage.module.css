@@ -252,6 +252,14 @@
   background: #fed7aa;
 }
 
+.remainingSeatDot {
+  background: #c4b5fd;
+}
+
+.adminCreatedDot {
+  background: #99f6e4;
+}
+
 .seatMap {
   display: grid;
   grid-template-columns: repeat(4, minmax(86px, 1fr));
@@ -293,6 +301,14 @@
   color: #9a3412;
   font-size: 10px;
   font-weight: 800;
+}
+
+.seat .remainingSeatLabel {
+  color: #6d28d9;
+}
+
+.seat .adminCreatedLabel {
+  color: #0f766e;
 }
 
 .assignedSeat {
@@ -402,6 +418,30 @@
 .paymentBadge.refunded {
   background: #fef2f2;
   color: #b42318;
+}
+
+.passengerName {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.remainingSeatBadge {
+  padding: 3px 6px;
+  border-radius: 4px;
+  background: #f5f3ff;
+  color: #6d28d9;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.adminCreatedBadge {
+  padding: 3px 6px;
+  border-radius: 4px;
+  background: #f0fdfa;
+  color: #0f766e;
+  font-size: 10px;
+  font-weight: 800;
 }
 
 .iconButton {

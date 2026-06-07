@@ -35,7 +35,6 @@ import {
   deleteDraftAllocationWorkspace,
   getAllocationWorkspaceVersionSnapshot,
   getAllocationWorkspaceVersions,
-  getDraftAllocationWorkspaceSummaries,
   getBelowMinimumBusIds,
   getFirstChoiceCoverage,
   getOutOfPreferencePassengerIds,
@@ -54,7 +53,6 @@ import type {
   AllocationWorkspaceData,
   AllocationWorkspacePassenger,
   AllocationWorkspaceRow,
-  AllocationWorkspaceSummary,
   AllocationWorkspaceVersionSummary,
 } from '../../lib/admin/allocationWorkspaceService';
 import { describeAllocationWorkspaceChanges } from '../../lib/admin/allocationWorkspaceHistory';
@@ -76,6 +74,17 @@ type PassengerQuickFilter =
   | 'errors'
   | 'first-choice-missed'
   | 'seat-missing';
+type BusOccupancyFilter = 'all' | 'available' | 'full' | 'over';
+type SharedBusField = 'departureTime' | 'boardingPlace';
+const BUS_OCCUPANCY_FILTERS: Array<{
+  id: BusOccupancyFilter;
+  label: string;
+}> = [
+  { id: 'all', label: '전체' },
+  { id: 'available', label: '자리 있음' },
+  { id: 'full', label: '만석' },
+  { id: 'over', label: '정원 초과' },
+];
 const PASSENGER_QUICK_FILTERS: Array<{
   id: PassengerQuickFilter;
   label: string;
@@ -206,6 +215,26 @@ interface WorkspaceTimelineItem {
 
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 
+const comparePassengersByCampusAndTeam = (
+  left: AllocationWorkspacePassenger,
+  right: AllocationWorkspacePassenger
+) =>
+  left.campus.localeCompare(right.campus, 'ko') ||
+  left.team.localeCompare(right.team, 'ko') ||
+  left.name.localeCompare(right.name, 'ko') ||
+  left.reservationId.localeCompare(right.reservationId);
+
+const getSharedBusField = (
+  buses: AllocationWorkspaceBus[],
+  field: SharedBusField
+) => {
+  const values = new Set(buses.map((bus) => bus[field]));
+  return {
+    value: values.size === 1 ? buses[0]?.[field] ?? '' : '',
+    isMixed: values.size > 1,
+  };
+};
+
 const getWorkspaceIssueTargets = (
   workspace: AllocationWorkspaceData | null
 ): WorkspaceIssueTargets => {
@@ -264,8 +293,6 @@ const getWorkspaceIssueTargets = (
       addBusIssue(bus.id, 'label');
     }
     if (!bus.destination.trim()) addBusIssue(bus.id, 'destination');
-    if (!bus.departureTime.trim()) addBusIssue(bus.id, 'departureTime');
-    if (!bus.boardingPlace.trim()) addBusIssue(bus.id, 'boardingPlace');
 
     const passengers = passengersByBus.get(bus.id) ?? [];
     if (passengers.length > bus.capacity) addBusIssue(bus.id, 'capacity');
@@ -351,9 +378,6 @@ const AdminAllocationWorkspacePage = () => {
   const [workspace, setWorkspace] = useState<AllocationWorkspaceData | null>(
     null
   );
-  const [otherWorkspaces, setOtherWorkspaces] = useState<
-    AllocationWorkspaceSummary[]
-  >([]);
   const [selectedBusId, setSelectedBusId] = useState('');
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -366,6 +390,8 @@ const AdminAllocationWorkspacePage = () => {
   );
   const [passengerQuickFilter, setPassengerQuickFilter] =
     useState<PassengerQuickFilter>('all');
+  const [busOccupancyFilter, setBusOccupancyFilter] =
+    useState<BusOccupancyFilter>('all');
   const [activeEditorTab, setActiveEditorTab] = useState<EditorTab>('buses');
   const [confirmationAction, setConfirmationAction] =
     useState<ConfirmationAction | null>(null);
@@ -416,20 +442,9 @@ const AdminAllocationWorkspacePage = () => {
           }
         }
 
-        const [summariesResult, versionsResult] = await Promise.allSettled([
-          getDraftAllocationWorkspaceSummaries(),
+        const [versionsResult] = await Promise.allSettled([
           getAllocationWorkspaceVersions(workspaceId),
         ]);
-        const nextRows =
-          summariesResult.status === 'fulfilled' ? summariesResult.value : [];
-        if (summariesResult.status === 'rejected') {
-          loadWarnings.push(
-            `다른 임시 배차안 목록 조회 실패: ${getErrorMessage(
-              summariesResult.reason,
-              '임시 배차안 목록을 조회하지 못했습니다.'
-            )}`
-          );
-        }
         if (versionsResult.status === 'rejected') {
           loadWarnings.push(
             `버전 목록 조회 실패: ${getErrorMessage(
@@ -448,12 +463,6 @@ const AdminAllocationWorkspacePage = () => {
         setDirty(refreshed.changed);
         setReadOnly(lockResult.readOnly);
         setSelectedBusId(refreshed.workspace.buses[0]?.id ?? '');
-        setOtherWorkspaces(
-          nextRows.filter(
-            (item) =>
-              item.id !== workspaceId && item.status === 'draft'
-          )
-        );
         setWorkspaceVersions(
           versionsResult.status === 'fulfilled'
             ? versionsResult.value
@@ -584,26 +593,30 @@ const AdminAllocationWorkspacePage = () => {
     .toLocaleLowerCase('ko');
   const allPassengerSearchMatches = useMemo(
     () =>
-      allPassengerSearchIndex.filter(({ passenger, searchText }) => {
-        const bus = deferredWorkspace?.buses.find(
-          (item) => item.id === passenger.busId
-        );
-        if (passengerQuickFilter === 'unassigned' && passenger.busId) return false;
-        if (
-          passengerQuickFilter === 'errors' &&
-          !issueTargets.passengerIds.has(passenger.reservationId)
-        ) return false;
-        if (
-          passengerQuickFilter === 'first-choice-missed' &&
-          (!bus || bus.destination === passenger.preferences[0])
-        ) return false;
-        if (
-          passengerQuickFilter === 'seat-missing' &&
-          (!passenger.busId || passenger.seatNumber !== null)
-        ) return false;
-        if (!normalizedDeferredAllPassengerSearch) return true;
-        return searchText.includes(normalizedDeferredAllPassengerSearch);
-      }),
+      allPassengerSearchIndex
+        .filter(({ passenger, searchText }) => {
+          const bus = deferredWorkspace?.buses.find(
+            (item) => item.id === passenger.busId
+          );
+          if (passengerQuickFilter === 'unassigned' && passenger.busId) return false;
+          if (
+            passengerQuickFilter === 'errors' &&
+            !issueTargets.passengerIds.has(passenger.reservationId)
+          ) return false;
+          if (
+            passengerQuickFilter === 'first-choice-missed' &&
+            (!bus || bus.destination === passenger.preferences[0])
+          ) return false;
+          if (
+            passengerQuickFilter === 'seat-missing' &&
+            (!passenger.busId || passenger.seatNumber !== null)
+          ) return false;
+          if (!normalizedDeferredAllPassengerSearch) return true;
+          return searchText.includes(normalizedDeferredAllPassengerSearch);
+        })
+        .sort((left, right) =>
+          comparePassengersByCampusAndTeam(left.passenger, right.passenger)
+        ),
     [
       allPassengerSearchIndex,
       issueTargets.passengerIds,
@@ -648,12 +661,34 @@ const AdminAllocationWorkspacePage = () => {
     });
   };
 
+  const updateSharedBusField = (field: SharedBusField, value: string) => {
+    updateWorkspace((current) => ({
+      ...current,
+      buses: current.buses.map((bus) => ({ ...bus, [field]: value })),
+    }));
+  };
+
   const assignPassenger = useCallback((passengerId: string, busId: string | null) => {
-    updateWorkspace((current) => {
-      const passenger = current.passengers.find(
-        (item) => item.reservationId === passengerId
+    const passenger = workspace?.passengers.find(
+      (item) => item.reservationId === passengerId
+    );
+    if (!passenger || passenger.busId === busId) return;
+
+    const targetBus = busId
+      ? workspace?.buses.find((bus) => bus.id === busId)
+      : undefined;
+    const targetPassengerCount = busId
+      ? workspace?.passengers.filter((item) => item.busId === busId).length ?? 0
+      : 0;
+    if (targetBus && targetPassengerCount >= targetBus.capacity) {
+      setError(
+        `${targetBus.label}은 만석이므로 승객을 더 배정할 수 없습니다.`
       );
-      if (!passenger) return current;
+      return;
+    }
+
+    setError(null);
+    updateWorkspace((current) => {
       const seatNumber = busId ? nextSeatNumber(current, busId) : null;
       return {
         ...current,
@@ -666,7 +701,7 @@ const AdminAllocationWorkspacePage = () => {
         ),
       };
     });
-  }, [updateWorkspace]);
+  }, [updateWorkspace, workspace]);
 
   const dropPassenger = (
     event: React.DragEvent<HTMLElement>,
@@ -1047,9 +1082,42 @@ const AdminAllocationWorkspacePage = () => {
   const unassignedPassengers = workspace.passengers.filter(
     (passenger) => !passenger.busId
   );
+  const busOccupancyFilterCounts: Record<BusOccupancyFilter, number> = {
+    all: workspace.buses.length,
+    available: workspace.buses.filter(
+      (bus) => (passengerCountByBus.get(bus.id) ?? 0) < bus.capacity
+    ).length,
+    full: workspace.buses.filter(
+      (bus) => (passengerCountByBus.get(bus.id) ?? 0) === bus.capacity
+    ).length,
+    over: workspace.buses.filter(
+      (bus) => (passengerCountByBus.get(bus.id) ?? 0) > bus.capacity
+    ).length,
+  };
+  const visibleBuses = workspace.buses.filter((bus) => {
+    const count = passengerCountByBus.get(bus.id) ?? 0;
+    if (busOccupancyFilter === 'available') return count < bus.capacity;
+    if (busOccupancyFilter === 'full') return count === bus.capacity;
+    if (busOccupancyFilter === 'over') return count > bus.capacity;
+    return true;
+  });
   const destinationOptions = [
     ...new Set(workspace.passengers.flatMap((passenger) => passenger.preferences)),
   ];
+  const sharedDepartureTime = getSharedBusField(
+    workspace.buses,
+    'departureTime'
+  );
+  const sharedBoardingPlace = getSharedBusField(
+    workspace.buses,
+    'boardingPlace'
+  );
+  const hasMissingDepartureTime = workspace.buses.some(
+    (bus) => !bus.departureTime.trim()
+  );
+  const hasMissingBoardingPlace = workspace.buses.some(
+    (bus) => !bus.boardingPlace.trim()
+  );
   const belowMinimumBusIds = getBelowMinimumBusIds(workspace);
   const outOfPreferencePassengerIds = getOutOfPreferencePassengerIds(workspace);
   const minimumWarningsApproved =
@@ -1343,8 +1411,44 @@ const AdminAllocationWorkspacePage = () => {
         </nav>
 
         {activeEditorTab === 'buses' && <section className={`${styles.workspace} ${readOnly ? styles.readOnly : ''}`}>
+          <div className={styles.sharedBusInfo}>
+            <div className={styles.sharedBusInfoHeader}>
+              <div>
+                <strong>공통 운행정보</strong>
+                <span>출발 시간과 탑승 장소는 모든 버스에 동일하게 적용됩니다.</span>
+              </div>
+              <small>{workspace.buses.length}대 일괄 적용</small>
+            </div>
+            <div className={styles.sharedBusInfoFields}>
+              <label className={hasMissingDepartureTime ? styles.fieldWithError : undefined}>
+                출발 시간
+                <input
+                  value={sharedDepartureTime.value}
+                  placeholder={sharedDepartureTime.isMixed ? '버스마다 다름 - 입력하면 모두 통일됩니다' : '예: 오후 2시'}
+                  onChange={(event) => updateSharedBusField('departureTime', event.target.value)}
+                />
+              </label>
+              <label className={hasMissingBoardingPlace ? styles.fieldWithError : undefined}>
+                탑승 장소
+                <input
+                  value={sharedBoardingPlace.value}
+                  placeholder={sharedBoardingPlace.isMixed ? '버스마다 다름 - 입력하면 모두 통일됩니다' : '예: 본관 앞'}
+                  onChange={(event) => updateSharedBusField('boardingPlace', event.target.value)}
+                />
+              </label>
+            </div>
+          </div>
           <aside className={styles.busPanel}>
-            <h2>버스와 미배차 승객</h2>
+            <div className={styles.busPanelHeader}>
+              <span className={styles.busPanelIcon}>
+                <Bus size={18} />
+              </span>
+              <div>
+                <h2>운행 버스</h2>
+                <p>버스를 선택해 배차 현황을 확인하세요.</p>
+              </div>
+              <strong>{workspace.buses.length}대</strong>
+            </div>
             <div className={styles.addBusControl}>
               <button
                 type="button"
@@ -1352,11 +1456,38 @@ const AdminAllocationWorkspacePage = () => {
                 disabled={readOnly || workspace.buses.length === 0}
                 onClick={addBus}
               >
-                <Plus size={15} /> 동일 규격 버스 추가
+                <Plus size={16} /> 같은 규격 버스 추가
               </button>
             </div>
+            <div className={styles.busFilterSection}>
+              <div className={styles.busFilterHeader}>
+                <strong>탑승 현황</strong>
+                {busOccupancyFilter !== 'all' && (
+                  <button type="button" onClick={() => setBusOccupancyFilter('all')}>
+                    필터 해제
+                  </button>
+                )}
+              </div>
+              <div className={styles.busOccupancyFilters} aria-label="버스 탑승 상태 필터">
+                {BUS_OCCUPANCY_FILTERS.map((filter) => (
+                  <button
+                    type="button"
+                    key={filter.id}
+                    className={
+                      busOccupancyFilter === filter.id
+                        ? styles.busOccupancyFilterActive
+                        : undefined
+                    }
+                    onClick={() => setBusOccupancyFilter(filter.id)}
+                  >
+                    {filter.label}
+                    <span>{busOccupancyFilterCounts[filter.id]}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
             <div className={styles.busList}>
-              {workspace.buses.map((bus) => {
+              {visibleBuses.map((bus) => {
                 const count = passengerCountByBus.get(bus.id) ?? 0;
                 const passengerIssueCount = workspace.passengers.filter(
                   (passenger) =>
@@ -1379,6 +1510,9 @@ const AdminAllocationWorkspacePage = () => {
                     className={[
                       bus.id === selectedBusId ? styles.selectedBus : '',
                       hasIssue ? styles.busWithError : '',
+                      remainingSeats > 0 ? styles.busHasSeats : '',
+                      remainingSeats === 0 ? styles.busFull : '',
+                      remainingSeats < 0 ? styles.busOverCapacity : '',
                     ].filter(Boolean).join(' ')}
                     onClick={() => {
                       setSelectedBusId(bus.id);
@@ -1392,21 +1526,39 @@ const AdminAllocationWorkspacePage = () => {
                       <small>{bus.destination || '행선지 미설정'}</small>
                     </span>
                     <span className={styles.busOccupancy}>
-                      <strong>{count}</strong>
-                      <small>/ {bus.capacity}명 · {occupancyPercent}%</small>
+                      <strong>{count} / {bus.capacity}명</strong>
                     </span>
-                    <span className={styles.busOccupancyTrack}>
-                      <span style={{ width: `${occupancyPercent}%` }} />
-                    </span>
+                    {remainingSeats !== 0 && (
+                      <span className={styles.busOccupancyTrack}>
+                        <span style={{ width: `${occupancyPercent}%` }} />
+                      </span>
+                    )}
                     <span className={styles.busCardBadges}>
-                      <small className={remainingSeats < 0 ? styles.busBadgeOver : undefined}>
-                        {remainingSeats >= 0 ? `잔여 ${remainingSeats}석` : `${Math.abs(remainingSeats)}명 초과`}
+                      <small
+                        className={
+                          remainingSeats > 0
+                            ? styles.busBadgeAvailable
+                            : remainingSeats === 0
+                              ? styles.busBadgeFull
+                              : styles.busBadgeOver
+                        }
+                      >
+                        {remainingSeats > 0
+                          ? `잔여 ${remainingSeats}석`
+                          : remainingSeats === 0
+                            ? '만석'
+                            : `${Math.abs(remainingSeats)}명 초과`}
                       </small>
                       {issueCount > 0 && <em>오류 {issueCount}건</em>}
                     </span>
                   </button>
                 );
               })}
+              {visibleBuses.length === 0 && (
+                <div className={styles.busFilterEmpty}>
+                  해당 탑승 상태의 버스가 없습니다.
+                </div>
+              )}
               <div
                 className={`${styles.unassigned} ${
                   issueTargets.hasUnassignedIssue ? styles.unassignedWithError : ''
@@ -1437,8 +1589,6 @@ const AdminAllocationWorkspacePage = () => {
                 <div className={styles.busForm}>
                   <label className={issueTargets.busFields.get(selectedBus.id)?.has('label') ? styles.fieldWithError : undefined}>버스 이름<input value={selectedBus.label} onChange={(event) => updateBus(selectedBus.id, 'label', event.target.value)} /></label>
                   <label className={issueTargets.busFields.get(selectedBus.id)?.has('destination') ? styles.fieldWithError : undefined}>행선지<select value={selectedBus.destination} onChange={(event) => updateBus(selectedBus.id, 'destination', event.target.value)}><option value="">선택</option>{destinationOptions.map((destination) => <option key={destination} value={destination}>{destination}</option>)}</select></label>
-                  <label className={issueTargets.busFields.get(selectedBus.id)?.has('departureTime') ? styles.fieldWithError : undefined}>출발 시간<input value={selectedBus.departureTime} onChange={(event) => updateBus(selectedBus.id, 'departureTime', event.target.value)} /></label>
-                  <label className={issueTargets.busFields.get(selectedBus.id)?.has('boardingPlace') ? styles.fieldWithError : undefined}>탑승 장소<input value={selectedBus.boardingPlace} onChange={(event) => updateBus(selectedBus.id, 'boardingPlace', event.target.value)} /></label>
                   <button type="button" className={styles.deleteButton} onClick={() => deleteBus(selectedBus.id)}><Trash2 size={15} /> 버스 삭제</button>
                 </div>
 
@@ -1501,6 +1651,7 @@ const AdminAllocationWorkspacePage = () => {
                   <VirtualPassengerTable
                     passengers={visibleSelectedPassengers}
                     buses={workspace.buses}
+                    passengerCountByBus={passengerCountByBus}
                     passengerIssueFields={issueTargets.passengerFields}
                     onAssign={assignPassenger}
                     onSeat={updatePassengerSeat}
@@ -1568,6 +1719,7 @@ const AdminAllocationWorkspacePage = () => {
               <VirtualPassengerTable
                 passengers={visibleAllPassengers}
                 buses={workspace.buses}
+                passengerCountByBus={passengerCountByBus}
                 passengerIssueFields={issueTargets.passengerFields}
                 revealPassengerId={passengerToReveal}
                 onRevealComplete={() => setPassengerToReveal(null)}
@@ -1703,20 +1855,11 @@ const AdminAllocationWorkspacePage = () => {
             <span>
               <History size={18} />
               <strong>보조 도구</strong>
-              <small>다른 임시 배차안 비교 · 변경 이력 · 버전 복원</small>
+              <small>변경 이력 · 버전 복원</small>
             </span>
-            <em>비교 {otherWorkspaces.length}개 · 기록 {workspaceTimeline.length}개</em>
+            <em>기록 {workspaceTimeline.length}개</em>
           </summary>
           <div className={styles.supportToolsGrid}>
-            <article>
-              <h2>다른 임시 배차안 비교</h2>
-              {otherWorkspaces.length === 0 ? <p>비교할 다른 임시 배차안이 없습니다.</p> : otherWorkspaces.map((item) => (
-                <button type="button" className={styles.versionButton} key={item.id} onClick={() => navigate(`/admin/allocation/workspace?id=${item.id}`)}>
-                  {item.allocation_name} · {item.total_cost.toLocaleString()}원
-                </button>
-              ))}
-            </article>
-
             <article className={styles.timelinePanel}>
               <h2><History size={18} /> 변경 이력 및 복원</h2>
               <p className={styles.timelineDescription}>
@@ -2029,12 +2172,14 @@ const AdminAllocationWorkspacePage = () => {
 const PassengerRow = memo(function PassengerRow({
   passenger,
   buses,
+  passengerCountByBus,
   issueFields,
   onAssign,
   onSeat,
 }: {
   passenger: AllocationWorkspacePassenger;
   buses: AllocationWorkspaceBus[];
+  passengerCountByBus: Map<string, number>;
   issueFields?: Set<PassengerIssueField>;
   onAssign: (passengerId: string, busId: string | null) => void;
   onSeat: (passengerId: string, seat: number | null) => void;
@@ -2064,7 +2209,17 @@ const PassengerRow = memo(function PassengerRow({
     <td className={issueFields?.has('assignment') ? styles.cellWithError : undefined}>
       <select className={issueFields?.has('assignment') ? styles.controlWithError : undefined} value={passenger.busId ?? ''} onChange={(event) => onAssign(passenger.reservationId, event.target.value || null)}>
         <option value="">미배차</option>
-        {buses.map((bus) => <option key={bus.id} value={bus.id}>{bus.label} · {bus.destination || '행선지 미설정'}</option>)}
+        {buses.map((bus) => {
+          const unavailable =
+            bus.id !== passenger.busId &&
+            (passengerCountByBus.get(bus.id) ?? 0) >= bus.capacity;
+          return (
+            <option key={bus.id} value={bus.id} disabled={unavailable}>
+              {bus.label} · {bus.destination || '행선지 미설정'}
+              {unavailable ? ' · 이동 불가(만석)' : ''}
+            </option>
+          );
+        })}
       </select>
     </td>
     <td className={issueFields?.has('seat') ? styles.cellWithError : undefined}><input className={issueFields?.has('seat') ? styles.controlWithError : undefined} type="number" min="1" value={passenger.seatNumber ?? ''} disabled={!passenger.busId} onChange={(event) => onSeat(passenger.reservationId, event.target.value ? Number(event.target.value) : null)} /></td>
@@ -2075,6 +2230,7 @@ const PassengerRow = memo(function PassengerRow({
 const VirtualPassengerTable = memo(function VirtualPassengerTable({
   passengers,
   buses,
+  passengerCountByBus,
   passengerIssueFields,
   revealPassengerId,
   onRevealComplete,
@@ -2083,6 +2239,7 @@ const VirtualPassengerTable = memo(function VirtualPassengerTable({
 }: {
   passengers: AllocationWorkspacePassenger[];
   buses: AllocationWorkspaceBus[];
+  passengerCountByBus: Map<string, number>;
   passengerIssueFields: Map<string, Set<PassengerIssueField>>;
   revealPassengerId?: string | null;
   onRevealComplete?: () => void;
@@ -2180,6 +2337,7 @@ const VirtualPassengerTable = memo(function VirtualPassengerTable({
               key={passenger.reservationId}
               passenger={passenger}
               buses={buses}
+              passengerCountByBus={passengerCountByBus}
               issueFields={passengerIssueFields.get(passenger.reservationId)}
               onAssign={onAssign}
               onSeat={onSeat}

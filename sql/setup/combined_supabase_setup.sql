@@ -7330,3 +7330,745 @@ grant execute on function public.save_confirmed_allocation_workspace_v3(
 ) to authenticated;
 
 notify pgrst, 'reload schema';
+
+-- =========================================================
+-- BEGIN sql/setup/80_notice_audience_and_lifecycle.sql
+-- =========================================================
+
+-- Targeted campus notices and announcement lifecycle controls.
+
+alter table public.campus_requests
+  add column if not exists is_archived boolean not null default false;
+
+create table if not exists public.campus_notice_targets (
+  notice_id uuid not null references public.campus_requests(id) on delete cascade,
+  district text not null,
+  team text not null,
+  campus text not null,
+  created_at timestamptz not null default now(),
+  primary key (notice_id, district, team, campus)
+);
+
+create index if not exists idx_campus_notice_targets_scope
+  on public.campus_notice_targets(district, team, campus);
+
+alter table public.campus_notice_targets enable row level security;
+
+insert into public.campus_notice_targets (notice_id, district, team, campus)
+select notice.id, option.district, option.team, option.campus
+from public.campus_requests notice
+cross join public.campus_options option
+where notice.is_global_notice = true
+on conflict do nothing;
+
+drop policy if exists "Admins can view campus notice targets" on public.campus_notice_targets;
+create policy "Admins can view campus notice targets"
+on public.campus_notice_targets
+for select
+to authenticated
+using (
+  public.is_global_admin()
+  or exists (
+    select 1
+    from public.admin_roles
+    where admin_roles.user_id = auth.uid()
+      and admin_roles.role = 'campus_admin'
+      and admin_roles.district = campus_notice_targets.district
+      and admin_roles.team = campus_notice_targets.team
+      and admin_roles.campus = campus_notice_targets.campus
+  )
+);
+
+drop policy if exists "Admins can view campus requests" on public.campus_requests;
+create policy "Admins can view campus requests"
+on public.campus_requests
+for select
+to authenticated
+using (
+  public.is_global_admin()
+  or (
+    campus_requests.is_global_notice = true
+    and campus_requests.is_archived = false
+    and exists (
+      select 1
+      from public.admin_roles
+      where admin_roles.user_id = auth.uid()
+        and admin_roles.role = 'campus_admin'
+        and exists (
+          select 1
+          from public.campus_notice_targets
+          where campus_notice_targets.notice_id = campus_requests.id
+            and campus_notice_targets.district = admin_roles.district
+            and campus_notice_targets.team = admin_roles.team
+            and campus_notice_targets.campus = admin_roles.campus
+        )
+    )
+  )
+  or (
+    campus_requests.is_global_notice = false
+    and exists (
+      select 1
+      from public.admin_roles
+      where admin_roles.user_id = auth.uid()
+        and admin_roles.role = 'campus_admin'
+        and admin_roles.district = campus_requests.district
+        and admin_roles.team = campus_requests.team
+        and admin_roles.campus = campus_requests.campus
+    )
+  )
+);
+
+create or replace function public.get_global_campus_notices()
+returns setof public.campus_requests
+language plpgsql security definer set search_path = public
+as $$
+begin
+  if not exists (
+    select 1 from public.admin_roles
+    where admin_roles.user_id = auth.uid()
+      and admin_roles.role in ('global_admin', 'campus_admin')
+  ) then
+    raise exception 'Only admins can view campus notices.';
+  end if;
+
+  return query
+  select notice.*
+  from public.campus_requests notice
+  where notice.is_global_notice = true
+    and (
+      public.is_global_admin()
+      or (
+        notice.is_archived = false
+        and exists (
+          select 1
+          from public.campus_notice_targets target
+          join public.admin_roles role
+            on role.user_id = auth.uid()
+           and role.role = 'campus_admin'
+           and role.district = target.district
+           and role.team = target.team
+           and role.campus = target.campus
+          where target.notice_id = notice.id
+        )
+      )
+    )
+  order by notice.created_at desc;
+end;
+$$;
+
+create or replace function public.create_targeted_campus_notice(
+  p_title text,
+  p_content text,
+  p_targets jsonb
+)
+returns public.campus_requests
+language plpgsql security definer set search_path = public
+as $$
+declare
+  v_notice public.campus_requests;
+begin
+  if not public.is_global_admin() then
+    raise exception 'Only global admins can create campus notices.';
+  end if;
+  if nullif(trim(p_title), '') is null or nullif(trim(p_content), '') is null then
+    raise exception 'Notice title and content are required.';
+  end if;
+  if jsonb_typeof(p_targets) <> 'array' or jsonb_array_length(p_targets) = 0 then
+    raise exception 'At least one campus target is required.';
+  end if;
+
+  insert into public.campus_requests (
+    type, status, title, content, is_global_notice,
+    district, team, campus, created_by
+  )
+  values ('notice', 'open', trim(p_title), trim(p_content), true, '대상 지정', '대상 지정', '대상 지정', auth.uid())
+  returning * into v_notice;
+
+  insert into public.campus_notice_targets (notice_id, district, team, campus)
+  select distinct
+    v_notice.id,
+    trim(target ->> 'district'),
+    trim(target ->> 'team'),
+    trim(target ->> 'campus')
+  from jsonb_array_elements(p_targets) target
+  where nullif(trim(target ->> 'district'), '') is not null
+    and nullif(trim(target ->> 'team'), '') is not null
+    and nullif(trim(target ->> 'campus'), '') is not null;
+
+  if not exists (
+    select 1 from public.campus_notice_targets where notice_id = v_notice.id
+  ) then
+    raise exception 'No valid campus targets were provided.';
+  end if;
+
+  return v_notice;
+end;
+$$;
+
+create or replace function public.update_targeted_campus_notice(
+  p_notice_id uuid,
+  p_title text,
+  p_content text,
+  p_targets jsonb,
+  p_archived boolean default false
+)
+returns public.campus_requests
+language plpgsql security definer set search_path = public
+as $$
+declare
+  v_notice public.campus_requests;
+begin
+  if not public.is_global_admin() then
+    raise exception 'Only global admins can update campus notices.';
+  end if;
+
+  update public.campus_requests
+  set title = trim(p_title),
+      content = trim(p_content),
+      is_archived = p_archived,
+      updated_at = now()
+  where id = p_notice_id and is_global_notice = true
+  returning * into v_notice;
+
+  if v_notice.id is null then raise exception 'Campus notice not found.'; end if;
+
+  delete from public.campus_notice_targets where notice_id = p_notice_id;
+  insert into public.campus_notice_targets (notice_id, district, team, campus)
+  select distinct p_notice_id, trim(target ->> 'district'), trim(target ->> 'team'), trim(target ->> 'campus')
+  from jsonb_array_elements(p_targets) target
+  where nullif(trim(target ->> 'district'), '') is not null
+    and nullif(trim(target ->> 'team'), '') is not null
+    and nullif(trim(target ->> 'campus'), '') is not null;
+
+  delete from public.campus_notice_reads where notice_id = p_notice_id;
+  return v_notice;
+end;
+$$;
+
+revoke all on function public.create_targeted_campus_notice(text, text, jsonb) from public, anon;
+revoke all on function public.update_targeted_campus_notice(uuid, text, text, jsonb, boolean) from public, anon;
+grant execute on function public.create_targeted_campus_notice(text, text, jsonb) to authenticated;
+grant execute on function public.update_targeted_campus_notice(uuid, text, text, jsonb, boolean) to authenticated;
+
+alter table public.home_announcements
+  add column if not exists is_archived boolean not null default false,
+  add column if not exists is_pinned boolean not null default false,
+  add column if not exists publish_start_at timestamptz,
+  add column if not exists publish_end_at timestamptz;
+
+drop policy if exists "Anyone can view published home announcements" on public.home_announcements;
+create policy "Anyone can view published home announcements"
+on public.home_announcements
+for select
+to anon, authenticated
+using (
+  is_published = true
+  and is_archived = false
+  and (publish_start_at is null or publish_start_at <= now())
+  and (publish_end_at is null or publish_end_at > now())
+);
+
+create or replace function public.update_home_announcement_as_global_admin(
+  p_id uuid,
+  p_title text,
+  p_content text,
+  p_is_published boolean,
+  p_is_archived boolean,
+  p_is_pinned boolean,
+  p_publish_start_at timestamptz,
+  p_publish_end_at timestamptz
+)
+returns public.home_announcements
+language plpgsql security definer set search_path = public
+as $$
+declare v_row public.home_announcements;
+begin
+  if not public.is_global_admin() then raise exception 'Only global admins can update home announcements.'; end if;
+  update public.home_announcements
+  set title = trim(p_title),
+      content = trim(p_content),
+      is_published = p_is_published,
+      is_archived = p_is_archived,
+      is_pinned = p_is_pinned,
+      publish_start_at = p_publish_start_at,
+      publish_end_at = p_publish_end_at,
+      updated_at = now()
+  where id = p_id
+  returning * into v_row;
+  if v_row.id is null then raise exception 'Home announcement not found.'; end if;
+  return v_row;
+end;
+$$;
+
+revoke all on function public.update_home_announcement_as_global_admin(uuid, text, text, boolean, boolean, boolean, timestamptz, timestamptz) from public, anon;
+grant execute on function public.update_home_announcement_as_global_admin(uuid, text, text, boolean, boolean, boolean, timestamptz, timestamptz) to authenticated;
+
+notify pgrst, 'reload schema';
+
+-- =========================================================
+-- END sql/setup/80_notice_audience_and_lifecycle.sql
+-- =========================================================
+
+-- =========================================================
+-- BEGIN sql/setup/91_atomic_campus_request_workflow.sql
+-- =========================================================
+
+-- =========================================================
+-- Atomic campus request creation and global-admin responses
+-- =========================================================
+
+create or replace function public.create_campus_request_with_message(
+  p_type text,
+  p_title text,
+  p_content text,
+  p_district text,
+  p_team text,
+  p_campus text
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_actor_id uuid := auth.uid();
+  v_role public.admin_roles%rowtype;
+  v_request public.campus_requests%rowtype;
+  v_message public.campus_request_messages%rowtype;
+begin
+  if v_actor_id is null then
+    raise exception 'Authentication is required.';
+  end if;
+  if p_type not in (
+    'late_signup',
+    'cancel_refund',
+    'payment_issue',
+    'roster_change',
+    'transfer_issue',
+    'etc'
+  ) then
+    raise exception 'Campus request type is invalid.';
+  end if;
+  if nullif(btrim(p_title), '') is null or nullif(btrim(p_content), '') is null then
+    raise exception 'Campus request title and content are required.';
+  end if;
+
+  select admin_role.*
+  into v_role
+  from public.admin_roles admin_role
+  where admin_role.user_id = v_actor_id
+    and admin_role.role = 'campus_admin'
+    and admin_role.district = p_district
+    and admin_role.team = p_team
+    and admin_role.campus = p_campus
+  limit 1;
+
+  if v_role.id is null then
+    raise exception 'Only the matching campus administrator can create this request.';
+  end if;
+
+  insert into public.campus_requests (
+    type,
+    status,
+    title,
+    content,
+    is_global_notice,
+    district_id,
+    team_id,
+    campus_id,
+    district,
+    team,
+    campus,
+    created_by
+  )
+  values (
+    p_type,
+    'open',
+    btrim(p_title),
+    btrim(p_content),
+    false,
+    v_role.district_id,
+    v_role.team_id,
+    v_role.campus_id,
+    p_district,
+    p_team,
+    p_campus,
+    v_actor_id
+  )
+  returning * into v_request;
+
+  insert into public.campus_request_messages (
+    request_id,
+    sender_id,
+    sender_role,
+    message
+  )
+  values (
+    v_request.id,
+    v_actor_id,
+    'campus_admin',
+    btrim(p_content)
+  )
+  returning * into v_message;
+
+  return jsonb_build_object(
+    'request', to_jsonb(v_request),
+    'message', to_jsonb(v_message)
+  );
+end;
+$$;
+
+create or replace function public.update_campus_request_status_with_response(
+  p_request_id uuid,
+  p_status text,
+  p_admin_response text
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_actor_id uuid := auth.uid();
+  v_previous_response text;
+  v_response text := nullif(btrim(coalesce(p_admin_response, '')), '');
+  v_request public.campus_requests%rowtype;
+  v_message public.campus_request_messages%rowtype;
+begin
+  if v_actor_id is null then
+    raise exception 'Authentication is required.';
+  end if;
+  if not public.is_global_admin() then
+    raise exception 'Only global administrators can process campus requests.';
+  end if;
+  if p_status not in ('open', 'in_progress', 'resolved', 'on_hold') then
+    raise exception 'Campus request status is invalid.';
+  end if;
+
+  select request.admin_response
+  into v_previous_response
+  from public.campus_requests request
+  where request.id = p_request_id
+    and request.is_global_notice = false
+  for update;
+
+  if not found then
+    raise exception 'Campus request not found.';
+  end if;
+  if p_status = 'resolved'
+    and v_response is null
+    and not exists (
+      select 1
+      from public.campus_request_messages message
+      where message.request_id = p_request_id
+        and message.sender_role = 'global_admin'
+    )
+  then
+    raise exception 'A global administrator response is required before resolving a request.';
+  end if;
+
+  update public.campus_requests
+  set
+    status = p_status,
+    admin_response = v_response,
+    handled_by = v_actor_id,
+    handled_at = case when p_status = 'resolved' then clock_timestamp() else null end,
+    updated_at = clock_timestamp()
+  where id = p_request_id
+  returning * into v_request;
+
+  if v_request.status is distinct from p_status then
+    raise exception 'Campus request status update failed.';
+  end if;
+
+  if v_response is not null
+    and v_response is distinct from nullif(btrim(coalesce(v_previous_response, '')), '')
+  then
+    insert into public.campus_request_messages (
+      request_id,
+      sender_id,
+      sender_role,
+      message
+    )
+    values (
+      p_request_id,
+      v_actor_id,
+      'global_admin',
+      v_response
+    )
+    returning * into v_message;
+  end if;
+
+  return jsonb_build_object(
+    'request', to_jsonb(v_request),
+    'message', case when v_message.id is null then null else to_jsonb(v_message) end
+  );
+end;
+$$;
+
+revoke all on function public.create_campus_request_with_message(
+  text, text, text, text, text, text
+) from public, anon;
+revoke all on function public.update_campus_request_status_with_response(
+  uuid, text, text
+) from public, anon;
+
+grant execute on function public.create_campus_request_with_message(
+  text, text, text, text, text, text
+) to authenticated;
+grant execute on function public.update_campus_request_status_with_response(
+  uuid, text, text
+) to authenticated;
+
+notify pgrst, 'reload schema';
+
+-- =========================================================
+-- END sql/setup/91_atomic_campus_request_workflow.sql
+-- =========================================================
+
+-- =========================================================
+-- BEGIN sql/setup/92_campus_request_read_and_audit.sql
+-- =========================================================
+
+-- =========================================================
+-- Campus request read state, audit history, and realtime support
+-- =========================================================
+
+create table if not exists public.campus_request_reads (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  request_id uuid not null references public.campus_requests(id) on delete cascade,
+  read_at timestamptz not null default clock_timestamp(),
+  primary key (user_id, request_id)
+);
+
+create index if not exists idx_campus_request_reads_request
+  on public.campus_request_reads(request_id);
+
+alter table public.campus_request_reads enable row level security;
+
+drop policy if exists "Admins can view own campus request reads" on public.campus_request_reads;
+drop policy if exists "Admins can create own campus request reads" on public.campus_request_reads;
+drop policy if exists "Admins can update own campus request reads" on public.campus_request_reads;
+
+create policy "Admins can view own campus request reads"
+on public.campus_request_reads for select to authenticated
+using (user_id = auth.uid());
+
+create policy "Admins can create own campus request reads"
+on public.campus_request_reads for insert to authenticated
+with check (user_id = auth.uid());
+
+create policy "Admins can update own campus request reads"
+on public.campus_request_reads for update to authenticated
+using (user_id = auth.uid())
+with check (user_id = auth.uid());
+
+create table if not exists public.campus_request_audit_logs (
+  id uuid primary key default gen_random_uuid(),
+  request_id uuid not null references public.campus_requests(id) on delete cascade,
+  message_id uuid,
+  actor_id uuid,
+  action text not null check (
+    action in ('status_changed', 'response_changed', 'message_updated', 'message_deleted')
+  ),
+  before_data jsonb,
+  after_data jsonb,
+  created_at timestamptz not null default clock_timestamp()
+);
+
+create index if not exists idx_campus_request_audit_logs_request_created
+  on public.campus_request_audit_logs(request_id, created_at desc);
+
+alter table public.campus_request_audit_logs enable row level security;
+
+drop policy if exists "Global admins can view campus request audit logs" on public.campus_request_audit_logs;
+create policy "Global admins can view campus request audit logs"
+on public.campus_request_audit_logs for select to authenticated
+using (public.is_global_admin());
+
+grant select on public.campus_request_audit_logs to authenticated;
+
+create or replace function public.audit_campus_request_change()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.status is distinct from old.status then
+    insert into public.campus_request_audit_logs (
+      request_id, actor_id, action, before_data, after_data
+    )
+    values (
+      old.id, auth.uid(), 'status_changed',
+      jsonb_build_object('status', old.status),
+      jsonb_build_object('status', new.status)
+    );
+  end if;
+
+  if new.admin_response is distinct from old.admin_response then
+    insert into public.campus_request_audit_logs (
+      request_id, actor_id, action, before_data, after_data
+    )
+    values (
+      old.id, auth.uid(), 'response_changed',
+      jsonb_build_object('admin_response', old.admin_response),
+      jsonb_build_object('admin_response', new.admin_response)
+    );
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists audit_campus_request_change on public.campus_requests;
+create trigger audit_campus_request_change
+after update on public.campus_requests
+for each row execute function public.audit_campus_request_change();
+
+create or replace function public.audit_campus_request_message_change()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if tg_op = 'UPDATE' and new.message is distinct from old.message then
+    insert into public.campus_request_audit_logs (
+      request_id, message_id, actor_id, action, before_data, after_data
+    )
+    values (
+      old.request_id, old.id, auth.uid(), 'message_updated',
+      jsonb_build_object('message', old.message),
+      jsonb_build_object('message', new.message)
+    );
+    return new;
+  end if;
+
+  if tg_op = 'DELETE' then
+    insert into public.campus_request_audit_logs (
+      request_id, message_id, actor_id, action, before_data
+    )
+    values (
+      old.request_id, old.id, auth.uid(), 'message_deleted',
+      jsonb_build_object(
+        'sender_id', old.sender_id,
+        'sender_role', old.sender_role,
+        'message', old.message,
+        'created_at', old.created_at
+      )
+    );
+    return old;
+  end if;
+
+  return null;
+end;
+$$;
+
+drop trigger if exists audit_campus_request_message_change
+  on public.campus_request_messages;
+create trigger audit_campus_request_message_change
+after update or delete on public.campus_request_messages
+for each row execute function public.audit_campus_request_message_change();
+
+create or replace function public.mark_campus_request_read(p_request_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null then raise exception 'Authentication is required.'; end if;
+  if not exists (
+    select 1
+    from public.campus_requests request
+    join public.admin_roles role on role.user_id = auth.uid()
+    where request.id = p_request_id
+      and (
+        role.role = 'global_admin'
+        or (
+          role.role = 'campus_admin'
+          and role.district = request.district
+          and role.team = request.team
+          and role.campus = request.campus
+        )
+      )
+  ) then
+    raise exception 'Campus request not found or inaccessible.';
+  end if;
+
+  insert into public.campus_request_reads (user_id, request_id, read_at)
+  values (auth.uid(), p_request_id, clock_timestamp())
+  on conflict (user_id, request_id)
+  do update set read_at = excluded.read_at;
+end;
+$$;
+
+create or replace function public.get_unread_campus_request_ids()
+returns setof uuid
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select distinct request.id
+  from public.campus_requests request
+  join public.admin_roles role on role.user_id = auth.uid()
+  left join public.campus_request_reads read_state
+    on read_state.user_id = auth.uid()
+   and read_state.request_id = request.id
+  where request.is_global_notice = false
+    and (
+      role.role = 'global_admin'
+      or (
+        role.role = 'campus_admin'
+        and role.district = request.district
+        and role.team = request.team
+        and role.campus = request.campus
+      )
+    )
+    and exists (
+      select 1
+      from public.campus_request_messages message
+      where message.request_id = request.id
+        and message.created_at > coalesce(read_state.read_at, '-infinity'::timestamptz)
+        and (
+          (role.role = 'global_admin' and message.sender_role = 'campus_admin')
+          or (role.role = 'campus_admin' and message.sender_role = 'global_admin')
+        )
+    );
+$$;
+
+revoke all on function public.mark_campus_request_read(uuid) from public, anon;
+revoke all on function public.get_unread_campus_request_ids() from public, anon;
+revoke all on function public.audit_campus_request_change() from public, anon, authenticated;
+revoke all on function public.audit_campus_request_message_change() from public, anon, authenticated;
+grant execute on function public.mark_campus_request_read(uuid) to authenticated;
+grant execute on function public.get_unread_campus_request_ids() to authenticated;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'campus_requests'
+  ) then
+    alter publication supabase_realtime add table public.campus_requests;
+  end if;
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'campus_request_messages'
+  ) then
+    alter publication supabase_realtime add table public.campus_request_messages;
+  end if;
+end;
+$$;
+
+notify pgrst, 'reload schema';
+
+-- =========================================================
+-- END sql/setup/92_campus_request_read_and_audit.sql
+-- =========================================================

@@ -32,6 +32,7 @@ interface PaymentRow {
 
 interface ReservationRow {
   id: string;
+  user_id: string;
   name: string | null;
   phone: string | null;
   campus: string | null;
@@ -51,6 +52,8 @@ interface ReservationItem {
   status: ReturnBusReservation['status'];
   confirmedTicket?: ConfirmedTicket;
   paymentStatus: PaymentStatus;
+  isRemainingSeat: boolean;
+  isAdminCreated: boolean;
 }
 
 interface AllocationRoute {
@@ -100,7 +103,10 @@ const seatValue = (seatNumber?: string) => {
   return Number.isFinite(parsed) ? parsed : Number.MAX_SAFE_INTEGER;
 };
 
-const toReservationItem = (row: ReservationRow): ReservationItem => {
+const toReservationItem = (
+  row: ReservationRow,
+  adminCreatedUserIds: Set<string>
+): ReservationItem => {
   const saved = row.data ?? {};
 
   return {
@@ -114,6 +120,8 @@ const toReservationItem = (row: ReservationRow): ReservationItem => {
     confirmedTicket:
       row.confirmed_ticket ?? saved.confirmedTicket ?? undefined,
     paymentStatus: row.payments?.[0]?.status ?? 'none',
+    isRemainingSeat: Boolean(saved.remainingSeatClaim),
+    isAdminCreated: adminCreatedUserIds.has(row.user_id),
   };
 };
 
@@ -208,12 +216,20 @@ const AdminAllocationResultPage = () => {
         supabase
           .from('reservations')
           .select(
-            'id, name, phone, campus, station_preferences, status, confirmed_ticket, data, payments(status)'
+            'id, user_id, name, phone, campus, station_preferences, status, confirmed_ticket, data, payments(status)'
           )
           .order('created_at', { ascending: true }),
       ]);
 
       if (reservationResult.error) throw reservationResult.error;
+
+      const profileResult = await supabase
+        .from('profiles')
+        .select('id, account_source')
+        .eq('account_source', 'admin_created');
+      const adminCreatedUserIds = new Set(
+        (profileResult.data ?? []).map((profile) => profile.id)
+      );
 
       const allocationData = (latestAllocation as AllocationRow | null)
         ?.allocation_data;
@@ -230,7 +246,7 @@ const AdminAllocationResultPage = () => {
       );
       setReservations(
         ((reservationResult.data ?? []) as unknown as ReservationRow[]).map(
-          toReservationItem
+          (reservation) => toReservationItem(reservation, adminCreatedUserIds)
         )
       );
     } catch (error) {
@@ -423,6 +439,8 @@ const AdminAllocationResultPage = () => {
           bus.busNumber,
           passenger.confirmedTicket?.seatNumber ?? '',
           passenger.name,
+          passenger.isRemainingSeat ? '잔여좌석' : '일반 배정',
+          passenger.isAdminCreated ? '관리자 추가' : '직접 가입',
           passenger.campus,
           passenger.phone,
           paymentLabels[passenger.paymentStatus],
@@ -430,6 +448,8 @@ const AdminAllocationResultPage = () => {
         ])
       ),
     ];
+    rows[0].splice(3, 0, '신청 구분');
+    rows[0].splice(4, 0, '계정 구분');
     const blob = new Blob(
       ['\uFEFF' + rows.map((row) => row.map(csvCell).join(',')).join('\r\n')],
       { type: 'text/csv;charset=utf-8' }
@@ -560,6 +580,8 @@ const AdminAllocationResultPage = () => {
                     <span><i className={styles.assignedDot} />배정</span>
                     <span><i className={styles.emptyDot} />빈 좌석</span>
                     <span><i className={styles.unpaidDot} />미입금</span>
+                    <span><i className={styles.remainingSeatDot} />잔여좌석 신청자</span>
+                    <span><i className={styles.adminCreatedDot} />관리자 추가 계정</span>
                   </div>
                   <div className={styles.seatMap}>
                     {Array.from({ length: selectedBus.capacity }, (_, index) => {
@@ -584,6 +606,12 @@ const AdminAllocationResultPage = () => {
                         >
                           <span>{seatNumber}</span>
                           <strong>{passenger?.name ?? '빈 좌석'}</strong>
+                          {passenger?.isRemainingSeat && (
+                            <small className={styles.remainingSeatLabel}>잔여좌석</small>
+                          )}
+                          {passenger?.isAdminCreated && (
+                            <small className={styles.adminCreatedLabel}>관리자 추가</small>
+                          )}
                           {unpaid && <small>미입금</small>}
                           {duplicate && <small>중복</small>}
                         </div>
@@ -657,7 +685,17 @@ const AdminAllocationResultPage = () => {
                         {pagedPassengers.map((passenger) => (
                           <tr key={passenger.id}>
                             <td>{passenger.confirmedTicket?.seatNumber ?? '-'}</td>
-                            <td>{passenger.name}</td>
+                            <td>
+                              <span className={styles.passengerName}>
+                                {passenger.name}
+                                {passenger.isRemainingSeat && (
+                                  <small className={styles.remainingSeatBadge}>잔여좌석</small>
+                                )}
+                                {passenger.isAdminCreated && (
+                                  <small className={styles.adminCreatedBadge}>관리자 추가</small>
+                                )}
+                              </span>
+                            </td>
                             <td>{passenger.campus}</td>
                             <td>{passenger.phone}</td>
                             <td>

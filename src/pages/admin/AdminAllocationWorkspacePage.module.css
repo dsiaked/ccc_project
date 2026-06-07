@@ -55,13 +55,37 @@
 .editorTabs button em { min-width: 20px; border-radius: 999px; background: #fee4e2; color: #b42318; padding: 2px 6px; font-size: 11px; font-style: normal; text-align: center; }
 .editorTabs .activeEditorTab { background: #eff4ff; color: #175cd3; }
 .workspace { display: grid; grid-template-columns: 310px 1fr; gap: 16px; align-items: start; }
+.sharedBusInfo { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(240px, .7fr) minmax(420px, 1.3fr); gap: 18px; align-items: center; border: 1px solid #b2ccff; border-radius: 14px; background: #f5f8ff; padding: 16px 18px; }
+.sharedBusInfoHeader { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.sharedBusInfoHeader > div { display: grid; gap: 4px; }
+.sharedBusInfoHeader strong { color: #175cd3; font-size: 16px; }
+.sharedBusInfoHeader span { color: #475467; font-size: 12px; line-height: 1.45; }
+.sharedBusInfoHeader small { border-radius: 999px; background: #d1e0ff; color: #175cd3; padding: 5px 8px; font-size: 10px; font-weight: 800; white-space: nowrap; }
+.sharedBusInfoFields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.sharedBusInfoFields label { display: grid; gap: 5px; color: #344054; font-size: 13px; font-weight: 700; }
+.sharedBusInfoFields input { border: 1px solid #84adff; border-radius: 8px; background: white; padding: 10px; min-width: 0; }
 .busPanel, .editor, .allPassengerSection, .reviewGrid article, .finalSection { background: white; border: 1px solid #e4e7ec; border-radius: 14px; padding: 18px; }
-.busPanel { display: flex; flex-direction: column; min-height: 0; max-height: 760px; }
+.busPanel { display: flex; flex-direction: column; min-height: 0; max-height: 760px; padding: 16px; }
 .busPanel h2, .editor h2, .allPassengerSection h2, .reviewGrid h2, .finalSection h2 { margin-top: 0; font-size: 18px; }
-.addBusControl { position: relative; margin-bottom: 12px; }
-.addBusButton { width: 100%; border: 1px solid #84adff; border-radius: 8px; background: #f5f8ff; color: #175cd3; padding: 9px 11px; display: flex; align-items: center; justify-content: center; gap: 6px; font-weight: 800; cursor: pointer; }
-.addBusButton:hover { background: #eff4ff; }
+.busPanelHeader { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 2px 2px 14px; }
+.busPanelHeader h2 { margin: 0; color: #101828; font-size: 17px; }
+.busPanelHeader p { margin: 3px 0 0; color: #667085; font-size: 11px; line-height: 1.4; }
+.busPanelHeader > strong { border-radius: 999px; background: #f2f4f7; color: #344054; padding: 4px 8px; font-size: 11px; white-space: nowrap; }
+.busPanelIcon { width: 34px; height: 34px; border-radius: 9px; background: #eff4ff; color: #175cd3; display: grid; place-items: center; }
+.addBusControl { position: relative; margin-bottom: 14px; }
+.addBusButton { width: 100%; border: 0; border-radius: 9px; background: #155eef; color: white; padding: 10px 11px; display: flex; align-items: center; justify-content: center; gap: 6px; font-weight: 800; cursor: pointer; box-shadow: 0 1px 2px rgba(16, 24, 40, .12); }
+.addBusButton:hover { background: #175cd3; }
 .addBusButton:disabled { border-color: #e4e7ec; background: #f2f4f7; color: #98a2b3; cursor: not-allowed; }
+.busFilterSection { margin-bottom: 12px; border-top: 1px solid #eaecf0; border-bottom: 1px solid #eaecf0; padding: 11px 0 12px; }
+.busFilterHeader { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.busFilterHeader strong { color: #475467; font-size: 11px; }
+.busFilterHeader button { border: 0; background: transparent; color: #175cd3; padding: 0; font-size: 10px; font-weight: 800; cursor: pointer; }
+.busOccupancyFilters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.busOccupancyFilters button { min-width: 0; border: 1px solid #e4e7ec; border-radius: 9px; background: #f9fafb; color: #475467; padding: 7px 8px; display: flex; align-items: center; justify-content: space-between; gap: 4px; font-size: 10px; font-weight: 800; cursor: pointer; }
+.busOccupancyFilters button:hover { border-color: #b2ccff; background: #f5f8ff; color: #175cd3; }
+.busOccupancyFilters button span { min-width: 20px; border-radius: 999px; background: white; padding: 2px 5px; color: #667085; text-align: center; font-size: 9px; box-shadow: inset 0 0 0 1px #eaecf0; }
+.busOccupancyFilters .busOccupancyFilterActive { border-color: #84adff; background: #eff4ff; color: #175cd3; box-shadow: inset 0 0 0 1px #84adff; }
+.busOccupancyFilters .busOccupancyFilterActive span { background: #175cd3; color: white; box-shadow: none; }
 .addBusMenu { position: absolute; z-index: 5; top: calc(100% + 6px); left: 0; right: 0; border: 1px solid #d0d5dd; border-radius: 10px; background: white; padding: 7px; box-shadow: 0 12px 28px rgba(16, 24, 40, .16); display: grid; gap: 5px; }
 .addBusMenu > strong { padding: 5px 6px; color: #475467; font-size: 11px; }
 .addBusMenu button { width: 100%; border: 0; border-radius: 7px; background: white; padding: 8px; display: flex; align-items: center; justify-content: space-between; gap: 8px; text-align: left; cursor: pointer; }
@@ -72,31 +96,40 @@
 .addBusMenu button em { color: #175cd3; font-size: 10px; font-style: normal; font-weight: 800; white-space: nowrap; }
 .addBusMenu button:disabled em, .addBusMenu button:disabled small { color: #98a2b3; }
 .versionButton { border: 1px solid #d0d5dd; background: white; border-radius: 8px; padding: 7px 9px; cursor: pointer; }
-.busList { flex: 1; min-height: 0; display: grid; align-content: start; gap: 8px; overflow-y: auto; padding-right: 4px; }
-.busList button { text-align: left; border: 1px solid #e4e7ec; background: #f9fafb; border-radius: 10px; padding: 10px; display: grid; gap: 7px; cursor: pointer; }
+.busList { flex: 1; min-height: 0; display: grid; align-content: start; gap: 6px; overflow-y: auto; padding-right: 4px; scrollbar-color: #98a2b3 transparent; scrollbar-width: thin; }
+.busList::-webkit-scrollbar { width: 7px; }
+.busList::-webkit-scrollbar-track { background: transparent; }
+.busList::-webkit-scrollbar-thumb { border-radius: 999px; background: #98a2b3; }
+.busList button { text-align: left; border: 1px solid #e4e7ec; background: #f9fafb; border-radius: 10px; padding: 9px 10px; display: grid; gap: 5px; cursor: pointer; }
 .busCardHeader { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 .busCardHeader strong { color: #1d2939; font-size: 13px; }
-.busCardHeader small { overflow: hidden; color: #344054; font-size: 14px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.busCardHeader small { overflow: hidden; padding: 2px 6px; border-radius: 999px; background: #eaecf0; color: #344054; font-size: 11px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
 .busOccupancy { display: flex; align-items: baseline; gap: 4px; color: #1d2939; }
-.busOccupancy strong { font-size: 18px; line-height: 1; }
-.busOccupancy small { color: #667085; font-size: 10px; }
+.busOccupancy strong { font-size: 16px; line-height: 1.15; }
 .busOccupancyTrack { height: 5px; border-radius: 999px; background: #eaecf0; overflow: hidden; }
 .busOccupancyTrack span { height: 100%; border-radius: inherit; background: #528bff; display: block; transition: width .2s ease; }
 .busCardBadges { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
 .busCardBadges small, .busCardBadges em { border-radius: 999px; padding: 3px 6px; font-size: 9px; font-style: normal; font-weight: 800; }
 .busCardBadges small { background: #f2f4f7; color: #475467; }
 .busCardBadges em { background: #fef0c7; color: #b54708; }
+.busCardBadges .busBadgeAvailable { background: #dcfae6; color: #067647; }
+.busCardBadges .busBadgeFull { background: #e4e7ec; color: #344054; }
 .busCardBadges .busBadgeOver { background: #fee4e2; color: #b42318; }
-.selectedBus { border-color: #155eef !important; background: #eff4ff !important; }
+.busList button.busHasSeats { box-shadow: inset 4px 0 #12b76a; }
+.busList button.busHasSeats .busOccupancyTrack span { background: #12b76a; }
+.busList button.busOverCapacity { box-shadow: inset 4px 0 #f04438; }
+.busList button.busOverCapacity .busOccupancyTrack span { background: #f04438; }
+.busFilterEmpty { padding: 15px 10px; border: 1px dashed #d0d5dd; border-radius: 9px; background: #f9fafb; color: #667085; text-align: center; font-size: 11px; }
+.selectedBus { border-color: #155eef !important; background: #eff4ff !important; box-shadow: inset 4px 0 #155eef !important; }
 .selectedBus .busOccupancyTrack span { background: #155eef; }
 .busWithError { border-color: #fdb022 !important; background: #fffaeb !important; color: #93370d; }
 .busWithError .busOccupancyTrack span { background: #f79009; }
-.selectedBus.busWithError { border-color: #f79009 !important; box-shadow: 0 0 0 2px #fedf89; }
+.selectedBus.busWithError { border-color: #f79009 !important; box-shadow: inset 4px 0 #f79009, 0 0 0 2px #fedf89; }
 .unassigned { margin-top: 6px; border-top: 1px solid #e4e7ec; padding: 12px 4px 4px; max-height: 160px; overflow: auto; }
 .unassigned div { padding: 5px 0; color: #475467; }
 .unassignedWithError { margin: 6px 0 0; padding: 12px 8px 8px; border: 1px solid #fdb022; border-radius: 9px; background: #fffaeb; color: #93370d; }
 .editorWithError { border-color: #fedf89; }
-.busForm { display: grid; grid-template-columns: repeat(4, minmax(130px, 1fr)) auto; gap: 10px; align-items: end; padding-bottom: 18px; border-bottom: 1px solid #e4e7ec; }
+.busForm { display: grid; grid-template-columns: repeat(2, minmax(160px, 1fr)) auto; gap: 10px; align-items: end; padding-bottom: 18px; border-bottom: 1px solid #e4e7ec; }
 .busForm label { display: grid; gap: 5px; color: #475467; font-size: 13px; }
 .busForm input, .busForm select, td input, td select, .finalSection input { border: 1px solid #d0d5dd; border-radius: 8px; padding: 9px; min-width: 0; }
 .fieldWithError { color: #b42318 !important; font-weight: 800; }
@@ -224,7 +257,7 @@ td input[type="number"] { width: 72px; }
 .supportTools summary small { color: #667085; font-size: 11px; font-weight: 500; }
 .supportTools summary em { border-radius: 999px; background: #f2f4f7; color: #475467; padding: 5px 9px; font-size: 11px; font-style: normal; font-weight: 800; white-space: nowrap; }
 .supportTools[open] summary { border-bottom: 1px solid #eaecf0; background: #f9fafb; }
-.supportToolsGrid { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: 16px; padding: 16px; }
+.supportToolsGrid { display: grid; grid-template-columns: 1fr; gap: 16px; padding: 16px; }
 .supportToolsGrid article { max-height: 420px; overflow: auto; border: 1px solid #e4e7ec; border-radius: 12px; padding: 16px; }
 .supportToolsGrid h2 { margin-top: 0; font-size: 17px; }
 .timelinePanel { min-height: 260px; }
@@ -309,6 +342,7 @@ td input[type="number"] { width: 72px; }
 @media (max-width: 1100px) {
   .metrics { grid-template-columns: repeat(2, 1fr); }
   .workspace, .reviewGrid { grid-template-columns: 1fr; }
+  .sharedBusInfo { grid-template-columns: 1fr; }
   .supportToolsGrid { grid-template-columns: 1fr; }
   .busForm { grid-template-columns: repeat(2, 1fr); }
   .selectedBusSummary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -332,6 +366,8 @@ td input[type="number"] { width: 72px; }
   .metrics, .confirmReadiness { grid-template-columns: 1fr; }
   .editorTabs { width: 100%; }
   .editorTabs button { flex: 1; justify-content: center; }
+  .sharedBusInfoHeader { align-items: flex-start; flex-direction: column; }
+  .sharedBusInfoFields { grid-template-columns: 1fr; }
   .busForm, .selectedBusSummary { grid-template-columns: 1fr; }
   .actionStatus, .saveAction { flex-wrap: wrap; }
   .saveAction button { flex: 1; justify-content: center; }

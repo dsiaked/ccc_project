@@ -57,7 +57,11 @@ def main() -> int:
 
     try:
         while True:
-            job_ids = [args.job_id] if args.job_id else repository.get_pending_job_ids()
+            job_ids = (
+                [args.job_id]
+                if args.job_id
+                else repository.get_pending_job_ids(execution_mode="local")
+            )
             if not job_ids:
                 if args.once:
                     return 0
@@ -69,7 +73,7 @@ def main() -> int:
                     continue
                 print(f"Claiming allocation optimization job {job_id}", flush=True)
                 try:
-                    run_job(repository, job_id, worker_id)
+                    run_job(repository, job_id, worker_id, "local")
                 except Exception as error:
                     print(f"Job {job_id} failed: {error}", file=sys.stderr, flush=True)
                 if args.job_id:

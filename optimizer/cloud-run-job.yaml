@@ -14,17 +14,19 @@ spec:
           maxRetries: 0
           timeoutSeconds: "86400"
           containers:
-            - image: REGION-docker.pkg.dev/PROJECT_ID/ccc-bus/allocation-optimizer:latest
+            - image: asia-northeast3-docker.pkg.dev/ccc-bus-optimizer-20260608/ccc-bus/allocation-optimizer:latest
               resources:
                 limits:
                   cpu: "2"
                   memory: 2Gi
               env:
                 - name: SUPABASE_URL
-                  value: SET_AT_DEPLOY_TIME
+                  value: https://pjbvxoesgwhbxfsfjliw.supabase.co
+                - name: ALLOCATION_OPTIMIZER_EXECUTION_MODE
+                  value: cloud
                 - name: SUPABASE_SERVICE_ROLE_KEY
                   valueFrom:
                     secretKeyRef:
                       key: latest
                       name: ccc-bus-supabase-service-role-key
-
+          serviceAccountName: ccc-bus-optimizer-runtime@ccc-bus-optimizer-20260608.iam.gserviceaccount.com

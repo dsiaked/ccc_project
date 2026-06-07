@@ -152,7 +152,7 @@ Deno.serve(async (request) => {
 
   const { data: job, error: jobError } = await serviceClient
     .from('allocation_optimization_jobs')
-    .select('id, status')
+    .select('id, status, execution_mode')
     .eq('id', jobId)
     .maybeSingle();
   if (jobError || !job) {
@@ -160,6 +160,9 @@ Deno.serve(async (request) => {
   }
   if (job.status !== 'PENDING') {
     return json({ error: `대기 중인 작업만 실행할 수 있습니다: ${job.status}` }, 409);
+  }
+  if (job.execution_mode !== 'cloud') {
+    return json({ error: 'Cloud Run 실행 대상으로 생성된 작업이 아닙니다.' }, 409);
   }
 
   try {
@@ -237,4 +240,3 @@ Deno.serve(async (request) => {
     );
   }
 });
-

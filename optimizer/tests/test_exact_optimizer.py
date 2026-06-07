@@ -7,6 +7,7 @@ from collections import Counter
 from math import ceil
 from unittest.mock import patch
 
+import exact_optimizer.model as model_module
 from exact_optimizer import (
     BusConfiguration,
     OptimizationInput,
@@ -15,10 +16,13 @@ from exact_optimizer import (
     validate_result,
 )
 from exact_optimizer.model import (
+    PhaseSolveError,
     _maximum_destination_buses,
     _maximum_unused_seats,
     _search_worker_count,
+    _solve_phase,
 )
+from ortools.sat.python import cp_model
 
 
 def passenger(
@@ -56,6 +60,33 @@ def brute_force_minimum(passengers: tuple[Passenger, ...], capacity: int) -> tup
 
 
 class ExactOptimizerTests(unittest.TestCase):
+    def test_rejects_feasible_phase_as_unproven(self) -> None:
+        class FakeParameters:
+            num_search_workers = 0
+            random_seed = 0
+            max_time_in_seconds = 0.0
+
+        class FakeSolver:
+            parameters = FakeParameters()
+
+            def Solve(self, model: cp_model.CpModel) -> cp_model.CpSolverStatus:
+                return cp_model.FEASIBLE
+
+            def StatusName(self, status: cp_model.CpSolverStatus) -> str:
+                return "FEASIBLE"
+
+        with patch("exact_optimizer.model.cp_model.CpSolver", return_value=FakeSolver()):
+            with self.assertRaisesRegex(PhaseSolveError, "FEASIBLE"):
+                _solve_phase(
+                    model=cp_model.CpModel(),
+                    expression=0,
+                    name="detailed_balance",
+                    objectives=[],
+                    progress=None,
+                    cancellation_check=None,
+                    max_time_seconds=1,
+                )
+
     def test_uses_half_of_available_cpu_cores(self) -> None:
         with patch("exact_optimizer.model.os.cpu_count", return_value=12):
             self.assertEqual(_search_worker_count(), 6)
@@ -180,6 +211,61 @@ class ExactOptimizerTests(unittest.TestCase):
         self.assertIn("team_bus_uses", detailed_phases)
         self.assertIn("destination_occupancy_imbalance", detailed_phases)
         self.assertEqual(detailed_phases[-1], "deterministic_tie_break")
+
+    def test_skips_selected_detailed_balance_phases(self) -> None:
+        data = OptimizationInput(
+            passengers=tuple(
+                passenger(
+                    f"p-{index}",
+                    "A" if index % 2 == 0 else "B",
+                    "B" if index % 2 == 0 else "A",
+                    campus=f"Campus {index % 3}",
+                    team=f"Team {index % 2}",
+                )
+                for index in range(8)
+            ),
+            bus=BusConfiguration(capacity=4, price=100),
+        )
+        reported: list[tuple[str, int | None]] = []
+
+        result = optimize(
+            data,
+            progress=lambda name, value: reported.append((name, value)),
+            detailed_balance=True,
+            skipped_detailed_phases=frozenset(
+                {"campus_distribution_imbalance", "team_bus_uses"}
+            ),
+        )
+
+        self.assertEqual(result.status, "OPTIMAL")
+        self.assertIn(("campus_distribution_imbalance", None), reported)
+        self.assertIn(("team_bus_uses", None), reported)
+        objective_names = {objective.name for objective in result.objectives}
+        self.assertNotIn("campus_distribution_imbalance", objective_names)
+        self.assertNotIn("team_bus_uses", objective_names)
+        self.assertIn("deterministic_tie_break", objective_names)
+
+    def test_uses_previous_detailed_result_as_solution_hint(self) -> None:
+        data = OptimizationInput(
+            passengers=tuple(
+                passenger(f"p-{index}", "A", "B") for index in range(5)
+            ),
+            bus=BusConfiguration(capacity=3, price=100),
+        )
+        previous = optimize(data, detailed_balance=True)
+
+        with patch(
+            "exact_optimizer.model._add_result_solution_hints",
+            wraps=model_module._add_result_solution_hints,
+        ) as add_result_hints:
+            result = optimize(
+                data,
+                detailed_balance=True,
+                initial_result=previous,
+            )
+
+        self.assertEqual(result.status, "OPTIMAL")
+        add_result_hints.assert_called_once()
 
     def test_matches_random_exhaustive_reference_cases(self) -> None:
         random_generator = random.Random(20260607)

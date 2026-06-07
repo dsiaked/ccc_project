@@ -51,6 +51,7 @@
 
 .refreshButton,
 .addUserButton,
+.boardingManagerButton,
 .issueReviewButton,
 .primaryButton,
 .secondaryButton,
@@ -75,6 +76,17 @@
   border: 1px solid #ccd3dc;
   background: #ffffff;
   color: #344054;
+}
+
+.boardingManagerButton {
+  border: 1px solid #c7d2fe;
+  background: #eef2ff;
+  color: #4338ca;
+}
+
+.boardingManagerButton:hover {
+  border-color: #a5b4fc;
+  background: #e0e7ff;
 }
 
 .primaryButton {

@@ -50,6 +50,7 @@ export interface ReturnBusReservation {
   status: ReservationStatus;
 
   confirmedTicket?: ConfirmedTicket;
+  boardingConfirmedAt?: string;
   remainingSeatClaim?: RemainingSeatClaim;
 
   requestedAt: string;

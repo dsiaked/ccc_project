@@ -101,6 +101,7 @@ Deno.serve(async (request) => {
     metadata = {
       name,
       phone,
+      account_source: 'admin_created',
       district_id: null,
       district,
       team_id: null,
@@ -128,6 +129,7 @@ Deno.serve(async (request) => {
     metadata = {
       name,
       phone,
+      account_source: 'admin_created',
       district_id: campus.district_id,
       district: campus.district,
       team_id: campus.team_id,
@@ -161,6 +163,7 @@ Deno.serve(async (request) => {
     id: created.user.id,
     email,
     ...metadata,
+    account_source: 'admin_created',
     updated_at: new Date().toISOString(),
   });
 

@@ -51,9 +51,17 @@ const AdminAllocationWorkspacePage = lazy(
 const AdminSimulationPage = lazy(
   () => import('../pages/admin/AdminSimulationPage')
 );
+const AdminBoardingPage = lazy(() => import('../pages/admin/AdminBoardingPage'));
+const AdminBoardingManagerPage = lazy(
+  () => import('../pages/admin/AdminBoardingManagerPage')
+);
 
 const globalAdminOnly = ['global_admin'] as const satisfies readonly AdminRoleType[];
 const campusAdminOnly = ['campus_admin'] as const satisfies readonly AdminRoleType[];
+const boardingAccess = [
+  'global_admin',
+  'boarding_manager',
+] as const satisfies readonly AdminRoleType[];
 const allAdminRoles = [
   'global_admin',
   'campus_admin',
@@ -75,6 +83,14 @@ const adminRoutes = [
   {
     path: 'campus',
     element: adminRoute(<CampusAdminPage />, campusAdminOnly),
+  },
+  {
+    path: 'boarding',
+    element: adminRoute(<AdminBoardingPage />, boardingAccess),
+  },
+  {
+    path: 'boarding-managers',
+    element: adminRoute(<AdminBoardingManagerPage />, globalAdminOnly),
   },
   {
     path: 'tickets',

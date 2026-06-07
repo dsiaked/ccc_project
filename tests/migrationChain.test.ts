@@ -62,6 +62,15 @@ test('migration chain contains RPCs required by high-risk administrator flows', 
     'create_allocation_draft_from_optimal_job',
     'validate_allocation_workspace_confirmation_v2',
     'save_confirmed_allocation_workspace_v3',
+    'get_boarding_management_snapshot',
+    'set_passenger_boarding_status',
+    'update_passenger_boarding_note',
+    'mark_boarding_bus_departed',
+    'cancel_boarding_bus_departure',
+    'create_campus_request_with_message',
+    'update_campus_request_status_with_response',
+    'mark_campus_request_read',
+    'get_unread_campus_request_ids',
   ]) {
     assert.match(
       migrationSql,
@@ -105,8 +114,60 @@ for (const [setupFile, migrationFile] of [
     '20260608110001_79_single_bus_option.sql',
   ],
   [
+    '80_notice_audience_and_lifecycle.sql',
+    '20260608120001_80_notice_audience_and_lifecycle.sql',
+  ],
+  [
     '80_remaining_seat_payment_workflow.sql',
-    '20260608120001_80_remaining_seat_payment_workflow.sql',
+    '20260608120002_80_remaining_seat_payment_workflow.sql',
+  ],
+  [
+    '84_instant_allocation_result_reuse.sql',
+    '20260608150001_84_instant_allocation_result_reuse.sql',
+  ],
+  [
+    '85_passenger_boarding_confirmation.sql',
+    '20260608160001_85_passenger_boarding_confirmation.sql',
+  ],
+  [
+    '85_allocation_result_reuse_status.sql',
+    '20260608160002_85_allocation_result_reuse_status.sql',
+  ],
+  [
+    '86_detailed_allocation_resume_and_skip.sql',
+    '20260608170001_86_detailed_allocation_resume_and_skip.sql',
+  ],
+  [
+    '87_boarding_management.sql',
+    '20260608180001_87_boarding_management.sql',
+  ],
+  [
+    '88_allocation_requires_closed_deadline.sql',
+    '20260608190001_88_allocation_requires_closed_deadline.sql',
+  ],
+  [
+    '89_allocation_execution_mode.sql',
+    '20260608200001_89_allocation_execution_mode.sql',
+  ],
+  [
+    '91_atomic_campus_request_workflow.sql',
+    '20260608220001_91_atomic_campus_request_workflow.sql',
+  ],
+  [
+    '92_admin_created_account_source.sql',
+    '20260608230001_92_admin_created_account_source.sql',
+  ],
+  [
+    '92_campus_request_read_and_audit.sql',
+    '20260608230002_92_campus_request_read_and_audit.sql',
+  ],
+  [
+    '93_reset_allocation_optimization_jobs.sql',
+    '20260609000001_93_reset_allocation_optimization_jobs.sql',
+  ],
+  [
+    '94_boarding_notes.sql',
+    '20260609010001_94_boarding_notes.sql',
   ],
 ]) {
   test(`${setupFile} matches its migration`, () => {
@@ -122,3 +183,92 @@ for (const [setupFile, migrationFile] of [
     assert.equal(migration, setupSql);
   });
 }
+
+test('allocation writes require the reservation deadline to be closed', () => {
+  const migration = readFileSync(
+    `${migrationDirectory}/20260608190001_88_allocation_requires_closed_deadline.sql`,
+    'utf8'
+  );
+
+  assert.match(
+    migration,
+    /before insert on public\.allocation_optimization_jobs/i
+  );
+  assert.match(migration, /before insert or update on public\.bus_allocations/i);
+  assert.match(
+    migration,
+    /v_deadline_at is null or v_deadline_at > clock_timestamp\(\)/i
+  );
+});
+
+test('cancelled reservations can reclaim a remaining seat', () => {
+  const migration = readFileSync(
+    `${migrationDirectory}/20260608210001_90_cancelled_remaining_seat_reclaim.sql`,
+    'utf8'
+  );
+
+  assert.match(migration, /status <> 'cancelled'/i);
+  assert.match(
+    migration,
+    /v_existing_reservation_status <> 'cancelled'/i
+  );
+  assert.match(migration, /on conflict \(id\) do update set/i);
+  assert.match(
+    migration,
+    /delete from public\.payments where reservation_id = v_reservation_id/i
+  );
+});
+
+test('campus request creation and responses are atomic', () => {
+  const migration = readFileSync(
+    `${migrationDirectory}/20260608220001_91_atomic_campus_request_workflow.sql`,
+    'utf8'
+  );
+
+  assert.match(
+    migration,
+    /create or replace function public\.create_campus_request_with_message[\s\S]*insert into public\.campus_requests[\s\S]*insert into public\.campus_request_messages/i
+  );
+  assert.match(
+    migration,
+    /create or replace function public\.update_campus_request_status_with_response[\s\S]*update public\.campus_requests[\s\S]*insert into public\.campus_request_messages/i
+  );
+  assert.match(migration, /v_actor_id uuid := auth\.uid\(\)/i);
+  assert.match(
+    migration,
+    /A global administrator response is required before resolving a request/i
+  );
+});
+
+test('combined setup includes the latest campus request workflow', () => {
+  const combined = readFileSync(
+    'sql/setup/combined_supabase_setup.sql',
+    'utf8'
+  );
+
+  for (const marker of [
+    'BEGIN sql/setup/80_notice_audience_and_lifecycle.sql',
+    'BEGIN sql/setup/91_atomic_campus_request_workflow.sql',
+    'BEGIN sql/setup/92_campus_request_read_and_audit.sql',
+  ]) {
+    assert.match(combined, new RegExp(marker));
+  }
+
+  assert.match(combined, /create table if not exists public\.campus_notice_targets/i);
+  assert.match(combined, /create table if not exists public\.campus_request_reads/i);
+  assert.match(combined, /create table if not exists public\.campus_request_audit_logs/i);
+});
+
+test('admin-created accounts have an explicit source marker', () => {
+  const migration = readFileSync(
+    `${migrationDirectory}/20260608230001_92_admin_created_account_source.sql`,
+    'utf8'
+  );
+  const edgeFunction = readFileSync(
+    'supabase/functions/admin-user-manager/index.ts',
+    'utf8'
+  );
+
+  assert.match(migration, /account_source text not null default 'self_signup'/i);
+  assert.match(edgeFunction, /account_source: 'admin_created'/i);
+});

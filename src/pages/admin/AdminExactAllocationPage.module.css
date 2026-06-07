@@ -48,6 +48,12 @@
   white-space: nowrap;
 }
 
+.heroActions {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
 .section {
   margin-bottom: 20px;
   padding: 22px;
@@ -55,6 +61,74 @@
   border-radius: 14px;
   background: #fff;
   box-shadow: 0 2px 8px rgba(16, 24, 40, 0.04);
+}
+
+.executionModePanel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 20px;
+  padding: 14px;
+  border: 1px solid #d1e0ff;
+  border-radius: 12px;
+  background: #f5f8ff;
+}
+
+.executionModePanel > div:first-child {
+  min-width: 170px;
+}
+
+.executionModePanel > div:first-child > strong {
+  color: #1849a9;
+  font-size: 14px;
+}
+
+.executionModeOptions {
+  display: grid;
+  flex: 1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.executionModeOptions label {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 12px;
+  border: 1px solid #d0d5dd;
+  border-radius: 9px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.executionModeOptions label.selectedMode {
+  border-color: #528bff;
+  background: #eff4ff;
+}
+
+.executionModeOptions input {
+  width: 16px;
+  height: 16px;
+  accent-color: #155eef;
+}
+
+.executionModeOptions span,
+.executionModeOptions strong,
+.executionModeOptions small {
+  display: block;
+}
+
+.executionModeOptions strong {
+  color: #344054;
+  font-size: 13px;
+}
+
+.executionModeOptions small {
+  margin-top: 3px;
+  color: #667085;
+  font-size: 11px;
+  line-height: 1.35;
 }
 
 .sectionHeader,
@@ -74,6 +148,139 @@
 .section h2 {
   color: #101828;
   font-size: 19px;
+}
+
+.section h2 svg {
+  margin-right: 6px;
+  vertical-align: -3px;
+}
+
+.draftCount {
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: #eff4ff;
+  color: #175cd3;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.workspaceCounts {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.confirmedCount {
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: #dcfae6;
+  color: #067647;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.draftList {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.draftItem {
+  display: grid;
+  gap: 11px;
+  padding: 14px;
+  border: 1px solid #d0d5dd;
+  border-radius: 11px;
+  background: #fff;
+  color: #344054;
+  text-align: left;
+  cursor: pointer;
+}
+
+.draftItem:hover {
+  border-color: #84adff;
+  background: #f5f8ff;
+}
+
+.confirmedItem {
+  border-color: #a6f4c5;
+  background: #f6fef9;
+}
+
+.confirmedItem:hover {
+  border-color: #32d583;
+  background: #ecfdf3;
+}
+
+.draftItemTitle,
+.draftItemMetrics,
+.draftItemFooter {
+  display: flex;
+  align-items: center;
+}
+
+.draftItemTitle,
+.draftItemFooter {
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.draftItemTitle em {
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: #fef0c7;
+  color: #b54708;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.confirmedItem .draftItemTitle em {
+  background: #dcfae6;
+  color: #067647;
+}
+
+.draftItemMetrics {
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.draftItemMetrics small {
+  padding: 4px 7px;
+  border-radius: 7px;
+  background: #f2f4f7;
+  color: #475467;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.draftItemFooter {
+  padding-top: 10px;
+  border-top: 1px solid #eaecf0;
+}
+
+.draftItemFooter small {
+  color: #667085;
+  font-size: 11px;
+}
+
+.draftItemFooter strong {
+  color: #175cd3;
+  font-size: 12px;
+}
+
+.confirmedItem .draftItemFooter strong {
+  color: #067647;
+}
+
+.draftEmpty {
+  padding: 24px;
+  border: 1px dashed #d0d5dd;
+  border-radius: 10px;
+  background: #f9fafb;
+  color: #667085;
+  text-align: center;
+  font-size: 13px;
 }
 
 .configGrid,
@@ -147,6 +354,126 @@ button:disabled {
   color: #b42318;
   font-size: 13px;
   font-weight: 700;
+}
+
+.installGuide {
+  margin-bottom: 20px;
+  border: 1px solid #b2ccff;
+  border-radius: 14px;
+  background: #f5f8ff;
+  box-shadow: 0 2px 8px rgba(16, 24, 40, 0.04);
+}
+
+.installGuide summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+  color: #1849a9;
+  cursor: pointer;
+  list-style: none;
+}
+
+.installGuide summary::-webkit-details-marker {
+  display: none;
+}
+
+.installGuide summary span,
+.installGuide summary strong,
+.installGuide summary small {
+  display: block;
+}
+
+.installGuide summary small {
+  margin-top: 4px;
+  color: #475467;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.installGuide summary em {
+  flex: 0 0 auto;
+  color: #3538cd;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.installGuide[open] summary {
+  border-bottom: 1px solid #b2ccff;
+}
+
+.installGuideBody {
+  padding: 20px;
+}
+
+.installNotice {
+  padding: 12px 14px;
+  border: 1px solid #fdb022;
+  border-radius: 10px;
+  background: #fffaeb;
+  color: #93370d;
+}
+
+.installNotice p,
+.installSteps p,
+.installFootnote {
+  margin: 5px 0 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.installSteps {
+  display: grid;
+  gap: 14px;
+  margin: 18px 0;
+  padding-left: 22px;
+  color: #344054;
+}
+
+.installSteps li {
+  padding-left: 4px;
+}
+
+.installSteps pre {
+  margin: 8px 0 0;
+  overflow-x: auto;
+  padding: 12px 14px;
+  border: 1px solid #d0d5dd;
+  border-radius: 9px;
+  background: #101828;
+  color: #f2f4f7;
+  font: 12px/1.65 Consolas, monospace;
+  white-space: pre-wrap;
+}
+
+.downloadLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  margin-top: 10px;
+  padding: 0 15px;
+  border: 1px solid #155eef;
+  border-radius: 9px;
+  background: #155eef;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.downloadLink:hover {
+  background: #004eeb;
+}
+
+.installGuide code {
+  font-family: Consolas, monospace;
+  font-size: 0.95em;
+}
+
+.installFootnote {
+  color: #475467;
 }
 
 .progressTrack {
@@ -288,6 +615,50 @@ button:disabled {
   color: #3538cd;
   font-size: 12px;
   font-weight: 900;
+}
+
+.reusedJobStatus {
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: #d1fadf;
+  color: #067647;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.reusedResultNotice {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-top: 18px;
+  padding: 16px;
+  border: 1px solid #a6f4c5;
+  border-radius: 11px;
+  background: #ecfdf3;
+  color: #067647;
+}
+
+.reusedResultNotice svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.reusedResultNotice strong,
+.reusedResultNotice p {
+  display: block;
+  margin: 0;
+}
+
+.reusedResultNotice strong {
+  font-size: 14px;
+}
+
+.reusedResultNotice p {
+  margin-top: 4px;
+  color: #027a48;
+  font-size: 12px;
+  line-height: 1.55;
 }
 
 .metricGrid {
@@ -432,6 +803,63 @@ button:disabled {
   flex: 0 0 auto;
 }
 
+.resumeOption {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  color: #344054;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.resumeOption input,
+.skipPhaseOptions input {
+  width: 16px;
+  height: 16px;
+  accent-color: #155eef;
+}
+
+.skipPhaseOptions {
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid #d1e0ff;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.skipPhaseOptions > strong {
+  color: #344054;
+  font-size: 12px;
+}
+
+.skipPhaseOptions > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 9px;
+}
+
+.skipPhaseOptions label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border: 1px solid #eaecf0;
+  border-radius: 8px;
+  background: #f9fafb;
+  color: #475467;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.skippedSummary {
+  margin-top: 10px !important;
+  color: #b54708 !important;
+  font-size: 11px !important;
+  font-weight: 700;
+}
+
 .optionalBadge {
   display: inline-flex;
   padding: 4px 8px;
@@ -451,6 +879,20 @@ button:disabled {
     flex-direction: column;
   }
 
+  .heroActions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .draftList {
+    grid-template-columns: 1fr;
+  }
+
+  .installGuide summary {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
   .draftCreator {
     align-items: stretch;
     flex-direction: column;
@@ -459,6 +901,15 @@ button:disabled {
   .detailedBalancePanel {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .executionModePanel {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .executionModeOptions {
+    grid-template-columns: 1fr;
   }
 
   .configGrid,

@@ -34,6 +34,9 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
   const [adminRole, setAdminRole] = useState<AdminRole | null>(null);
   const [campusNoticeCount, setCampusNoticeCount] = useState(0);
   const [isReservationClosed, setIsReservationClosed] = useState(false);
+  const [hasConfirmedTicket, setHasConfirmedTicket] = useState<boolean | null>(
+    null
+  );
 
   const handleMenuClick = (path: string) => {
     navigate(path);
@@ -53,10 +56,12 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
       setProfile(null);
       setAdminRole(null);
       setCampusNoticeCount(0);
+      setHasConfirmedTicket(false);
       return;
     }
 
     setIsLoggedIn(true);
+    setHasConfirmedTicket(null);
     const role = await getAdminRole(data.session.user.id);
 
     if (!isActiveRequest()) return;
@@ -78,6 +83,20 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
       );
     } else {
       setCampusNoticeCount(0);
+    }
+
+    const { data: reservationData, error: reservationError } = await supabase
+      .from('reservations')
+      .select('confirmed_ticket')
+      .eq('user_id', data.session.user.id)
+      .maybeSingle();
+
+    if (!isActiveRequest()) return;
+
+    if (reservationError) {
+      console.error('확정표 보유 여부 조회 실패:', reservationError);
+    } else {
+      setHasConfirmedTicket(Boolean(reservationData?.confirmed_ticket));
     }
 
     const { data: profileData, error } = await supabase
@@ -164,6 +183,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
     setIsLoggedIn(false);
     setProfile(null);
     setAdminRole(null);
+    setHasConfirmedTicket(false);
     onClose();
     navigate('/login');
   };
@@ -264,7 +284,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
               </button>
             </li>
 
-            {isReservationClosed && (
+            {isReservationClosed && hasConfirmedTicket === false && (
               <li>
                 <button
                   type="button"

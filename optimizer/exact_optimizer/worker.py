@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import base64
 import os
+import re
 import sys
 import time
 import urllib.error
@@ -11,12 +13,59 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from .codec import input_from_snapshot, result_to_dict
+from .codec import input_from_snapshot, result_from_dict, result_to_dict
 from .model import OptimizationCancelled, optimize
 
 
 class JobCancelled(Exception):
     pass
+
+
+def normalize_service_role_key(value: str) -> str:
+    key = value.strip()
+    if key.startswith("SUPABASE_SERVICE_ROLE_KEY="):
+        key = key.split("=", 1)[1].strip()
+    key = key.strip("\"'")
+    # Clipboard copies can contain line wraps, BOMs, or zero-width characters.
+    key = re.sub(r"[\s\u200b\u200c\u200d\ufeff]+", "", key)
+
+    if key.startswith("sb_secret_"):
+        return key
+    if key.startswith("sb_publishable_"):
+        raise ValueError("publishable 키가 아닌 sb_secret_ 비밀 키를 입력해주세요.")
+    if key.startswith("eyJ") and key.count(".") == 2:
+        try:
+            payload_segment = key.split(".", 2)[1]
+            padding = "=" * (-len(payload_segment) % 4)
+            payload = json.loads(
+                base64.urlsafe_b64decode(payload_segment + padding).decode("utf-8")
+            )
+        except (ValueError, UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise ValueError("service_role JWT 키가 올바르지 않거나 일부가 잘렸습니다.") from error
+        if payload.get("role") != "service_role":
+            raise ValueError("anon 키가 아닌 service_role 키를 입력해주세요.")
+        return key
+    key_kind = (
+        "JWT처럼 보이지만 구분점 개수가 올바르지 않음"
+        if key.startswith("eyJ")
+        else "인식할 수 없는 키 접두사"
+    )
+    raise ValueError(
+        "올바른 Supabase service_role JWT 또는 sb_secret_ 비밀 키를 입력해주세요. "
+        f"감지 결과: {key_kind}, 길이 {len(key)}자"
+    )
+
+
+def build_supabase_headers(service_role_key: str) -> dict[str, str]:
+    key = normalize_service_role_key(service_role_key)
+    headers = {
+        "apikey": key,
+        "Content-Type": "application/json",
+    }
+    # Supabase's newer sb_secret_ keys are API keys, not JWT bearer tokens.
+    if key.startswith("eyJ") and key.count(".") == 2:
+        headers["Authorization"] = f"Bearer {key}"
+    return headers
 
 
 class SupabaseRepository:
@@ -38,9 +87,7 @@ class SupabaseRepository:
             data=payload,
             method=method,
             headers={
-                "apikey": self.service_role_key,
-                "Authorization": f"Bearer {self.service_role_key}",
-                "Content-Type": "application/json",
+                **build_supabase_headers(self.service_role_key),
                 **({"Prefer": prefer} if prefer else {}),
             },
         )
@@ -54,13 +101,20 @@ class SupabaseRepository:
                 f"Supabase request failed with HTTP {error.code}: {detail}"
             ) from error
 
-    def claim_job(self, job_id: str, worker_id: str) -> dict[str, Any] | None:
+    def claim_job(
+        self, job_id: str, worker_id: str, execution_mode: str | None = None
+    ) -> dict[str, Any] | None:
         encoded_id = urllib.parse.quote(job_id)
+        mode_filter = (
+            f"&execution_mode=eq.{urllib.parse.quote(execution_mode)}"
+            if execution_mode
+            else ""
+        )
         rows = self._request(
             "PATCH",
             (
                 "/rest/v1/allocation_optimization_jobs"
-                f"?id=eq.{encoded_id}&status=eq.PENDING"
+                f"?id=eq.{encoded_id}&status=eq.PENDING{mode_filter}"
             ),
             body={
                 "status": "RUNNING",
@@ -83,25 +137,91 @@ class SupabaseRepository:
         )
         return rows[0]["status"] if rows else None
 
-    def get_pending_job_ids(self, limit: int = 1) -> list[str]:
+    def get_pending_job_ids(
+        self, limit: int = 1, execution_mode: str = "local"
+    ) -> list[str]:
+        encoded_mode = urllib.parse.quote(execution_mode)
         rows = self._request(
             "GET",
             (
                 "/rest/v1/allocation_optimization_jobs"
-                "?status=eq.PENDING&select=id&order=requested_at.asc"
+                f"?status=eq.PENDING&execution_mode=eq.{encoded_mode}"
+                "&select=id&order=requested_at.asc"
                 f"&limit={max(1, limit)}"
             ),
         )
         return [str(row["id"]) for row in rows or []]
 
-    def update_job(self, job_id: str, values: dict[str, Any]) -> None:
+    def get_reusable_optimal_job(
+        self,
+        job_id: str,
+        input_hash: str,
+        input_snapshot: dict[str, Any],
+        optimization_scope: str,
+        detailed_settings: dict[str, Any],
+    ) -> dict[str, Any] | None:
         encoded_id = urllib.parse.quote(job_id)
-        self._request(
-            "PATCH",
-            f"/rest/v1/allocation_optimization_jobs?id=eq.{encoded_id}",
-            body=values,
-            prefer="return=minimal",
+        encoded_hash = urllib.parse.quote(input_hash)
+        encoded_scope = urllib.parse.quote(optimization_scope)
+        rows = self._request(
+            "GET",
+            (
+                "/rest/v1/allocation_optimization_jobs"
+                f"?id=neq.{encoded_id}"
+                "&status=eq.OPTIMAL"
+                f"&input_hash=eq.{encoded_hash}"
+                f"&optimization_scope=eq.{encoded_scope}"
+                "&result=not.is.null"
+                "&select=id,input_snapshot,detailed_settings,result,diagnostics,"
+                "best_known_bus_count,proven_bus_count"
+                "&order=completed_at.desc"
+                "&limit=20"
+            ),
         )
+        return next(
+            (
+                row
+                for row in rows or []
+                if row.get("input_snapshot") == input_snapshot
+                and (row.get("detailed_settings") or {}) == detailed_settings
+            ),
+            None,
+        )
+
+    def get_job_result(self, job_id: str) -> dict[str, Any] | None:
+        encoded_id = urllib.parse.quote(job_id)
+        rows = self._request(
+            "GET",
+            (
+                "/rest/v1/allocation_optimization_jobs"
+                f"?id=eq.{encoded_id}&status=eq.OPTIMAL&select=result"
+            ),
+        )
+        return rows[0].get("result") if rows else None
+
+    def update_job(
+        self,
+        job_id: str,
+        values: dict[str, Any],
+        *,
+        expected_status: str | None = None,
+    ) -> bool:
+        encoded_id = urllib.parse.quote(job_id)
+        status_filter = (
+            f"&status=eq.{urllib.parse.quote(expected_status)}"
+            if expected_status
+            else ""
+        )
+        rows = self._request(
+            "PATCH",
+            (
+                "/rest/v1/allocation_optimization_jobs"
+                f"?id=eq.{encoded_id}{status_filter}"
+            ),
+            body=values,
+            prefer="return=representation" if expected_status else "return=minimal",
+        )
+        return bool(rows) if expected_status else True
 
     def add_event(
         self, job_id: str, event_type: str, detail: dict[str, Any] | None = None
@@ -136,8 +256,17 @@ PHASE_PROGRESS = {
 }
 
 
-def run_job(repository: SupabaseRepository, job_id: str, worker_id: str) -> int:
-    job = repository.claim_job(job_id, worker_id)
+def run_job(
+    repository: SupabaseRepository,
+    job_id: str,
+    worker_id: str,
+    execution_mode: str | None = None,
+) -> int:
+    job = (
+        repository.claim_job(job_id, worker_id, execution_mode)
+        if execution_mode
+        else repository.claim_job(job_id, worker_id)
+    )
     if job is None:
         status = repository.get_job_status(job_id)
         if status == "CANCELLED":
@@ -147,6 +276,42 @@ def run_job(repository: SupabaseRepository, job_id: str, worker_id: str) -> int:
     started = time.monotonic()
     last_heartbeat = 0.0
     repository.add_event(job_id, "WORKER_CLAIMED", {"worker_id": worker_id})
+
+    reusable_job = repository.get_reusable_optimal_job(
+        job_id,
+        str(job["input_hash"]),
+        job["input_snapshot"],
+        str(job.get("optimization_scope") or "BASELINE"),
+        job.get("detailed_settings") or {},
+    )
+    if reusable_job is not None:
+        completed = repository.update_job(
+            job_id,
+            {
+                "status": "OPTIMAL",
+                "progress": 100,
+                "current_phase": "completed",
+                "elapsed_seconds": 0,
+                "best_known_bus_count": reusable_job.get("best_known_bus_count"),
+                "proven_bus_count": reusable_job.get("proven_bus_count"),
+                "result": reusable_job["result"],
+                "diagnostics": reusable_job.get("diagnostics"),
+                "completed_at": now_iso(),
+            },
+            expected_status="RUNNING",
+        )
+        if completed:
+            repository.add_event(
+                job_id,
+                "JOB_RESULT_REUSED",
+                {"source_job_id": reusable_job["id"]},
+            )
+            return 0
+
+        status = repository.get_job_status(job_id)
+        if status in ("CANCEL_REQUESTED", "CANCELLED"):
+            return 0
+        raise RuntimeError(f"Optimization job entered unexpected status: {status}")
 
     def check_cancellation() -> bool:
         nonlocal last_heartbeat
@@ -173,15 +338,28 @@ def run_job(repository: SupabaseRepository, job_id: str, worker_id: str) -> int:
             values["best_known_bus_count"] = value
             values["proven_bus_count"] = value
         repository.update_job(job_id, values)
-        repository.add_event(job_id, "PHASE_OPTIMAL", {"phase": phase, "value": value})
+        repository.add_event(
+            job_id,
+            "PHASE_SKIPPED" if value is None else "PHASE_OPTIMAL",
+            {"phase": phase, "value": value},
+        )
 
     try:
         optimization_input = input_from_snapshot(job["input_snapshot"])
+        resume_result = (
+            result_from_dict(repository.get_job_result(str(job["resume_from_job_id"])))
+            if job.get("resume_from_job_id")
+            else None
+        )
         result = optimize(
             optimization_input,
             report_progress,
             check_cancellation,
             detailed_balance=job.get("optimization_scope") == "DETAILED",
+            skipped_detailed_phases=frozenset(
+                job.get("detailed_settings", {}).get("skipped_phases", [])
+            ),
+            initial_result=resume_result,
         )
         if check_cancellation():
             raise JobCancelled()
@@ -189,7 +367,7 @@ def run_job(repository: SupabaseRepository, job_id: str, worker_id: str) -> int:
         result_payload = result_to_dict(result)
 
         if result.status == "OPTIMAL":
-            repository.update_job(
+            completed = repository.update_job(
                 job_id,
                 {
                     "status": "OPTIMAL",
@@ -201,7 +379,15 @@ def run_job(repository: SupabaseRepository, job_id: str, worker_id: str) -> int:
                     "result": result_payload,
                     "completed_at": now_iso(),
                 },
+                expected_status="RUNNING",
             )
+            if not completed:
+                status = repository.get_job_status(job_id)
+                if status in ("CANCEL_REQUESTED", "CANCELLED"):
+                    raise JobCancelled()
+                raise RuntimeError(
+                    f"Optimization job entered unexpected status: {status}"
+                )
             repository.add_event(
                 job_id,
                 "JOB_OPTIMAL",
@@ -213,7 +399,7 @@ def run_job(repository: SupabaseRepository, job_id: str, worker_id: str) -> int:
             )
             return 0
 
-        repository.update_job(
+        completed = repository.update_job(
             job_id,
             {
                 "status": result.status,
@@ -223,7 +409,15 @@ def run_job(repository: SupabaseRepository, job_id: str, worker_id: str) -> int:
                 "error_message": result.error_message,
                 "completed_at": now_iso(),
             },
+            expected_status="RUNNING",
         )
+        if not completed:
+            status = repository.get_job_status(job_id)
+            if status in ("CANCEL_REQUESTED", "CANCELLED"):
+                raise JobCancelled()
+            raise RuntimeError(
+                f"Optimization job entered unexpected status: {status}"
+            )
         repository.add_event(
             job_id,
             f"JOB_{result.status}",
@@ -231,19 +425,24 @@ def run_job(repository: SupabaseRepository, job_id: str, worker_id: str) -> int:
         )
         return 2
     except (JobCancelled, OptimizationCancelled):
-        repository.update_job(
-            job_id,
-            {
-                "status": "CANCELLED",
-                "current_phase": "cancelled",
-                "elapsed_seconds": round(time.monotonic() - started),
-                "completed_at": now_iso(),
-            },
-        )
-        repository.add_event(job_id, "JOB_CANCELLED")
+        status = repository.get_job_status(job_id)
+        transitioned = False
+        if status in ("RUNNING", "CANCEL_REQUESTED"):
+            transitioned = repository.update_job(
+                job_id,
+                {
+                    "status": "CANCELLED",
+                    "current_phase": "cancelled",
+                    "elapsed_seconds": round(time.monotonic() - started),
+                    "completed_at": now_iso(),
+                },
+                expected_status=status,
+            )
+        if transitioned:
+            repository.add_event(job_id, "JOB_CANCELLED")
         return 0
     except Exception as error:
-        repository.update_job(
+        failed = repository.update_job(
             job_id,
             {
                 "status": "FAILED",
@@ -252,8 +451,10 @@ def run_job(repository: SupabaseRepository, job_id: str, worker_id: str) -> int:
                 "error_message": str(error),
                 "completed_at": now_iso(),
             },
+            expected_status="RUNNING",
         )
-        repository.add_event(job_id, "JOB_FAILED", {"message": str(error)})
+        if failed:
+            repository.add_event(job_id, "JOB_FAILED", {"message": str(error)})
         raise
 
 
@@ -278,6 +479,7 @@ def main() -> int:
         repository,
         required["ALLOCATION_OPTIMIZATION_JOB_ID"] or "",
         worker_id,
+        os.environ.get("ALLOCATION_OPTIMIZER_EXECUTION_MODE") or "cloud",
     )
 
 

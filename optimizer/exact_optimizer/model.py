@@ -127,8 +127,6 @@ def _solve_phase(
     cancellation_check: CancellationCheck | None,
     search_workers: int | None = None,
     max_time_seconds: float | None = None,
-    accept_feasible: bool = False,
-    unproven_objectives: list[str] | None = None,
 ) -> cp_model.CpSolver:
     model.Minimize(expression)
     solver = cp_model.CpSolver()
@@ -159,10 +157,7 @@ def _solve_phase(
             monitor.join(timeout=1)
     if cancellation_check and cancellation_check():
         raise OptimizationCancelled("Optimization cancellation was requested.")
-    if status == cp_model.FEASIBLE and accept_feasible:
-        if unproven_objectives is not None:
-            unproven_objectives.append(name)
-    elif status != cp_model.OPTIMAL:
+    if status != cp_model.OPTIMAL:
         raise PhaseSolveError(name, _status_name(status))
     value = round(solver.ObjectiveValue())
     objectives.append(ObjectiveValue(name=name, value=value))
@@ -410,6 +405,57 @@ def _add_detailed_solution_hints(
     return assignment_hints
 
 
+def _add_result_solution_hints(
+    model: cp_model.CpModel,
+    *,
+    result: AllocationResult,
+    passengers: tuple,
+    cohorts: tuple[tuple[tuple[str, str, str, str], list[int]], ...],
+    slots_by_destination: dict[str, list[_BusSlot]],
+    assignment: dict[tuple[int, tuple[str, int]], cp_model.IntVar],
+    active: dict[tuple[str, int], cp_model.IntVar],
+) -> bool:
+    passenger_index_by_id = {
+        passenger.reservation_id: index for index, passenger in enumerate(passengers)
+    }
+    cohort_index_by_passenger_index = {
+        passenger_index: cohort_index
+        for cohort_index, (_, passenger_indexes) in enumerate(cohorts)
+        for passenger_index in passenger_indexes
+    }
+    slot_key_by_bus_id: dict[str, tuple[str, int]] = {}
+    destination_bus_indexes: dict[str, int] = defaultdict(int)
+    for bus in result.buses:
+        slot_index = destination_bus_indexes[bus.destination]
+        destination_slots = slots_by_destination.get(bus.destination, [])
+        if slot_index >= len(destination_slots):
+            return False
+        slot_key_by_bus_id[bus.bus_id] = destination_slots[slot_index].key
+        destination_bus_indexes[bus.destination] += 1
+
+    assignment_hints: dict[tuple[int, tuple[str, int]], int] = defaultdict(int)
+    for passenger_assignment in result.assignments:
+        passenger_index = passenger_index_by_id.get(
+            passenger_assignment.reservation_id
+        )
+        slot_key = slot_key_by_bus_id.get(passenger_assignment.bus_id)
+        if passenger_index is None or slot_key is None:
+            return False
+        cohort_index = cohort_index_by_passenger_index[passenger_index]
+        key = (cohort_index, slot_key)
+        if key not in assignment:
+            return False
+        assignment_hints[key] += 1
+
+    model.ClearHints()
+    active_slot_keys = set(slot_key_by_bus_id.values())
+    for slot_key, variable in active.items():
+        model.AddHint(variable, int(slot_key in active_slot_keys))
+    for key, variable in assignment.items():
+        model.AddHint(variable, assignment_hints[key])
+    return True
+
+
 def _build_result_from_slot_assignments(
     data: OptimizationInput,
     passengers: tuple,
@@ -564,6 +610,8 @@ def optimize(
     cancellation_check: CancellationCheck | None = None,
     *,
     detailed_balance: bool = False,
+    skipped_detailed_phases: frozenset[str] = frozenset(),
+    initial_result: AllocationResult | None = None,
 ) -> AllocationResult:
     input_errors = validate_input(data)
     if input_errors:
@@ -726,9 +774,17 @@ def optimize(
         primary_bus_counts=primary_bus_counts,
         capacity=data.bus.capacity,
     )
+    if initial_result is not None:
+        _add_result_solution_hints(
+            model,
+            result=initial_result,
+            passengers=passengers,
+            cohorts=cohorts,
+            slots_by_destination=slots_by_destination,
+            assignment=assignment,
+            active=active,
+        )
     _complete_solution_hints(model, cancellation_check)
-    unproven_objectives: list[str] = []
-
     def solve_secondary(
         name: str,
         expression: cp_model.LinearExpr,
@@ -744,9 +800,28 @@ def optimize(
             cancellation_check=cancellation_check,
             search_workers=search_workers,
             max_time_seconds=_secondary_phase_seconds(),
-            accept_feasible=True,
-            unproven_objectives=unproven_objectives,
         )
+
+    def solve_or_skip(
+        name: str,
+        expression: cp_model.LinearExpr,
+        *,
+        primary_secondary_phase: bool = False,
+    ) -> cp_model.CpSolver | None:
+        if name in skipped_detailed_phases:
+            if progress:
+                progress(name, None)
+            return None
+        if primary_secondary_phase:
+            return _solve_phase(
+                model=model,
+                expression=expression,
+                name=name,
+                objectives=objectives,
+                progress=progress,
+                cancellation_check=cancellation_check,
+            )
+        return solve_secondary(name, expression)
 
     def add_group_metrics(
         group_name: str,
@@ -875,18 +950,13 @@ def optimize(
         campus_metrics,
     ):
         try:
-            solver = (
-                _solve_phase(
-                    model=model,
-                    expression=expression if detailed_balance else 0,
-                    name=name,
-                    objectives=objectives,
-                    progress=progress,
-                    cancellation_check=cancellation_check,
-                )
-                if name == "campus_bus_uses"
-                else solve_secondary(name, expression)
+            next_solver = solve_or_skip(
+                name,
+                expression,
+                primary_secondary_phase=name == "campus_bus_uses",
             )
+            if next_solver is not None:
+                solver = next_solver
         except PhaseSolveError as error:
             return AllocationResult(status="FAILED", error_message=str(error))
 
@@ -900,10 +970,14 @@ def optimize(
             ("team_bus_uses", "campus_bus_uses"),
             ("team_distribution_imbalance", "campus_distribution_imbalance"),
         ):
-            value = objective_values[campus_name]
-            objectives.append(ObjectiveValue(name=team_name, value=value))
-            if progress:
-                progress(team_name, value)
+            if team_name in skipped_detailed_phases or campus_name not in objective_values:
+                if progress:
+                    progress(team_name, None)
+            else:
+                value = objective_values[campus_name]
+                objectives.append(ObjectiveValue(name=team_name, value=value))
+                if progress:
+                    progress(team_name, value)
     else:
         team_metrics = add_group_metrics(
             "team",
@@ -916,7 +990,9 @@ def optimize(
             ("team_bus_uses", "team_distribution_imbalance"),
             team_metrics[:2],
         ):
-            solver = solve_secondary(name, expression)
+            next_solver = solve_or_skip(name, expression)
+            if next_solver is not None:
+                solver = next_solver
 
     destination_imbalances = []
     for destination, destination_slots in sorted(slots_by_destination.items()):
@@ -940,10 +1016,12 @@ def optimize(
         )
         model.Add(imbalance == maximum - minimum)
         destination_imbalances.append(imbalance)
-    solver = solve_secondary(
+    next_solver = solve_or_skip(
         "destination_occupancy_imbalance",
         _sum(destination_imbalances),
     )
+    if next_solver is not None:
+        solver = next_solver
 
     deterministic_terms = []
     for (cohort_index, slot_key), variable in assignment.items():
@@ -1020,18 +1098,6 @@ def optimize(
             )
 
     warnings: list[AllocationWarning] = []
-    if unproven_objectives:
-        warnings.append(
-            AllocationWarning(
-                code="SECONDARY_OBJECTIVES_NOT_PROVEN",
-                message=(
-                    "Minimum cost and preference assignment are proven optimal. "
-                    "Some lower-priority quality objectives used the best solution "
-                    "found within their time limit: "
-                    + ", ".join(unproven_objectives)
-                ),
-            )
-        )
     first_choice_demand: dict[str, list[str]] = defaultdict(list)
     for passenger in passengers:
         first_choice_demand[passenger.first_choice].append(passenger.reservation_id)

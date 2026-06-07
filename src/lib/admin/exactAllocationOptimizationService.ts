@@ -24,6 +24,8 @@ export type ExactAllocationJobStatus =
   | 'INFEASIBLE'
   | 'FAILED';
 
+export type ExactAllocationExecutionMode = 'cloud' | 'local';
+
 export interface ExactAllocationWarning {
   code: string;
   message: string;
@@ -54,6 +56,8 @@ export interface ExactAllocationJob {
   id: string;
   optimization_scope: 'BASELINE' | 'DETAILED';
   source_job_id: string | null;
+  resume_from_job_id: string | null;
+  detailed_settings: { skipped_phases?: string[] };
   status: ExactAllocationJobStatus;
   requested_at: string;
   started_at: string | null;
@@ -63,6 +67,7 @@ export interface ExactAllocationJob {
   elapsed_seconds: number;
   best_known_bus_count: number | null;
   proven_bus_count: number | null;
+  result_reused: boolean;
   result?: ExactAllocationResult | null;
   diagnostics?: Record<string, unknown> | null;
   error_message: string | null;
@@ -70,6 +75,17 @@ export interface ExactAllocationJob {
 
 const single = <T,>(data: T[] | T | null): T | null =>
   Array.isArray(data) ? (data[0] ?? null) : data;
+
+const throwAllocationWriteError = (error: { message?: string }) => {
+  if (
+    error.message?.includes(
+      'Allocation is available only after the reservation deadline.'
+    )
+  ) {
+    throw new Error('신청 마감 후에만 배차를 진행할 수 있습니다.');
+  }
+  throw error;
+};
 
 export const getExactAllocationOptimizerConfig = async () => {
   const { data, error } = await supabase.rpc('get_allocation_optimizer_config');
@@ -99,26 +115,40 @@ export const saveExactAllocationOptimizerConfig = async (
   return data as unknown as ExactAllocationOptimizerConfig;
 };
 
-export const createExactAllocationJob = async () => {
+export const createExactAllocationJob = async (
+  executionMode: ExactAllocationExecutionMode
+) => {
   const { data, error } = await supabase.rpc(
-    'create_allocation_optimization_job'
+    'create_allocation_optimization_job_for_execution',
+    { p_execution_mode: executionMode }
   );
-  if (error) throw error;
+  if (error) throwAllocationWriteError(error);
   return data as unknown as string;
 };
 
-export const createDetailedBalanceJob = async (sourceJobId: string) => {
+export const createDetailedBalanceJob = async (
+  sourceJobId: string,
+  skippedPhases: string[],
+  resumeFromJobId: string | null,
+  executionMode: ExactAllocationExecutionMode
+) => {
   const { data, error } = await supabase.rpc(
-    'create_detailed_allocation_optimization_job',
-    { p_source_job_id: sourceJobId }
+    'create_detailed_allocation_optimization_job_for_execution',
+    {
+      p_source_job_id: sourceJobId,
+      p_skipped_phases: skippedPhases,
+      p_resume_from_job_id: resumeFromJobId,
+      p_execution_mode: executionMode,
+    }
   );
-  if (error) throw error;
+  if (error) throwAllocationWriteError(error);
   return data as unknown as string;
 };
 
-export const launchExactAllocationJob = async (jobId: string) => {
-  const executionMode =
-    import.meta.env.VITE_ALLOCATION_OPTIMIZER_EXECUTION_MODE ?? 'local';
+export const launchExactAllocationJob = async (
+  jobId: string,
+  executionMode: ExactAllocationExecutionMode
+) => {
   if (executionMode === 'local') {
     return { jobId, workerId: 'local-worker', operationName: null };
   }
@@ -156,6 +186,14 @@ export const cancelExactAllocationJob = async (jobId: string) => {
   return data as unknown as ExactAllocationJobStatus;
 };
 
+export const resetExactAllocationJobs = async () => {
+  const { data, error } = await supabase.rpc(
+    'reset_allocation_optimization_jobs'
+  );
+  if (error) throw error;
+  return data as unknown as number;
+};
+
 export const createDraftFromExactAllocationJob = async (
   jobId: string,
   allocationName: string
@@ -167,7 +205,7 @@ export const createDraftFromExactAllocationJob = async (
       p_allocation_name: allocationName,
     }
   );
-  if (error) throw error;
+  if (error) throwAllocationWriteError(error);
   return data as unknown as AllocationWorkspaceRow;
 };
 

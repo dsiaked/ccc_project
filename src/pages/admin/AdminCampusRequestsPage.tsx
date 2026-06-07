@@ -7,6 +7,7 @@ import {
   ChevronRight,
   ChevronUp,
   Edit2,
+  History,
   House,
   MessageSquare,
   Megaphone,
@@ -28,14 +29,18 @@ import {
   createCampusRequestMessage,
   deleteCampusRequestMessage,
   getCampusRequestSummary,
+  getCampusRequestAuditLogs,
   getCampusRequestsPage,
   getCampusTransferStats,
   getGlobalCampusNotices,
+  getUnreadCampusRequestIds,
+  markCampusRequestRead,
   updateGlobalCampusNotice,
   updateCampusRequestMessage,
   updateCampusRequestStatus,
   type AdminRole,
   type CampusRequest,
+  type CampusRequestAuditLog,
   type CampusRequestStatus,
   type CampusRequestType,
   type CampusRequestSummary,
@@ -79,6 +84,13 @@ const statusLabelMap = Object.fromEntries(
   statusOptions.map((option) => [option.value, option.label])
 ) as Record<CampusRequestStatus, string>;
 
+const auditActionLabelMap = {
+  status_changed: '처리 상태 변경',
+  response_changed: '본부 답변 변경',
+  message_updated: '메시지 수정',
+  message_deleted: '메시지 삭제',
+} as const;
+
 const campusRequestTypeOptions = requestTypeOptions.filter(
   (option) => option.value !== 'notice'
 );
@@ -96,6 +108,7 @@ const emptySummary: CampusRequestSummary = {
   open: 0,
   inProgress: 0,
   resolved: 0,
+  onHold: 0,
 };
 
 const getErrorMessage = (error: unknown) => {
@@ -126,10 +139,12 @@ const formatDateTime = (value: string | null) => {
 };
 
 const sortRequestMessages = (messages: CampusRequest['messages']) =>
-  [...messages].sort(
-    (a, b) =>
-      new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-  );
+  [...messages].sort((a, b) => {
+    const createdAtDifference =
+      new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+
+    return createdAtDifference || a.id.localeCompare(b.id);
+  });
 
 const getTimelineMessages = (request: CampusRequest) => {
   const messages = [...request.messages];
@@ -206,9 +221,25 @@ const AdminCampusRequestsPage = () => {
   const [totalItems, setTotalItems] = useState(0);
   const [summary, setSummary] = useState<CampusRequestSummary>(emptySummary);
   const [debouncedSearchKeyword, setDebouncedSearchKeyword] = useState('');
+  const [unreadRequestIds, setUnreadRequestIds] = useState<Set<string>>(
+    () => new Set()
+  );
+  const [auditLogsByRequest, setAuditLogsByRequest] = useState<
+    Record<string, CampusRequestAuditLog[]>
+  >({});
 
   const isGlobalAdmin = adminRole?.role === 'global_admin';
   const isCampusAdmin = adminRole?.role === 'campus_admin';
+  const hasUnsavedBoardDrafts =
+    Boolean(titleInput.trim()) ||
+    Boolean(contentInput.trim()) ||
+    Boolean(noticeTitleInput.trim()) ||
+    Boolean(noticeContentInput.trim()) ||
+    Object.values(messageDrafts).some((draft) => Boolean(draft.trim())) ||
+    Object.entries(responseDrafts).some(([requestId, draft]) => {
+      const request = requests.find((item) => item.id === requestId);
+      return draft.trim() !== (request?.adminResponse?.trim() ?? '');
+    });
 
   const handleGlobalTabChange = (tab: GlobalAdminTab) => {
     setSearchParams(tab === 'requests' ? {} : { tab });
@@ -226,10 +257,32 @@ const AdminCampusRequestsPage = () => {
         next.delete(requestId);
       } else {
         next.add(requestId);
+        if (isGlobalAdmin) {
+          void getCampusRequestAuditLogs(requestId)
+            .then((logs) =>
+              setAuditLogsByRequest((current) => ({
+                ...current,
+                [requestId]: logs,
+              }))
+            )
+            .catch((error) => console.error('문의 변경 이력 조회 실패:', error));
+        }
       }
 
       return next;
     });
+
+    if (unreadRequestIds.has(requestId)) {
+      void markCampusRequestRead(requestId)
+        .then(() => {
+          setUnreadRequestIds((current) => {
+            const next = new Set(current);
+            next.delete(requestId);
+            return next;
+          });
+        })
+        .catch((error) => console.error('문의 읽음 처리 실패:', error));
+    }
   };
 
   const loadRequests = async (role: AdminRole, targetPage = page) => {
@@ -273,6 +326,10 @@ const AdminCampusRequestsPage = () => {
 
   const loadSummary = async (role: AdminRole) => {
     setSummary(await getCampusRequestSummary(role));
+  };
+
+  const loadUnreadRequests = async () => {
+    setUnreadRequestIds(await getUnreadCampusRequestIds());
   };
 
   useEffect(() => {
@@ -321,6 +378,62 @@ const AdminCampusRequestsPage = () => {
       .then(setCampusTargets)
       .catch((error) => console.error('공지 대상 캠퍼스 조회 실패:', error));
   }, [adminRole]);
+
+  useEffect(() => {
+    if (!adminRole) return;
+
+    // Unread state is synchronized from Supabase when the active role changes.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadUnreadRequests().catch((error) => {
+      console.error('읽지 않은 문의 조회 실패:', error);
+    });
+
+    const channel = supabase
+      .channel(`campus-request-board-${adminRole.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'campus_requests' },
+        () => {
+          if (
+            document.visibilityState !== 'visible' ||
+            processingId ||
+            submitting ||
+            hasUnsavedBoardDrafts
+          ) return;
+          void loadRequests(adminRole);
+          void loadUnreadRequests();
+          if (adminRole.role === 'global_admin') void loadSummary(adminRole);
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'campus_request_messages' },
+        () => {
+          if (
+            document.visibilityState !== 'visible' ||
+            processingId ||
+            submitting ||
+            editingMessageId ||
+            hasUnsavedBoardDrafts
+          ) return;
+          void loadRequests(adminRole);
+          void loadUnreadRequests();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+    // The current board state is intentionally read by realtime callbacks.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    adminRole,
+    editingMessageId,
+    hasUnsavedBoardDrafts,
+    processingId,
+    submitting,
+  ]);
 
   const selectedNoticeTargets = useMemo<CampusNoticeTarget[]>(() => {
     const availableTargets = campusTargets.map(({ district, team, campus }) => ({
@@ -587,7 +700,6 @@ const AdminCampusRequestsPage = () => {
         district: adminRole.district || '',
         team: adminRole.team || '',
         campus: adminRole.campus || '',
-        createdBy: user.id,
       });
 
       setRequests((prev) => [createdRequest, ...prev]);
@@ -630,27 +742,24 @@ const AdminCampusRequestsPage = () => {
 
     const nextStatus = statusDrafts[request.id] || request.status;
     const nextResponse = responseDrafts[request.id] || '';
-    const trimmedResponse = nextResponse.trim();
-    const previousResponse = request.adminResponse?.trim() || '';
+    const hasGlobalResponse =
+      Boolean(nextResponse.trim()) ||
+      request.messages.some((message) => message.senderRole === 'global_admin');
+
+    if (nextStatus === 'resolved' && !hasGlobalResponse) {
+      alert('문의 완료 처리 전에 본부 답변을 입력해주세요.');
+      return;
+    }
 
     setProcessingId(request.id);
 
     try {
-      const updatedRequest = await updateCampusRequestStatus({
-        requestId: request.id,
-        status: nextStatus,
-        adminResponse: nextResponse,
-        handledBy: user.id,
-      });
-      const createdResponseMessage =
-        trimmedResponse && trimmedResponse !== previousResponse
-          ? await createCampusRequestMessage({
-              requestId: request.id,
-              senderId: user.id,
-              senderRole: 'global_admin',
-              message: trimmedResponse,
-            })
-          : null;
+      const { request: updatedRequest, message: createdResponseMessage } =
+        await updateCampusRequestStatus({
+          requestId: request.id,
+          status: nextStatus,
+          adminResponse: nextResponse,
+        });
 
       setRequests((prev) =>
         prev.map((item) =>
@@ -1019,6 +1128,10 @@ const AdminCampusRequestsPage = () => {
               <span>완료</span>
               <strong>{summary.resolved}</strong>
             </button>
+            <button type="button" className={styles.summaryCard} onClick={() => setStatusFilter('on_hold')}>
+              <span>보류</span>
+              <strong>{summary.onHold}</strong>
+            </button>
           </section>
         )}
 
@@ -1369,6 +1482,7 @@ const AdminCampusRequestsPage = () => {
           ) : (
             visibleRequests.map((request) => {
               const isExpanded = expandedRequestIds.has(request.id);
+              const isUnread = unreadRequestIds.has(request.id);
               const timelineMessages = getTimelineMessages(request);
               const messageCount = timelineMessages.length || 1;
               const requestPreview = request.content;
@@ -1382,7 +1496,9 @@ const AdminCampusRequestsPage = () => {
                 key={request.id}
                 className={`${styles.requestCard} ${
                   isExpanded ? '' : styles.requestCardCollapsed
-                } ${request.isGlobalNotice ? styles.noticeCard : ''}`}
+                } ${request.isGlobalNotice ? styles.noticeCard : ''} ${
+                  isUnread ? styles.unreadRequestCard : ''
+                }`}
               >
                 <div className={styles.requestMain}>
                   <div className={styles.requestHeader}>
@@ -1401,6 +1517,9 @@ const AdminCampusRequestsPage = () => {
                           >
                             {statusLabelMap[request.status]}
                           </span>
+                        )}
+                        {isUnread && (
+                          <span className={styles.unreadBadge}>새 답변</span>
                         )}
                       </div>
                       <h2>{request.title}</h2>
@@ -1471,8 +1590,12 @@ const AdminCampusRequestsPage = () => {
                           },
                         ]
                     ).map((message) => {
+                      const isOriginalRequestMessage =
+                        !request.isGlobalNotice &&
+                        request.messages[0]?.id === message.id;
                       const canManageMessage =
                         !request.isGlobalNotice &&
+                        !isOriginalRequestMessage &&
                         !message.id.startsWith(`${request.id}-`) &&
                         (isGlobalAdmin || message.senderId === currentUserId);
                       const isEditing = editingMessageId === message.id;
@@ -1492,6 +1615,11 @@ const AdminCampusRequestsPage = () => {
                                 ? '본부'
                                 : '캠퍼스'}
                             </strong>
+                            {isOriginalRequestMessage && (
+                              <span className={styles.originalMessageBadge}>
+                                최초 문의 내용
+                              </span>
+                            )}
                             <span>{formatDateTime(message.createdAt)}</span>
                           </div>
 
@@ -1659,6 +1787,27 @@ const AdminCampusRequestsPage = () => {
                       <Save size={16} />
                       {processingId === request.id ? '저장 중...' : '처리 저장'}
                     </button>
+
+                    <details className={styles.auditPanel}>
+                      <summary>
+                        <History size={15} />
+                        변경 이력
+                      </summary>
+                      <div className={styles.auditList}>
+                        {(auditLogsByRequest[request.id] ?? []).length === 0 ? (
+                          <p>기록된 변경 이력이 없습니다.</p>
+                        ) : (
+                          (auditLogsByRequest[request.id] ?? []).map((log) => (
+                            <div key={log.id} className={styles.auditItem}>
+                              <strong>{auditActionLabelMap[log.action]}</strong>
+                              <time dateTime={log.createdAt}>
+                                {formatDateTime(log.createdAt)}
+                              </time>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </details>
                   </div>
                 )}
               </article>

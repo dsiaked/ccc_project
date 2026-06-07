@@ -72,6 +72,11 @@ const AdminLoginPage = () => {
         return;
       }
 
+      if (adminRole.role === 'boarding_manager') {
+        navigate(requestedPath ?? '/admin/boarding', { replace: true });
+        return;
+      }
+
       if (adminRole.role === 'global_admin') {
         navigate(requestedPath ?? '/admin/global', { replace: true });
         return;
@@ -100,7 +105,7 @@ const AdminLoginPage = () => {
 
             <h1 className={styles.title}>관리자 로그인</h1>
             <p className={styles.subtitle}>
-              캠퍼스 관리자 또는 전체 관리자 계정으로 로그인해주세요.
+              캠퍼스 관리자, 선탑자 또는 전체 관리자 계정으로 로그인해주세요.
             </p>
           </div>
 

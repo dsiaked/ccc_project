@@ -41,7 +41,9 @@ export async function getReservation(): Promise<ReturnBusReservation | null> {
 
     const { data, error } = await supabase
       .from('reservations')
-      .select('data, status, confirmed_ticket, created_at, updated_at')
+      .select(
+        'data, status, confirmed_ticket, boarding_confirmed_at, created_at, updated_at'
+      )
       .eq('user_id', session.user.id)
       .maybeSingle();
 
@@ -56,6 +58,7 @@ export async function getReservation(): Promise<ReturnBusReservation | null> {
         ...savedData,
         status: data.status,
         confirmedTicket: data.confirmed_ticket ?? undefined,
+        boardingConfirmedAt: data.boarding_confirmed_at ?? undefined,
         requestedAt: savedData.requestedAt || data.created_at || '',
         updatedAt: savedData.updatedAt || data.updated_at || undefined,
       };
@@ -66,6 +69,15 @@ export async function getReservation(): Promise<ReturnBusReservation | null> {
     console.error('Failed to get reservation:', error);
     throw error;
   }
+}
+
+export async function confirmBoarding(): Promise<string> {
+  const { data, error } = await supabase.rpc('confirm_my_boarding');
+
+  if (error) throw error;
+  if (!data) throw new Error('탑승 확인 시각을 저장하지 못했습니다.');
+
+  return data as string;
 }
 
 /**
