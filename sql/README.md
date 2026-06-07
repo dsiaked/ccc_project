@@ -61,6 +61,14 @@ are intentionally patching an older DB.
    - 활성 승객 명단과 버스·좌석 배정을 DB에서 다시 검증
    - 확정 중 일부 승객만 반영되는 부분 성공 상태 방지
 
+5d. `56_post_deadline_remaining_seat_claim.sql`
+   - 신청 마감 후 미신청자가 확정 배차안의 잔여 좌석을 직접 선택
+   - 동시 신청 시 좌석 중복 판매를 막고 예약·버스표·배차안을 한 트랜잭션으로 갱신
+
+5e. `57_atomic_admin_remaining_seat_sale.sql`
+   - 전체 관리자의 잔여좌석 판매를 단일 DB 트랜잭션으로 처리
+   - 동시 판매 시 잔여좌석, 신청 상태, 좌석번호 중복을 잠금 후 다시 검증
+
 6. `30_campus_transfer_settlement.sql`
    - 캠퍼스별 본부 송금 보고/확인
    - 실제 본부 확인 금액, 추가 정산 감지, 송금 상태 체크 제약
@@ -87,6 +95,87 @@ are intentionally patching an older DB.
    - Step 0 세팅 확인 화면의 선택형 DB 정보 초기화 RPC
    - 운영 데이터와 행선지/버스 옵션/앱 설정/홈 공지/캠퍼스 관리자/조직 구조/유저 계정을 선택적으로 초기화
    - 유저 계정 삭제 시 현재 로그인한 전체 관리자 계정과 프로필은 항상 보호
+
+10a. `63_admin_delete_user_account.sql`
+   - Adds the global-admin RPC used by individual user management to delete one account and its linked data.
+   - Protects the currently signed-in account and every global-admin account.
+
+10b. `64_allocation_workspace_versions.sql`
+   - Moves allocation save snapshots out of `bus_allocations.allocation_data`.
+   - Keeps only lightweight version metadata on initial load and fetches a snapshot when restoring.
+   - Migrates existing embedded versions and keeps the latest 20 versions per allocation.
+
+10c. `65_canonical_reservation_status.sql`
+   - Treats `reservations.status` and `reservations.confirmed_ticket` as canonical.
+   - Keeps legacy JSON mirrors synchronized and repairs existing mismatches.
+
+10d. `66_atomic_admin_personal_ticket.sql`
+   - Synchronizes administrator personal-ticket edits with the confirmed allocation.
+   - Validates bus existence, capacity, and duplicate seats in one transaction.
+
+10e. `67_reservations_rpc_only_writes.sql`
+   - Removes direct reservation write policies and table grants.
+   - Requires all user and administrator reservation writes to use validated RPCs.
+
+10f. `68_payments_rpc_only_writes.sql`
+   - Removes direct payment write policies and table grants.
+   - Requires all administrator payment changes to use the authorized payment RPC.
+
+10g. `69_admin_roles_rpc_only_writes.sql`
+   - Moves campus-admin assignment and cancellation into authorized atomic RPCs.
+   - Removes direct administrator-role table write policies and grants.
+
+10i. `71_admin_setup_rpc_only_writes.sql`
+   - Moves bus option, organization campus, and station changes into validated global-admin RPCs.
+   - Removes direct write policies and grants for those setup tables.
+
+10j. `72_app_settings_announcements_rpc_only.sql`
+   - Restricts editable app-setting keys through a validated global-admin RPC.
+   - Moves home-announcement creation to an authenticated RPC and closes direct writes.
+
+10k. `73_campus_transfers_rpc_only_writes.sql`
+   - Adds an authorized RPC for reverting transfer confirmation.
+   - Closes direct campus-transfer writes while preserving report and confirmation RPCs.
+
+10l. `74_bus_allocations_rpc_only_writes.sql`
+   - Moves allocation creation into an authorized RPC and closes direct writes.
+   - Recalculates total cost and capacity from allocation JSON for every database write.
+
+10m. `75_campus_admin_manage_users_page.sql`
+   - Adds a server-paginated user list for campus administrator management.
+   - Avoids downloading the entire administrator-role table to the browser.
+
+10n. `76_exact_allocation_optimization_jobs.sql`
+   - Adds the single-bus optimizer configuration and exact optimization job queue.
+   - Snapshots anonymized active-reservation inputs and exposes global-admin-only job RPCs.
+   - Allows only one pending or running optimization job at a time.
+
+10o. `77_create_draft_from_exact_optimization.sql`
+   - Creates allocation drafts only from independently revalidated `OPTIMAL` job results.
+   - Rejects stale reservations, malformed assignments, duplicate seats, and manipulated costs.
+   - Joins names and phone numbers only inside Supabase after optimizer result validation.
+
+10p. `78_out_of_preference_admin_override.sql`
+   - Allows global administrators to confirm manually edited out-of-preference assignments.
+   - Requires a separate acknowledgement and records the actor, time, and affected passengers.
+   - Keeps original passenger preferences in the saved workspace and version history.
+
+10q. `79_single_bus_option.sql`
+   - Restricts bus option creation to the single vehicle type supported by the exact optimizer.
+   - Keeps existing options editable and removable so legacy multi-option data can be cleaned up.
+
+10r. `80_remaining_seat_payment_workflow.sql`
+   - Temporarily holds an automatically assigned remaining seat after the deadline.
+   - Creates a pending Seoul-district payment and issues a ticket only after global-admin confirmation.
+   - Allows pending holds to be cancelled manually and controls global or per-bus public availability.
+
+10h. `70_admin_personal_ticket_page.sql`
+   - Adds the server-paginated global-admin personal-ticket list RPC.
+   - Joins profiles, reservations, payments, and roles on the server and returns only the requested page plus lightweight summary metadata.
+
+10c. `65_confirmed_allocation_summaries.sql`
+   - Adds a lightweight confirmed-allocation list RPC.
+   - Returns counts and totals without downloading the full `allocation_data` JSON.
 
 11. `80_seed_seoul_organization.sql`
    - 서울지구 팀/캠퍼스 조직 옵션 시드
@@ -116,6 +205,9 @@ are intentionally patching an older DB.
 
 - `52_fix_bus_allocations_policies.sql`
   - 배차 결과 정책/스키마 캐시 보정
+
+- `59_fix_bus_allocations_rls_recursion.sql`
+  - Fixes authenticated `bus_allocations` requests returning HTTP 500 when allocation policies evaluate `admin_roles` RLS directly.
 
 - `53_bus_option_max_count.sql`
   - 기존 DB의 버스 옵션에 종류별 사용 가능 최대 대수 컬럼 추가

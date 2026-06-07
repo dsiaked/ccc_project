@@ -84,6 +84,60 @@
   gap: 20px;
 }
 
+.stepper {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.stepItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 46px;
+  padding: 8px 10px;
+  border: 1px solid #e4e7ec;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #667085;
+  text-align: left;
+}
+
+.stepItem span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: #f2f4f7;
+  color: #667085;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.stepItem strong {
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.stepItemActive {
+  border-color: #2563eb;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.stepItemActive span,
+.stepItemDone span {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.stepItemDone {
+  color: #1d4ed8;
+}
+
 .inputGroup {
   display: flex;
   flex-direction: column;
@@ -129,4 +183,92 @@
 
 .submitButton:active {
   transform: scale(0.98);
+}
+
+.buttonGroup {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.buttonGroup .submitButton {
+  margin-top: 0;
+}
+
+.secondaryButton {
+  height: 56px;
+  border-radius: 10px;
+  background: #f2f4f7;
+  color: #344054;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.resultCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: auto 0;
+  padding: 32px 24px;
+  border: 1px solid #dbeafe;
+  border-radius: 24px;
+  background: #ffffff;
+  box-shadow: 0 20px 44px rgba(15, 23, 42, 0.09);
+  text-align: center;
+}
+
+.resultIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 68px;
+  height: 68px;
+  margin-bottom: 18px;
+  border-radius: 50%;
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.resultEyebrow {
+  margin: 0 0 8px;
+  color: #2563eb;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.resultCard h2 {
+  margin: 0;
+  color: #101828;
+  font-size: 22px;
+  font-weight: 900;
+  line-height: 1.35;
+}
+
+.resultDescription {
+  margin: 12px 0 24px;
+  color: #667085;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.resultDescription strong {
+  color: #344054;
+  overflow-wrap: anywhere;
+}
+
+.resultButton {
+  width: 100%;
+  min-height: 52px;
+  border-radius: 12px;
+  background: #2563eb;
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.submitButton:disabled,
+.secondaryButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }

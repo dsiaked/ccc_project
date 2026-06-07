@@ -262,23 +262,6 @@
   overflow-wrap: anywhere;
 }
 
-.emptyBox {
-  position: relative;
-  z-index: 1;
-  margin-top: 24px;
-  padding: 18px;
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.12);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16);
-}
-
-.emptyBox p {
-  margin: 0;
-  color: #dbeafe;
-  font-size: 14px;
-  line-height: 1.6;
-}
-
 .bottomArea {
   position: relative;
   z-index: 1;
@@ -392,4 +375,20 @@
     margin-top: 14px;
     padding-top: 14px;
   }
+}
+.emptyBox {
+  position: relative;
+  z-index: 1;
+  margin-top: 24px;
+  padding: 18px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16);
+}
+
+.emptyBox p {
+  margin: 0;
+  color: #dbeafe;
+  font-size: 14px;
+  line-height: 1.6;
 }

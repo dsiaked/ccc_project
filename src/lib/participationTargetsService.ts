@@ -139,14 +139,10 @@ export async function getParticipationTargetsSetting(): Promise<ParticipationTar
 export async function updateParticipationTargetsSetting(
   setting: ParticipationTargetsSetting
 ): Promise<void> {
-  const { error } = await supabase.from('app_settings').upsert(
-    {
-      key: PARTICIPATION_TARGETS_KEY,
-      value: setting,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: 'key' }
-  );
+  const { error } = await supabase.rpc('update_app_setting_as_global_admin', {
+    p_key: PARTICIPATION_TARGETS_KEY,
+    p_value: setting,
+  });
 
   if (error) throw error;
 }

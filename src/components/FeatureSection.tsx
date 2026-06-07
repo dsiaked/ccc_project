@@ -35,7 +35,7 @@ const FeatureSection = () => {
 
         setReservation(savedReservation);
       } catch (error) {
-        console.error('예약 정보 로드 실패:', error);
+        console.error('신청 정보 로드 실패:', error);
         if (isMounted) setReservation(null);
       } finally {
         if (isMounted) setIsLoading(false);
@@ -139,7 +139,7 @@ const FeatureSection = () => {
               </div>
 
               <div className={styles.infoRow}>
-                <span>희망 도착역</span>
+                <span>희망 행선지</span>
                 <strong>
                   {reservation.stationPreferences
                     ?.slice(0, 3)
@@ -164,7 +164,7 @@ const FeatureSection = () => {
 
                   <dl className={styles.confirmedSummaryList}>
                     <div>
-                      <dt>좌석번호</dt>
+                      <dt>좌석 번호</dt>
                       <dd>{confirmedTicket.seatNumber || '현장 안내'}</dd>
                     </div>
                     <div>
@@ -176,7 +176,7 @@ const FeatureSection = () => {
                       <dd>{confirmedTicket.boardingPlace}</dd>
                     </div>
                     <div>
-                      <dt>하차 도착역</dt>
+                      <dt>하차 행선지</dt>
                       <dd>{confirmedTicket.dropoffStation}</dd>
                     </div>
                   </dl>
@@ -193,7 +193,7 @@ const FeatureSection = () => {
           {!isLoading && !reservation && (
             <div className={styles.emptyBox}>
               <p>
-                신청을 완료하면 이곳에서 신청자, 소속, 희망 도착역, 확정
+                신청을 완료하면 이곳에서 신청자, 소속, 희망 행선지, 확정
                 탑승 정보를 확인할 수 있습니다.
               </p>
             </div>

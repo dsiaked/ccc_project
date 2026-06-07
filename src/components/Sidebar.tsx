@@ -11,6 +11,7 @@ import {
   campusNoticeReadEventName,
   getUnreadCampusNotices,
 } from '../lib/adminNoticeReadState';
+import { getReservationDeadline } from '../lib/reservationDeadlineService';
 import styles from './Sidebar.module.css';
 
 interface SidebarProps {
@@ -32,6 +33,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [adminRole, setAdminRole] = useState<AdminRole | null>(null);
   const [campusNoticeCount, setCampusNoticeCount] = useState(0);
+  const [isReservationClosed, setIsReservationClosed] = useState(false);
 
   const handleMenuClick = (path: string) => {
     navigate(path);
@@ -123,6 +125,34 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
     };
   }, []);
 
+  useEffect(() => {
+    if (!isOpen) return;
+
+    let isActive = true;
+
+    const loadReservationDeadline = async () => {
+      try {
+        const deadline = await getReservationDeadline();
+
+        if (isActive) {
+          setIsReservationClosed(deadline.isClosed);
+        }
+      } catch (error) {
+        console.error('신청 마감 상태 조회 실패:', error);
+
+        if (isActive) {
+          setIsReservationClosed(false);
+        }
+      }
+    };
+
+    void loadReservationDeadline();
+
+    return () => {
+      isActive = false;
+    };
+  }, [isOpen]);
+
   const handleLogout = async () => {
     const { error } = await supabase.auth.signOut();
 
@@ -148,12 +178,22 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
       <div
         className={`${styles.backdrop} ${isOpen ? styles.active : ''}`}
         onClick={onClose}
+        aria-hidden="true"
       />
 
-      <aside className={`${styles.sidebar} ${isOpen ? styles.open : ''}`}>
+      <aside
+        className={`${styles.sidebar} ${isOpen ? styles.open : ''}`}
+        aria-label="주 메뉴"
+        aria-hidden={!isOpen}
+      >
         <div className={styles.header}>
           <h2 className={styles.title}>메뉴</h2>
-          <button className={styles.closeButton} onClick={onClose} aria-label="닫기">
+          <button
+            type="button"
+            className={styles.closeButton}
+            onClick={onClose}
+            aria-label="닫기"
+          >
             <X size={24} color="#101828" />
           </button>
         </div>
@@ -173,6 +213,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
 
               <div className={styles.authButtons}>
                 <button
+                  type="button"
                   className={styles.loginButton}
                   onClick={handleLogout}
                 >
@@ -187,6 +228,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
 
               <div className={styles.authButtons}>
                 <button
+                  type="button"
                   className={styles.loginButton}
                   onClick={() => handleMenuClick('/login')}
                 >
@@ -202,6 +244,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
           <ul className={styles.navList}>
             <li>
               <button
+                type="button"
                 className={styles.navItem}
                 onClick={() => handleMenuClick('/reservation')}
               >
@@ -212,6 +255,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
 
             <li>
               <button
+                type="button"
                 className={styles.navItem}
                 onClick={() => handleMenuClick('/ticket')}
               >
@@ -220,9 +264,23 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
               </button>
             </li>
 
+            {isReservationClosed && (
+              <li>
+                <button
+                  type="button"
+                  className={styles.navItem}
+                  onClick={() => handleMenuClick('/remaining-seats')}
+                >
+                  <Ticket size={20} color="#15803d" className={styles.navIcon} />
+                  마감 후 잔여좌석
+                </button>
+              </li>
+            )}
+
             {adminRole && (
               <li>
                 <button
+                  type="button"
                   className={`${styles.navItem} ${styles.adminNavItem}`}
                   onClick={() => handleMenuClick(adminPath)}
                 >

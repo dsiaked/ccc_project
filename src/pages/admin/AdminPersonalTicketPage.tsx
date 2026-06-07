@@ -1,28 +1,52 @@
-import { useEffect, useMemo, useState } from 'react';
+import {
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   ArrowLeft,
+  CircleAlert,
   ChevronDown,
   ChevronUp,
   CheckCircle2,
   RefreshCw,
+  RotateCcw,
   Save,
   Search,
   ShieldCheck,
+  SlidersHorizontal,
   Ticket,
   Trash2,
   ChevronLeft,
   ChevronRight,
+  UserPlus,
+  X,
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
+import { useAdminAuth } from '../../components/AdminAuthProvider';
 import AdminHeader from './AdminHeader';
+import AdminCreateUserModal from './AdminCreateUserModal';
 import {
   cancelCampusAdmin,
-  getAdminRole,
+  deleteUserAccountForAdmin,
+  getCampusesByTeam,
+  getDistrictsForAdmin,
+  getTeamsByDistrict,
   registerCampusAdmin,
+  updatePersonalTicketAsAdmin,
+  type SelectOption,
 } from '../../lib/adminService';
-import { supabase } from '../../lib/supabase';
-import { removeCancelledPassengerFromConfirmedWorkspace } from '../../lib/admin/allocationWorkspaceService';
+import {
+  getCampusAdminRoleForScope,
+  getPersonalTicketPage,
+  type PersonalTicketAdminRole,
+  type PersonalTicketItem,
+  type PersonalTicketSummary,
+} from '../../lib/admin/personalTicketService';
 import type {
   ConfirmedTicket,
   ReturnBusReservation,
@@ -31,9 +55,6 @@ import type {
 
 import styles from './AdminPersonalTicketPage.module.css';
 
-type PersonStatus =
-  | ReturnBusReservation['status']
-  | 'not_applied';
 type ReservationStatusFilter =
   | 'all'
   | 'not_applied'
@@ -41,67 +62,22 @@ type ReservationStatusFilter =
   | 'confirmed'
   | 'cancelled';
 type TicketStatusFilter = 'all' | 'confirmed' | 'pending' | 'not_applied';
-type PaymentStatus = 'pending' | 'completed' | 'refunded';
+type AdminRoleFilter = 'all' | 'general' | 'campus_admin' | 'global_admin';
 
-interface ReservationRow {
-  id: string;
-  user_id: string;
-  name: string | null;
-  phone: string | null;
-  district: string | null;
-  team: string | null;
-  campus: string | null;
-  station_preferences: StationPreference[] | null;
-  status: ReturnBusReservation['status'] | null;
-  confirmed_ticket: ConfirmedTicket | null;
-  data: Partial<ReturnBusReservation> | null;
-  created_at: string | null;
-  updated_at: string | null;
+interface CampusIssueDetail {
+  total: number;
+  notApplied: number;
+  unpaid: number;
+  admins: Array<{
+    userId: string;
+    name: string;
+    phone: string;
+    email: string | null;
+  }>;
 }
 
-interface ProfileRow {
-  id: string;
-  email: string | null;
-  name: string | null;
-  phone: string | null;
-  district: string | null;
-  team: string | null;
-  campus: string | null;
-}
-
-interface PaymentRow {
-  reservation_id: string | null;
-  status: PaymentStatus;
-}
-
-interface ReservationItem {
-  id: string;
-  dbId: string | null;
-  userId: string;
-  email: string | null;
-  name: string;
-  phone: string;
-  district: string;
-  team: string;
-  campus: string;
-  stationPreferences: StationPreference[];
-  status: PersonStatus;
-  paymentStatus: PaymentStatus | null;
-  confirmedTicket?: ConfirmedTicket;
-  requestedAt: string;
-  updatedAt?: string;
-  rawData: Partial<ReturnBusReservation> | null;
-  hasReservation: boolean;
-}
-
-interface AdminRoleRow {
-  id: string;
-  user_id: string;
-  role: 'global_admin' | 'campus_admin';
-  district: string | null;
-  team: string | null;
-  campus: string | null;
-}
+type ReservationItem = PersonalTicketItem;
+type AdminRoleRow = PersonalTicketAdminRole;
 
 interface TicketDraft {
   busNumber: string;
@@ -142,39 +118,14 @@ const getErrorMessage = (error: unknown) => {
 const removeUndefinedValues = <T,>(value: T): T =>
   JSON.parse(JSON.stringify(value)) as T;
 
-const normalize = (value: string) => value.replace(/\s/g, '').toLowerCase();
 const PAGE_SIZE = 25;
-const SUPABASE_PAGE_SIZE = 1000;
-
-type SupabasePageResult<T> = {
-  data: T[] | null;
-  error: unknown;
-};
-
-const fetchAllRows = async <T,>(
-  fetchPage: (
-    from: number,
-    to: number
-  ) => PromiseLike<SupabasePageResult<T>>
-): Promise<T[]> => {
-  const rows: T[] = [];
-
-  while (true) {
-    const from = rows.length;
-    const { data, error } = await fetchPage(
-      from,
-      from + SUPABASE_PAGE_SIZE - 1
-    );
-
-    if (error) throw error;
-
-    const pageRows = data ?? [];
-    rows.push(...pageRows);
-
-    if (pageRows.length < SUPABASE_PAGE_SIZE) {
-      return rows;
-    }
-  }
+const emptySummary: PersonalTicketSummary = {
+  total: 0,
+  applied: 0,
+  confirmed: 0,
+  pending: 0,
+  cancelled: 0,
+  notApplied: 0,
 };
 
 const getFirstStationName = (reservation: ReservationItem) =>
@@ -187,105 +138,6 @@ const getStationNameByRank = (
 ) =>
   reservation.stationPreferences.find((preference) => preference.rank === rank)
     ?.station?.name || '';
-
-const toReservationItem = (row: ReservationRow): ReservationItem => {
-  const savedData = row.data ?? {};
-  const confirmedTicket =
-    savedData.confirmedTicket ?? row.confirmed_ticket ?? undefined;
-
-  return {
-    id: savedData.id ?? row.id,
-    dbId: row.id,
-    userId: row.user_id,
-    email: null,
-    name: savedData.name ?? row.name ?? '',
-    phone: savedData.phone ?? row.phone ?? '',
-    district: savedData.district ?? row.district ?? '',
-    team: savedData.team ?? row.team ?? '',
-    campus: savedData.campus ?? row.campus ?? '',
-    stationPreferences:
-      savedData.stationPreferences ?? row.station_preferences ?? [],
-    status: savedData.status ?? row.status ?? 'requested',
-    paymentStatus: null,
-    confirmedTicket,
-    requestedAt: savedData.requestedAt ?? row.created_at ?? '',
-    updatedAt: savedData.updatedAt ?? row.updated_at ?? undefined,
-    rawData: row.data,
-    hasReservation: true,
-  };
-};
-
-const toNotAppliedItem = (profile: ProfileRow): ReservationItem => ({
-  id: `profile-${profile.id}`,
-  dbId: null,
-  userId: profile.id,
-  email: profile.email,
-  name: profile.name ?? '',
-  phone: profile.phone ?? '',
-  district: profile.district ?? '',
-  team: profile.team ?? '',
-  campus: profile.campus ?? '',
-  stationPreferences: [],
-  status: 'not_applied',
-  paymentStatus: null,
-  confirmedTicket: undefined,
-  requestedAt: '',
-  updatedAt: undefined,
-  rawData: null,
-  hasReservation: false,
-});
-
-const mergeProfilesWithReservations = (
-  profiles: ProfileRow[],
-  reservationRows: ReservationRow[],
-  paymentRows: PaymentRow[]
-) => {
-  const paymentByReservationId = new Map(
-    paymentRows
-      .filter((payment) => payment.reservation_id)
-      .map((payment) => [payment.reservation_id as string, payment.status])
-  );
-  const reservationItems = reservationRows.map((row) => ({
-    ...toReservationItem(row),
-    paymentStatus: paymentByReservationId.get(row.id) ?? null,
-  }));
-  const reservationByUserId = new Map(
-    reservationItems.map((reservation) => [reservation.userId, reservation])
-  );
-
-  const mergedItems = profiles.map((profile) => {
-    const reservation = reservationByUserId.get(profile.id);
-
-    if (!reservation) {
-      return toNotAppliedItem(profile);
-    }
-
-    return {
-      ...reservation,
-      email: profile.email,
-      name: reservation.name || profile.name || '',
-      phone: reservation.phone || profile.phone || '',
-      district: reservation.district || profile.district || '',
-      team: reservation.team || profile.team || '',
-      campus: reservation.campus || profile.campus || '',
-    };
-  });
-
-  const profileIds = new Set(profiles.map((profile) => profile.id));
-  const orphanReservations = reservationItems.filter(
-    (reservation) => !profileIds.has(reservation.userId)
-  );
-
-  return [...mergedItems, ...orphanReservations].sort((a, b) => {
-    const campusOrder = a.campus.localeCompare(b.campus, 'ko');
-    if (campusOrder !== 0) return campusOrder;
-
-    const teamOrder = a.team.localeCompare(b.team, 'ko');
-    if (teamOrder !== 0) return teamOrder;
-
-    return a.name.localeCompare(b.name, 'ko');
-  });
-};
 
 const ticketToDraft = (
   ticket?: ConfirmedTicket,
@@ -306,13 +158,35 @@ const ticketToDraft = (
 
 const AdminPersonalTicketPage = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const { session } = useAdminAuth();
   const [reservations, setReservations] = useState<ReservationItem[]>([]);
-  const [adminRoles, setAdminRoles] = useState<AdminRoleRow[]>([]);
+  const [totalReservations, setTotalReservations] = useState(0);
+  const [filteredTotal, setFilteredTotal] = useState(0);
+  const [summary, setSummary] = useState<PersonalTicketSummary>(emptySummary);
+  const [campusOptions, setCampusOptions] = useState<
+    Array<{
+      name: string;
+      issueCount: number;
+      notAppliedCount: number;
+      unpaidCount: number;
+      admins: Array<{
+        userId: string;
+        name: string;
+        phone: string;
+        email: string | null;
+      }>;
+    }>
+  >([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savingRole, setSavingRole] = useState(false);
+  const [deletingUser, setDeletingUser] = useState(false);
+  const [isCreateUserOpen, setIsCreateUserOpen] = useState(false);
+  const [isDeletePanelOpen, setIsDeletePanelOpen] = useState(false);
   const [isRolePanelOpen, setIsRolePanelOpen] = useState(false);
   const [isTicketPanelOpen, setIsTicketPanelOpen] = useState(true);
+  const [isAdvancedFiltersOpen, setIsAdvancedFiltersOpen] = useState(false);
   const [selectedReservationId, setSelectedReservationId] = useState<
     string | null
   >(null);
@@ -321,104 +195,96 @@ const AdminPersonalTicketPage = () => {
   const [statusFilter, setStatusFilter] =
     useState<ReservationStatusFilter>('all');
   const [ticketFilter, setTicketFilter] = useState<TicketStatusFilter>('all');
-  const [campusFilter, setCampusFilter] = useState('all');
+  const [adminRoleFilter, setAdminRoleFilter] =
+    useState<AdminRoleFilter>('all');
+  const [campusFilter, setCampusFilter] = useState(
+    () => searchParams.get('campus') || 'all'
+  );
   const [page, setPage] = useState(1);
+  const [roleDistricts, setRoleDistricts] = useState<SelectOption[]>([]);
+  const [roleTeams, setRoleTeams] = useState<SelectOption[]>([]);
+  const [roleCampuses, setRoleCampuses] = useState<SelectOption[]>([]);
+  const [roleDistrictId, setRoleDistrictId] = useState('');
+  const [roleDistrictName, setRoleDistrictName] = useState('');
+  const [roleTeamId, setRoleTeamId] = useState('');
+  const [roleTeamName, setRoleTeamName] = useState('');
+  const [roleCampusId, setRoleCampusId] = useState('');
+  const [roleCampusName, setRoleCampusName] = useState('');
+  const deferredSearchKeyword = useDeferredValue(searchKeyword);
+  const loadRequestId = useRef(0);
+  const selectedReservationIdRef = useRef<string | null>(null);
+  const roleDistrictsLoadedRef = useRef(false);
 
-  const loadReservations = async () => {
+  const loadReservations = useCallback(async () => {
+    const requestId = ++loadRequestId.current;
     setLoading(true);
 
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      const [result, districts] = await Promise.all([
+        getPersonalTicketPage({
+          page,
+          pageSize: PAGE_SIZE,
+          search: deferredSearchKeyword,
+          status: statusFilter,
+          ticket: ticketFilter,
+          adminRole: adminRoleFilter,
+          campusIssue: 'all',
+          campus: campusFilter,
+        }),
+        !roleDistrictsLoadedRef.current
+          ? getDistrictsForAdmin()
+          : Promise.resolve(null),
+      ]);
 
-      if (!session) {
-        navigate('/admin/login');
+      if (requestId !== loadRequestId.current) return;
+
+      const lastPage = Math.max(1, Math.ceil(result.filteredTotal / PAGE_SIZE));
+      if (page > lastPage) {
+        setPage(lastPage);
         return;
       }
 
-      const adminRole = await getAdminRole(session.user.id);
-
-      if (!adminRole || adminRole.role !== 'global_admin') {
-        alert('전체 관리자만 접근할 수 있습니다.');
-        navigate('/');
-        return;
+      setReservations(result.items);
+      setTotalReservations(result.total);
+      setFilteredTotal(result.filteredTotal);
+      setSummary(result.summary);
+      setCampusOptions(result.campuses);
+      if (districts) {
+        roleDistrictsLoadedRef.current = true;
+        setRoleDistricts(districts);
       }
 
-      const [reservationData, profileData, adminRoleData, paymentData] =
-        await Promise.all([
-          fetchAllRows<ReservationRow>((from, to) =>
-            supabase
-              .from('reservations')
-              .select(
-                'id, user_id, name, phone, district, team, campus, station_preferences, status, confirmed_ticket, data, created_at, updated_at'
-              )
-              .order('created_at', { ascending: false })
-              .order('id', { ascending: true })
-              .range(from, to)
-          ),
-          fetchAllRows<ProfileRow>((from, to) =>
-            supabase
-              .from('profiles')
-              .select('id, email, name, phone, district, team, campus')
-              .order('district', { ascending: true, nullsFirst: false })
-              .order('team', { ascending: true, nullsFirst: false })
-              .order('campus', { ascending: true, nullsFirst: false })
-              .order('name', { ascending: true, nullsFirst: false })
-              .order('id', { ascending: true })
-              .range(from, to)
-          ),
-          fetchAllRows<AdminRoleRow>((from, to) =>
-            supabase
-              .from('admin_roles')
-              .select('id, user_id, role, district, team, campus')
-              .order('id', { ascending: true })
-              .range(from, to)
-          ),
-          fetchAllRows<PaymentRow>((from, to) =>
-            supabase
-              .from('payments')
-              .select('reservation_id, status')
-              .order('reservation_id', {
-                ascending: true,
-                nullsFirst: false,
-              })
-              .range(from, to)
-          ),
-        ]);
-
-      const nextReservations = mergeProfilesWithReservations(
-        profileData,
-        reservationData,
-        paymentData
+      const selected =
+        result.items.find(
+          (reservation) => reservation.id === selectedReservationIdRef.current
+        ) ??
+        result.items[0] ??
+        null;
+      selectedReservationIdRef.current = selected?.id ?? null;
+      setSelectedReservationId(selected?.id ?? null);
+      setDraft(
+        selected ? ticketToDraft(selected.confirmedTicket, selected) : emptyDraft
       );
-
-      setReservations(nextReservations);
-      setAdminRoles(adminRoleData);
-
-      if (!selectedReservationId && nextReservations[0]) {
-        setSelectedReservationId(nextReservations[0].id);
-        setDraft(
-          ticketToDraft(
-            nextReservations[0].confirmedTicket,
-            nextReservations[0]
-          )
-        );
-      }
     } catch (error) {
       console.error('개인 버스표 목록 조회 실패:', error);
       alert('개인 버스표 목록을 불러올 수 없습니다.');
     } finally {
-      setLoading(false);
+      if (requestId === loadRequestId.current) setLoading(false);
     }
-  };
+  }, [
+    adminRoleFilter,
+    campusFilter,
+    deferredSearchKeyword,
+    page,
+    statusFilter,
+    ticketFilter,
+  ]);
 
   useEffect(() => {
-    // Initial page load is an external Supabase synchronization.
+    // Synchronize the current server-backed page whenever its filters change.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadReservations();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [loadReservations]);
 
   const selectedReservation = useMemo(
     () =>
@@ -428,20 +294,26 @@ const AdminPersonalTicketPage = () => {
     [reservations, selectedReservationId]
   );
 
-  const selectedAdminRole = useMemo(() => {
-    if (!selectedReservation) return null;
+  const selectedAdminRoles = useMemo(() => {
+    if (!selectedReservation) return [];
 
-    return (
-      adminRoles.find((role) => role.user_id === selectedReservation.userId) ??
-      null
-    );
-  }, [adminRoles, selectedReservation]);
+    return selectedReservation.adminRoles;
+  }, [selectedReservation]);
+  const selectedGlobalAdminRole =
+    selectedAdminRoles.find((role) => role.role === 'global_admin') ?? null;
+  const selectedCampusAdminRoles = selectedAdminRoles.filter(
+    (role) => role.role === 'campus_admin'
+  );
 
   const renderAdminRoleBadge = (reservation: ReservationItem) => {
-    const adminRole =
-      adminRoles.find((role) => role.user_id === reservation.userId) ?? null;
+    const userAdminRoles = reservation.adminRoles;
+    const globalAdminRole =
+      userAdminRoles.find((role) => role.role === 'global_admin') ?? null;
+    const campusAdminRoleCount = userAdminRoles.filter(
+      (role) => role.role === 'campus_admin'
+    ).length;
 
-    if (adminRole?.role === 'global_admin') {
+    if (globalAdminRole) {
       return (
         <span className={`${styles.adminBadge} ${styles.adminGlobal}`}>
           전체 관리자
@@ -449,10 +321,12 @@ const AdminPersonalTicketPage = () => {
       );
     }
 
-    if (adminRole?.role === 'campus_admin') {
+    if (campusAdminRoleCount > 0) {
       return (
         <span className={`${styles.adminBadge} ${styles.adminCampus}`}>
-          캠퍼스 관리자
+          {campusAdminRoleCount > 1
+            ? `캠퍼스 관리자 ${campusAdminRoleCount}개`
+            : '캠퍼스 관리자'}
         </span>
       );
     }
@@ -460,100 +334,77 @@ const AdminPersonalTicketPage = () => {
     return <span className={styles.adminBadge}>일반</span>;
   };
 
-  const campuses = useMemo(() => {
-    return Array.from(
-      new Set(
-        reservations
-          .map((reservation) => reservation.campus)
-          .filter((campus) => campus.trim())
-      )
-    ).sort((a, b) => a.localeCompare(b, 'ko'));
-  }, [reservations]);
+  const campuses = campusOptions.map((campus) => campus.name);
 
-  const summary = useMemo(() => {
-    const active = reservations.filter(
-      (reservation) =>
-        reservation.status !== 'cancelled' &&
-        reservation.status !== 'not_applied'
-    );
+  const campusIssueDetails = useMemo(() => {
+    const details = new Map<string, CampusIssueDetail>();
 
-    return {
-      total: reservations.length,
-      applied: reservations.filter(
-        (reservation) => reservation.status !== 'not_applied'
-      ).length,
-      confirmed: active.filter((reservation) => reservation.confirmedTicket)
-        .length,
-      pending: active.filter((reservation) => !reservation.confirmedTicket)
-        .length,
-      cancelled: reservations.filter(
-        (reservation) => reservation.status === 'cancelled'
-      ).length,
-      notApplied: reservations.filter(
-        (reservation) => reservation.status === 'not_applied'
-      ).length,
-    };
-  }, [reservations]);
-
-  const filteredReservations = useMemo(() => {
-    const keyword = normalize(searchKeyword);
-
-    return reservations.filter((reservation) => {
-      const matchesStatus =
-        statusFilter === 'all' || reservation.status === statusFilter;
-      const matchesTicket =
-        ticketFilter === 'all' ||
-        (ticketFilter === 'not_applied'
-          ? reservation.status === 'not_applied'
-          : ticketFilter === 'confirmed'
-            ? Boolean(reservation.confirmedTicket)
-            : reservation.hasReservation &&
-              reservation.status !== 'cancelled' &&
-              !reservation.confirmedTicket);
-      const matchesCampus =
-        campusFilter === 'all' || reservation.campus === campusFilter;
-      const searchTarget = normalize(
-        [
-          reservation.name,
-          reservation.email,
-          reservation.phone,
-          reservation.district,
-          reservation.team,
-          reservation.campus,
-          reservation.stationPreferences
-            .map((preference) => preference.station.name)
-            .join(' '),
-          reservation.confirmedTicket?.busNumber,
-          reservation.confirmedTicket?.seatNumber,
-        ]
-          .filter(Boolean)
-          .join(' ')
-      );
-
-      return (
-        matchesStatus &&
-        matchesTicket &&
-        matchesCampus &&
-        (!keyword || searchTarget.includes(keyword))
-      );
+    campusOptions.forEach((campus) => {
+      if (campus.issueCount > 0) {
+        details.set(campus.name, {
+          total: campus.issueCount,
+          notApplied: campus.notAppliedCount,
+          unpaid: campus.unpaidCount,
+          admins: campus.admins,
+        });
+      }
     });
-  }, [campusFilter, reservations, searchKeyword, statusFilter, ticketFilter]);
 
-  const totalPages = Math.max(
-    1,
-    Math.ceil(filteredReservations.length / PAGE_SIZE)
-  );
+    return details;
+  }, [campusOptions]);
+  const hasActiveFilters =
+    Boolean(searchKeyword.trim()) ||
+    ticketFilter !== 'all' ||
+    statusFilter !== 'all' ||
+    adminRoleFilter !== 'all' ||
+    campusFilter !== 'all';
+  const advancedFilterCount = [
+    statusFilter !== 'all',
+    adminRoleFilter !== 'all',
+    campusFilter !== 'all',
+  ].filter(Boolean).length;
+
+  const resetFilters = () => {
+    setSearchKeyword('');
+    setTicketFilter('all');
+    setStatusFilter('all');
+    setAdminRoleFilter('all');
+    setCampusFilter('all');
+    setPage(1);
+  };
+
+  const totalPages = Math.max(1, Math.ceil(filteredTotal / PAGE_SIZE));
   const effectivePage = Math.min(page, totalPages);
-  const pagedReservations = filteredReservations.slice(
-    (effectivePage - 1) * PAGE_SIZE,
-    effectivePage * PAGE_SIZE
-  );
+  const pagedReservations = reservations;
 
   const selectReservation = (reservation: ReservationItem) => {
+    selectedReservationIdRef.current = reservation.id;
     setSelectedReservationId(reservation.id);
     setDraft(ticketToDraft(reservation.confirmedTicket, reservation));
+    setIsDeletePanelOpen(false);
     setIsRolePanelOpen(false);
     setIsTicketPanelOpen(true);
+    setRoleDistrictId('');
+    setRoleDistrictName('');
+    setRoleTeamId('');
+    setRoleTeamName('');
+    setRoleCampusId('');
+    setRoleCampusName('');
+    setRoleTeams([]);
+    setRoleCampuses([]);
+  };
+
+  const selectCampus = (campus: string) => {
+    setCampusFilter(campus);
+    setPage(1);
+
+    const firstReservation = reservations.find(
+      (reservation) => reservation.campus === campus
+    );
+
+    if (firstReservation) {
+      selectReservation(firstReservation);
+    }
   };
 
   const updateDraft = (key: keyof TicketDraft, value: string) => {
@@ -563,35 +414,74 @@ const AdminPersonalTicketPage = () => {
     }));
   };
 
-  const reloadAdminRoles = async () => {
-    const { data, error } = await supabase
-      .from('admin_roles')
-      .select('id, user_id, role, district, team, campus');
+  const handleRoleDistrictChange = async (districtId: string) => {
+    const district = roleDistricts.find((item) => item.id === districtId);
 
-    if (error) throw error;
-
-    setAdminRoles((data ?? []) as AdminRoleRow[]);
+    setRoleDistrictId(districtId);
+    setRoleDistrictName(district?.name ?? '');
+    setRoleTeamId('');
+    setRoleTeamName('');
+    setRoleCampusId('');
+    setRoleCampusName('');
+    setRoleCampuses([]);
+    setRoleTeams(districtId ? await getTeamsByDistrict(districtId) : []);
   };
 
+  const handleRoleTeamChange = async (teamId: string) => {
+    const team = roleTeams.find((item) => item.id === teamId);
+
+    setRoleTeamId(teamId);
+    setRoleTeamName(team?.name ?? '');
+    setRoleCampusId('');
+    setRoleCampusName('');
+    setRoleCampuses(teamId ? await getCampusesByTeam(teamId) : []);
+  };
+
+  const handleRoleCampusChange = (campusId: string) => {
+    const campus = roleCampuses.find((item) => item.id === campusId);
+
+    setRoleCampusId(campusId);
+    setRoleCampusName(campus?.name ?? '');
+  };
+
+  const isSelectedRoleScopeAlreadyManaged = selectedCampusAdminRoles.some(
+    (role) =>
+      role.district === roleDistrictName &&
+      role.team === roleTeamName &&
+      role.campus === roleCampusName
+  );
   const handleAssignSelectedCampusAdmin = async () => {
     if (!selectedReservation) return;
 
-    if (selectedAdminRole?.role === 'global_admin') {
+    if (selectedGlobalAdminRole) {
       alert('전체 관리자는 캠퍼스 관리자로 변경할 수 없습니다.');
       return;
     }
 
-    if (
-      !selectedReservation.district ||
-      !selectedReservation.team ||
-      !selectedReservation.campus
-    ) {
-      alert('지구, 팀, 캠퍼스 정보가 있어야 캠퍼스 관리자 권한을 부여할 수 있습니다.');
+    if (!roleDistrictName || !roleTeamName || !roleCampusName) {
+      alert('관리할 지구, 팀, 캠퍼스를 선택해주세요.');
+      return;
+    }
+
+    let selectedRoleScopeCurrentAdmin: AdminRoleRow | null;
+
+    try {
+      selectedRoleScopeCurrentAdmin = await getCampusAdminRoleForScope({
+        district: roleDistrictName,
+        team: roleTeamName,
+        campus: roleCampusName,
+        excludeUserId: selectedReservation.userId,
+      });
+    } catch (error) {
+      console.error('Failed to inspect campus admin role:', error);
+      alert(`기존 캠퍼스 관리자 확인 중 오류가 발생했습니다: ${getErrorMessage(error)}`);
       return;
     }
 
     const ok = window.confirm(
-      `${selectedReservation.name}님을 ${selectedReservation.campus} 캠퍼스 관리자로 등록할까요?`
+      selectedRoleScopeCurrentAdmin
+        ? `${roleCampusName} 캠퍼스에는 이미 다른 관리자가 등록되어 있습니다.\n기존 관리자를 교체하고 ${selectedReservation.name}님을 등록할까요?`
+        : `${selectedReservation.name}님을 ${roleCampusName} 캠퍼스 관리자로 등록할까요?`
     );
 
     if (!ok) return;
@@ -601,12 +491,12 @@ const AdminPersonalTicketPage = () => {
     try {
       await registerCampusAdmin({
         userId: selectedReservation.userId,
-        district: selectedReservation.district,
-        team: selectedReservation.team,
-        campus: selectedReservation.campus,
+        district: roleDistrictName,
+        team: roleTeamName,
+        campus: roleCampusName,
       });
-      await reloadAdminRoles();
-      alert('캠퍼스 관리자 권한을 등록했습니다.');
+      await loadReservations();
+      alert(`${roleCampusName} 캠퍼스 관리자 권한을 등록했습니다.`);
     } catch (error) {
       console.error('Failed to assign campus admin role:', error);
       alert(`캠퍼스 관리자 권한 등록 중 오류가 발생했습니다: ${getErrorMessage(error)}`);
@@ -615,18 +505,20 @@ const AdminPersonalTicketPage = () => {
     }
   };
 
-  const handleCancelSelectedCampusAdmin = async () => {
-    if (!selectedAdminRole || selectedAdminRole.role !== 'campus_admin') return;
+  const handleCancelSelectedCampusAdmin = async (adminRole: AdminRoleRow) => {
+    if (adminRole.role !== 'campus_admin') return;
 
-    const ok = window.confirm('선택한 사용자의 캠퍼스 관리자 권한을 취소할까요?');
+    const ok = window.confirm(
+      `${adminRole.campus || '선택한 캠퍼스'} 관리자 권한을 취소할까요?`
+    );
 
     if (!ok) return;
 
     setSavingRole(true);
 
     try {
-      await cancelCampusAdmin(selectedAdminRole.id);
-      await reloadAdminRoles();
+      await cancelCampusAdmin(adminRole.id);
+      await loadReservations();
       alert('캠퍼스 관리자 권한을 취소했습니다.');
     } catch (error) {
       console.error('Failed to cancel campus admin role:', error);
@@ -634,28 +526,6 @@ const AdminPersonalTicketPage = () => {
     } finally {
       setSavingRole(false);
     }
-  };
-
-  const buildReservationData = (
-    reservation: ReservationItem,
-    status: ReturnBusReservation['status'],
-    confirmedTicket?: ConfirmedTicket
-  ): ReturnBusReservation => {
-    const updatedAt = new Date().toISOString();
-
-    return {
-      id: reservation.id,
-      name: reservation.name,
-      phone: reservation.phone,
-      district: reservation.district,
-      team: reservation.team,
-      campus: reservation.campus,
-      stationPreferences: reservation.stationPreferences,
-      status,
-      confirmedTicket,
-      requestedAt: reservation.requestedAt || updatedAt,
-      updatedAt,
-    };
   };
 
   const handleSaveTicket = async () => {
@@ -671,9 +541,10 @@ const AdminPersonalTicketPage = () => {
     const boardingPlace = draft.boardingPlace.trim();
     const dropoffStation =
       draft.dropoffStation.trim() || getFirstStationName(selectedReservation);
+    const seatNumber = draft.seatNumber.trim();
 
-    if (!busNumber || !departureTime || !boardingPlace || !dropoffStation) {
-      alert('버스번호, 출발 시간, 탑승 장소, 도착역을 입력해주세요.');
+    if (!busNumber || !seatNumber) {
+      alert('확정 배차안의 호차와 좌석 번호를 입력해주세요.');
       return;
     }
 
@@ -687,59 +558,41 @@ const AdminPersonalTicketPage = () => {
         : new Date().toISOString(),
     };
 
-    const seatNumber = draft.seatNumber.trim();
     const managerNote = draft.managerNote.trim();
 
-    if (seatNumber) {
-      confirmedTicket.seatNumber = seatNumber;
-    }
+    confirmedTicket.seatNumber = seatNumber;
 
     if (managerNote) {
       confirmedTicket.managerNote = managerNote;
     }
 
-    const nextData = buildReservationData(
-      selectedReservation,
-      'confirmed',
-      confirmedTicket
-    );
     const cleanConfirmedTicket = removeUndefinedValues(confirmedTicket);
-    const cleanNextData = removeUndefinedValues(nextData);
 
     setSaving(true);
 
     try {
-      const { error } = await supabase
-        .from('reservations')
-        .update({
-          name: cleanNextData.name,
-          phone: cleanNextData.phone,
-          district: cleanNextData.district,
-          team: cleanNextData.team,
-          campus: cleanNextData.campus,
-          station_preferences: cleanNextData.stationPreferences,
-          status: 'confirmed',
-          confirmed_ticket: cleanConfirmedTicket,
-          data: cleanNextData,
-          updated_at: cleanNextData.updatedAt,
-        })
-        .eq('id', selectedReservation.dbId);
-
-      if (error) throw error;
+      const saved = await updatePersonalTicketAsAdmin(
+        selectedReservation.dbId,
+        'confirmed',
+        cleanConfirmedTicket
+      );
+      const savedTicket = saved.confirmed_ticket as ConfirmedTicket;
+      const savedData = saved.data as ReturnBusReservation;
 
       setReservations((prev) =>
         prev.map((reservation) =>
           reservation.id === selectedReservation.id
             ? {
                 ...reservation,
-                status: 'confirmed',
-                confirmedTicket: cleanConfirmedTicket,
-                updatedAt: cleanNextData.updatedAt,
-                rawData: cleanNextData,
+                status: saved.status,
+                confirmedTicket: savedTicket,
+                updatedAt: saved.updated_at,
+                rawData: savedData,
               }
             : reservation
         )
       );
+      await loadReservations();
 
       alert('개인 버스표를 저장했습니다.');
     } catch (error) {
@@ -763,44 +616,29 @@ const AdminPersonalTicketPage = () => {
 
     if (!ok) return;
 
-    const nextData = buildReservationData(selectedReservation, 'requested');
-    const cleanNextData = removeUndefinedValues(nextData);
-
     setSaving(true);
 
     try {
-      const { error } = await supabase
-        .from('reservations')
-        .update({
-          name: cleanNextData.name,
-          phone: cleanNextData.phone,
-          district: cleanNextData.district,
-          team: cleanNextData.team,
-          campus: cleanNextData.campus,
-          station_preferences: cleanNextData.stationPreferences,
-          status: 'requested',
-          confirmed_ticket: null,
-          data: cleanNextData,
-          updated_at: cleanNextData.updatedAt,
-        })
-        .eq('id', selectedReservation.dbId);
-
-      if (error) throw error;
+      const saved = await updatePersonalTicketAsAdmin(
+        selectedReservation.dbId,
+        'requested'
+      );
 
       setReservations((prev) =>
         prev.map((reservation) =>
           reservation.id === selectedReservation.id
             ? {
                 ...reservation,
-                status: 'requested',
+                status: saved.status,
                 confirmedTicket: undefined,
-                updatedAt: cleanNextData.updatedAt,
-                rawData: cleanNextData,
+                updatedAt: saved.updated_at,
+                rawData: saved.data,
               }
             : reservation
         )
       );
       setDraft(ticketToDraft(undefined, selectedReservation));
+      await loadReservations();
 
       alert('확정 버스표를 취소했습니다.');
     } catch (error) {
@@ -829,51 +667,23 @@ const AdminPersonalTicketPage = () => {
     if (!ok) return;
 
     const nextStatus = willCancel ? 'cancelled' : 'requested';
-    const nextData = buildReservationData(selectedReservation, nextStatus);
-    const cleanNextData = removeUndefinedValues(nextData);
-
     setSaving(true);
 
     try {
-      const { error } = await supabase
-        .from('reservations')
-        .update({
-          name: cleanNextData.name,
-          phone: cleanNextData.phone,
-          district: cleanNextData.district,
-          team: cleanNextData.team,
-          campus: cleanNextData.campus,
-          station_preferences: cleanNextData.stationPreferences,
-          status: nextStatus,
-          confirmed_ticket: null,
-          data: cleanNextData,
-          updated_at: cleanNextData.updatedAt,
-        })
-        .eq('id', selectedReservation.dbId);
-
-      if (error) throw error;
-
-      if (willCancel) {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-
-        if (!session) throw new Error('로그인이 필요합니다.');
-        await removeCancelledPassengerFromConfirmedWorkspace(
-          selectedReservation.dbId,
-          session.user.id
-        );
-      }
+      const saved = await updatePersonalTicketAsAdmin(
+        selectedReservation.dbId,
+        nextStatus
+      );
 
       setReservations((prev) =>
         prev.map((reservation) =>
           reservation.id === selectedReservation.id
             ? {
                 ...reservation,
-                status: nextStatus,
+                status: saved.status,
                 confirmedTicket: undefined,
-                updatedAt: cleanNextData.updatedAt,
-                rawData: cleanNextData,
+                updatedAt: saved.updated_at,
+                rawData: saved.data,
               }
             : reservation
         )
@@ -881,6 +691,7 @@ const AdminPersonalTicketPage = () => {
       setDraft(
         willCancel ? emptyDraft : ticketToDraft(undefined, selectedReservation)
       );
+      await loadReservations();
 
       alert(willCancel ? '신청자를 취소 처리했습니다.' : '취소 상태를 해제했습니다.');
     } catch (error) {
@@ -890,6 +701,59 @@ const AdminPersonalTicketPage = () => {
       );
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDeleteSelectedUser = async () => {
+    if (!selectedReservation) return;
+
+    if (selectedGlobalAdminRole) {
+      alert('전체 관리자 계정은 이 화면에서 삭제할 수 없습니다.');
+      return;
+    }
+
+    const confirmationLabel =
+      selectedReservation.name ||
+      selectedReservation.email ||
+      selectedReservation.userId;
+    const ok = window.confirm(
+      `${confirmationLabel} 사용자를 삭제할까요?\n\n로그인 계정, 신청 내역, 결제 정보, 캠퍼스 관리자 권한이 함께 삭제되며 복구할 수 없습니다.`
+    );
+
+    if (!ok) return;
+
+    const typedLabel = window.prompt(
+      `삭제를 확인하려면 아래 내용을 정확히 입력해주세요.\n${confirmationLabel}`
+    );
+
+    if (typedLabel !== confirmationLabel) {
+      alert('확인 내용이 일치하지 않아 삭제를 취소했습니다.');
+      return;
+    }
+
+    setDeletingUser(true);
+
+    try {
+      if (!session) throw new Error('로그인이 필요합니다.');
+      if (session.user.id === selectedReservation.userId) {
+        throw new Error('현재 로그인한 계정은 삭제할 수 없습니다.');
+      }
+
+      const deleted = await deleteUserAccountForAdmin(
+        selectedReservation.userId
+      );
+
+      if (!deleted) {
+        throw new Error('삭제할 사용자 계정을 찾을 수 없습니다.');
+      }
+
+      await loadReservations();
+      alert(`${confirmationLabel} 사용자를 삭제했습니다.`);
+    } catch (error) {
+      console.error('Failed to delete user account:', error);
+      alert(`사용자 삭제 중 오류가 발생했습니다: ${getErrorMessage(error)}`);
+    } finally {
+      setDeletingUser(false);
     }
   };
 
@@ -928,14 +792,35 @@ const AdminPersonalTicketPage = () => {
             </p>
           </div>
 
-          <button
-            type="button"
-            className={styles.refreshButton}
-            onClick={() => void loadReservations()}
-          >
-            <RefreshCw size={16} />
-            새로고침
-          </button>
+          <div className={styles.headerActions}>
+            <button
+              type="button"
+              className={styles.issueReviewButton}
+              onClick={() => navigate('/admin/campus-issues')}
+            >
+              <CircleAlert size={16} />
+              문제 캠퍼스 검토
+              {campusIssueDetails.size > 0 && (
+                <span>{campusIssueDetails.size}</span>
+              )}
+            </button>
+            <button
+              type="button"
+              className={styles.addUserButton}
+              onClick={() => setIsCreateUserOpen(true)}
+            >
+              <UserPlus size={16} />
+              사용자 추가
+            </button>
+            <button
+              type="button"
+              className={styles.refreshButton}
+              onClick={() => void loadReservations()}
+            >
+              <RefreshCw size={16} />
+              새로고침
+            </button>
+          </div>
         </section>
 
         <section className={styles.summaryGrid}>
@@ -945,7 +830,7 @@ const AdminPersonalTicketPage = () => {
               <strong>{summary.confirmed.toLocaleString()}</strong>
             </div>
             <div>
-              <span>신청인원</span>
+              <span>신청 인원</span>
               <strong>{summary.applied.toLocaleString()}</strong>
             </div>
             <div>
@@ -956,59 +841,175 @@ const AdminPersonalTicketPage = () => {
         </section>
 
         <section className={styles.toolbar}>
-          <div className={styles.searchBox}>
-            <Search size={18} />
-            <input
-              value={searchKeyword}
+          <div className={styles.toolbarPrimary}>
+            <div className={styles.searchBox}>
+              <Search size={18} />
+              <input
+                value={searchKeyword}
+                onChange={(event) => {
+                  setSearchKeyword(event.target.value);
+                  setPage(1);
+                }}
+                placeholder="이름, 연락처, 캠퍼스, 호차 검색"
+              />
+            </div>
+
+            <select
+              className={ticketFilter !== 'all' ? styles.activeFilter : undefined}
+              value={ticketFilter}
+              aria-label="버스표 확정 여부"
               onChange={(event) => {
-                setSearchKeyword(event.target.value);
+                setTicketFilter(event.target.value as TicketStatusFilter);
                 setPage(1);
               }}
-              placeholder="이름, 연락처, 캠퍼스, 버스번호 검색"
-            />
+            >
+              <option value="all">버스표 확정 여부 · 전체</option>
+              <option value="pending">버스표 미확정</option>
+              <option value="confirmed">버스표 확정 완료</option>
+              <option value="not_applied">버스 미신청</option>
+            </select>
+
+            <button
+              type="button"
+              className={`${styles.filterToggle} ${
+                advancedFilterCount > 0 ? styles.filterToggleActive : ''
+              }`}
+              onClick={() => setIsAdvancedFiltersOpen((previous) => !previous)}
+              aria-expanded={isAdvancedFiltersOpen}
+              aria-controls="personal-ticket-advanced-filters"
+            >
+              <SlidersHorizontal size={16} />
+              상세 필터
+              {advancedFilterCount > 0 && (
+                <span>{advancedFilterCount}</span>
+              )}
+              {isAdvancedFiltersOpen ? (
+                <ChevronUp size={15} />
+              ) : (
+                <ChevronDown size={15} />
+              )}
+            </button>
           </div>
 
-          <select
-            value={ticketFilter}
-            onChange={(event) => {
-              setTicketFilter(event.target.value as TicketStatusFilter);
-              setPage(1);
-            }}
-          >
-            <option value="all">전체 버스표</option>
-            <option value="pending">미확정</option>
-            <option value="confirmed">확정</option>
-            <option value="not_applied">미신청</option>
-          </select>
+          {isAdvancedFiltersOpen && (
+            <div
+              id="personal-ticket-advanced-filters"
+              className={styles.advancedFilters}
+            >
+              <label>
+                <span>신청 상태</span>
+                <select
+                  className={statusFilter !== 'all' ? styles.activeFilter : undefined}
+                  value={statusFilter}
+                  onChange={(event) => {
+                    setStatusFilter(event.target.value as ReservationStatusFilter);
+                    setPage(1);
+                  }}
+                >
+                  <option value="all">전체</option>
+                  <option value="requested">신청 접수</option>
+                  <option value="confirmed">배차 확정</option>
+                  <option value="cancelled">신청 취소</option>
+                  <option value="not_applied">미신청</option>
+                </select>
+              </label>
 
-          <select
-            value={statusFilter}
-            onChange={(event) => {
-              setStatusFilter(event.target.value as ReservationStatusFilter);
-              setPage(1);
-            }}
-          >
-            <option value="all">전체 상태</option>
-            <option value="requested">신청</option>
-            <option value="confirmed">확정</option>
-            <option value="cancelled">취소</option>
-            <option value="not_applied">미신청</option>
-          </select>
+              <label>
+                <span>관리자 권한</span>
+                <select
+                  className={adminRoleFilter !== 'all' ? styles.activeFilter : undefined}
+                  value={adminRoleFilter}
+                  onChange={(event) => {
+                    setAdminRoleFilter(event.target.value as AdminRoleFilter);
+                    setPage(1);
+                  }}
+                >
+                  <option value="all">전체</option>
+                  <option value="general">일반 사용자</option>
+                  <option value="campus_admin">캠퍼스 관리자</option>
+                  <option value="global_admin">전체 관리자</option>
+                </select>
+              </label>
 
-          <select
-            value={campusFilter}
-            onChange={(event) => {
-              setCampusFilter(event.target.value);
-              setPage(1);
-            }}
-          >
-            <option value="all">전체 캠퍼스</option>
-            {campuses.map((campus) => (
-              <option key={campus} value={campus}>
-                {campus}
-              </option>
-            ))}
-          </select>
+              <label>
+                <span>캠퍼스</span>
+                <select
+                  className={campusFilter !== 'all' ? styles.activeFilter : undefined}
+                  value={campusFilter}
+                  onChange={(event) => selectCampus(event.target.value)}
+                >
+                  <option value="all">전체</option>
+                  {campuses.map((campus) => (
+                    <option key={campus} value={campus}>
+                      {campus}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          )}
+
+          {hasActiveFilters && (
+            <div className={styles.filterChips} aria-label="적용된 필터">
+              {searchKeyword.trim() && (
+                <button type="button" onClick={() => {
+                  setSearchKeyword('');
+                  setPage(1);
+                }}>
+                  검색: {searchKeyword.trim()} <X size={13} />
+                </button>
+              )}
+              {ticketFilter !== 'all' && (
+                <button type="button" onClick={() => {
+                  setTicketFilter('all');
+                  setPage(1);
+                }}>
+                  버스표: {ticketFilter === 'confirmed' ? '확정 완료' : ticketFilter === 'pending' ? '미확정' : '미신청'} <X size={13} />
+                </button>
+              )}
+              {statusFilter !== 'all' && (
+                <button type="button" onClick={() => {
+                  setStatusFilter('all');
+                  setPage(1);
+                }}>
+                  신청: {statusFilter === 'requested' ? '접수' : statusFilter === 'confirmed' ? '배차 확정' : statusFilter === 'cancelled' ? '취소' : '미신청'} <X size={13} />
+                </button>
+              )}
+              {adminRoleFilter !== 'all' && (
+                <button type="button" onClick={() => {
+                  setAdminRoleFilter('all');
+                  setPage(1);
+                }}>
+                  권한: {adminRoleFilter === 'general' ? '일반 사용자' : adminRoleFilter === 'campus_admin' ? '캠퍼스 관리자' : '전체 관리자'} <X size={13} />
+                </button>
+              )}
+              {campusFilter !== 'all' && (
+                <button type="button" onClick={() => {
+                  setCampusFilter('all');
+                  setPage(1);
+                }}>
+                  캠퍼스: {campusFilter} <X size={13} />
+                </button>
+              )}
+            </div>
+          )}
+
+          <div className={styles.filterSummary}>
+            <span>
+              전체 {totalReservations.toLocaleString()}명 중{' '}
+              <strong>{filteredTotal.toLocaleString()}명</strong>
+              {' · '}문제 캠퍼스{' '}
+              <strong>{campusIssueDetails.size.toLocaleString()}곳</strong>
+            </span>
+            <button
+              type="button"
+              onClick={resetFilters}
+              disabled={!hasActiveFilters}
+            >
+              <RotateCcw size={14} />
+              필터 초기화
+            </button>
+          </div>
         </section>
 
         <div className={styles.layout}>
@@ -1019,15 +1020,15 @@ const AdminPersonalTicketPage = () => {
                   <tr>
                     <th>신청자</th>
                     <th>소속</th>
-                    <th>희망 도착역</th>
-                    <th>신청여부</th>
-                    <th>입금 여부</th>
-                    <th>버스표 확정여부</th>
+                    <th>희망 행선지</th>
+                    <th>신청 여부</th>
+                    <th>입금 상태</th>
+                    <th>버스표 확정 여부</th>
                   </tr>
                 </thead>
 
                 <tbody>
-                  {filteredReservations.length === 0 ? (
+                  {filteredTotal === 0 ? (
                     <tr>
                       <td className={styles.emptyCell} colSpan={6}>
                         조건에 맞는 신청자가 없습니다.
@@ -1035,7 +1036,7 @@ const AdminPersonalTicketPage = () => {
                     </tr>
                   ) : (
                     pagedReservations.map((reservation) => {
-                      const isCampusAdmin = adminRoles.some(
+                      const isCampusAdmin = reservation.adminRoles.some(
                         (role) =>
                           role.user_id === reservation.userId &&
                           role.role === 'campus_admin'
@@ -1155,15 +1156,15 @@ const AdminPersonalTicketPage = () => {
                 </tbody>
               </table>
             </div>
-            {filteredReservations.length > PAGE_SIZE && (
+            {filteredTotal > PAGE_SIZE && (
               <div className={styles.pagination}>
                 <span>
                   {(effectivePage - 1) * PAGE_SIZE + 1}-
                   {Math.min(
                     effectivePage * PAGE_SIZE,
-                    filteredReservations.length
+                    filteredTotal
                   )}{' '}
-                  / {filteredReservations.length.toLocaleString()}명
+                  / {filteredTotal.toLocaleString()}명
                 </span>
                 <div>
                   <button
@@ -1221,10 +1222,12 @@ const AdminPersonalTicketPage = () => {
                     <div>
                       <span>관리자 권한</span>
                       <strong>
-                        {selectedAdminRole?.role === 'global_admin'
+                        {selectedGlobalAdminRole
                           ? '전체 관리자'
-                          : selectedAdminRole?.role === 'campus_admin'
-                            ? '캠퍼스 관리자'
+                          : selectedCampusAdminRoles.length > 0
+                            ? selectedCampusAdminRoles.length > 1
+                              ? `캠퍼스 관리자 ${selectedCampusAdminRoles.length}개`
+                              : '캠퍼스 관리자'
                           : '일반 사용자'}
                       </strong>
                     </div>
@@ -1240,12 +1243,94 @@ const AdminPersonalTicketPage = () => {
 
                   {isRolePanelOpen && (
                     <>
-                      {selectedAdminRole?.role === 'campus_admin' && (
-                        <p className={styles.roleScope}>
-                          {selectedAdminRole.district || '-'} /{' '}
-                          {selectedAdminRole.team || '-'} /{' '}
-                          {selectedAdminRole.campus || '-'}
-                        </p>
+                      {selectedCampusAdminRoles.length > 0 && (
+                        <div className={styles.roleScopeList}>
+                          {selectedCampusAdminRoles.map((role) => (
+                            <div key={role.id} className={styles.roleScopeItem}>
+                              <span>
+                                {role.district || '-'} / {role.team || '-'} /{' '}
+                                {role.campus || '-'}
+                              </span>
+                              <button
+                                type="button"
+                                className={styles.scopeCancelButton}
+                                onClick={() =>
+                                  void handleCancelSelectedCampusAdmin(role)
+                                }
+                                disabled={savingRole}
+                              >
+                                <Trash2 size={14} />
+                                권한 취소
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {!selectedGlobalAdminRole && (
+                        <div className={styles.roleScopeSelector}>
+                          <strong>추가로 관리할 캠퍼스 선택</strong>
+                          <div className={styles.roleScopeSelectorGrid}>
+                            <label>
+                              <span>지구</span>
+                              <select
+                                value={roleDistrictId}
+                                onChange={(event) =>
+                                  void handleRoleDistrictChange(
+                                    event.target.value
+                                  )
+                                }
+                                disabled={savingRole}
+                              >
+                                <option value="">지구 선택</option>
+                                {roleDistricts.map((district) => (
+                                  <option key={district.id} value={district.id}>
+                                    {district.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                            <label>
+                              <span>팀</span>
+                              <select
+                                value={roleTeamId}
+                                onChange={(event) =>
+                                  void handleRoleTeamChange(event.target.value)
+                                }
+                                disabled={savingRole || !roleDistrictId}
+                              >
+                                <option value="">팀 선택</option>
+                                {roleTeams.map((team) => (
+                                  <option key={team.id} value={team.id}>
+                                    {team.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                            <label>
+                              <span>캠퍼스</span>
+                              <select
+                                value={roleCampusId}
+                                onChange={(event) =>
+                                  handleRoleCampusChange(event.target.value)
+                                }
+                                disabled={savingRole || !roleTeamId}
+                              >
+                                <option value="">캠퍼스 선택</option>
+                                {roleCampuses.map((campus) => (
+                                  <option key={campus.id} value={campus.id}>
+                                    {campus.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                          </div>
+                          {isSelectedRoleScopeAlreadyManaged && (
+                            <span className={styles.roleScopeNotice}>
+                              이미 이 캠퍼스를 관리하고 있습니다.
+                            </span>
+                          )}
+                        </div>
                       )}
 
                       <div className={styles.actionRow}>
@@ -1255,25 +1340,15 @@ const AdminPersonalTicketPage = () => {
                           onClick={handleAssignSelectedCampusAdmin}
                           disabled={
                             savingRole ||
-                            selectedAdminRole?.role === 'global_admin'
+                            Boolean(selectedGlobalAdminRole) ||
+                            !roleCampusName ||
+                            isSelectedRoleScopeAlreadyManaged
                           }
                         >
                           <ShieldCheck size={16} />
-                          캠퍼스 관리자 등록
+                          선택한 캠퍼스 관리자 등록
                         </button>
 
-                        <button
-                          type="button"
-                          className={styles.campusAdminCancelButton}
-                          onClick={handleCancelSelectedCampusAdmin}
-                          disabled={
-                            savingRole ||
-                            selectedAdminRole?.role !== 'campus_admin'
-                          }
-                        >
-                          <Trash2 size={16} />
-                          권한 취소
-                        </button>
                       </div>
                     </>
                   )}
@@ -1311,7 +1386,7 @@ const AdminPersonalTicketPage = () => {
                       <>
                 <div className={styles.formGrid}>
                   <div className={styles.field}>
-                    <label>버스번호</label>
+                    <label>호차</label>
                     <input
                       value={draft.busNumber}
                       onChange={(event) =>
@@ -1322,7 +1397,7 @@ const AdminPersonalTicketPage = () => {
                   </div>
 
                   <div className={styles.field}>
-                    <label>좌석번호</label>
+                    <label>좌석 번호</label>
                     <input
                       value={draft.seatNumber}
                       onChange={(event) =>
@@ -1355,7 +1430,7 @@ const AdminPersonalTicketPage = () => {
                   </div>
 
                   <div className={styles.field}>
-                    <label>도착역</label>
+                    <label>행선지</label>
                     <input
                       value={draft.dropoffStation}
                       onChange={(event) =>
@@ -1380,7 +1455,7 @@ const AdminPersonalTicketPage = () => {
                   </div>
                 </div>
 
-                <div className={styles.actionRow}>
+                <div className={`${styles.actionRow} ${styles.ticketActionRow}`}>
                   <button
                     type="button"
                     className={styles.primaryButton}
@@ -1431,7 +1506,7 @@ const AdminPersonalTicketPage = () => {
                       <div className={styles.notAppliedNotice}>
                         <strong>버스 신청 내역이 없습니다.</strong>
                         <p>
-                          이 인원은 아직 버스 신청을 하지 않아 희망 도착역과
+                          이 인원은 아직 버스 신청을 하지 않아 희망 행선지와
                           버스표 정보를 입력할 수 없습니다. 관리자 권한 관리는
                           위 영역에서 계속 처리할 수 있습니다.
                         </p>
@@ -1439,11 +1514,66 @@ const AdminPersonalTicketPage = () => {
                     )
                   )}
                 </section>
+
+                <section className={styles.deleteUserPanel}>
+                  <button
+                    type="button"
+                    className={styles.deleteUserHeader}
+                    onClick={() => setIsDeletePanelOpen((prev) => !prev)}
+                    aria-expanded={isDeletePanelOpen}
+                  >
+                    <span>
+                      <Trash2 size={15} />
+                      위험 작업
+                    </span>
+                    {isDeletePanelOpen ? (
+                      <ChevronUp size={16} />
+                    ) : (
+                      <ChevronDown size={16} />
+                    )}
+                  </button>
+
+                  {isDeletePanelOpen && (
+                    <div className={styles.deleteUserContent}>
+                      <div>
+                        <strong>사용자 계정 삭제</strong>
+                        <p>
+                          로그인 계정과 신청, 결제, 관리자 권한을 영구
+                          삭제합니다. 삭제 후에는 복구할 수 없습니다.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        className={styles.deleteUserButton}
+                        onClick={() => void handleDeleteSelectedUser()}
+                        disabled={
+                          deletingUser || Boolean(selectedGlobalAdminRole)
+                        }
+                        title={
+                          selectedGlobalAdminRole
+                            ? '전체 관리자 계정은 삭제할 수 없습니다.'
+                            : undefined
+                        }
+                      >
+                        <Trash2 size={16} />
+                        {deletingUser ? '삭제 중...' : '사용자 영구 삭제'}
+                      </button>
+                    </div>
+                  )}
+                </section>
               </>
             )}
           </aside>
         </div>
       </main>
+
+      {isCreateUserOpen && (
+        <AdminCreateUserModal
+          districts={roleDistricts}
+          onClose={() => setIsCreateUserOpen(false)}
+          onCreated={loadReservations}
+        />
+      )}
     </div>
   );
 };

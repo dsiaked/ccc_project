@@ -2,7 +2,6 @@ import Header from '../components/Header';
 import HomeDeadlineBanner from '../components/HomeDeadlineBanner';
 import HeroSection from '../components/HeroSection';
 import HomeNoticeSection from '../components/HomeNoticeSection';
-import FeatureSection from '../components/FeatureSection';
 import ProcessSection from '../components/ProcessSection';
 import Footer from '../components/Footer';
 import styles from '../App.module.css';
@@ -15,9 +14,7 @@ const HomePage = () => {
       <main className={styles.mainContent}>
         <HeroSection />
         <HomeNoticeSection />
-        <FeatureSection />
         <ProcessSection />
-        {/* <VideoSection /> */}
       </main>
       <Footer />
     </div>

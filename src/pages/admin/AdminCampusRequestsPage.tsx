@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft,
+  Archive,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   ChevronUp,
   Edit2,
+  House,
   MessageSquare,
   Megaphone,
   RefreshCw,
@@ -16,18 +18,20 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
+import { useAdminAuth } from '../../components/AdminAuthProvider';
 import AdminHeader from './AdminHeader';
 import {
   createCampusRequest,
   createGlobalCampusNotice,
   createCampusRequestMessage,
   deleteCampusRequestMessage,
-  getAdminRole,
   getCampusRequestSummary,
   getCampusRequestsPage,
+  getCampusTransferStats,
   getGlobalCampusNotices,
+  updateGlobalCampusNotice,
   updateCampusRequestMessage,
   updateCampusRequestStatus,
   type AdminRole,
@@ -35,9 +39,12 @@ import {
   type CampusRequestStatus,
   type CampusRequestType,
   type CampusRequestSummary,
+  type CampusNoticeTarget,
+  type CampusTransferStat,
 } from '../../lib/adminService';
 import { supabase } from '../../lib/supabase';
 import { markCampusNoticesRead } from '../../lib/adminNoticeReadState';
+import HomeAnnouncementManager from './HomeAnnouncementManager';
 
 import styles from './AdminCampusRequestsPage.module.css';
 
@@ -76,6 +83,12 @@ const campusRequestTypeOptions = requestTypeOptions.filter(
   (option) => option.value !== 'notice'
 );
 const PAGE_SIZE = 15;
+type GlobalAdminTab = 'requests' | 'notices' | 'home';
+type NoticeAudienceMode = 'all' | 'unpaid' | 'custom';
+
+const getCampusTargetKey = (target: CampusNoticeTarget) =>
+  `${target.district}\u0000${target.team}\u0000${target.campus}`;
+
 const emptySummary: CampusRequestSummary = {
   total: 0,
   notices: 0,
@@ -145,18 +158,28 @@ const getTimelineMessages = (request: CampusRequest) => {
 
 const AdminCampusRequestsPage = () => {
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(true);
-  const [adminRole, setAdminRole] = useState<AdminRole | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { session, adminRole: activeAdminRole } = useAdminAuth();
+  const [loading, setLoading] = useState(() => searchParams.get('tab') !== 'home');
+  const adminRole = activeAdminRole;
   const [requests, setRequests] = useState<CampusRequest[]>([]);
   const [typeInput, setTypeInput] = useState<CampusRequestType>('late_signup');
   const [titleInput, setTitleInput] = useState('');
   const [contentInput, setContentInput] = useState('');
   const [noticeTitleInput, setNoticeTitleInput] = useState('');
   const [noticeContentInput, setNoticeContentInput] = useState('');
-  const [globalAdminTab, setGlobalAdminTab] = useState<'requests' | 'notices'>(
-    'requests'
-  );
+  const requestedTab = searchParams.get('tab');
+  const globalAdminTab: GlobalAdminTab =
+    requestedTab === 'notices' || requestedTab === 'home'
+      ? requestedTab
+      : 'requests';
   const [isNoticeFormOpen, setIsNoticeFormOpen] = useState(false);
+  const [campusTargets, setCampusTargets] = useState<CampusTransferStat[]>([]);
+  const [noticeAudienceMode, setNoticeAudienceMode] =
+    useState<NoticeAudienceMode>('all');
+  const [selectedCampusTargetKeys, setSelectedCampusTargetKeys] = useState<
+    Set<string>
+  >(() => new Set());
   const [submitting, setSubmitting] = useState(false);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [searchKeyword, setSearchKeyword] = useState('');
@@ -175,7 +198,7 @@ const AdminCampusRequestsPage = () => {
   );
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingMessageDraft, setEditingMessageDraft] = useState('');
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const currentUserId = session?.user.id ?? null;
   const [expandedRequestIds, setExpandedRequestIds] = useState<Set<string>>(
     () => new Set()
   );
@@ -187,8 +210,8 @@ const AdminCampusRequestsPage = () => {
   const isGlobalAdmin = adminRole?.role === 'global_admin';
   const isCampusAdmin = adminRole?.role === 'campus_admin';
 
-  const handleGlobalTabChange = (tab: 'requests' | 'notices') => {
-    setGlobalAdminTab(tab);
+  const handleGlobalTabChange = (tab: GlobalAdminTab) => {
+    setSearchParams(tab === 'requests' ? {} : { tab });
     setStatusFilter('all');
     setTypeFilter('all');
     setSearchKeyword('');
@@ -215,7 +238,10 @@ const AdminCampusRequestsPage = () => {
       getCampusRequestsPage(role, {
         page: targetPage,
         pageSize: PAGE_SIZE,
-        kind: role.role === 'global_admin' ? globalAdminTab : 'requests',
+        kind:
+          role.role === 'global_admin' && globalAdminTab === 'notices'
+            ? 'notices'
+            : 'requests',
         status: statusFilter,
         type: typeFilter,
         search: debouncedSearchKeyword,
@@ -259,63 +285,11 @@ const AdminCampusRequestsPage = () => {
   }, [searchKeyword]);
 
   useEffect(() => {
-    let isMounted = true;
-
-    const checkAdminAndLoadRequests = async () => {
-      try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-
-        if (!session) {
-          navigate('/admin/login');
-          return;
-        }
-
-        setCurrentUserId(session.user.id);
-
-        const role = await getAdminRole(session.user.id);
-
-        if (!role || !['global_admin', 'campus_admin'].includes(role.role)) {
-          alert('관리자만 접근할 수 있습니다.');
-          navigate('/');
-          return;
-        }
-
-        if (
-          role.role === 'campus_admin' &&
-          (!role.district || !role.team || !role.campus)
-        ) {
-          alert('관리자 계정에 지구, 팀, 캠퍼스 정보가 없습니다.');
-          navigate('/');
-          return;
-        }
-
-        if (!isMounted) return;
-
-        setAdminRole(role);
-      } catch (error) {
-        console.error('문의 게시판 조회 실패:', error);
-
-        if (isMounted) {
-          alert(`문의 게시판을 불러올 수 없습니다: ${getErrorMessage(error)}`);
-        }
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
-      }
-    };
-
-    checkAdminAndLoadRequests();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [navigate]);
-
-  useEffect(() => {
     if (!adminRole) return;
+
+    if (adminRole.role === 'global_admin' && globalAdminTab === 'home') {
+      return;
+    }
 
     // Loading the current server page synchronizes this view with Supabase.
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -343,7 +317,28 @@ const AdminCampusRequestsPage = () => {
     void loadSummary(adminRole).catch((error) => {
       console.error('문의 게시판 요약 조회 실패:', error);
     });
+    void getCampusTransferStats()
+      .then(setCampusTargets)
+      .catch((error) => console.error('공지 대상 캠퍼스 조회 실패:', error));
   }, [adminRole]);
+
+  const selectedNoticeTargets = useMemo<CampusNoticeTarget[]>(() => {
+    const availableTargets = campusTargets.map(({ district, team, campus }) => ({
+      district,
+      team,
+      campus,
+    }));
+
+    if (noticeAudienceMode === 'all') return availableTargets;
+    if (noticeAudienceMode === 'unpaid') {
+      return campusTargets
+        .filter((target) => target.status === 'pending')
+        .map(({ district, team, campus }) => ({ district, team, campus }));
+    }
+    return availableTargets.filter((target) =>
+      selectedCampusTargetKeys.has(getCampusTargetKey(target))
+    );
+  }, [campusTargets, noticeAudienceMode, selectedCampusTargetKeys]);
 
   const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
 
@@ -464,6 +459,11 @@ const AdminCampusRequestsPage = () => {
       return;
     }
 
+    if (selectedNoticeTargets.length === 0) {
+      alert('공지를 받을 캠퍼스를 한 곳 이상 선택해 주세요.');
+      return;
+    }
+
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -480,6 +480,7 @@ const AdminCampusRequestsPage = () => {
         title,
         content,
         createdBy: user.id,
+        targets: selectedNoticeTargets,
       });
 
       setRequests((prev) => [createdNotice, ...prev]);
@@ -507,6 +508,52 @@ const AdminCampusRequestsPage = () => {
       alert(`공지 등록 중 오류가 발생했습니다: ${getErrorMessage(error)}`);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleArchiveGlobalNotice = async (notice: CampusRequest) => {
+    if (!window.confirm('이 공지를 보관할까요? 대상 캠퍼스에서는 더 이상 보이지 않습니다.')) return;
+    setProcessingId(notice.id);
+    try {
+      const updated = await updateGlobalCampusNotice({
+        noticeId: notice.id,
+        title: notice.title,
+        content: notice.content,
+        targets: notice.noticeTargets,
+        archived: true,
+      });
+      setRequests((current) =>
+        current.map((item) => (item.id === notice.id ? updated : item))
+      );
+    } catch (error) {
+      alert(`공지를 보관하지 못했습니다: ${getErrorMessage(error)}`);
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleEditGlobalNotice = async (notice: CampusRequest) => {
+    const title = window.prompt('공지 제목', notice.title)?.trim();
+    if (!title) return;
+    const content = window.prompt('공지 내용', notice.content)?.trim();
+    if (!content) return;
+    setProcessingId(notice.id);
+    try {
+      const updated = await updateGlobalCampusNotice({
+        noticeId: notice.id,
+        title,
+        content,
+        targets: notice.noticeTargets,
+        archived: false,
+      });
+      setRequests((current) =>
+        current.map((item) => (item.id === notice.id ? updated : item))
+      );
+      alert('공지를 수정했습니다. 대상 캠퍼스에 새 공지로 다시 알립니다.');
+    } catch (error) {
+      alert(`공지를 수정하지 못했습니다: ${getErrorMessage(error)}`);
+    } finally {
+      setProcessingId(null);
     }
   };
 
@@ -775,6 +822,84 @@ const AdminCampusRequestsPage = () => {
     }
   };
 
+  const globalSectionContent = {
+    requests: {
+      eyebrow: '문의 운영',
+      title: '문의 처리',
+      description:
+        '신청 마감 이후 추가 신청, 환불, 입금 오류, 명단 수정 요청을 확인하고 처리합니다.',
+    },
+    notices: {
+      eyebrow: '캠퍼스 커뮤니케이션',
+      title: '캠퍼스 공지',
+      description:
+        '전체 또는 선택한 캠퍼스 관리자에게 전달할 운영 공지를 작성하고 관리합니다.',
+    },
+    home: {
+      eyebrow: '사용자 커뮤니케이션',
+      title: '홈화면 공지',
+      description:
+        '일반 사용자의 홈화면에 표시되는 안내와 중요 공지를 관리합니다.',
+    },
+  } satisfies Record<
+    GlobalAdminTab,
+    { eyebrow: string; title: string; description: string }
+  >;
+  const activeGlobalSection = globalSectionContent[globalAdminTab];
+
+  const renderGlobalSectionNav = () => (
+    <nav className={styles.globalSectionNav} aria-label="공지·문의 관리 메뉴">
+      <button
+        type="button"
+        className={globalAdminTab === 'requests' ? styles.globalSectionActive : ''}
+        onClick={() => handleGlobalTabChange('requests')}
+        aria-current={globalAdminTab === 'requests' ? 'page' : undefined}
+      >
+        <span className={styles.globalSectionIcon}>
+          <MessageSquare size={18} />
+        </span>
+        <span className={styles.globalSectionCopy}>
+          <strong>문의 처리</strong>
+          <small>접수된 요청을 확인하고 답변합니다.</small>
+        </span>
+        <em className={summary.unresolved > 0 ? styles.attentionCount : ''}>
+          {summary.unresolved}
+        </em>
+      </button>
+
+      <button
+        type="button"
+        className={globalAdminTab === 'notices' ? styles.globalSectionActive : ''}
+        onClick={() => handleGlobalTabChange('notices')}
+        aria-current={globalAdminTab === 'notices' ? 'page' : undefined}
+      >
+        <span className={styles.globalSectionIcon}>
+          <Megaphone size={18} />
+        </span>
+        <span className={styles.globalSectionCopy}>
+          <strong>캠퍼스 공지</strong>
+          <small>캠퍼스 관리자 대상 공지를 관리합니다.</small>
+        </span>
+        <em>{summary.notices}</em>
+      </button>
+
+      <button
+        type="button"
+        className={globalAdminTab === 'home' ? styles.globalSectionActive : ''}
+        onClick={() => handleGlobalTabChange('home')}
+        aria-current={globalAdminTab === 'home' ? 'page' : undefined}
+      >
+        <span className={styles.globalSectionIcon}>
+          <House size={18} />
+        </span>
+        <span className={styles.globalSectionCopy}>
+          <strong>홈화면 공지</strong>
+          <small>일반 사용자 대상 공지를 관리합니다.</small>
+        </span>
+      </button>
+    </nav>
+  );
+
   if (loading) {
     return (
       <div className={styles.page}>
@@ -792,6 +917,42 @@ const AdminCampusRequestsPage = () => {
         <AdminHeader />
         <main className={styles.main}>
           <p>관리자만 접근할 수 있습니다.</p>
+        </main>
+      </div>
+    );
+  }
+
+  if (isGlobalAdmin && globalAdminTab === 'home') {
+    return (
+      <div className={styles.page}>
+        <AdminHeader />
+
+        <main className={styles.main}>
+          <button
+            type="button"
+            className={styles.backButton}
+            onClick={() => navigate('/admin/global')}
+          >
+            <ArrowLeft size={18} />
+            전체 관리자 화면
+          </button>
+
+          <section className={styles.headerSection}>
+            <div>
+              <p className={styles.eyebrow}>{activeGlobalSection.eyebrow}</p>
+              <h1 className={styles.title}>{activeGlobalSection.title}</h1>
+              <p className={styles.description}>{activeGlobalSection.description}</p>
+            </div>
+
+            <div className={styles.scopeBadge}>
+              <MessageSquare size={18} />
+              전체 관리자
+            </div>
+          </section>
+
+          {renderGlobalSectionNav()}
+
+          <HomeAnnouncementManager />
         </main>
       </div>
     );
@@ -816,14 +977,14 @@ const AdminCampusRequestsPage = () => {
         <section className={styles.headerSection}>
           <div>
             <p className={styles.eyebrow}>
-              {isGlobalAdmin ? '마감 후 문의 관리' : '본부 공지와 문의'}
+              {isGlobalAdmin ? activeGlobalSection.eyebrow : '본부 공지와 문의'}
             </p>
             <h1 className={styles.title}>
-              {isGlobalAdmin ? '캠퍼스 문의 및 공지 관리' : '본부 공지와 문의'}
+              {isGlobalAdmin ? activeGlobalSection.title : '본부 공지와 문의'}
             </h1>
             <p className={styles.description}>
               {isGlobalAdmin
-                ? '신청 마감 이후 추가 신청, 환불, 입금 오류, 명단 수정 같은 요청을 한 곳에서 기록하고 처리합니다. 모든 캠퍼스 관리자에게 공지도 일괄 전달할 수 있습니다.'
+                ? activeGlobalSection.description
                 : '본부 공지를 확인하고, 추가 신청이나 환불처럼 본부 확인이 필요한 문의를 남깁니다.'}
             </p>
           </div>
@@ -837,49 +998,27 @@ const AdminCampusRequestsPage = () => {
         </section>
 
         {isGlobalAdmin && (
-          <div className={styles.globalTabs} role="tablist" aria-label="관리 유형">
-            <button
-              type="button"
-              className={
-                globalAdminTab === 'requests' ? styles.globalTabActive : ''
-              }
-              onClick={() => handleGlobalTabChange('requests')}
-            >
-              문의 처리
-            </button>
-            <button
-              type="button"
-              className={
-                globalAdminTab === 'notices' ? styles.globalTabActive : ''
-              }
-              onClick={() => handleGlobalTabChange('notices')}
-            >
-              공지 관리
-              {summary.notices > 0 && (
-                <span className={styles.tabCount}>{summary.notices}</span>
-              )}
-            </button>
-          </div>
+          renderGlobalSectionNav()
         )}
 
         {isGlobalAdmin && globalAdminTab === 'requests' && (
           <section className={styles.summaryGrid}>
-            <div className={styles.summaryCard}>
-              <span>미완료</span>
-              <strong>{summary.unresolved}</strong>
-            </div>
-            <div className={styles.summaryCard}>
+            <button type="button" className={styles.summaryCard} onClick={() => setStatusFilter('all')}>
+              <span>전체 문의</span>
+              <strong>{summary.total}</strong>
+            </button>
+            <button type="button" className={styles.summaryCard} onClick={() => setStatusFilter('open')}>
               <span>접수</span>
               <strong>{summary.open}</strong>
-            </div>
-            <div className={styles.summaryCard}>
+            </button>
+            <button type="button" className={styles.summaryCard} onClick={() => setStatusFilter('in_progress')}>
               <span>처리 중</span>
               <strong>{summary.inProgress}</strong>
-            </div>
-            <div className={styles.summaryCard}>
+            </button>
+            <button type="button" className={styles.summaryCard} onClick={() => setStatusFilter('resolved')}>
               <span>완료</span>
               <strong>{summary.resolved}</strong>
-            </div>
+            </button>
           </section>
         )}
 
@@ -927,6 +1066,52 @@ const AdminCampusRequestsPage = () => {
                     rows={5}
                   />
                 </label>
+
+                <div className={styles.audiencePanel}>
+                  <div className={styles.sectionHeader}>
+                    <h2>발송 대상</h2>
+                    <p>선택 결과는 발송 시점의 캠퍼스 목록으로 확정됩니다.</p>
+                  </div>
+                  <div className={styles.audienceModes}>
+                    <button type="button" className={noticeAudienceMode === 'all' ? styles.audienceModeActive : ''} onClick={() => setNoticeAudienceMode('all')}>
+                      전체 캠퍼스
+                    </button>
+                    <button type="button" className={noticeAudienceMode === 'unpaid' ? styles.audienceModeActive : ''} onClick={() => setNoticeAudienceMode('unpaid')}>
+                      미송금 캠퍼스
+                    </button>
+                    <button type="button" className={noticeAudienceMode === 'custom' ? styles.audienceModeActive : ''} onClick={() => setNoticeAudienceMode('custom')}>
+                      직접 선택
+                    </button>
+                  </div>
+                  <strong className={styles.audienceCount}>
+                    선택된 캠퍼스 {selectedNoticeTargets.length}곳
+                  </strong>
+                  {noticeAudienceMode === 'custom' && (
+                    <div className={styles.campusTargetList}>
+                      {campusTargets.map((target) => {
+                        const targetKey = getCampusTargetKey(target);
+                        return (
+                          <label key={targetKey}>
+                            <input
+                              type="checkbox"
+                              checked={selectedCampusTargetKeys.has(targetKey)}
+                              onChange={(event) =>
+                                setSelectedCampusTargetKeys((current) => {
+                                  const next = new Set(current);
+                                  if (event.target.checked) next.add(targetKey);
+                                  else next.delete(targetKey);
+                                  return next;
+                                })
+                              }
+                            />
+                            <span>{target.district} / {target.team} / {target.campus}</span>
+                            <em>{target.status === 'pending' ? '미송금' : target.status === 'sent' ? '송금 보고' : '입금 확인'}</em>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
 
                 <div className={styles.actionRow}>
                   <button
@@ -1222,6 +1407,12 @@ const AdminCampusRequestsPage = () => {
                       <p className={styles.requestPreview}>
                         {requestPreview}
                       </p>
+                      {request.isGlobalNotice && (
+                        <p className={styles.targetSummary}>
+                          발송 대상 {request.noticeTargets.length}개 캠퍼스
+                          {request.isArchived ? ' · 보관됨' : ''}
+                        </p>
+                      )}
                     </div>
 
                     <div className={styles.requestSide}>
@@ -1405,6 +1596,18 @@ const AdminCampusRequestsPage = () => {
                       </button>
                     </div>
                   </div>
+                  )}
+                  {isGlobalAdmin && request.isGlobalNotice && (
+                    <div className={styles.noticeManageActions}>
+                      <button type="button" className={styles.secondaryButton} disabled={processingId === request.id} onClick={() => void handleEditGlobalNotice(request)}>
+                        <Edit2 size={15} />
+                        수정 후 재알림
+                      </button>
+                      <button type="button" className={styles.secondaryButton} disabled={processingId === request.id || request.isArchived} onClick={() => void handleArchiveGlobalNotice(request)}>
+                        <Archive size={15} />
+                        보관
+                      </button>
+                    </div>
                   )}
                     </div>
                   )}

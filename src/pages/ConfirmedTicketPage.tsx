@@ -37,7 +37,7 @@ const ConfirmedTicketPage = () => {
           return;
         }
 
-        // DB에서 예약 정보 조회
+        // DB에서 신청 정보 조회
         const dbReservation = await getReservation();
         if (!isMounted) return;
 
@@ -48,7 +48,7 @@ const ConfirmedTicketPage = () => {
           setReservation(null);
         }
       } catch (error) {
-        console.error('예약 정보 로드 실패:', error);
+        console.error('신청 정보 로드 실패:', error);
         if (isMounted) setReservation(null);
       } finally {
         if (isMounted) setLoading(false);
@@ -120,7 +120,7 @@ const ConfirmedTicketPage = () => {
           <div className={styles.emptyContainer}>
             <Bus size={48} color="#94a3b8" />
             <h2>버스표가 아직 확정되지 않았습니다</h2>
-            <p>관리자가 희망 도착역과 인원 현황을 확인한 후 버스표를 확정합니다.</p>
+            <p>관리자가 희망 행선지와 인원 현황을 확인한 후 버스표를 확정합니다.</p>
             <button
               className={styles.secondaryButton}
               onClick={() => navigate('/ticket')}
@@ -158,7 +158,7 @@ const ConfirmedTicketPage = () => {
           <p className={styles.subtitle}>2026 CCC 여름수련회 귀가 버스</p>
         </div>
 
-        {/* 메인 티켓 카드 */}
+        {/* 메인 버스표 카드 */}
         <div className={styles.ticketContainer}>
           {/* 위쪽 - 호차 정보 */}
           <div className={styles.ticketTop}>
@@ -201,7 +201,7 @@ const ConfirmedTicketPage = () => {
                 <MapPin size={20} color="#16a34a" className={styles.infoIcon} />
                 <div className={styles.infoBlockContentFull}>
                   <div className={styles.dropoffMain}>
-                    <span className={styles.infoLabel}>확정 도착역</span>
+                    <span className={styles.infoLabel}>확정 행선지</span>
                     <span className={styles.infoValue}>{ticket.dropoffStation}</span>
                   </div>
                   {ticket.dropoffDetail && (

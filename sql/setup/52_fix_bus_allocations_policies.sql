@@ -6,6 +6,24 @@
 
 create extension if not exists "pgcrypto";
 
+create or replace function public.is_global_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.admin_roles
+    where admin_roles.user_id = auth.uid()
+      and admin_roles.role = 'global_admin'
+  );
+$$;
+
+revoke all on function public.is_global_admin() from public;
+grant execute on function public.is_global_admin() to authenticated;
+
 create table if not exists bus_allocations (
   id uuid primary key default gen_random_uuid(),
   allocation_name text not null,
@@ -13,7 +31,9 @@ create table if not exists bus_allocations (
   total_cost integer not null default 0,
   total_capacity integer not null default 0,
   created_by uuid references auth.users(id),
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  revision bigint not null default 0
 );
 
 alter table bus_allocations
@@ -34,6 +54,12 @@ alter table bus_allocations
 alter table bus_allocations
   add column if not exists created_at timestamptz not null default now();
 
+alter table bus_allocations
+  add column if not exists updated_at timestamptz not null default now();
+
+alter table bus_allocations
+  add column if not exists revision bigint not null default 0;
+
 create index if not exists idx_bus_allocations_created_at
   on bus_allocations(created_at desc);
 
@@ -49,35 +75,9 @@ create policy "Global admins can view bus allocations"
 on bus_allocations
 for select
 to authenticated
-using (
-  exists (
-    select 1
-    from admin_roles
-    where admin_roles.user_id = auth.uid()
-      and admin_roles.role = 'global_admin'
-  )
-);
+using (public.is_global_admin());
 
-create policy "Global admins can manage bus allocations"
-on bus_allocations
-for all
-to authenticated
-using (
-  exists (
-    select 1
-    from admin_roles
-    where admin_roles.user_id = auth.uid()
-      and admin_roles.role = 'global_admin'
-  )
-)
-with check (
-  exists (
-    select 1
-    from admin_roles
-    where admin_roles.user_id = auth.uid()
-      and admin_roles.role = 'global_admin'
-  )
-);
+revoke insert, update, delete on table public.bus_allocations from public, anon, authenticated;
 
 notify pgrst, 'reload schema';
 

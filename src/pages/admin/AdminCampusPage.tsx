@@ -2,8 +2,12 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   AlertTriangle,
-  CheckCircle2,
+  BusFront,
+  ChevronDown,
+  ChevronUp,
+  Clock3,
   Download,
+  MapPin,
   Megaphone,
   MessageSquare,
 } from 'lucide-react';
@@ -65,6 +69,7 @@ interface ReservationWithPayment {
     seatNumber?: string | null;
     departureTime?: string | null;
     boardingPlace?: string | null;
+    dropoffStation?: string | null;
   } | null;
   created_at: string;
   updated_at: string;
@@ -118,21 +123,20 @@ const getPaymentStatusLabel = (payment: PaymentInfo | null) => {
   return '미입금';
 };
 
-const getConfirmedTicketLabel = (
+const getConfirmedTicketLines = (
   reservation: ReservationWithPayment
 ) => {
   const ticket = reservation.confirmed_ticket;
 
-  if (!ticket) return '미확정';
+  if (!ticket) return ['미확정'];
 
   return [
-    ticket.busNumber,
-    ticket.seatNumber ? `${ticket.seatNumber}번 좌석` : null,
-    ticket.boardingPlace,
-    ticket.departureTime,
-  ]
-    .filter(Boolean)
-    .join(' · ');
+    `확정: ${ticket.dropoffStation || '-'} ${ticket.busNumber || '-'} ${
+      ticket.seatNumber ? `${ticket.seatNumber}번 좌석` : '좌석 미지정'
+    }`,
+    `출발장소: ${ticket.boardingPlace || '-'}`,
+    `출발시간: ${ticket.departureTime || '-'}`,
+  ];
 };
 
 const fitCanvasText = (
@@ -176,6 +180,8 @@ const CampusAdminPage = () => {
   const [verifying, setVerifying] = useState(false);
   const [transferSending, setTransferSending] = useState(false);
   const [savingApplicantImage, setSavingApplicantImage] = useState(false);
+  const [isApplicantListOpen, setIsApplicantListOpen] = useState(true);
+  const [isGuideOpen, setIsGuideOpen] = useState(false);
 
   const [adminScope, setAdminScope] = useState<CampusAdminScope | null>(null);
   const [campusTransfer, setCampusTransfer] =
@@ -337,7 +343,7 @@ const CampusAdminPage = () => {
         console.error('Failed to load reservations:', error);
 
         if (isMounted) {
-          alert('예약 정보를 불러올 수 없습니다. 다시 시도해주세요.');
+          alert('신청 정보를 불러올 수 없습니다. 다시 시도해주세요.');
         }
       } finally {
         if (isMounted) {
@@ -413,14 +419,14 @@ const CampusAdminPage = () => {
         { label: '이름', width: 140 },
         { label: '1지망', width: 150 },
         { label: '2지망', width: 150 },
-        { label: '배차 확정', width: 300 },
+        { label: '배차 확정', width: 350 },
         { label: '입금 상태', width: 130 },
         { label: '신청일', width: 140 },
       ];
       const margin = 48;
       const titleHeight = 150;
       const headerHeight = 54;
-      const rowHeight = 54;
+      const rowHeight = 74;
       const footerHeight = 54;
       const tableWidth = columns.reduce((sum, column) => sum + column.width, 0);
       const logicalWidth = tableWidth + margin * 2;
@@ -497,7 +503,7 @@ const CampusAdminPage = () => {
           reservation.name,
           getStationName(reservation, 1),
           getStationName(reservation, 2),
-          getConfirmedTicketLabel(reservation),
+          getConfirmedTicketLines(reservation),
           getPaymentStatusLabel(payment),
           new Date(reservation.created_at).toLocaleDateString('ko-KR'),
         ];
@@ -515,17 +521,47 @@ const CampusAdminPage = () => {
           '600 13px "Pretendard", "Noto Sans KR", "Malgun Gothic", sans-serif';
 
         columns.forEach((column, columnIndex) => {
+          const value = values[columnIndex];
+
+          if (Array.isArray(value) && value[0] !== '미확정') {
+            context.fillStyle = '#f8fbff';
+            context.fillRect(x, rowTop, column.width, rowHeight);
+          }
+
           context.strokeStyle = '#e2e8f0';
           context.strokeRect(x, rowTop, column.width, rowHeight);
           context.fillStyle =
             column.label === '입금 상태' && payment?.status === 'completed'
               ? '#166534'
               : '#334155';
-          context.fillText(
-            fitCanvasText(context, values[columnIndex], column.width - 24),
-            x + 12,
-            rowTop + rowHeight / 2
-          );
+
+          if (Array.isArray(value)) {
+            const lineHeight = 18;
+            const linesHeight = value.length * lineHeight;
+            const firstLineY =
+              rowTop + (rowHeight - linesHeight) / 2 + lineHeight / 2;
+
+            value.forEach((line, lineIndex) => {
+              context.font =
+                lineIndex === 0
+                  ? '800 13px "Pretendard", "Noto Sans KR", "Malgun Gothic", sans-serif'
+                  : '600 11px "Pretendard", "Noto Sans KR", "Malgun Gothic", sans-serif';
+              context.fillStyle = lineIndex === 0 ? '#1d4ed8' : '#64748b';
+              context.fillText(
+                fitCanvasText(context, line, column.width - 24),
+                x + 12,
+                firstLineY + lineIndex * lineHeight
+              );
+            });
+          } else {
+            context.font =
+              '600 13px "Pretendard", "Noto Sans KR", "Malgun Gothic", sans-serif';
+            context.fillText(
+              fitCanvasText(context, value, column.width - 24),
+              x + 12,
+              rowTop + rowHeight / 2
+            );
+          }
           x += column.width;
         });
       });
@@ -789,13 +825,12 @@ const CampusAdminPage = () => {
         <div className={styles.header}>
           {adminScope && (
             <div className={styles.adminScopeBadge}>
-              {adminScope.district} / {adminScope.team}
+              {adminScope.district} · {adminScope.team} · {adminScope.campus}
             </div>
           )}
-          <h1>개인 입금 확인 - {campus}</h1>
+          <h1>캠퍼스 입금 관리</h1>
           <p>
-            {campus} 캠퍼스 회계 순장님으로 신청자별 입금 여부를 체크하고
-            본부 송금 금액을 집계합니다.
+            버스 신청자의 입금 상태를 확인하고 본부 송금 절차를 진행합니다.
           </p>
         </div>
 
@@ -823,50 +858,58 @@ const CampusAdminPage = () => {
           </section>
         )}
 
-        <section className={styles.guideSection}>
-          <div>
-            <strong>사용 순서</strong>
-            <ol className={styles.guideList}>
-              <li>신청자 전원이 본인 계좌로 입금했는지 확인합니다.</li>
-              <li>전원 입금이 확인되면 서울지구 계좌로 송금합니다.</li>
-              <li>
-                송금을 완료했다면 아래의 &quot;송금 완료&quot; 버튼을 눌러주세요.
-                <span className={styles.guideWarning}>
-                  버튼을 누른 이후에는 캠퍼스 관리자 화면에서 입금 상태와 송금
-                  보고 내용을 수정할 수 없습니다.
-                </span>
-              </li>
-            </ol>
-          </div>
-          <div>
-            <strong>송금 이후</strong>
-            <p>
-              보고가 완료되면 아래 상태가 바뀌고, 전체 관리자가 본부 입금 확인을
-              진행할 수 있습니다. 추가 신청이나 추가 입금이 생기면 추가 송금
-              보고가 필요합니다.
-            </p>
-          </div>
+        <section className={styles.guidePanel}>
+          <button
+            type="button"
+            className={styles.guideToggle}
+            onClick={() => setIsGuideOpen((current) => !current)}
+            aria-expanded={isGuideOpen}
+            aria-controls="campus-payment-guide"
+          >
+            <span>
+              <strong>입금 확인 및 송금 진행 방법</strong>
+              <small>처음 진행할 때 확인해주세요.</small>
+            </span>
+            {isGuideOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+          </button>
+
+          {isGuideOpen && (
+            <div id="campus-payment-guide" className={styles.guideSection}>
+              <div>
+                <strong>사용 순서</strong>
+                <ol className={styles.guideList}>
+                  <li>신청자 전원이 본인 계좌로 입금했는지 확인합니다.</li>
+                  <li>전원 입금이 확인되면 서울지구 계좌로 송금합니다.</li>
+                  <li>
+                    송금을 완료했다면 아래의 &quot;송금 완료&quot; 버튼을
+                    눌러주세요.
+                    <span className={styles.guideWarning}>
+                      버튼을 누른 이후에는 입금 상태와 송금 보고 내용을 수정할 수
+                      없습니다.
+                    </span>
+                  </li>
+                </ol>
+              </div>
+              <div>
+                <strong>송금 이후</strong>
+                <p>
+                  전체 관리자가 본부 입금 확인을 진행합니다. 추가 신청이나 추가
+                  입금이 생기면 추가 송금 보고가 필요합니다.
+                </p>
+              </div>
+            </div>
+          )}
         </section>
 
         <div className={styles.statsBar}>
           <div className={styles.stat}>
-            <span className={styles.statLabel}>전체 예약</span>
+            <span className={styles.statLabel}>전체 신청</span>
             <span className={styles.statValue}>{stats.total}</span>
           </div>
 
           <div className={`${styles.stat} ${styles.statCompleted}`}>
             <span className={styles.statLabel}>입금 확인</span>
             <span className={styles.statValue}>{stats.completed}</span>
-          </div>
-
-          <div className={`${styles.stat} ${styles.statPending}`}>
-            <span className={styles.statLabel}>미입금</span>
-            <span className={styles.statValue}>{stats.pending}</span>
-          </div>
-
-          <div className={styles.stat}>
-            <span className={styles.statLabel}>입금률</span>
-            <span className={styles.statValue}>{paymentRate}%</span>
           </div>
 
           <div className={styles.stat}>
@@ -881,24 +924,71 @@ const CampusAdminPage = () => {
           <div>
             <h2 className={styles.listTitle}>버스 신청자 목록</h2>
             <p className={styles.listMeta}>
-              현재 목록 전체를 표 형태의 PNG 이미지로 저장합니다.
+              총 {reservations.length}명 · 현재 목록 전체를 PNG 이미지로 저장할
+              수 있습니다.
             </p>
           </div>
 
-          <button
-            type="button"
-            className={styles.imageSaveButton}
-            onClick={handleSaveApplicantListImage}
-            disabled={reservations.length === 0 || savingApplicantImage}
-          >
-            <Download size={18} />
-            {savingApplicantImage
-              ? '이미지 생성 중...'
-              : '버스 신청자 목록 이미지 저장'}
-          </button>
+          <div className={styles.listActions}>
+            <button
+              type="button"
+              className={styles.listToggleButton}
+              onClick={() => setIsApplicantListOpen((current) => !current)}
+              aria-expanded={isApplicantListOpen}
+              aria-controls="campus-applicant-list"
+            >
+              {isApplicantListOpen ? (
+                <ChevronUp size={18} />
+              ) : (
+                <ChevronDown size={18} />
+              )}
+              {isApplicantListOpen ? '접기' : '펼치기'}
+            </button>
+
+            <button
+              type="button"
+              className={styles.imageSaveButton}
+              onClick={handleSaveApplicantListImage}
+              disabled={reservations.length === 0 || savingApplicantImage}
+            >
+              <Download size={18} />
+              {savingApplicantImage
+                ? '이미지 생성 중...'
+                : '버스 신청자 목록 이미지 저장'}
+            </button>
+          </div>
         </div>
 
-        <div className={styles.tableContainer}>
+        <div className={styles.paymentRatioCard}>
+          <div className={styles.paymentRatioHeader}>
+            <div>
+              <span className={styles.paymentRatioLabel}>입금 진행률</span>
+              <strong>
+                {stats.completed}명 확인 · {stats.pending}명 미입금
+              </strong>
+            </div>
+            <span className={styles.paymentRatioPercent}>{paymentRate}%</span>
+          </div>
+          <div
+            className={styles.paymentRatioBar}
+            role="progressbar"
+            aria-label="입금 확인 진행률"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={paymentRate}
+          >
+            <div
+              className={styles.paymentRatioPaid}
+              style={{ width: `${paymentRate}%` }}
+            />
+          </div>
+        </div>
+
+        {isApplicantListOpen && (
+        <div
+          id="campus-applicant-list"
+          className={styles.tableContainer}
+        >
           <table className={styles.table}>
             <thead>
               <tr>
@@ -921,8 +1011,6 @@ const CampusAdminPage = () => {
                 </th>
                 <th>이름</th>
                 <th>연락처</th>
-                <th>팀</th>
-                <th>캠퍼스</th>
                 <th>1지망</th>
                 <th>2지망</th>
                 <th>배차 확정</th>
@@ -934,7 +1022,9 @@ const CampusAdminPage = () => {
             <tbody>
               {reservations.length === 0 ? (
                 <tr>
-                  <td colSpan={10}>예약자가 없습니다.</td>
+                  <td colSpan={8} className={styles.emptyCell}>
+                    버스 신청자가 없습니다.
+                  </td>
                 </tr>
               ) : (
                 reservations.map((reservation) => {
@@ -984,26 +1074,50 @@ const CampusAdminPage = () => {
 
                       <td className={styles.name}>{reservation.name}</td>
                       <td className={styles.phone}>{reservation.phone}</td>
-                      <td>{reservation.team}</td>
-                      <td>{reservation.campus}</td>
                       <td>{firstStation}</td>
                       <td>{secondStation}</td>
                       <td>
                         {confirmedTicket ? (
                           <div className={styles.ticketConfirmed}>
-                            <span>확정</span>
-                            <small>
-                              {[
-                                confirmedTicket.busNumber,
-                                confirmedTicket.seatNumber
+                            <div className={styles.ticketDestination}>
+                              <span>귀가 행선지</span>
+                              <strong>
+                                {confirmedTicket.dropoffStation || '-'}
+                              </strong>
+                            </div>
+
+                            <div className={styles.ticketAssignment}>
+                              <span className={styles.ticketBadge}>
+                                <BusFront size={13} />
+                                {confirmedTicket.busNumber || '-'}
+                              </span>
+                              <span className={styles.seatBadge}>
+                                {confirmedTicket.seatNumber
                                   ? `${confirmedTicket.seatNumber}번 좌석`
-                                  : null,
-                                confirmedTicket.boardingPlace,
-                                confirmedTicket.departureTime,
-                              ]
-                                .filter(Boolean)
-                                .join(' · ')}
-                            </small>
+                                  : '좌석 미지정'}
+                              </span>
+                            </div>
+
+                            <div className={styles.ticketMetaList}>
+                              <div className={styles.ticketMetaItem}>
+                                <MapPin size={14} />
+                                <span>
+                                  <small>탑승 장소</small>
+                                  <strong>
+                                    {confirmedTicket.boardingPlace || '-'}
+                                  </strong>
+                                </span>
+                              </div>
+                              <div className={styles.ticketMetaItem}>
+                                <Clock3 size={14} />
+                                <span>
+                                  <small>출발 시간</small>
+                                  <strong>
+                                    {confirmedTicket.departureTime || '-'}
+                                  </strong>
+                                </span>
+                              </div>
+                            </div>
                           </div>
                         ) : (
                           <span className={styles.ticketPending}>미확정</span>
@@ -1019,10 +1133,10 @@ const CampusAdminPage = () => {
                           {paymentStatus === 'completed'
                             ? '✓ 확인됨'
                             : paymentStatus === 'pending'
-                              ? '대기중'
+                              ? '대기 중'
                               : paymentStatus === 'refunded'
                                 ? '환불'
-                                : '대기중'}
+                                : '대기 중'}
                         </span>
                       </td>
 
@@ -1038,19 +1152,6 @@ const CampusAdminPage = () => {
             </tbody>
           </table>
         </div>
-
-        {stats.completed === stats.total && stats.total > 0 && (
-          <div className={styles.successMessage}>
-            <CheckCircle2 size={24} color="#10b981" />
-            <div>
-              <p className={styles.successTitle}>
-                모든 입금이 확인되었습니다!
-              </p>
-              <p className={styles.successText}>
-                총 {stats.completed}명의 입금을 확인하셨습니다.
-              </p>
-            </div>
-          </div>
         )}
 
         <div
@@ -1086,26 +1187,30 @@ const CampusAdminPage = () => {
               </div>
             </div>
 
-            <p className={styles.transferText}>{transferStatusDescription}</p>
+            {!isHeadOfficeConfirmed && (
+              <p className={styles.transferText}>{transferStatusDescription}</p>
+            )}
 
-            <div className={styles.transferAccountBox}>
-              <span>서울지구 송금 계좌번호</span>
-              <strong>
-                {districtTransferAccountNumber ||
-                  '전체 관리자가 계좌번호를 아직 설정하지 않았습니다.'}
-              </strong>
-            </div>
-
-            <div className={styles.transferSummaryGrid}>
-              <div>
-                <span>송금 예정액</span>
-                <strong>{totalAmount.toLocaleString()}원</strong>
-              </div>
-              <div>
-                <span>입금 확인</span>
+            <div className={styles.transferDetailGrid}>
+              <div className={styles.transferAccountBox}>
+                <span>서울지구 송금 계좌 번호</span>
                 <strong>
-                  {paidPeople} / {totalPeople}명
+                  {districtTransferAccountNumber ||
+                    '전체 관리자가 계좌 번호를 아직 설정하지 않았습니다.'}
                 </strong>
+              </div>
+
+              <div className={styles.transferSummaryGrid}>
+                <div>
+                  <span>송금 예정액</span>
+                  <strong>{totalAmount.toLocaleString()}원</strong>
+                </div>
+                <div>
+                  <span>입금 확인</span>
+                  <strong>
+                    {paidPeople} / {totalPeople}명
+                  </strong>
+                </div>
               </div>
             </div>
 
@@ -1139,43 +1244,20 @@ const CampusAdminPage = () => {
               )}
             </div>
 
-            {isHeadOfficeConfirmed && (
-              <div className={styles.headOfficeConfirmedBox}>
-                <CheckCircle2 size={20} />
-                <div>
-                  <strong>본부 입금 확인 완료</strong>
-                  <p>
-                    전체 관리자가 실제 입금액{' '}
-                    {(
-                      campusTransfer?.actualConfirmedAmount ??
-                      campusTransfer?.reportedTotalAmount ??
-                      totalAmount
-                    ).toLocaleString()}
-                    원을 확인했습니다. 캠퍼스 송금 절차가 완료되었습니다.
-                  </p>
-                </div>
-              </div>
-            )}
           </div>
 
-          <div className={styles.transferActionStack}>
-            <button
-              type="button"
-              className={styles.primaryButton}
-              onClick={handleMarkCampusTransferSent}
-              disabled={!canReportCampusTransfer}
-            >
-              {transferSending ? '처리 중...' : reportButtonLabel}
-            </button>
-
-            {hasReportedTransfer && !campusTransfer?.hasAdditionalSettlement && (
-              <p className={styles.transferActionHint}>
-                {isHeadOfficeConfirmed
-                  ? '본부 확인까지 완료되어 추가 조치가 없습니다.'
-                  : '이미 보고되어 전체 관리자 확인을 기다리는 중입니다.'}
-              </p>
-            )}
-          </div>
+          {canReportCampusTransfer && (
+            <div className={styles.transferActionStack}>
+              <button
+                type="button"
+                className={styles.primaryButton}
+                onClick={handleMarkCampusTransferSent}
+                disabled={transferSending}
+              >
+                {transferSending ? '처리 중...' : reportButtonLabel}
+              </button>
+            </div>
+          )}
         </div>
 
         <div className={styles.requestHelpBox}>

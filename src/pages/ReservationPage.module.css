@@ -48,10 +48,19 @@
 }
 
 .stepper {
+  position: sticky;
+  top: 76px;
+  z-index: 20;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
-  margin-bottom: 26px;
+  margin: -12px -12px 26px;
+  padding: 12px;
+  border: 1px solid rgba(228, 231, 236, 0.9);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+  backdrop-filter: blur(12px);
 }
 
 .stepItem {
@@ -759,6 +768,9 @@
 }
 
 .closedNoticeBox {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   margin-bottom: 20px;
   padding: 16px 18px;
   border-radius: 14px;
@@ -770,13 +782,31 @@
   line-height: 1.5;
 }
 
+.closedNoticeBox strong {
+  flex-shrink: 0;
+}
+
+.closedNoticeBox span {
+  flex: 1;
+}
+
+.closedNoticeBox button {
+  flex-shrink: 0;
+  min-height: 38px;
+  padding: 0 13px;
+  border-radius: 9px;
+  background: #ea580c;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 900;
+}
+
 .buttonGroup {
   display: flex;
   gap: 12px;
 }
 
 .submitButton,
-.deleteButton,
 .secondaryButton {
   flex: 1;
   border: none;
@@ -797,14 +827,38 @@
   cursor: not-allowed;
 }
 
-.deleteButton {
-  background: #fee2e2;
-  color: #b91c1c;
-}
-
 .secondaryButton {
   background: #f2f4f7;
   color: #344054;
+}
+
+.deleteAction {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 16px;
+  color: #98a2b3;
+  font-size: 12px;
+}
+
+.deleteAction button {
+  padding: 4px 6px;
+  color: #b42318;
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.deleteAction button:hover {
+  color: #912018;
+}
+
+.deleteAction button:focus-visible {
+  border-radius: 4px;
+  outline: 2px solid #fda29b;
+  outline-offset: 2px;
 }
 
 .footerInfo {
@@ -831,6 +885,15 @@
 }
 
 @media (max-width: 640px) {
+  .closedNoticeBox {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .closedNoticeBox button {
+    width: 100%;
+  }
+
   .main {
     padding: 36px 16px 64px;
   }
@@ -840,7 +903,30 @@
   }
 
   .stepper {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    top: 72px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+    margin: -12px -12px 24px;
+    padding: 8px;
+    border-radius: 14px;
+  }
+
+  .stepItem {
+    justify-content: center;
+    gap: 5px;
+    min-height: 42px;
+    padding: 6px;
+    text-align: center;
+  }
+
+  .stepItem span {
+    width: 22px;
+    height: 22px;
+    font-size: 11px;
+  }
+
+  .stepItem strong {
+    font-size: 11px;
   }
 
   .title {
@@ -1003,6 +1089,51 @@
   padding: 0 24px 24px;
   overflow-y: auto;
 }
+
+.candidateModalFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 24px;
+  border-top: 1px solid #e5e7eb;
+  background: #ffffff;
+}
+
+.candidateModalFooter div {
+  display: flex;
+  min-width: 0;
+  gap: 8px;
+}
+
+.candidateModalFooter span {
+  overflow: hidden;
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.candidateModalFooter button {
+  flex-shrink: 0;
+  min-height: 42px;
+  padding: 0 18px;
+  border-radius: 12px;
+  background: #2563eb;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.candidateModalFooter button:disabled {
+  cursor: not-allowed;
+  background: #cbd5e1;
+}
+
 .candidateItem {
   width: 100%;
   border: 1px solid #e5e7eb;
@@ -1083,6 +1214,21 @@
 
 
 @media (max-width: 640px) {
+  .candidateModalFooter {
+    align-items: stretch;
+    flex-direction: column;
+    padding: 14px 16px;
+  }
+
+  .candidateModalFooter div {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .candidateModalFooter button {
+    width: 100%;
+  }
+
   .candidateItem {
     align-items: flex-start;
     flex-direction: column;
@@ -1161,59 +1307,6 @@
   }
 }
 
-.depositNotice {
-  margin: 16px 0;
-  padding: 16px 20px;
-  border-radius: 16px;
-  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
-  border: 1px solid #bbf7d0;
-  color: #166534;
-  display: flex;
-  align-items: flex-start;
-  gap: 14px;
-  box-shadow: 0 4px 12px rgba(22, 101, 52, 0.04);
-}
-
-.depositNoticeIcon {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: #bbf7d0;
-  color: #15803d;
-  box-shadow: 0 4px 8px rgba(21, 128, 61, 0.1);
-}
-
-.depositNoticeContent {
-  display: grid;
-  gap: 4px;
-}
-
-.depositNoticeContent strong {
-  font-size: 14px;
-  font-weight: 900;
-  color: #15803d;
-}
-
-.depositNoticeContent p {
-  margin: 0;
-  font-size: 13px;
-  font-weight: 700;
-  color: #166534;
-  line-height: 1.5;
-}
-
-.depositNoticeContent p strong {
-  color: #166534;
-  font-size: 14px;
-  font-weight: 900;
-  border-bottom: 2px solid #bbf7d0;
-  padding-bottom: 1px;
-}
-
 .confirmModal {
   width: 100%;
   max-width: 400px;
@@ -1270,6 +1363,20 @@
 .confirmModal p strong {
   color: #15803d;
   font-weight: 800;
+}
+
+.confirmModalNotice {
+  width: 100%;
+  margin: -10px 0 20px;
+  padding: 12px 14px;
+  border: 1px solid #fed7aa;
+  border-radius: 12px;
+  background: #fff7ed;
+  color: #9a3412;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.5;
+  text-align: left;
 }
 
 .confirmModalButtons {

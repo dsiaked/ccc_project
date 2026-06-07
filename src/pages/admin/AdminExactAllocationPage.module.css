@@ -1,0 +1,470 @@
+.page {
+  min-height: 100vh;
+  background: #f4f6f8;
+}
+
+.main {
+  width: min(1120px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 104px 0 60px;
+}
+
+.hero {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.hero h1,
+.section h2,
+.section h3,
+.section p {
+  margin: 0;
+}
+
+.hero h1 {
+  color: #101828;
+  font-size: 30px;
+}
+
+.hero p,
+.muted {
+  margin-top: 8px;
+  color: #667085;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.proofBadge {
+  align-self: flex-start;
+  padding: 8px 12px;
+  border: 1px solid #a6f4c5;
+  border-radius: 999px;
+  background: #ecfdf3;
+  color: #067647;
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.section {
+  margin-bottom: 20px;
+  padding: 22px;
+  border: 1px solid #e4e7ec;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(16, 24, 40, 0.04);
+}
+
+.sectionHeader,
+.actions,
+.jobTitle,
+.historyItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.sectionHeader {
+  margin-bottom: 18px;
+}
+
+.section h2 {
+  color: #101828;
+  font-size: 19px;
+}
+
+.configGrid,
+.metricGrid,
+.busGrid {
+  display: grid;
+  gap: 12px;
+}
+
+.configGrid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.configGrid label {
+  display: grid;
+  gap: 7px;
+  color: #344054;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.configGrid input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 11px 12px;
+  border: 1px solid #d0d5dd;
+  border-radius: 9px;
+  color: #101828;
+  font: inherit;
+}
+
+.primary,
+.secondary,
+.danger {
+  min-height: 40px;
+  padding: 0 15px;
+  border-radius: 9px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.primary {
+  border: 1px solid #155eef;
+  background: #155eef;
+  color: #fff;
+}
+
+.secondary {
+  border: 1px solid #d0d5dd;
+  background: #fff;
+  color: #344054;
+}
+
+.danger {
+  border: 1px solid #fda29b;
+  background: #fff;
+  color: #b42318;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.error {
+  margin-bottom: 20px;
+  padding: 14px 16px;
+  border: 1px solid #fda29b;
+  border-radius: 10px;
+  background: #fffbfa;
+  color: #b42318;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.progressTrack {
+  height: 10px;
+  margin: 18px 0 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #eaecf0;
+}
+
+.progressTrack span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #155eef;
+  transition: width 0.25s ease;
+}
+
+.phaseList {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.phaseList li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 58px;
+  padding: 10px 12px;
+  border: 1px solid #eaecf0;
+  border-radius: 10px;
+  background: #f9fafb;
+}
+
+.phaseMarker {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 50%;
+  background: #eaecf0;
+  color: #667085;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.phaseContent {
+  min-width: 0;
+}
+
+.phaseContent strong,
+.phaseContent small {
+  display: block;
+}
+
+.phaseContent strong {
+  color: #344054;
+  font-size: 13px;
+}
+
+.phaseContent small {
+  margin-top: 3px;
+  color: #667085;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.phaseList em {
+  padding: 4px 7px;
+  border-radius: 999px;
+  color: #667085;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.phase_completed {
+  border-color: #a6f4c5 !important;
+  background: #ecfdf3 !important;
+}
+
+.phase_completed .phaseMarker {
+  background: #12b76a;
+  color: #fff;
+}
+
+.phase_completed em {
+  background: #d1fadf;
+  color: #067647;
+}
+
+.phase_current {
+  border-color: #84adff !important;
+  background: #eef4ff !important;
+  box-shadow: 0 0 0 2px rgba(21, 94, 239, 0.1);
+}
+
+.phase_current .phaseMarker {
+  background: #155eef;
+  color: #fff;
+}
+
+.phase_current .phaseMarker svg {
+  animation: phaseSpin 1s linear infinite;
+}
+
+.phase_current em {
+  background: #d1e0ff;
+  color: #3538cd;
+}
+
+.phase_halted {
+  border-color: #fda29b !important;
+  background: #fffbfa !important;
+}
+
+.phase_halted .phaseMarker,
+.phase_halted em {
+  background: #fee4e2;
+  color: #b42318;
+}
+
+@keyframes phaseSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.jobStatus {
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: #eef4ff;
+  color: #3538cd;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.metricGrid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: 18px;
+}
+
+.metricGrid article,
+.busCard {
+  padding: 14px;
+  border: 1px solid #eaecf0;
+  border-radius: 10px;
+  background: #f9fafb;
+}
+
+.metricGrid span,
+.metricGrid strong {
+  display: block;
+}
+
+.metricGrid span {
+  color: #667085;
+  font-size: 12px;
+}
+
+.metricGrid strong {
+  margin-top: 5px;
+  color: #101828;
+  font-size: 20px;
+}
+
+.warningList,
+.historyList {
+  display: grid;
+  gap: 9px;
+  margin-top: 16px;
+}
+
+.warning {
+  padding: 12px 14px;
+  border: 1px solid #fedf89;
+  border-radius: 9px;
+  background: #fffaeb;
+  color: #93370d;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.busGrid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 18px;
+}
+
+.busCard strong,
+.busCard span {
+  display: block;
+}
+
+.busCard span {
+  margin-top: 5px;
+  color: #667085;
+  font-size: 12px;
+}
+
+.historyItem {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid #eaecf0;
+  border-radius: 9px;
+  background: #fff;
+  color: #344054;
+  text-align: left;
+  cursor: pointer;
+}
+
+.historyItem span {
+  color: #667085;
+  font-size: 12px;
+}
+
+.historyMeta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 5px;
+}
+
+.historyMeta span:last-child {
+  color: #344054;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.draftCreator {
+  display: flex;
+  align-items: end;
+  gap: 12px;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid #eaecf0;
+}
+
+.draftCreator label {
+  display: grid;
+  flex: 1;
+  gap: 7px;
+  color: #344054;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.draftCreator input {
+  padding: 11px 12px;
+  border: 1px solid #d0d5dd;
+  border-radius: 9px;
+  font: inherit;
+}
+
+.detailedBalancePanel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin-top: 18px;
+  padding: 16px;
+  border: 1px solid #b2ccff;
+  border-radius: 12px;
+  background: #f5f8ff;
+}
+
+.detailedBalancePanel h3 {
+  margin-top: 7px;
+  color: #1849a9;
+  font-size: 16px;
+}
+
+.detailedBalancePanel .muted {
+  max-width: 720px;
+}
+
+.detailedBalancePanel button {
+  flex: 0 0 auto;
+}
+
+.optionalBadge {
+  display: inline-flex;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #d1e0ff;
+  color: #3538cd;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+@media (max-width: 760px) {
+  .hero,
+  .sectionHeader,
+  .actions,
+  .jobTitle {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .draftCreator {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .detailedBalancePanel {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .configGrid,
+  .metricGrid,
+  .busGrid,
+  .phaseList {
+    grid-template-columns: 1fr;
+  }
+}

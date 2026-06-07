@@ -1,7 +1,7 @@
 import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, UserPlus } from 'lucide-react';
+import { CheckCircle2, ChevronLeft, MailCheck, UserPlus } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import {
   getDistrictOptions,
@@ -47,6 +47,7 @@ const formatPhoneNumber = (value: string) => {
 
 const SignupPage = () => {
   const navigate = useNavigate();
+  const [currentStep, setCurrentStep] = useState(0);
 
   const [email, setEmail] = useState('');
   const [emailChecked, setEmailChecked] = useState(false);
@@ -77,6 +78,9 @@ const SignupPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [signupResult, setSignupResult] = useState<
+    'verification-required' | 'complete' | null
+  >(null);
 
   const passwordMismatch =
     passwordConfirm.length > 0 && password !== passwordConfirm;
@@ -165,6 +169,33 @@ const SignupPage = () => {
     setEmailAvailable(false);
     setEmailMessage(null);
     setEmailMessageType(null);
+  };
+
+  const handleNextStep = () => {
+    setError(null);
+
+    if (!validateEmail(email.trim().toLowerCase())) {
+      setEmailMessage('유효한 이메일을 입력해주세요.');
+      setEmailMessageType('error');
+      return;
+    }
+
+    if (!emailChecked || !emailAvailable) {
+      setError('이메일 중복확인을 해주세요.');
+      return;
+    }
+
+    if (password.length < 6) {
+      setError('비밀번호는 최소 6자 이상이어야 합니다.');
+      return;
+    }
+
+    if (password !== passwordConfirm) {
+      setError('비밀번호가 일치하지 않습니다.');
+      return;
+    }
+
+    setCurrentStep(1);
   };
 
   const handleCheckEmail = async () => {
@@ -370,23 +401,17 @@ const SignupPage = () => {
             return;
           }
 
-          setError('회원 정보 저장 중 오류가 발생했습니다.');
+          setError('사용자 정보 저장 중 오류가 발생했습니다.');
           return;
         }
       }
 
       if (!data.session) {
-        alert('인증 메일을 보냈습니다. 이메일 인증 후 로그인해주세요.');
-        // navigate('/login');
+        setSignupResult('verification-required');
         return;
       }
 
-      alert('회원가입이 완료되었습니다.');
-      navigate('/login', {
-        state: {
-          email: email.trim().toLowerCase(),
-        },
-      });    
+      setSignupResult('complete');
 } catch (error) {
       console.error('회원가입 실패:', error);
       setError('회원가입 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
@@ -412,18 +437,92 @@ const SignupPage = () => {
       </header>
 
       <main className={styles.main}>
+        {signupResult ? (
+          <section className={styles.resultCard} role="status">
+            <div className={styles.resultIcon}>
+              {signupResult === 'verification-required' ? (
+                <MailCheck size={34} />
+              ) : (
+                <CheckCircle2 size={34} />
+              )}
+            </div>
+            <p className={styles.resultEyebrow}>
+              {signupResult === 'verification-required'
+                ? '인증 메일을 보냈어요'
+                : '회원가입 완료'}
+            </p>
+            <h2>
+              {signupResult === 'verification-required'
+                ? '메일함에서 인증을 완료해 주세요'
+                : '계정이 준비되었습니다'}
+            </h2>
+            <p className={styles.resultDescription}>
+              {signupResult === 'verification-required' ? (
+                <>
+                  <strong>{email.trim().toLowerCase()}</strong>로 보낸 인증
+                  링크를 누른 뒤 로그인해 주세요.
+                </>
+              ) : (
+                '이제 로그인하고 귀가 버스를 신청할 수 있습니다.'
+              )}
+            </p>
+            <button
+              type="button"
+              className={styles.resultButton}
+              onClick={() =>
+                navigate('/login', {
+                  state: { email: email.trim().toLowerCase() },
+                })
+              }
+            >
+              로그인하러 가기
+            </button>
+          </section>
+        ) : (
+          <>
         <div className={styles.logoSection}>
           <div className={styles.iconCircle}>
             <UserPlus size={32} color="#ffffff" />
           </div>
 
-          <h2 className={styles.title}>신규 회원가입</h2>
+          <h2 className={styles.title}>신규 사용자가입</h2>
           <p className={styles.subtitle}>
             CCC 여름수련회 버스 서비스를 시작해보세요
           </p>
         </div>
 
         <form className={styles.form} onSubmit={handleSignup}>
+          <div className={styles.stepper} aria-label="회원가입 단계">
+            <button
+              type="button"
+              className={`${styles.stepItem} ${
+                currentStep === 0 ? styles.stepItemActive : styles.stepItemDone
+              }`}
+              onClick={() => {
+                setCurrentStep(0);
+                setError(null);
+              }}
+            >
+              <span>1</span>
+              <strong>계정 만들기</strong>
+            </button>
+            <button
+              type="button"
+              className={`${styles.stepItem} ${
+                currentStep === 1 ? styles.stepItemActive : ''
+              }`}
+              onClick={() => {
+                if (currentStep === 1) return;
+                handleNextStep();
+              }}
+            >
+              <span>2</span>
+              <strong>내 정보 입력</strong>
+            </button>
+          </div>
+
+          {currentStep === 0 && (
+            <>
           <div className={styles.inputGroup}>
             <label className={styles.label}>이메일</label>
 
@@ -527,7 +626,11 @@ const SignupPage = () => {
               </p>
             )}
           </div>
+            </>
+          )}
 
+          {currentStep === 1 && (
+            <>
           <div className={styles.inputGroup}>
             <label className={styles.label}>이름</label>
             <input
@@ -643,6 +746,8 @@ const SignupPage = () => {
               ))}
             </select>
           </div>
+            </>
+          )}
 
           {error && <p style={{ color: 'red', marginTop: 8 }}>{error}</p>}
 
@@ -650,10 +755,39 @@ const SignupPage = () => {
             <p style={{ color: 'green', marginTop: 8 }}>{success}</p>
           )}
 
-          <button type="submit" className={styles.submitButton} disabled={loading}>
-            {loading ? '회원가입 중...' : '회원가입'}
-          </button>
+          {currentStep === 0 ? (
+            <button
+              type="button"
+              className={styles.submitButton}
+              onClick={handleNextStep}
+            >
+              다음
+            </button>
+          ) : (
+            <div className={styles.buttonGroup}>
+              <button
+                type="button"
+                className={styles.secondaryButton}
+                onClick={() => {
+                  setCurrentStep(0);
+                  setError(null);
+                }}
+                disabled={loading}
+              >
+                이전
+              </button>
+              <button
+                type="submit"
+                className={styles.submitButton}
+                disabled={loading}
+              >
+                {loading ? '회원가입 중...' : '회원가입'}
+              </button>
+            </div>
+          )}
         </form>
+          </>
+        )}
       </main>
     </div>
   );

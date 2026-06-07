@@ -51,7 +51,7 @@
   flex-direction: column;
   align-items: center;
   text-align: center;
-  margin-bottom: 48px;
+  margin-bottom: 32px;
 }
 
 .iconCircle {
@@ -85,6 +85,58 @@
   margin-bottom: 32px;
 }
 
+.kakaoButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 56px;
+  border-radius: 12px;
+  background: #fee500;
+  color: rgba(0, 0, 0, 0.85);
+  font-size: 17px;
+  font-weight: 800;
+  transition: filter 0.2s, transform 0.1s;
+}
+
+.kakaoButton:hover {
+  filter: brightness(0.97);
+}
+
+.kakaoButton:active {
+  transform: scale(0.98);
+}
+
+.kakaoButton:disabled,
+.submitButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.kakaoIcon {
+  width: 24px;
+  height: 24px;
+}
+
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 24px 0;
+  color: #98a2b3;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.divider::before,
+.divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #eaecf0;
+}
+
 .inputGroup {
   display: flex;
   flex-direction: column;
@@ -110,6 +162,74 @@
   outline: none;
   border-color: var(--color-primary);
   box-shadow: 0 0 0 3px rgba(30, 64, 175, 0.1);
+}
+
+.labelRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.forgotLink {
+  color: #2563eb;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.forgotLink:hover {
+  text-decoration: underline;
+}
+
+.passwordField {
+  position: relative;
+}
+
+.passwordField .input {
+  width: 100%;
+  padding-right: 52px;
+}
+
+.passwordToggle {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  color: #667085;
+}
+
+.passwordToggle:hover {
+  background: #f2f4f7;
+  color: #344054;
+}
+
+.passwordToggle:focus-visible {
+  outline: 2px solid #93c5fd;
+  outline-offset: 2px;
+}
+
+.errorBox {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 12px 14px;
+  border: 1px solid #fecaca;
+  border-radius: 12px;
+  background: #fff1f2;
+  color: #b42318;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.errorBox svg {
+  flex-shrink: 0;
+  margin-top: 1px;
 }
 
 .submitButton {

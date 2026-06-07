@@ -13,6 +13,7 @@ import {
   BadgeCheck,
   Bus,
   CheckCircle2,
+  GripVertical,
   History,
   LoaderCircle,
   Plus,
@@ -27,14 +28,17 @@ import {
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import AdminHeader from './AdminHeader';
-import { getBusOptions } from '../../lib/admin/busAllocationService';
 import {
   acquireAllocationWorkspaceLock,
   cancelConfirmedWorkspace,
   confirmAllocationWorkspace,
   deleteDraftAllocationWorkspace,
+  getAllocationWorkspaceVersionSnapshot,
+  getAllocationWorkspaceVersions,
   getDraftAllocationWorkspaceSummaries,
+  getBelowMinimumBusIds,
   getFirstChoiceCoverage,
+  getOutOfPreferencePassengerIds,
   getWorkspaceTotals,
   refreshDraftWorkspacePassengers,
   saveAllocationWorkspace,
@@ -45,24 +49,18 @@ import {
 import type {
   AllocationConfirmationPreflight,
   AllocationConfirmationPreflightCheck,
+  AllocationConfirmationPreflightDetail,
   AllocationWorkspaceBus,
   AllocationWorkspaceData,
   AllocationWorkspacePassenger,
   AllocationWorkspaceRow,
   AllocationWorkspaceSummary,
-  AllocationWorkspaceVersion,
+  AllocationWorkspaceVersionSummary,
 } from '../../lib/admin/allocationWorkspaceService';
 import { describeAllocationWorkspaceChanges } from '../../lib/admin/allocationWorkspaceHistory';
 import { supabase } from '../../lib/supabase';
 
 import styles from './AdminAllocationWorkspacePage.module.css';
-
-interface BusOption {
-  id: string;
-  capacity: number;
-  estimated_price: number;
-  max_count?: number;
-}
 
 type BusIssueField =
   | 'label'
@@ -72,6 +70,86 @@ type BusIssueField =
   | 'capacity'
   | 'availability';
 type PassengerIssueField = 'assignment' | 'seat' | 'preferences';
+type PassengerQuickFilter =
+  | 'all'
+  | 'unassigned'
+  | 'errors'
+  | 'first-choice-missed'
+  | 'seat-missing';
+const PASSENGER_QUICK_FILTERS: Array<{
+  id: PassengerQuickFilter;
+  label: string;
+}> = [
+  { id: 'all', label: '전체' },
+  { id: 'unassigned', label: '미배차' },
+  { id: 'errors', label: '오류 있음' },
+  { id: 'first-choice-missed', label: '1지망 미반영' },
+  { id: 'seat-missing', label: '좌석 미지정' },
+];
+const VALIDATION_ERROR_GROUPS = [
+  {
+    id: 'unassigned',
+    title: '1. 미배차 승객',
+    description: '버스가 지정되지 않은 승객을 먼저 배차하세요.',
+    matches: (error: string) => error.includes('미배차 상태'),
+  },
+  {
+    id: 'capacity-seat',
+    title: '2. 정원·좌석 오류',
+    description: '정원 초과와 잘못되거나 중복된 좌석을 해결하세요.',
+    matches: (error: string) =>
+      error.includes('정원을') ||
+      error.includes('좌석') ||
+      error.includes('유효한 좌석 번호'),
+  },
+  {
+    id: 'bus-information',
+    title: '3. 버스 정보·운행 조건',
+    description: '필수 버스 정보와 사용 가능 대수를 확인하세요.',
+    matches: (error: string) =>
+      error.includes('이름이 없는 버스') ||
+      error.includes('버스 이름이 중복') ||
+      error.includes('행선지가 없습니다') ||
+      error.includes('출발 시간이 없습니다') ||
+      error.includes('탑승 장소가 없습니다') ||
+      error.includes('최대'),
+  },
+  {
+    id: 'assignment-preference',
+    title: '4. 지망·배차 오류',
+    description: '승객 지망 정보와 배차 대상을 확인하세요.',
+    matches: (error: string) =>
+      error.includes('1·2지망') ||
+      error.includes('중복 배차') ||
+      error.includes('존재하지 않는 버스'),
+  },
+] as const;
+
+const groupValidationErrors = (errors: string[]) => {
+  const remaining = [...errors];
+  const groups: Array<{
+    id: string;
+    title: string;
+    description: string;
+    items: string[];
+  }> = VALIDATION_ERROR_GROUPS.map((group) => {
+    const items = remaining.filter(group.matches);
+    items.forEach((item) => remaining.splice(remaining.indexOf(item), 1));
+    return { ...group, items };
+  }).filter((group) => group.items.length > 0);
+
+  if (remaining.length > 0) {
+    groups.push({
+      id: 'other',
+      title: '5. 기타 오류',
+      description: '나머지 차단 오류를 확인하세요.',
+      items: remaining,
+    });
+  }
+
+  return groups;
+};
+
 const PASSENGER_ROW_HEIGHT = 58;
 const PASSENGER_TABLE_VIEWPORT_HEIGHT = 520;
 const PASSENGER_TABLE_OVERSCAN = 6;
@@ -82,14 +160,31 @@ const CONFIRMATION_PREFLIGHT_LABELS: Record<
   workspace_status: '배차안 저장 상태',
   payload_structure: '배차안 데이터 구조',
   bus_details: '버스 필수 정보',
-  assignments: '승객 배차·좌석·목적지',
+  assignments: '승객 배차·좌석·행선지',
   unique_reservations: '승객 중복 배차',
   unique_seats: '좌석 중복 배정',
-  active_reservations: '최신 활성 예약자 일치',
+  active_reservations: '최신 활성 신청자 일치',
 };
 type EditorTab = 'buses' | 'passengers';
 type ConfirmationAction = 'confirm' | 'cancel';
 type CompletionNotice = 'confirmed' | 'cancelled';
+interface ConfirmationFailure {
+  title: string;
+  reasons: string[];
+}
+
+const getErrorMessage = (error: unknown, fallback: string) => {
+  if (error instanceof Error && error.message) return error.message;
+  if (
+    error &&
+    typeof error === 'object' &&
+    'message' in error &&
+    typeof error.message === 'string'
+  ) {
+    return error.message;
+  }
+  return fallback;
+};
 
 interface WorkspaceIssueTargets {
   busIds: Set<string>;
@@ -106,31 +201,10 @@ interface WorkspaceTimelineItem {
   action: string;
   detail: string;
   changes?: string[];
-  version?: AllocationWorkspaceVersion;
+  version?: AllocationWorkspaceVersionSummary;
 }
 
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
-
-const cloneEditableWorkspace = (
-  workspace: AllocationWorkspaceData
-): AllocationWorkspaceData => ({
-  ...workspace,
-  buses: workspace.buses.map((bus) => ({ ...bus })),
-  passengers: workspace.passengers.map((passenger) => ({
-    ...passenger,
-    preferences: [...passenger.preferences],
-  })),
-});
-
-const getUsedBusOptionCount = (
-  buses: AllocationWorkspaceBus[],
-  option: BusOption
-) =>
-  buses.filter(
-    (bus) =>
-      bus.optionId === option.id ||
-      (bus.capacity === option.capacity && bus.price === option.estimated_price)
-  ).length;
 
 const getWorkspaceIssueTargets = (
   workspace: AllocationWorkspaceData | null
@@ -280,7 +354,6 @@ const AdminAllocationWorkspacePage = () => {
   const [otherWorkspaces, setOtherWorkspaces] = useState<
     AllocationWorkspaceSummary[]
   >([]);
-  const [busOptions, setBusOptions] = useState<BusOption[]>([]);
   const [selectedBusId, setSelectedBusId] = useState('');
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -291,18 +364,23 @@ const AdminAllocationWorkspacePage = () => {
   const [passengerToReveal, setPassengerToReveal] = useState<string | null>(
     null
   );
-  const [showOnlyPassengerErrors, setShowOnlyPassengerErrors] = useState(false);
+  const [passengerQuickFilter, setPassengerQuickFilter] =
+    useState<PassengerQuickFilter>('all');
   const [activeEditorTab, setActiveEditorTab] = useState<EditorTab>('buses');
-  const [busAddMenuOpen, setBusAddMenuOpen] = useState(false);
   const [confirmationAction, setConfirmationAction] =
     useState<ConfirmationAction | null>(null);
   const [confirmationPreflight, setConfirmationPreflight] =
     useState<AllocationConfirmationPreflight | null>(null);
+  const [confirmationFailure, setConfirmationFailure] =
+    useState<ConfirmationFailure | null>(null);
   const [preflightChecking, setPreflightChecking] = useState(false);
   const [completionNotice, setCompletionNotice] =
     useState<CompletionNotice | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [readOnly, setReadOnly] = useState(false);
+  const [workspaceVersions, setWorkspaceVersions] = useState<
+    AllocationWorkspaceVersionSummary[]
+  >([]);
 
   useEffect(() => {
     if (!workspaceId) {
@@ -310,19 +388,57 @@ const AdminAllocationWorkspacePage = () => {
       return;
     }
 
-    void Promise.all([getDraftAllocationWorkspaceSummaries(), getBusOptions()])
-      .then(async ([nextRows, options]) => {
+    void (async () => {
+      try {
         const {
           data: { session },
         } = await supabase.auth.getSession();
         if (!session) throw new Error('로그인이 필요합니다.');
-        const lockResult = await acquireAllocationWorkspaceLock(
-          workspaceId,
-          session.user.id
-        );
-        const refreshed = lockResult.readOnly
-          ? { workspace: lockResult.row.allocation_data, changed: false }
-          : await refreshDraftWorkspacePassengers(lockResult.row.allocation_data);
+
+        const lockResult = await acquireAllocationWorkspaceLock(workspaceId);
+        const loadWarnings: string[] = [];
+        let refreshed = {
+          workspace: lockResult.row.allocation_data,
+          changed: false,
+        };
+        if (!lockResult.readOnly) {
+          try {
+            refreshed = await refreshDraftWorkspacePassengers(
+              lockResult.row.allocation_data
+            );
+          } catch (refreshError) {
+            loadWarnings.push(
+              `최신 활성 신청자 반영 실패: ${getErrorMessage(
+                refreshError,
+                '신청자 목록을 조회하지 못했습니다.'
+              )}`
+            );
+          }
+        }
+
+        const [summariesResult, versionsResult] = await Promise.allSettled([
+          getDraftAllocationWorkspaceSummaries(),
+          getAllocationWorkspaceVersions(workspaceId),
+        ]);
+        const nextRows =
+          summariesResult.status === 'fulfilled' ? summariesResult.value : [];
+        if (summariesResult.status === 'rejected') {
+          loadWarnings.push(
+            `다른 임시 배차안 목록 조회 실패: ${getErrorMessage(
+              summariesResult.reason,
+              '임시 배차안 목록을 조회하지 못했습니다.'
+            )}`
+          );
+        }
+        if (versionsResult.status === 'rejected') {
+          loadWarnings.push(
+            `버전 목록 조회 실패: ${getErrorMessage(
+              versionsResult.reason,
+              '저장 버전 목록을 조회하지 못했습니다.'
+            )}`
+          );
+        }
+
         const nextRow = refreshed.changed
           ? { ...lockResult.row, allocation_data: refreshed.workspace }
           : lockResult.row;
@@ -338,12 +454,31 @@ const AdminAllocationWorkspacePage = () => {
               item.id !== workspaceId && item.status === 'draft'
           )
         );
-        setBusOptions(options as BusOption[]);
-      })
-      .catch((loadError) => {
+        setWorkspaceVersions(
+          versionsResult.status === 'fulfilled'
+            ? versionsResult.value
+            : (refreshed.workspace.versions ?? []).map((version) => ({
+                id: version.id,
+                createdAt: version.createdAt,
+                actorId: version.actorId,
+                label: version.label,
+              }))
+        );
+        setError(
+          loadWarnings.length > 0
+            ? `배차 작업안은 불러왔지만 일부 정보 조회에 실패했습니다.\n${loadWarnings.join('\n')}`
+            : null
+        );
+      } catch (loadError) {
         console.error(loadError);
-        setError('배차 작업안을 불러오지 못했습니다.');
-      });
+        setError(
+          `배차 작업안을 불러오지 못했습니다.\n${getErrorMessage(
+            loadError,
+            '알 수 없는 조회 오류가 발생했습니다.'
+          )}`
+        );
+      }
+    })();
   }, [navigate, workspaceId]);
 
   useEffect(() => {
@@ -356,9 +491,17 @@ const AdminAllocationWorkspacePage = () => {
   }, [dirty]);
 
   const selectedBus = workspace?.buses.find((bus) => bus.id === selectedBusId);
+  const deferredWorkspace = useDeferredValue(workspace);
   const validation = useMemo(
-    () => (workspace ? validateWorkspace(workspace) : { errors: [], warnings: [] }),
-    [workspace]
+    () =>
+      deferredWorkspace
+        ? validateWorkspace(deferredWorkspace)
+        : { errors: [], warnings: [] },
+    [deferredWorkspace]
+  );
+  const validationErrorGroups = useMemo(
+    () => groupValidationErrors(validation.errors),
+    [validation.errors]
   );
   const totals = useMemo(
     () => (workspace ? getWorkspaceTotals(workspace) : { totalCost: 0, totalCapacity: 0 }),
@@ -374,20 +517,23 @@ const AdminAllocationWorkspacePage = () => {
     return counts;
   }, [workspace]);
   const issueTargets = useMemo(
-    () => getWorkspaceIssueTargets(workspace),
-    [workspace]
+    () => getWorkspaceIssueTargets(deferredWorkspace),
+    [deferredWorkspace]
   );
   const deferredAllPassengerSearch = useDeferredValue(allPassengerSearch);
   const allPassengerSearchIndex = useMemo(() => {
-    if (!workspace) return [];
-    const busById = new Map(workspace.buses.map((bus) => [bus.id, bus]));
+    if (!deferredWorkspace) return [];
+    const busById = new Map(
+      deferredWorkspace.buses.map((bus) => [bus.id, bus])
+    );
 
-    return workspace.passengers.map((passenger) => {
+    return deferredWorkspace.passengers.map((passenger) => {
       const bus = passenger.busId ? busById.get(passenger.busId) : undefined;
       return {
         passenger,
         searchText: [
           passenger.name,
+          passenger.phone,
           passenger.campus,
           passenger.team,
           passenger.preferences.join(' '),
@@ -399,7 +545,37 @@ const AdminAllocationWorkspacePage = () => {
           .toLocaleLowerCase('ko'),
       };
     });
-  }, [workspace]);
+  }, [deferredWorkspace]);
+  const passengerQuickFilterCounts = useMemo(() => {
+    if (!deferredWorkspace) {
+      return {
+        all: 0,
+        unassigned: 0,
+        errors: 0,
+        'first-choice-missed': 0,
+        'seat-missing': 0,
+      };
+    }
+    const busById = new Map(
+      deferredWorkspace.buses.map((bus) => [bus.id, bus])
+    );
+    return {
+      all: deferredWorkspace.passengers.length,
+      unassigned: deferredWorkspace.passengers.filter(
+        (passenger) => !passenger.busId
+      ).length,
+      errors: deferredWorkspace.passengers.filter((passenger) =>
+        issueTargets.passengerIds.has(passenger.reservationId)
+      ).length,
+      'first-choice-missed': deferredWorkspace.passengers.filter((passenger) => {
+        const bus = passenger.busId ? busById.get(passenger.busId) : undefined;
+        return Boolean(bus && bus.destination !== passenger.preferences[0]);
+      }).length,
+      'seat-missing': deferredWorkspace.passengers.filter(
+        (passenger) => passenger.busId && passenger.seatNumber === null
+      ).length,
+    };
+  }, [deferredWorkspace, issueTargets.passengerIds]);
   const normalizedAllPassengerSearch = allPassengerSearch
     .trim()
     .toLocaleLowerCase('ko');
@@ -409,31 +585,41 @@ const AdminAllocationWorkspacePage = () => {
   const allPassengerSearchMatches = useMemo(
     () =>
       allPassengerSearchIndex.filter(({ passenger, searchText }) => {
+        const bus = deferredWorkspace?.buses.find(
+          (item) => item.id === passenger.busId
+        );
+        if (passengerQuickFilter === 'unassigned' && passenger.busId) return false;
         if (
-          showOnlyPassengerErrors &&
+          passengerQuickFilter === 'errors' &&
           !issueTargets.passengerIds.has(passenger.reservationId)
-        ) {
-          return false;
-        }
-        if (!normalizedDeferredAllPassengerSearch) return showOnlyPassengerErrors;
+        ) return false;
+        if (
+          passengerQuickFilter === 'first-choice-missed' &&
+          (!bus || bus.destination === passenger.preferences[0])
+        ) return false;
+        if (
+          passengerQuickFilter === 'seat-missing' &&
+          (!passenger.busId || passenger.seatNumber !== null)
+        ) return false;
+        if (!normalizedDeferredAllPassengerSearch) return true;
         return searchText.includes(normalizedDeferredAllPassengerSearch);
       }),
     [
       allPassengerSearchIndex,
       issueTargets.passengerIds,
       normalizedDeferredAllPassengerSearch,
-      showOnlyPassengerErrors,
+      passengerQuickFilter,
+      deferredWorkspace?.buses,
     ]
   );
 
   const updateWorkspace = useCallback((
     updater: (current: AllocationWorkspaceData) => AllocationWorkspaceData
   ) => {
-    setWorkspace((current) => (
-      current ? updater(cloneEditableWorkspace(current)) : current
-    ));
+    setWorkspace((current) => (current ? updater(current) : current));
     setDirty(true);
     setConfirmationPreflight(null);
+    setConfirmationFailure(null);
   }, []);
 
   const updateBus = (
@@ -442,9 +628,23 @@ const AdminAllocationWorkspacePage = () => {
     value: string | number
   ) => {
     updateWorkspace((current) => {
-      const bus = current.buses.find((item) => item.id === busId);
-      if (bus) Object.assign(bus, { [key]: value });
-      return current;
+      const buses = current.buses.map((bus) =>
+        bus.id === busId ? { ...bus, [key]: value } : bus
+      );
+      return buses === current.buses
+        ? current
+        : {
+            ...current,
+            buses,
+            allowOutOfPreferenceOverride:
+              key === 'destination'
+                ? false
+                : current.allowOutOfPreferenceOverride,
+            outOfPreferenceAcknowledgement:
+              key === 'destination'
+                ? undefined
+                : current.outOfPreferenceAcknowledgement,
+          };
     });
   };
 
@@ -454,9 +654,17 @@ const AdminAllocationWorkspacePage = () => {
         (item) => item.reservationId === passengerId
       );
       if (!passenger) return current;
-      passenger.busId = busId;
-      passenger.seatNumber = busId ? nextSeatNumber(current, busId) : null;
-      return current;
+      const seatNumber = busId ? nextSeatNumber(current, busId) : null;
+      return {
+        ...current,
+        allowOutOfPreferenceOverride: false,
+        outOfPreferenceAcknowledgement: undefined,
+        passengers: current.passengers.map((item) =>
+          item.reservationId === passengerId
+            ? { ...item, busId, seatNumber }
+            : item
+        ),
+      };
     });
   }, [updateWorkspace]);
 
@@ -471,54 +679,46 @@ const AdminAllocationWorkspacePage = () => {
 
   const updatePassengerSeat = useCallback((passengerId: string, seatNumber: number | null) => {
     updateWorkspace((current) => {
-      const passenger = current.passengers.find(
-        (item) => item.reservationId === passengerId
-      );
-      if (passenger) passenger.seatNumber = seatNumber;
-      return current;
+      return {
+        ...current,
+        passengers: current.passengers.map((passenger) =>
+          passenger.reservationId === passengerId
+            ? { ...passenger, seatNumber }
+            : passenger
+        ),
+      };
     });
   }, [updateWorkspace]);
 
-  const addBus = (option: BusOption) => {
-    const usedCount = workspace
-      ? getUsedBusOptionCount(workspace.buses, option)
-      : 0;
-    if (usedCount >= (option.max_count ?? 999)) {
-      setError(`${option.capacity}석 버스의 사용 가능 최대 대수에 도달했습니다.`);
-      return;
-    }
+  const addBus = () => {
     updateWorkspace((current) => {
+      const template = current.buses[0];
+      if (!template) return current;
       const busNumber = current.buses.length + 1;
       const bus: AllocationWorkspaceBus = {
-        id: `bus-${Date.now()}-${option.id}`,
-        optionId: option.id,
+        ...clone(template),
+        id: `bus-${Date.now()}-${busNumber}`,
+        optionId: undefined,
         label: `${busNumber}호차`,
-        capacity: option.capacity,
-        price: option.estimated_price,
-        maxAvailableCount: option.max_count ?? 999,
+        maxAvailableCount: undefined,
         destination: '',
-        departureTime: current.buses[0]?.departureTime ?? '',
-        boardingPlace: current.buses[0]?.boardingPlace ?? '',
-        minimumPassengers: 36,
       };
-      current.buses.push(bus);
       setSelectedBusId(bus.id);
-      return current;
+      return { ...current, buses: [...current.buses, bus] };
     });
   };
 
   const deleteBus = (busId: string) => {
     if (!window.confirm('이 버스를 삭제하고 탑승객을 미배차 상태로 옮길까요?')) return;
     updateWorkspace((current) => {
-      current.buses = current.buses.filter((bus) => bus.id !== busId);
-      current.passengers.forEach((passenger) => {
-        if (passenger.busId === busId) {
-          passenger.busId = null;
-          passenger.seatNumber = null;
-        }
-      });
-      setSelectedBusId(current.buses[0]?.id ?? '');
-      return current;
+      const buses = current.buses.filter((bus) => bus.id !== busId);
+      const passengers = current.passengers.map((passenger) =>
+        passenger.busId === busId
+          ? { ...passenger, busId: null, seatNumber: null }
+          : passenger
+      );
+      setSelectedBusId(buses[0]?.id ?? '');
+      return { ...current, buses, passengers };
     });
   };
 
@@ -538,6 +738,9 @@ const AdminAllocationWorkspacePage = () => {
           : await saveAllocationWorkspace(row, workspace, session.user.id);
       setRow(saved);
       setWorkspace(saved.allocation_data);
+      void getAllocationWorkspaceVersions(saved.id)
+        .then(setWorkspaceVersions)
+        .catch((versionError) => console.warn('Failed to refresh versions:', versionError));
       setDirty(false);
       setConfirmationPreflight(null);
     } catch (saveError) {
@@ -574,32 +777,49 @@ const AdminAllocationWorkspacePage = () => {
     }
   };
 
-  const restoreVersion = (versionId: string) => {
+  const restoreVersion = async (versionId: string) => {
     if (!workspace) return;
-    const version = workspace.versions.find((item) => item.id === versionId);
+    const version = workspaceVersions.find((item) => item.id === versionId);
     if (!version || !window.confirm(`${version.label} 상태로 복원할까요?`)) return;
-    updateWorkspace((current) => ({
-      ...current,
-      buses: clone(version.buses),
-      passengers: clone(version.passengers),
-    }));
-    setSelectedBusId(version.buses[0]?.id ?? '');
+    setSaving(true);
+    setError(null);
+    try {
+      const legacyVersion = workspace.versions?.find((item) => item.id === versionId);
+      const snapshot =
+        legacyVersion ?? (await getAllocationWorkspaceVersionSnapshot(versionId));
+      updateWorkspace((current) => ({
+        ...current,
+        buses: clone(snapshot.buses),
+        passengers: clone(snapshot.passengers),
+      }));
+      setSelectedBusId(snapshot.buses[0]?.id ?? '');
+    } catch (restoreError) {
+      setError(
+        restoreError instanceof Error
+          ? restoreError.message
+          : '저장 버전을 복원하지 못했습니다.'
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
   const workspaceTimeline = useMemo<WorkspaceTimelineItem[]>(() => {
     if (!workspace) return [];
 
     const unmatchedVersions = new Map(
-      workspace.versions.map((version) => [version.id, version])
+      workspaceVersions.map((version) => [version.id, version])
     );
-    const getLegacyChanges = (version: AllocationWorkspaceVersion) => {
-      const versionIndex = workspace.versions.findIndex(
+    const legacyVersions = workspace.versions ?? [];
+    const getLegacyChanges = (version: AllocationWorkspaceVersionSummary) => {
+      if (version.changes) return version.changes;
+      const versionIndex = legacyVersions.findIndex(
         (candidate) => candidate.id === version.id
       );
       if (versionIndex <= 0) return undefined;
       return describeAllocationWorkspaceChanges(
-        workspace.versions[versionIndex - 1],
-        version
+        legacyVersions[versionIndex - 1],
+        legacyVersions[versionIndex]
       );
     };
     const timeline = workspace.history.map((item) => {
@@ -638,13 +858,22 @@ const AdminAllocationWorkspacePage = () => {
     return timeline.sort(
       (a, b) => new Date(b.at).getTime() - new Date(a.at).getTime()
     );
-  }, [workspace]);
+  }, [workspace, workspaceVersions]);
 
   const confirmAll = async () => {
-    if (!row || !workspace || confirmText !== '전체 배차를 확정합니다') return;
+    if (
+      !row ||
+      !workspace ||
+      readOnly ||
+      dirty ||
+      !canConfirm ||
+      saving ||
+      confirmText !== '전체 배차를 확정합니다'
+    ) return;
     setSaving(true);
     setConfirmationAction('confirm');
     setCompletionNotice(null);
+    setConfirmationFailure(null);
     setError(null);
     try {
       const {
@@ -657,19 +886,46 @@ const AdminAllocationWorkspacePage = () => {
       );
       setConfirmationPreflight(preflight);
       if (!preflight.valid) {
-        throw new Error(
-          '서버 사전 검증을 통과하지 못했습니다. 실패 항목을 확인해주세요.'
-        );
+        const reasons =
+          preflight.details?.length > 0
+            ? preflight.details.map((detail) => detail.message)
+            : preflight.checks
+                .filter((check) => !check.valid)
+                .map(
+                  (check) =>
+                    `${CONFIRMATION_PREFLIGHT_LABELS[check.key]} 확인이 필요합니다.`
+                );
+        setConfirmationFailure({
+          title: '서버 검증을 통과하지 못해 배차가 확정되지 않았습니다.',
+          reasons:
+            reasons.length > 0
+              ? reasons
+              : ['서버 검증 실패 항목을 확인해주세요.'],
+        });
+        setError('배차 확정에 실패했습니다. 확정 영역의 실패 이유를 확인해주세요.');
+        return;
       }
       const saved = await confirmAllocationWorkspace(row, workspace, session.user.id);
       setRow(saved);
       setWorkspace(saved.allocation_data);
+      void getAllocationWorkspaceVersions(saved.id)
+        .then(setWorkspaceVersions)
+        .catch((versionError) => console.warn('Failed to refresh versions:', versionError));
       setDirty(false);
       setConfirmText('');
+      setConfirmationFailure(null);
       setCompletionNotice('confirmed');
     } catch (confirmError) {
+      const reason =
+        confirmError instanceof Error
+          ? confirmError.message
+          : '알 수 없는 서버 오류가 발생했습니다.';
+      setConfirmationFailure({
+        title: '서버에서 배차 확정 처리를 완료하지 못했습니다.',
+        reasons: [reason],
+      });
       setError(
-        confirmError instanceof Error ? confirmError.message : '확정하지 못했습니다.'
+        '배차 확정에 실패했습니다. 확정 영역의 실패 이유를 확인해주세요.'
       );
     } finally {
       setSaving(false);
@@ -718,6 +974,9 @@ const AdminAllocationWorkspacePage = () => {
       const saved = await cancelConfirmedWorkspace(row, workspace, session.user.id);
       setRow(saved);
       setWorkspace(saved.allocation_data);
+      void getAllocationWorkspaceVersions(saved.id)
+        .then(setWorkspaceVersions)
+        .catch((versionError) => console.warn('Failed to refresh versions:', versionError));
       setDirty(false);
       setCancelText('');
       setCompletionNotice('cancelled');
@@ -735,7 +994,24 @@ const AdminAllocationWorkspacePage = () => {
     return (
       <div className={styles.page}>
         <AdminHeader />
-        <main className={styles.main}>{error ?? '배차 작업안을 불러오는 중입니다.'}</main>
+        <main className={styles.main}>
+          {error ? (
+            <div className={styles.loadFailure}>
+              <strong>배차 작업안을 열지 못했습니다.</strong>
+              <p>{error}</p>
+              <div>
+                <button type="button" onClick={() => window.location.reload()}>
+                  다시 불러오기
+                </button>
+                <button type="button" onClick={() => navigate('/admin/allocation')}>
+                  <ArrowLeft size={16} /> 배차 계산으로
+                </button>
+              </div>
+            </div>
+          ) : (
+            '배차 작업안을 불러오는 중입니다.'
+          )}
+        </main>
       </div>
     );
   }
@@ -754,6 +1030,7 @@ const AdminAllocationWorkspacePage = () => {
   const visibleSelectedPassengers = selectedPassengers.filter((passenger) =>
     [
       passenger.name,
+      passenger.phone,
       passenger.campus,
       passenger.team,
       String(passenger.seatNumber ?? ''),
@@ -773,14 +1050,27 @@ const AdminAllocationWorkspacePage = () => {
   const destinationOptions = [
     ...new Set(workspace.passengers.flatMap((passenger) => passenger.preferences)),
   ];
+  const belowMinimumBusIds = getBelowMinimumBusIds(workspace);
+  const outOfPreferencePassengerIds = getOutOfPreferencePassengerIds(workspace);
+  const minimumWarningsApproved =
+    belowMinimumBusIds.length === 0 || workspace.allowMinimumPassengerOverride;
+  const preferenceWarningsApproved =
+    outOfPreferencePassengerIds.length === 0 ||
+    workspace.allowOutOfPreferenceOverride;
   const canConfirm =
     validation.errors.length === 0 &&
-    (validation.warnings.length === 0 || workspace.allowMinimumPassengerOverride);
+    minimumWarningsApproved &&
+    preferenceWarningsApproved;
+  const exceedsOptimalBaseline = Boolean(
+    workspace.optimalBaseline &&
+      (workspace.buses.length > workspace.optimalBaseline.totalBuses ||
+        totals.totalCost > workspace.optimalBaseline.totalCost)
+  );
   const confirmationReadinessCount = [
     validation.errors.length === 0,
-    validation.warnings.length === 0 || workspace.allowMinimumPassengerOverride,
+    minimumWarningsApproved,
+    preferenceWarningsApproved,
     !dirty,
-    confirmationPreflight?.valid === true,
     confirmText === '전체 배차를 확정합니다',
   ].filter(Boolean).length;
   const saveDisabledReason = saving
@@ -790,6 +1080,26 @@ const AdminAllocationWorkspacePage = () => {
       : !dirty
         ? '저장할 변경사항이 없습니다.'
         : null;
+  const confirmDisabledReasons = [
+    readOnly ? '다른 전체 관리자가 편집 중입니다.' : null,
+    saving ? '배차 확정 작업을 처리 중입니다.' : null,
+    dirty ? '저장하지 않은 변경사항이 있습니다. 변경사항 저장 버튼을 눌러주세요.' : null,
+    validation.errors.length > 0
+      ? `차단 오류 ${validation.errors.length}건을 해결해야 합니다.`
+      : null,
+    belowMinimumBusIds.length > 0 && !workspace.allowMinimumPassengerOverride
+      ? `최소 탑승 인원 미달 버스 ${belowMinimumBusIds.length}대를 예외 승인해야 합니다.`
+      : null,
+    outOfPreferencePassengerIds.length > 0 &&
+    !workspace.allowOutOfPreferenceOverride
+      ? `1·2지망 외 배정 승객 ${outOfPreferencePassengerIds.length}명을 별도로 승인해야 합니다.`
+      : null,
+    confirmText !== '전체 배차를 확정합니다'
+      ? '확정 문구 "전체 배차를 확정합니다"를 정확히 입력해주세요.'
+      : null,
+  ].filter((reason): reason is string => reason !== null);
+  const confirmDisabledReason =
+    confirmDisabledReasons.length > 0 ? confirmDisabledReasons.join('\n') : null;
   const goToIssue = (issue: string) => {
     const passenger = workspace.passengers.find((item) =>
       issue.startsWith(`${item.name}:`)
@@ -797,7 +1107,7 @@ const AdminAllocationWorkspacePage = () => {
     if (passenger) {
       setActiveEditorTab('passengers');
       setAllPassengerSearch(passenger.name);
-      setShowOnlyPassengerErrors(false);
+      setPassengerQuickFilter('all');
       setPassengerToReveal(passenger.reservationId);
       return;
     }
@@ -824,6 +1134,62 @@ const AdminAllocationWorkspacePage = () => {
     document
       .getElementById('validation-review')
       ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const goToPreflightDetail = async (
+    detail: AllocationConfirmationPreflightDetail
+  ) => {
+    let passenger = detail.passenger_id
+      ? workspace.passengers.find(
+          (item) => item.reservationId === detail.passenger_id
+        )
+      : undefined;
+    if (!passenger && detail.requires_refresh && detail.reservation_id) {
+      setPreflightChecking(true);
+      setError(null);
+      try {
+        const refreshed = await refreshDraftWorkspacePassengers(workspace);
+        if (refreshed.changed) {
+          setWorkspace(refreshed.workspace);
+          setDirty(true);
+          setConfirmationPreflight(null);
+        }
+        passenger = refreshed.workspace.passengers.find(
+          (item) => item.reservationId === detail.reservation_id
+        );
+      } catch (refreshError) {
+        setError(
+          refreshError instanceof Error
+            ? refreshError.message
+            : '최신 신청자를 배차안에 반영하지 못했습니다.'
+        );
+      } finally {
+        setPreflightChecking(false);
+      }
+    }
+    if (passenger) {
+      setActiveEditorTab('passengers');
+      setAllPassengerSearch(passenger.name);
+      setPassengerQuickFilter('all');
+      setPassengerToReveal(passenger.reservationId);
+      return;
+    }
+
+    const bus = detail.bus_id
+      ? workspace.buses.find((item) => item.id === detail.bus_id)
+      : undefined;
+    if (bus) {
+      setActiveEditorTab('buses');
+      setSelectedBusId(bus.id);
+      setSelectedPassengerSearch('');
+      window.setTimeout(
+        () =>
+          document
+            .getElementById('bus-editor')
+            ?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+        0
+      );
+    }
   };
 
   return (
@@ -926,6 +1292,13 @@ const AdminAllocationWorkspacePage = () => {
             다른 전체 관리자가 이 배차안을 편집 중입니다. 현재는 조회만 가능합니다.
           </div>
         )}
+        {exceedsOptimalBaseline && workspace.optimalBaseline && (
+          <div className={styles.readOnlyBanner}>
+            예약 변경 또는 관리자 조정으로 기존 최적해보다 버스가 늘었습니다. 현재{' '}
+            {workspace.buses.length}대 / 기준 {workspace.optimalBaseline.totalBuses}대이며,
+            확정 전에 추가 버스와 승객 배정을 확인해주세요.
+          </div>
+        )}
 
         <section className={styles.metrics}>
           <article><Users size={20} /><strong>{workspace.passengers.length}명</strong><span>전체 승객</span></article>
@@ -976,46 +1349,11 @@ const AdminAllocationWorkspacePage = () => {
               <button
                 type="button"
                 className={styles.addBusButton}
-                disabled={readOnly || busOptions.length === 0}
-                aria-expanded={busAddMenuOpen}
-                onClick={() => setBusAddMenuOpen((current) => !current)}
+                disabled={readOnly || workspace.buses.length === 0}
+                onClick={addBus}
               >
-                <Plus size={15} /> 버스 추가
+                <Plus size={15} /> 동일 규격 버스 추가
               </button>
-              {busAddMenuOpen && (
-                <div className={styles.addBusMenu}>
-                  <strong>추가할 버스 선택</strong>
-                  {busOptions.map((option) => {
-                    const remainingCount = Math.max(
-                      0,
-                      (option.max_count ?? 999) -
-                        getUsedBusOptionCount(workspace.buses, option)
-                    );
-
-                    return (
-                      <button
-                        type="button"
-                        key={option.id}
-                        disabled={remainingCount === 0}
-                        onClick={() => {
-                          addBus(option);
-                          setBusAddMenuOpen(false);
-                        }}
-                      >
-                        <span>
-                          <strong>{option.capacity}석 버스</strong>
-                          <small>{option.estimated_price.toLocaleString()}원</small>
-                        </span>
-                        <em>
-                          {remainingCount > 0
-                            ? `추가 가능 ${remainingCount}대`
-                            : '추가 불가'}
-                        </em>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
             </div>
             <div className={styles.busList}>
               {workspace.buses.map((bus) => {
@@ -1029,6 +1367,11 @@ const AdminAllocationWorkspacePage = () => {
                   (issueTargets.busFields.get(bus.id)?.size ?? 0) +
                   passengerIssueCount;
                 const hasIssue = issueCount > 0;
+                const occupancyPercent = Math.min(
+                  100,
+                  Math.round((count / bus.capacity) * 100)
+                );
+                const remainingSeats = bus.capacity - count;
                 return (
                   <button
                     type="button"
@@ -1044,11 +1387,23 @@ const AdminAllocationWorkspacePage = () => {
                     onDragOver={(event) => event.preventDefault()}
                     onDrop={(event) => dropPassenger(event, bus.id)}
                   >
-                    <strong>{bus.label}</strong>
-                    <span>{count}/{bus.capacity}명</span>
-                    <small>{bus.destination || '도착역 미설정'}</small>
-                    <small>잔여 {bus.capacity - count}석</small>
-                    {issueCount > 0 && <em>오류 {issueCount}건 확인 필요</em>}
+                    <span className={styles.busCardHeader}>
+                      <strong>{bus.label}</strong>
+                      <small>{bus.destination || '행선지 미설정'}</small>
+                    </span>
+                    <span className={styles.busOccupancy}>
+                      <strong>{count}</strong>
+                      <small>/ {bus.capacity}명 · {occupancyPercent}%</small>
+                    </span>
+                    <span className={styles.busOccupancyTrack}>
+                      <span style={{ width: `${occupancyPercent}%` }} />
+                    </span>
+                    <span className={styles.busCardBadges}>
+                      <small className={remainingSeats < 0 ? styles.busBadgeOver : undefined}>
+                        {remainingSeats >= 0 ? `잔여 ${remainingSeats}석` : `${Math.abs(remainingSeats)}명 초과`}
+                      </small>
+                      {issueCount > 0 && <em>오류 {issueCount}건</em>}
+                    </span>
                   </button>
                 );
               })}
@@ -1081,7 +1436,7 @@ const AdminAllocationWorkspacePage = () => {
               <>
                 <div className={styles.busForm}>
                   <label className={issueTargets.busFields.get(selectedBus.id)?.has('label') ? styles.fieldWithError : undefined}>버스 이름<input value={selectedBus.label} onChange={(event) => updateBus(selectedBus.id, 'label', event.target.value)} /></label>
-                  <label className={issueTargets.busFields.get(selectedBus.id)?.has('destination') ? styles.fieldWithError : undefined}>도착역<select value={selectedBus.destination} onChange={(event) => updateBus(selectedBus.id, 'destination', event.target.value)}><option value="">선택</option>{destinationOptions.map((destination) => <option key={destination} value={destination}>{destination}</option>)}</select></label>
+                  <label className={issueTargets.busFields.get(selectedBus.id)?.has('destination') ? styles.fieldWithError : undefined}>행선지<select value={selectedBus.destination} onChange={(event) => updateBus(selectedBus.id, 'destination', event.target.value)}><option value="">선택</option>{destinationOptions.map((destination) => <option key={destination} value={destination}>{destination}</option>)}</select></label>
                   <label className={issueTargets.busFields.get(selectedBus.id)?.has('departureTime') ? styles.fieldWithError : undefined}>출발 시간<input value={selectedBus.departureTime} onChange={(event) => updateBus(selectedBus.id, 'departureTime', event.target.value)} /></label>
                   <label className={issueTargets.busFields.get(selectedBus.id)?.has('boardingPlace') ? styles.fieldWithError : undefined}>탑승 장소<input value={selectedBus.boardingPlace} onChange={(event) => updateBus(selectedBus.id, 'boardingPlace', event.target.value)} /></label>
                   <button type="button" className={styles.deleteButton} onClick={() => deleteBus(selectedBus.id)}><Trash2 size={15} /> 버스 삭제</button>
@@ -1100,7 +1455,7 @@ const AdminAllocationWorkspacePage = () => {
                     <strong>{selectedPassengers.length}명</strong>
                   </div>
                   <div className={issueTargets.busFields.get(selectedBus.id)?.has('capacity') ? styles.summaryWithError : undefined}>
-                    <span>잔여석</span>
+                    <span>잔여 좌석</span>
                     <strong>{selectedBus.capacity - selectedPassengers.length}석</strong>
                   </div>
                   <div>
@@ -1168,14 +1523,23 @@ const AdminAllocationWorkspacePage = () => {
               <h2>승객 검색 배차 편집</h2>
               <p>이름, 캠퍼스, 팀, 지망, 버스, 좌석으로 승객을 찾아 배차를 변경하세요.</p>
             </div>
-            <button
-              type="button"
-              className={showOnlyPassengerErrors ? styles.errorFilterActive : undefined}
-              onClick={() => setShowOnlyPassengerErrors((current) => !current)}
-            >
-              <AlertTriangle size={15} />
-              오류 승객만 {showOnlyPassengerErrors ? '보는 중' : '보기'}
-            </button>
+          </div>
+          <div className={styles.passengerQuickFilters} aria-label="승객 빠른 필터">
+            {PASSENGER_QUICK_FILTERS.map((filter) => (
+              <button
+                type="button"
+                key={filter.id}
+                className={
+                  passengerQuickFilter === filter.id
+                    ? styles.passengerQuickFilterActive
+                    : undefined
+                }
+                onClick={() => setPassengerQuickFilter(filter.id)}
+              >
+                {filter.label}
+                <span>{passengerQuickFilterCounts[filter.id].toLocaleString()}</span>
+              </button>
+            ))}
           </div>
           <label className={styles.allPassengerSearch}>
             <Search size={18} />
@@ -1191,13 +1555,7 @@ const AdminAllocationWorkspacePage = () => {
             )}
           </label>
 
-          {!normalizedAllPassengerSearch && !showOnlyPassengerErrors ? (
-            <div className={styles.passengerSearchEmpty}>
-              <Search size={24} />
-              <strong>편집할 승객을 검색해 주세요.</strong>
-              <span>전체 {workspace.passengers.length.toLocaleString()}명의 목록은 검색 전에는 표시하지 않습니다.</span>
-            </div>
-          ) : visibleAllPassengers.length === 0 ? (
+          {visibleAllPassengers.length === 0 ? (
             <div className={styles.passengerSearchEmpty}>
               <strong>검색 조건에 맞는 승객이 없습니다.</strong>
             </div>
@@ -1241,79 +1599,157 @@ const AdminAllocationWorkspacePage = () => {
                 </span>
               </div>
             </div>
-            {validation.warnings.length > 0 && (
-              <label className={`${styles.override} ${workspace.allowMinimumPassengerOverride ? styles.overrideApproved : ''}`}>
-                <input
-                  type="checkbox"
-                  checked={workspace.allowMinimumPassengerOverride}
-                  onChange={(event) => updateWorkspace((current) => ({ ...current, allowMinimumPassengerOverride: event.target.checked }))}
-                />
-                <span className={styles.overrideCheck}>
-                  {workspace.allowMinimumPassengerOverride && <CheckCircle2 size={16} />}
-                </span>
-                <span className={styles.overrideContent}>
-                  <strong>최소 탑승 인원 미달 예외 승인</strong>
-                  <small>경고 내용을 검토한 뒤 관리자 권한으로 확정을 허용합니다.</small>
-                </span>
-                <em>{workspace.allowMinimumPassengerOverride ? '승인 완료' : '승인 필요'}</em>
-              </label>
-            )}
-            <div className={styles.validationScroll}>
-              <div className={styles.validationResultHeader}>
-                <strong>검증 결과</strong>
-                <span>오류를 누르면 수정할 위치로 이동합니다.</span>
+            <div className={styles.validationBody}>
+              <div className={styles.validationApprovalColumn}>
+                <div className={styles.validationApprovalSummary}>
+                  <strong>확정 준비 상태</strong>
+                  <span>
+                    {validation.errors.length > 0
+                      ? `차단 오류 ${validation.errors.length}건을 먼저 해결하세요.`
+                      : !minimumWarningsApproved || !preferenceWarningsApproved
+                        ? '경고 내용을 검토하고 필요한 관리자 승인을 완료하세요.'
+                        : '최종 확정을 진행할 수 있습니다.'}
+                  </span>
+                </div>
+                {belowMinimumBusIds.length > 0 ? (
+                  <label className={`${styles.override} ${workspace.allowMinimumPassengerOverride ? styles.overrideApproved : ''}`}>
+                    <input
+                      type="checkbox"
+                      checked={workspace.allowMinimumPassengerOverride}
+                      onChange={(event) => updateWorkspace((current) => ({ ...current, allowMinimumPassengerOverride: event.target.checked }))}
+                    />
+                    <span className={styles.overrideCheck}>
+                      {workspace.allowMinimumPassengerOverride && <CheckCircle2 size={16} />}
+                    </span>
+                    <span className={styles.overrideContent}>
+                      <strong>최소 탑승 인원 미달 예외 승인</strong>
+                      <small>경고 내용을 검토한 뒤 관리자 권한으로 확정을 허용합니다.</small>
+                    </span>
+                    <em>{workspace.allowMinimumPassengerOverride ? '승인 완료' : '승인 필요'}</em>
+                  </label>
+                ) : (
+                  <p className={styles.ok}>확인할 최소 탑승 인원 경고가 없습니다.</p>
+                )}
+                {outOfPreferencePassengerIds.length > 0 ? (
+                  <label className={`${styles.override} ${workspace.allowOutOfPreferenceOverride ? styles.overrideApproved : ''}`}>
+                    <input
+                      type="checkbox"
+                      checked={Boolean(workspace.allowOutOfPreferenceOverride)}
+                      onChange={(event) => updateWorkspace((current) => ({ ...current, allowOutOfPreferenceOverride: event.target.checked }))}
+                    />
+                    <span className={styles.overrideCheck}>
+                      {workspace.allowOutOfPreferenceOverride && <CheckCircle2 size={16} />}
+                    </span>
+                    <span className={styles.overrideContent}>
+                      <strong>1·2지망 외 배정 별도 승인</strong>
+                      <small>{outOfPreferencePassengerIds.length}명의 지망 외 이동과 강한 경고를 확인했습니다.</small>
+                    </span>
+                    <em>{workspace.allowOutOfPreferenceOverride ? '승인 완료' : '승인 필요'}</em>
+                  </label>
+                ) : (
+                  <p className={styles.ok}>1·2지망 외 배정 승객이 없습니다.</p>
+                )}
               </div>
-              {validation.errors.length === 0 ? <p className={styles.ok}>차단 오류가 없습니다.</p> : validation.errors.map((item) => (
-                <button type="button" className={styles.validationError} key={item} onClick={() => goToIssue(item)}>
-                  <AlertTriangle size={16} />
-                  <span>{item}</span>
-                </button>
-              ))}
-              {validation.warnings.map((item) => <p className={styles.warning} key={item}>{item}</p>)}
+              <div className={styles.validationResultColumn}>
+                <div className={styles.validationResultHeader}>
+                  <strong>검증 결과</strong>
+                  <span>오류를 누르면 수정할 위치로 이동합니다.</span>
+                </div>
+                <div className={styles.validationScroll}>
+                  {validation.errors.length === 0 ? (
+                    <p className={styles.ok}>차단 오류가 없습니다.</p>
+                  ) : (
+                    validationErrorGroups.map((group) => (
+                      <section className={styles.validationGroup} key={group.id}>
+                        <div className={styles.validationGroupHeader}>
+                          <span>
+                            <strong>{group.title}</strong>
+                            <small>{group.description}</small>
+                          </span>
+                          <em>{group.items.length}건</em>
+                        </div>
+                        {group.items.map((item) => (
+                          <button type="button" className={styles.validationError} key={item} onClick={() => goToIssue(item)}>
+                            <AlertTriangle size={16} />
+                            <span>{item}</span>
+                          </button>
+                        ))}
+                      </section>
+                    ))
+                  )}
+                  {validation.warnings.length > 0 && (
+                    <section className={styles.validationGroup}>
+                      <div className={styles.validationGroupHeader}>
+                        <span>
+                          <strong>
+                            {validationErrorGroups.some((group) => group.id === 'other') ? '6' : '5'}. 경고·예외 승인
+                          </strong>
+                          <small>확정 전에 경고를 검토하고 필요하면 예외 승인하세요.</small>
+                        </span>
+                        <em>{validation.warnings.length}건</em>
+                      </div>
+                      {validation.warnings.map((item) => <p className={styles.warning} key={item}>{item}</p>)}
+                    </section>
+                  )}
+                </div>
+              </div>
             </div>
           </article>
 
-          <article>
-            <h2>다른 임시안 비교</h2>
-            {otherWorkspaces.length === 0 ? <p>비교할 다른 임시안이 없습니다.</p> : otherWorkspaces.map((item) => (
-              <button type="button" className={styles.versionButton} key={item.id} onClick={() => navigate(`/admin/allocation/workspace?id=${item.id}`)}>
-                {item.allocation_name} · {item.total_cost.toLocaleString()}원
-              </button>
-            ))}
-          </article>
-
-          <article className={styles.timelinePanel}>
-            <h2><History size={18} /> 변경 이력 및 복원</h2>
-            <p className={styles.timelineDescription}>
-              복원 가능한 저장 기록에는 복원 버튼이 표시됩니다. 복원 후 저장해야 실제 배차안에 반영됩니다.
-            </p>
-            {workspaceTimeline.map((item) => (
-              <div className={styles.timelineItem} key={item.id}>
-                <div className={styles.timelineItemHeader}>
-                  <strong>{item.detail}</strong>
-                  {item.version && <span className={styles.timelineBadge}>복원 가능</span>}
-                </div>
-                <span>{new Date(item.at).toLocaleString()} · {item.actorId.slice(0, 8)}</span>
-                {item.changes && item.changes.length > 0 && (
-                  <ul className={styles.timelineChanges}>
-                    {item.changes.map((change, index) => (
-                      <li key={`${item.id}-change-${index}`}>{change}</li>
-                    ))}
-                  </ul>
-                )}
-                {item.version && (
-                  <button
-                    type="button"
-                    className={styles.timelineRestoreButton}
-                    onClick={() => restoreVersion(item.version!.id)}
-                  >
-                    <RotateCcw size={14} /> 이 시점으로 복원
-                  </button>
-                )}
-              </div>
-            ))}
-          </article>
         </section>
+
+        <details className={`${styles.supportTools} ${readOnly ? styles.readOnly : ''}`}>
+          <summary>
+            <span>
+              <History size={18} />
+              <strong>보조 도구</strong>
+              <small>다른 임시 배차안 비교 · 변경 이력 · 버전 복원</small>
+            </span>
+            <em>비교 {otherWorkspaces.length}개 · 기록 {workspaceTimeline.length}개</em>
+          </summary>
+          <div className={styles.supportToolsGrid}>
+            <article>
+              <h2>다른 임시 배차안 비교</h2>
+              {otherWorkspaces.length === 0 ? <p>비교할 다른 임시 배차안이 없습니다.</p> : otherWorkspaces.map((item) => (
+                <button type="button" className={styles.versionButton} key={item.id} onClick={() => navigate(`/admin/allocation/workspace?id=${item.id}`)}>
+                  {item.allocation_name} · {item.total_cost.toLocaleString()}원
+                </button>
+              ))}
+            </article>
+
+            <article className={styles.timelinePanel}>
+              <h2><History size={18} /> 변경 이력 및 복원</h2>
+              <p className={styles.timelineDescription}>
+                복원 가능한 저장 기록에는 복원 버튼이 표시됩니다. 복원 후 저장해야 실제 배차안에 반영됩니다.
+              </p>
+              {workspaceTimeline.map((item) => (
+                <div className={styles.timelineItem} key={item.id}>
+                  <div className={styles.timelineItemHeader}>
+                    <strong>{item.detail}</strong>
+                    {item.version && <span className={styles.timelineBadge}>복원 가능</span>}
+                  </div>
+                  <span>{new Date(item.at).toLocaleString()} · {item.actorId.slice(0, 8)}</span>
+                  {item.changes && item.changes.length > 0 && (
+                    <ul className={styles.timelineChanges}>
+                      {item.changes.map((change, index) => (
+                        <li key={`${item.id}-change-${index}`}>{change}</li>
+                      ))}
+                    </ul>
+                  )}
+                  {item.version && (
+                    <button
+                      type="button"
+                      className={styles.timelineRestoreButton}
+                      onClick={() => void restoreVersion(item.version!.id)}
+                    >
+                      <RotateCcw size={14} /> 이 시점으로 복원
+                    </button>
+                  )}
+                </div>
+              ))}
+            </article>
+          </div>
+        </details>
 
         <section
           id="allocation-confirmation"
@@ -1331,11 +1767,11 @@ const AdminAllocationWorkspacePage = () => {
                     <small>{validation.errors.length === 0 ? '모든 차단 오류를 해결했습니다.' : `${validation.errors.length}건의 오류를 해결해야 합니다.`}</small>
                   </span>
                 </div>
-                <div className={validation.warnings.length === 0 || workspace.allowMinimumPassengerOverride ? styles.readinessComplete : styles.readinessBlocked}>
-                  {validation.warnings.length === 0 || workspace.allowMinimumPassengerOverride ? <CheckCircle2 size={18} /> : <AlertTriangle size={18} />}
+                <div className={minimumWarningsApproved && preferenceWarningsApproved ? styles.readinessComplete : styles.readinessBlocked}>
+                  {minimumWarningsApproved && preferenceWarningsApproved ? <CheckCircle2 size={18} /> : <AlertTriangle size={18} />}
                   <span>
                     <strong>경고 확인</strong>
-                    <small>{validation.warnings.length === 0 ? '확인할 경고가 없습니다.' : workspace.allowMinimumPassengerOverride ? '관리자 예외 승인을 완료했습니다.' : `${validation.warnings.length}건의 경고를 확인하고 예외 승인해야 합니다.`}</small>
+                    <small>{validation.warnings.length === 0 ? '확인할 경고가 없습니다.' : minimumWarningsApproved && preferenceWarningsApproved ? '필요한 관리자 승인을 완료했습니다.' : `${validation.warnings.length}건의 경고와 별도 승인 항목을 확인해야 합니다.`}</small>
                   </span>
                 </div>
                 <div className={!dirty ? styles.readinessComplete : styles.readinessBlocked}>
@@ -1358,7 +1794,7 @@ const AdminAllocationWorkspacePage = () => {
                   <div>
                     <strong>서버 확정 전 검증</strong>
                     <span>
-                      최신 활성 예약자와 저장된 배차 상태를 DB에서 다시 대조합니다.
+                      최신 활성 신청자와 저장된 배차 상태를 DB에서 다시 대조합니다.
                     </span>
                   </div>
                   <button
@@ -1389,7 +1825,7 @@ const AdminAllocationWorkspacePage = () => {
                       {' · '}
                       배차안 {confirmationPreflight.passenger_count.toLocaleString()}명
                       {' / '}
-                      활성 예약 {confirmationPreflight.active_reservation_count.toLocaleString()}명
+                      활성 신청 {confirmationPreflight.active_reservation_count.toLocaleString()}명
                     </div>
                     <div className={styles.preflightChecks}>
                       {confirmationPreflight.checks.map((check) => (
@@ -1406,10 +1842,45 @@ const AdminAllocationWorkspacePage = () => {
                         </span>
                       ))}
                     </div>
+                    {confirmationPreflight.details?.length > 0 && (
+                      <div className={styles.preflightDetails}>
+                        <strong>실패 상세</strong>
+                        {confirmationPreflight.details.map((detail, index) => {
+                          const canNavigate =
+                            Boolean(detail.passenger_id) ||
+                            Boolean(detail.bus_id) ||
+                            Boolean(detail.requires_refresh);
+                          return canNavigate ? (
+                            <button
+                              type="button"
+                              key={`${detail.key}-${detail.passenger_id ?? detail.bus_id}-${index}`}
+                              onClick={() => void goToPreflightDetail(detail)}
+                            >
+                              <AlertTriangle size={14} />
+                              <span>{detail.message}</span>
+                              <em>
+                                {detail.requires_refresh
+                                  ? '배차안 갱신 후 이동'
+                                  : '해당 항목으로 이동'}
+                              </em>
+                            </button>
+                          ) : (
+                            <div
+                              key={`${detail.key}-${detail.reservation_id ?? index}`}
+                            >
+                              <AlertTriangle size={14} />
+                              <span>{detail.message}</span>
+                              {detail.requires_refresh && <em>배차안 갱신 필요</em>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </>
                 ) : (
                   <div className={styles.preflightPending}>
-                    변경사항을 저장한 뒤 서버 사전 검증을 실행해주세요.
+                    선택적으로 미리 검증할 수 있으며, 전체 배차 확정 시 서버 검증이
+                    자동 실행됩니다.
                   </div>
                 )}
               </div>
@@ -1417,7 +1888,8 @@ const AdminAllocationWorkspacePage = () => {
               <button
                 type="button"
                 className={styles.confirmButton}
-                disabled={!canConfirm || dirty || confirmationPreflight?.valid !== true || confirmText !== '전체 배차를 확정합니다' || saving}
+                disabled={confirmDisabledReason !== null}
+                title={confirmDisabledReason ?? undefined}
                 onClick={confirmAll}
               >
                 {confirmationAction === 'confirm' ? (
@@ -1426,6 +1898,35 @@ const AdminAllocationWorkspacePage = () => {
                   <><BadgeCheck size={18} /> 전체 배차 확정</>
                 )}
               </button>
+              {confirmDisabledReason && (
+                <div className={styles.confirmDisabledReasons}>
+                  <strong>
+                    <AlertTriangle size={16} />
+                    전체 배차 확정이 비활성화된 이유
+                  </strong>
+                  <ul>
+                    {confirmDisabledReasons.map((reason) => (
+                      <li key={reason}>{reason}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {confirmationFailure && (
+                <div className={styles.confirmationFailure}>
+                  <strong>
+                    <AlertTriangle size={17} />
+                    {confirmationFailure.title}
+                  </strong>
+                  <ul>
+                    {confirmationFailure.reasons.map((reason, index) => (
+                      <li key={`${reason}-${index}`}>{reason}</li>
+                    ))}
+                  </ul>
+                  <small>
+                    위 내용을 수정한 뒤 변경사항을 저장하고 다시 확정해주세요.
+                  </small>
+                </div>
+              )}
             </>
           ) : (
             <div className={styles.confirmedState}>
@@ -1493,11 +1994,21 @@ const AdminAllocationWorkspacePage = () => {
               </div>
             </div>
           )}
-          {workspace.status === 'draft' && (
+        </section>
+
+        {workspace.status === 'draft' && (
+          <details className={`${styles.dangerTools} ${readOnly ? styles.readOnly : ''}`}>
+            <summary>
+              <span>
+                <Trash2 size={17} />
+                <strong>위험 작업</strong>
+                <small>임시 배차안 삭제</small>
+              </span>
+            </summary>
             <div className={styles.dangerZone}>
               <div>
                 <strong>임시 배차안 삭제</strong>
-                <span>저장하지 않은 변경사항과 배차안 기록이 모두 삭제됩니다.</span>
+                <span>저장하지 않은 변경사항, 배차안 기록, 복원 가능한 버전이 모두 삭제됩니다.</span>
               </div>
               <button
                 type="button"
@@ -1505,11 +2016,11 @@ const AdminAllocationWorkspacePage = () => {
                 disabled={saving || readOnly}
                 onClick={deleteWorkspace}
               >
-                <Trash2 size={17} /> 임시안 삭제
+                <Trash2 size={17} /> 임시 배차안 삭제
               </button>
             </div>
-          )}
-        </section>
+          </details>
+        )}
       </main>
     </div>
   );
@@ -1540,13 +2051,20 @@ const PassengerRow = memo(function PassengerRow({
       )
     }
   >
+    <td className={styles.dragHandleCell}>
+      <span className={styles.dragHandle} title="끌어서 다른 버스로 이동">
+        <GripVertical size={16} />
+        <small>이동</small>
+      </span>
+    </td>
     <td><strong>{passenger.name}</strong></td>
+    <td className={styles.passengerPhone}>{passenger.phone || '-'}</td>
     <td>{passenger.campus} · {passenger.team}</td>
     <td className={issueFields?.has('preferences') ? styles.cellWithError : undefined}>{passenger.preferences.join(' / ') || '지망 정보 없음'}</td>
     <td className={issueFields?.has('assignment') ? styles.cellWithError : undefined}>
       <select className={issueFields?.has('assignment') ? styles.controlWithError : undefined} value={passenger.busId ?? ''} onChange={(event) => onAssign(passenger.reservationId, event.target.value || null)}>
         <option value="">미배차</option>
-        {buses.map((bus) => <option key={bus.id} value={bus.id}>{bus.label} · {bus.destination || '도착역 미설정'}</option>)}
+        {buses.map((bus) => <option key={bus.id} value={bus.id}>{bus.label} · {bus.destination || '행선지 미설정'}</option>)}
       </select>
     </td>
     <td className={issueFields?.has('seat') ? styles.cellWithError : undefined}><input className={issueFields?.has('seat') ? styles.controlWithError : undefined} type="number" min="1" value={passenger.seatNumber ?? ''} disabled={!passenger.busId} onChange={(event) => onSeat(passenger.reservationId, event.target.value ? Number(event.target.value) : null)} /></td>
@@ -1620,14 +2138,21 @@ const VirtualPassengerTable = memo(function VirtualPassengerTable({
   }, [onRevealComplete, passengers, revealPassengerId]);
 
   return (
-    <div
-      ref={scrollRef}
-      className={styles.passengerTableWrap}
-      onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
-    >
+    <div className={styles.passengerTableArea}>
+      <div className={styles.passengerDragGuide}>
+        <GripVertical size={15} />
+        <span>행 왼쪽의 이동 핸들을 끌어 원하는 버스 카드에 놓으세요.</span>
+      </div>
+      <div
+        ref={scrollRef}
+        className={styles.passengerTableWrap}
+        onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
+      >
       <table className={styles.passengerTable}>
         <colgroup>
+          <col className={styles.passengerDragColumn} />
           <col className={styles.passengerNameColumn} />
+          <col className={styles.passengerPhoneColumn} />
           <col className={styles.passengerTeamColumn} />
           <col className={styles.passengerPreferenceColumn} />
           <col className={styles.passengerBusColumn} />
@@ -1635,7 +2160,9 @@ const VirtualPassengerTable = memo(function VirtualPassengerTable({
         </colgroup>
         <thead>
           <tr>
+            <th aria-label="드래그 이동" />
             <th>승객</th>
+            <th>전화번호</th>
             <th>캠퍼스·팀</th>
             <th>1·2지망</th>
             <th>버스 이동</th>
@@ -1645,7 +2172,7 @@ const VirtualPassengerTable = memo(function VirtualPassengerTable({
         <tbody>
           {topSpacerHeight > 0 && (
             <tr aria-hidden="true" className={styles.virtualSpacerRow}>
-              <td colSpan={5} style={{ height: topSpacerHeight }} />
+              <td colSpan={7} style={{ height: topSpacerHeight }} />
             </tr>
           )}
           {visiblePassengers.map((passenger) => (
@@ -1660,11 +2187,12 @@ const VirtualPassengerTable = memo(function VirtualPassengerTable({
           ))}
           {bottomSpacerHeight > 0 && (
             <tr aria-hidden="true" className={styles.virtualSpacerRow}>
-              <td colSpan={5} style={{ height: bottomSpacerHeight }} />
+              <td colSpan={7} style={{ height: bottomSpacerHeight }} />
             </tr>
           )}
         </tbody>
       </table>
+      </div>
     </div>
   );
 });

@@ -3,6 +3,14 @@
 -- Run after 20_reservation_deadline.sql.
 -- =========================================================
 
+-- User reservation writes must go through the validated RPCs below.
+drop policy if exists "Users can insert own reservations" on public.reservations;
+drop policy if exists "Users can update own reservations" on public.reservations;
+drop policy if exists "Users can delete own reservations" on public.reservations;
+drop policy if exists "Global admins can update reservations" on public.reservations;
+
+revoke insert, update, delete on table public.reservations from public, anon, authenticated;
+
 update public.reservations
 set
   station_preferences = jsonb_path_query_array(
@@ -69,6 +77,28 @@ begin
     or p_station_preferences -> 0 ->> 'rank' <> '1'
     or p_station_preferences -> 1 ->> 'rank' <> '2' then
     raise exception 'Station preferences must contain first and second choices.';
+  end if;
+
+  if nullif(p_station_preferences -> 0 -> 'station' ->> 'id', '') is null
+    or nullif(p_station_preferences -> 1 -> 'station' ->> 'id', '') is null
+    or p_station_preferences -> 0 -> 'station' ->> 'id'
+      = p_station_preferences -> 1 -> 'station' ->> 'id'
+    or (
+      select count(*)
+      from public.stations
+      where stations.is_active = true
+        and (
+          (
+            stations.id::text = p_station_preferences -> 0 -> 'station' ->> 'id'
+            and stations.name = p_station_preferences -> 0 -> 'station' ->> 'name'
+          )
+          or (
+            stations.id::text = p_station_preferences -> 1 -> 'station' ->> 'id'
+            and stations.name = p_station_preferences -> 1 -> 'station' ->> 'name'
+          )
+        )
+    ) <> 2 then
+    raise exception 'Station preferences contain invalid or duplicate stations.';
   end if;
 
   if jsonb_typeof(coalesce(p_data, 'null'::jsonb)) <> 'object' then
@@ -196,10 +226,68 @@ $$;
 
 revoke all on function public.save_user_reservation(
   text, text, text, text, text, jsonb, jsonb
-) from public;
+) from public, anon;
 
 grant execute on function public.save_user_reservation(
   text, text, text, text, text, jsonb, jsonb
 ) to authenticated;
+
+create or replace function public.delete_user_reservation()
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user_id uuid := auth.uid();
+  v_deadline_value jsonb;
+  v_deadline_at timestamptz;
+  v_status text;
+begin
+  if v_user_id is null then
+    raise exception 'Authentication failed.';
+  end if;
+
+  select value
+  into v_deadline_value
+  from public.app_settings
+  where key = 'first_reservation_deadline'
+  for share;
+
+  if v_deadline_value is null then
+    raise exception 'Reservation deadline setting is missing.';
+  end if;
+
+  v_deadline_at :=
+    nullif(v_deadline_value ->> 'deadline_at', '')::timestamptz;
+
+  if v_deadline_at is not null and v_deadline_at <= clock_timestamp() then
+    raise exception 'Reservation deadline has passed.';
+  end if;
+
+  select status
+  into v_status
+  from public.reservations
+  where user_id = v_user_id
+  for update;
+
+  if not found then
+    return false;
+  end if;
+
+  if v_status <> 'requested' then
+    raise exception 'Only requested reservations can be deleted.';
+  end if;
+
+  delete from public.reservations
+  where user_id = v_user_id
+    and status = 'requested';
+
+  return found;
+end;
+$$;
+
+revoke all on function public.delete_user_reservation() from public, anon;
+grant execute on function public.delete_user_reservation() to authenticated;
 
 notify pgrst, 'reload schema';

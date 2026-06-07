@@ -255,7 +255,7 @@
 
 .coverageInsightGrid {
   display: grid;
-  grid-template-columns: minmax(260px, 420px);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 14px;
 }
@@ -287,7 +287,7 @@
 
 .coverageTable {
   width: 100%;
-  min-width: 900px;
+  min-width: 1120px;
   border-collapse: collapse;
   font-size: 14px;
 }
@@ -461,6 +461,15 @@
   font-size: 12px;
   font-weight: 700;
   white-space: nowrap;
+}
+
+.campusAdminCell .multiCampusAdminBadge {
+  width: fit-content;
+  padding: 3px 6px;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #4338ca;
+  font-weight: 900;
 }
 
 .gapUnset,

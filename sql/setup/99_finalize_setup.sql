@@ -29,12 +29,7 @@ for select
 to authenticated
 using (public.is_global_admin());
 
-create policy "Global admins can manage admin roles"
-on public.admin_roles
-for all
-to authenticated
-using (public.is_global_admin())
-with check (public.is_global_admin());
+revoke insert, update, delete on table public.admin_roles from public, anon, authenticated;
 
 alter table public.districts enable row level security;
 alter table public.teams enable row level security;

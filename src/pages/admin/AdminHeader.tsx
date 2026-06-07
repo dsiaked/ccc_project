@@ -1,25 +1,29 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Banknote,
   Bus,
-  ChevronDown,
   ClipboardCheck,
   LayoutDashboard,
   LogOut,
-  Megaphone,
   MessageSquare,
+  PanelLeftClose,
+  PanelLeftOpen,
   Route,
+  FlaskConical,
   Settings,
   Users,
   type LucideIcon,
 } from 'lucide-react';
 
 import {
-  getAdminRole,
+  getAdminRoles,
   getGlobalCampusNotices,
+  setActiveCampusAdminRole,
+  type AdminRole,
   type AdminRoleType,
 } from '../../lib/adminService';
+import { useAdminAuth } from '../../components/AdminAuthProvider';
 import {
   campusNoticeReadEventName,
   getUnreadCampusNotices,
@@ -31,6 +35,7 @@ interface AdminNavItem {
   label: string;
   path: string;
   icon: LucideIcon;
+  group: 'overview' | 'operations' | 'management';
   matchPaths?: string[];
   allowedRoles: AdminRoleType[];
 }
@@ -40,46 +45,61 @@ const navItems: AdminNavItem[] = [
     label: '대시보드',
     path: '/admin/global',
     icon: LayoutDashboard,
+    group: 'overview',
     allowedRoles: ['global_admin'],
   },
   {
-    label: '준비 점검',
+    label: '운영 초기값 설정',
     path: '/admin/setup-check',
     icon: ClipboardCheck,
+    group: 'management',
+    allowedRoles: ['global_admin'],
+  },
+  {
+    label: '시뮬레이션',
+    path: '/admin/simulation',
+    icon: FlaskConical,
+    group: 'management',
     allowedRoles: ['global_admin'],
   },
   {
     label: '신청 현황',
     path: '/admin/tickets',
     icon: Users,
+    group: 'overview',
     allowedRoles: ['global_admin'],
   },
   {
     label: '캠퍼스 관리',
     path: '/admin/campus',
     icon: Banknote,
+    group: 'overview',
     allowedRoles: ['campus_admin'],
   },
   {
     label: '본부 입금',
     path: '/admin/campus-transfer',
     icon: Banknote,
+    group: 'operations',
     allowedRoles: ['global_admin'],
   },
   {
-    label: '문의',
+    label: '공지·문의',
     path: '/admin/campus-requests',
     icon: MessageSquare,
+    group: 'overview',
     allowedRoles: ['global_admin', 'campus_admin'],
   },
   {
     label: '배차',
     path: '/admin/allocation',
     icon: Route,
+    group: 'operations',
     matchPaths: [
       '/admin/bus-allocation',
       '/admin/allocation/logic',
       '/admin/allocation/result',
+      '/admin/remaining-seat-sales',
     ],
     allowedRoles: ['global_admin'],
   },
@@ -87,52 +107,71 @@ const navItems: AdminNavItem[] = [
     label: '개별 사용자 관리',
     path: '/admin/users',
     icon: Bus,
-    matchPaths: ['/admin/personal-tickets', '/admin/campus-admins'],
-    allowedRoles: ['global_admin'],
-  },
-  {
-    label: '공지',
-    path: '/admin/home-announcements',
-    icon: Megaphone,
+    group: 'management',
+    matchPaths: [
+      '/admin/personal-tickets',
+      '/admin/campus-admins',
+      '/admin/campus-issues',
+    ],
     allowedRoles: ['global_admin'],
   },
   {
     label: '설정',
     path: '/admin/participation-targets',
     icon: Settings,
+    group: 'management',
     matchPaths: ['/admin/reservation-deadline'],
     allowedRoles: ['global_admin'],
   },
 ];
 
+const navGroups = [
+  { id: 'overview', label: '운영 현황' },
+  { id: 'operations', label: '배차 · 정산' },
+  { id: 'management', label: '관리 · 설정' },
+] as const;
+
+const sidebarCollapsedStorageKey = 'admin-sidebar-collapsed';
+
 const AdminHeader = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const moreMenuRef = useRef<HTMLDivElement>(null);
-  const [adminRole, setAdminRole] = useState<AdminRoleType | null>(null);
+  const { session, adminRole: activeAdminRole } = useAdminAuth();
+  const [campusAdminRoles, setCampusAdminRoles] = useState<AdminRole[]>([]);
+  const [activeCampusAdminRoleId, setActiveCampusAdminRoleId] = useState('');
   const [campusNoticeCount, setCampusNoticeCount] = useState(0);
-  const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+    try {
+      return window.localStorage.getItem(sidebarCollapsedStorageKey) === 'true';
+    } catch {
+      return false;
+    }
+  });
 
   useEffect(() => {
     let isMounted = true;
 
     const loadAdminRole = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
       if (!session) {
-        if (isMounted) setAdminRole(null);
+        if (isMounted) {
+          setCampusAdminRoles([]);
+          setCampusNoticeCount(0);
+        }
         return;
       }
 
-      const role = await getAdminRole(session.user.id);
+      const roles = await getAdminRoles(session.user.id);
 
       if (isMounted) {
-        setAdminRole(role?.role ?? null);
+        setCampusAdminRoles(
+          roles.filter((item) => item.role === 'campus_admin')
+        );
+        setActiveCampusAdminRoleId(
+          activeAdminRole?.role === 'campus_admin' ? activeAdminRole.id : ''
+        );
       }
 
-      if (role?.role === 'campus_admin') {
+      if (activeAdminRole?.role === 'campus_admin') {
         const noticesResult = await getGlobalCampusNotices();
 
         if (isMounted) {
@@ -151,7 +190,7 @@ const AdminHeader = () => {
     };
 
     loadAdminRole().catch(() => {
-      if (isMounted) setAdminRole(null);
+      if (isMounted) setCampusAdminRoles([]);
     });
 
     window.addEventListener(campusNoticeReadEventName, loadAdminRole);
@@ -160,38 +199,35 @@ const AdminHeader = () => {
       isMounted = false;
       window.removeEventListener(campusNoticeReadEventName, loadAdminRole);
     };
-  }, []);
-
-  useEffect(() => {
-    if (!isMoreMenuOpen) return;
-
-    const handlePointerDown = (event: MouseEvent) => {
-      if (
-        moreMenuRef.current &&
-        !moreMenuRef.current.contains(event.target as Node)
-      ) {
-        setIsMoreMenuOpen(false);
-      }
-    };
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setIsMoreMenuOpen(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handlePointerDown);
-    document.addEventListener('keydown', handleKeyDown);
-
-    return () => {
-      document.removeEventListener('mousedown', handlePointerDown);
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isMoreMenuOpen]);
+  }, [session, activeAdminRole]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
     navigate('/admin/login');
+  };
+
+  const handleCampusAdminRoleChange = async (roleId: string) => {
+    if (!session) {
+      navigate('/admin/login');
+      return;
+    }
+
+    await setActiveCampusAdminRole(session.user.id, roleId);
+    window.location.reload();
+  };
+
+  const handleSidebarToggle = () => {
+    setIsSidebarCollapsed((previous) => {
+      const next = !previous;
+
+      try {
+        window.localStorage.setItem(sidebarCollapsedStorageKey, String(next));
+      } catch {
+        // The sidebar still works when browser storage is unavailable.
+      }
+
+      return next;
+    });
   };
 
   const isActive = (item: AdminNavItem) => {
@@ -200,110 +236,121 @@ const AdminHeader = () => {
     return paths.some((path) => location.pathname === path);
   };
 
+  const adminRole = activeAdminRole?.role ?? null;
   const visibleNavItems = adminRole
     ? navItems.filter((item) => item.allowedRoles.includes(adminRole))
     : [];
-  const secondaryGlobalPaths = new Set([
-    '/admin/setup-check',
-    '/admin/campus-transfer',
-    '/admin/home-announcements',
-    '/admin/participation-targets',
-  ]);
-  const primaryNavItems = visibleNavItems.filter(
-    (item) =>
-      adminRole !== 'global_admin' || !secondaryGlobalPaths.has(item.path)
-  );
-  const moreNavItems = visibleNavItems.filter(
-    (item) =>
-      adminRole === 'global_admin' && secondaryGlobalPaths.has(item.path)
-  );
-  const isMoreMenuActive = moreNavItems.some(isActive);
   const homePath = adminRole === 'campus_admin' ? '/admin/campus' : '/admin/global';
 
   return (
-    <header className={styles.header}>
-      <button
-        type="button"
-        className={styles.logo}
-        onClick={() => navigate(homePath)}
-      >
-        <span className={styles.logoMark}>CCC</span>
-        <span>Bus Admin</span>
-      </button>
+    <header
+      className={`${styles.header} ${
+        isSidebarCollapsed ? styles.collapsed : ''
+      }`}
+    >
+      <div className={styles.sidebarTop}>
+        <button
+          type="button"
+          className={styles.logo}
+          onClick={() => navigate(homePath)}
+          aria-label="관리자 홈으로 이동"
+          title={isSidebarCollapsed ? '관리자 홈' : undefined}
+        >
+          <span className={styles.logoMark}>CCC</span>
+          <span className={styles.logoLabel}>Bus Admin</span>
+        </button>
+
+        <button
+          type="button"
+          className={styles.collapseButton}
+          onClick={handleSidebarToggle}
+          aria-label={isSidebarCollapsed ? '사이드바 펼치기' : '사이드바 접기'}
+          aria-pressed={isSidebarCollapsed}
+          title={isSidebarCollapsed ? '사이드바 펼치기' : '사이드바 접기'}
+        >
+          {isSidebarCollapsed ? (
+            <PanelLeftOpen size={18} />
+          ) : (
+            <PanelLeftClose size={18} />
+          )}
+        </button>
+      </div>
 
       <nav className={styles.nav} aria-label="관리자 메뉴">
-        {primaryNavItems.map((item) => {
-          const Icon = item.icon;
+        {navGroups.map((group) => {
+          const groupItems = visibleNavItems.filter(
+            (item) => item.group === group.id
+          );
+
+          if (groupItems.length === 0) return null;
 
           return (
-            <button
-              key={item.path}
-              type="button"
-              className={isActive(item) ? styles.activeNavItem : undefined}
-              onClick={() => navigate(item.path)}
-            >
-              <Icon size={17} />
-              <span>{item.label}</span>
-              {adminRole === 'campus_admin' &&
-                item.path === '/admin/campus-requests' &&
-                campusNoticeCount > 0 && (
-                  <span className={styles.navBadge}>{campusNoticeCount}</span>
-                )}
-            </button>
-          );
-        })}
-
-        {moreNavItems.length > 0 && (
-          <div className={styles.moreMenu} ref={moreMenuRef}>
-            <button
-              type="button"
-              className={isMoreMenuActive ? styles.activeNavItem : undefined}
-              onClick={() => setIsMoreMenuOpen((prev) => !prev)}
-              aria-expanded={isMoreMenuOpen}
-              aria-haspopup="menu"
-            >
-              <span>더보기</span>
-              <ChevronDown
-                size={15}
-                className={isMoreMenuOpen ? styles.moreMenuChevronOpen : undefined}
-              />
-            </button>
-
-            {isMoreMenuOpen && (
-              <div className={styles.moreMenuPanel} role="menu">
-                {moreNavItems.map((item) => {
+            <div className={styles.navGroup} key={group.id}>
+              <span className={styles.navGroupLabel}>{group.label}</span>
+              <div className={styles.navGroupItems}>
+                {groupItems.map((item) => {
                   const Icon = item.icon;
 
                   return (
                     <button
                       key={item.path}
                       type="button"
-                      role="menuitem"
-                      className={isActive(item) ? styles.activeMoreMenuItem : undefined}
-                      onClick={() => {
-                        setIsMoreMenuOpen(false);
-                        navigate(item.path);
-                      }}
+                      className={isActive(item) ? styles.activeNavItem : undefined}
+                      onClick={() => navigate(item.path)}
+                      aria-current={isActive(item) ? 'page' : undefined}
+                      aria-label={item.label}
+                      title={isSidebarCollapsed ? item.label : undefined}
                     >
-                      <Icon size={17} />
-                      <span>{item.label}</span>
+                      <Icon size={18} />
+                      <span className={styles.navItemLabel}>{item.label}</span>
+                      {adminRole === 'campus_admin' &&
+                        item.path === '/admin/campus-requests' &&
+                        campusNoticeCount > 0 && (
+                          <span className={styles.navBadge}>
+                            {campusNoticeCount}
+                          </span>
+                        )}
                     </button>
                   );
                 })}
               </div>
-            )}
-          </div>
-        )}
+            </div>
+          );
+        })}
       </nav>
 
-      <button
-        type="button"
-        className={styles.logoutButton}
-        onClick={handleLogout}
-      >
-        <LogOut size={17} />
-        <span>로그아웃</span>
-      </button>
+      <div className={styles.headerActions}>
+        {adminRole === 'campus_admin' && campusAdminRoles.length > 1 && (
+          <label className={styles.campusSwitcher}>
+            <span>관리 캠퍼스</span>
+            <select
+              value={activeCampusAdminRoleId}
+              onChange={(event) =>
+                void handleCampusAdminRoleChange(event.target.value)
+              }
+            >
+              {campusAdminRoles.map((role) => (
+                <option key={role.id} value={role.id}>
+                  {[role.district, role.team, role.campus]
+                    .filter(Boolean)
+                    .join(' / ')}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+
+        <button
+          type="button"
+          className={styles.logoutButton}
+          onClick={handleLogout}
+          aria-label="로그아웃"
+          title={isSidebarCollapsed ? '로그아웃' : undefined}
+        >
+          <LogOut size={17} />
+          <span className={styles.logoutLabel}>로그아웃</span>
+        </button>
+      </div>
     </header>
   );
 };

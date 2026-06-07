@@ -2,7 +2,7 @@ import { supabase } from './supabase';
 import type { ReturnBusReservation } from '../types/reservation';
 
 /**
- * 예약 정보를 Supabase DB에 저장 (현재 인증된 사용자만 저장 가능)
+ * 신청 정보를 Supabase DB에 저장 (현재 인증된 사용자만 저장 가능)
  */
 export async function saveReservation(
   reservation: ReturnBusReservation
@@ -28,7 +28,7 @@ export async function saveReservation(
 }
 
 /**
- * 사용자의 예약 정보 조회 (현재 인증된 사용자만 조회 가능)
+ * 사용자의 신청 정보 조회 (현재 인증된 사용자만 조회 가능)
  */
 export async function getReservation(): Promise<ReturnBusReservation | null> {
   try {
@@ -41,7 +41,7 @@ export async function getReservation(): Promise<ReturnBusReservation | null> {
 
     const { data, error } = await supabase
       .from('reservations')
-      .select('data, created_at, updated_at')
+      .select('data, status, confirmed_ticket, created_at, updated_at')
       .eq('user_id', session.user.id)
       .maybeSingle();
 
@@ -54,6 +54,8 @@ export async function getReservation(): Promise<ReturnBusReservation | null> {
 
       return {
         ...savedData,
+        status: data.status,
+        confirmedTicket: data.confirmed_ticket ?? undefined,
         requestedAt: savedData.requestedAt || data.created_at || '',
         updatedAt: savedData.updatedAt || data.updated_at || undefined,
       };
@@ -67,21 +69,11 @@ export async function getReservation(): Promise<ReturnBusReservation | null> {
 }
 
 /**
- * 사용자의 예약 정보 삭제 (현재 인증된 사용자만 삭제 가능)
+ * 사용자의 신청 정보 삭제 (현재 인증된 사용자만 삭제 가능)
  */
 export async function deleteReservation() {
   try {
-    // 현재 세션의 사용자 확인
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-    
-    if (sessionError || !session?.user?.id) {
-      throw new Error('Authentication failed');
-    }
-
-    const { error } = await supabase
-      .from('reservations')
-      .delete()
-      .eq('user_id', session.user.id);
+    const { error } = await supabase.rpc('delete_user_reservation');
 
     if (error) throw error;
 

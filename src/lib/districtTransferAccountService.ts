@@ -32,14 +32,10 @@ export async function updateDistrictTransferAccountNumber(
   accountNumber: string
 ): Promise<string> {
   const normalizedAccountNumber = accountNumber.trim();
-  const { error } = await supabase.from('app_settings').upsert(
-    {
-      key: DISTRICT_TRANSFER_ACCOUNT_KEY,
-      value: { account_number: normalizedAccountNumber },
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: 'key' }
-  );
+  const { error } = await supabase.rpc('update_app_setting_as_global_admin', {
+    p_key: DISTRICT_TRANSFER_ACCOUNT_KEY,
+    p_value: { account_number: normalizedAccountNumber },
+  });
 
   if (error) throw error;
 

@@ -100,8 +100,9 @@ npm.cmd run simulation -- seed:verify
 - `seed:reservations` creates deterministic but uneven reservations. Each
   campus has favored destinations, every user chooses distinct first-choice
   and second-choice destinations (1지망 and 2지망), and request times are
-  irregularly distributed across the previous 24 hours. All reservations are
-  created with `requested` status without admin cancellation.
+  irregularly distributed across the previous 24 hours. Every tenth simulation
+  account remains without a reservation, and all created reservations use
+  `requested` status without admin cancellation.
 - `seed:payments` creates the initial 95% completed and 5% pending distribution
   for general users. Campus admins start completed. Legacy invalid payment
   statuses stored in simulation account metadata are normalized to `pending`.

@@ -50,6 +50,8 @@
 }
 
 .refreshButton,
+.addUserButton,
+.issueReviewButton,
 .primaryButton,
 .secondaryButton,
 .dangerButton,
@@ -165,13 +167,18 @@
 
 .toolbar {
   display: grid;
-  grid-template-columns: minmax(260px, 1fr) 150px 150px 150px;
   gap: 10px;
   padding: 12px;
   margin-bottom: 12px;
   border: 1px solid #dfe3e8;
   border-radius: 8px;
   background: #ffffff;
+}
+
+.toolbarPrimary {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) minmax(180px, 220px) auto;
+  gap: 10px;
 }
 
 .searchBox {
@@ -211,6 +218,97 @@
   padding: 0 12px;
 }
 
+.filterToggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid #ccd3dc;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #344054;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.filterToggle:hover,
+.filterToggleActive {
+  border-color: #93c5fd;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.filterToggle span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #2563eb;
+  color: #ffffff;
+  font-size: 11px;
+}
+
+.advancedFilters {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #dbeafe;
+  border-radius: 8px;
+  background: #f8fbff;
+}
+
+.advancedFilters label {
+  display: grid;
+  gap: 6px;
+}
+
+.advancedFilters label > span {
+  color: #475467;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.advancedFilters select {
+  height: 40px;
+  padding: 0 10px;
+}
+
+.filterChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.filterChips button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 30px;
+  padding: 0 9px;
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.filterChips button:hover {
+  border-color: #60a5fa;
+  background: #dbeafe;
+}
+
 .layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 360px;
@@ -226,41 +324,119 @@
 }
 
 .tableWrap {
-  overflow-x: auto;
+  overflow-x: hidden;
+}
+
+.toolbar select.activeFilter {
+  border-color: #2563eb;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-weight: 900;
+}
+
+.filterSummary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 10px;
+  border-top: 1px solid #eaecf0;
+  color: #667085;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.filterSummary strong {
+  color: #2563eb;
+  font-size: 13px;
+}
+
+.filterSummary button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid #ccd3dc;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #475467;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.filterSummary button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.addUserButton {
+  border: 1px solid #2563eb;
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.issueReviewButton {
+  border: 1px solid #fbbf24;
+  background: #fffbeb;
+  color: #b45309;
+}
+
+.issueReviewButton span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #f59e0b;
+  color: #ffffff;
+  font-size: 11px;
 }
 
 .table {
   width: 100%;
-  min-width: 850px;
+  min-width: 0;
   table-layout: fixed;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .table th:nth-child(1) {
-  width: 27%;
+  width: 24%;
 }
 
 .table th:nth-child(2) {
-  width: 20%;
+  width: 17%;
 }
 
 .table th:nth-child(3) {
-  width: 21%;
+  width: 20%;
 }
 
 .table th:nth-child(4),
 .table th:nth-child(5),
 .table th:nth-child(6) {
-  width: 14%;
+  width: 13%;
 }
 
 .table th,
 .table td {
-  padding: 12px 14px;
+  min-width: 0;
+  padding: 11px 8px;
   border-bottom: 1px solid #eaecf0;
   text-align: left;
   vertical-align: middle;
+  overflow-wrap: anywhere;
 }
 
 .table th {
@@ -313,8 +489,9 @@
 .personCell strong {
   display: block;
   color: #101828;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 900;
+  line-height: 1.3;
 }
 
 .personCell span,
@@ -336,9 +513,9 @@
 }
 
 .preferenceCell strong {
-  margin-left: 4px;
+  margin-left: 2px;
   color: #101828;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 900;
 }
 
@@ -349,10 +526,11 @@
   display: inline-flex;
   align-items: center;
   min-height: 24px;
-  padding: 0 7px;
+  padding: 0 6px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 900;
+  white-space: nowrap;
 }
 
 .status_requested {
@@ -436,7 +614,10 @@
 .editorPanel {
   position: sticky;
   top: 92px;
+  max-height: calc(100vh - 112px);
   padding: 18px;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
 }
 
 .editorEmpty {
@@ -465,6 +646,80 @@
   margin: 4px 0 0;
   color: #667085;
   font-size: 13px;
+}
+
+.deleteUserPanel {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 10px 12px;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  background: #fffafa;
+}
+
+.deleteUserHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #b42318;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.deleteUserHeader span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.deleteUserContent {
+  display: grid;
+  gap: 10px;
+  padding-top: 11px;
+  border-top: 1px solid #fecaca;
+}
+
+.deleteUserContent strong {
+  color: #991b1b;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.deleteUserContent p {
+  margin: 4px 0 0;
+  color: #7f1d1d;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.deleteUserButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 38px;
+  border: 1px solid #dc2626;
+  border-radius: 8px;
+  background: #dc2626;
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.deleteUserButton:disabled {
+  border-color: #fca5a5;
+  background: #fca5a5;
+  cursor: not-allowed;
 }
 
 .rolePanel {
@@ -513,11 +768,102 @@
   color: #4f46e5;
 }
 
-.roleScope {
-  margin: 0;
+.roleScopeList {
+  display: grid;
+  gap: 7px;
+}
+
+.roleScopeItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid #c7d2fe;
+  border-radius: 8px;
+  background: #ffffff;
   color: #475569;
   font-size: 13px;
   font-weight: 800;
+}
+
+.scopeCancelButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 30px;
+  padding: 0 8px;
+  border: 1px solid #fecaca;
+  border-radius: 7px;
+  background: #fff1f2;
+  color: #be123c;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.scopeCancelButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.roleScopeSelector {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px dashed #a5b4fc;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.roleScopeSelector > strong {
+  color: #3730a3;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.roleScopeSelectorGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.roleScopeSelectorGrid label {
+  display: grid;
+  gap: 4px;
+}
+
+.roleScopeSelectorGrid label span {
+  color: #667085;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.roleScopeSelectorGrid select {
+  width: 100%;
+  min-width: 0;
+  height: 36px;
+  padding: 0 8px;
+  border: 1px solid #d0d5dd;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #101828;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.roleScopeSelectorGrid select:disabled {
+  background: #f2f4f7;
+  color: #98a2b3;
+}
+
+.roleScopeNotice {
+  color: #4338ca;
+  font-size: 12px;
+  font-weight: 900;
 }
 
 .ticketPanel {
@@ -623,6 +969,15 @@
   flex: 1;
 }
 
+.ticketActionRow {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.ticketActionRow .primaryButton {
+  grid-column: 1 / -1;
+}
+
 .emptyCell {
   padding: 32px !important;
   color: #667085;
@@ -676,6 +1031,14 @@
     flex-direction: column;
   }
 
+  .headerActions {
+    width: 100%;
+  }
+
+  .headerActions button {
+    flex: 1;
+  }
+
   .summaryCard {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -697,8 +1060,19 @@
     grid-template-columns: 1fr;
   }
 
+  .toolbarPrimary,
+  .advancedFilters {
+    grid-template-columns: 1fr;
+  }
+
   .editorPanel {
     position: static;
+    max-height: none;
+    overflow-y: visible;
+  }
+
+  .roleScopeSelectorGrid {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -732,6 +1106,28 @@
   }
 
   .actionRow {
+    flex-direction: column;
+  }
+
+  .filterSummary {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .filterSummary button {
+    justify-content: center;
+  }
+
+  .ticketActionRow {
+    grid-template-columns: 1fr;
+  }
+
+  .ticketActionRow .primaryButton {
+    grid-column: auto;
+  }
+
+  .roleScopeItem {
+    align-items: flex-start;
     flex-direction: column;
   }
 }

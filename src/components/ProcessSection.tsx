@@ -4,7 +4,7 @@ import styles from './ProcessSection.module.css';
 const steps = [
   {
     title: '버스 신청',
-    description: '이름, 소속, 연락처와 희망 도착역 1·2지망을 입력합니다.',
+    description: '이름, 소속, 연락처와 희망 행선지 1·2지망을 입력합니다.',
     icon: ClipboardCheck,
   },
   {
@@ -14,7 +14,7 @@ const steps = [
   },
   {
     title: '배차 확정',
-    description: '전체 관리자가 신청 현황을 기준으로 버스와 도착역을 확정합니다.',
+    description: '전체 관리자가 신청 현황을 기준으로 버스와 행선지를 확정합니다.',
     icon: MapPin,
   },
   {

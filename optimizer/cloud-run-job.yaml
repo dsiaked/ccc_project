@@ -1,0 +1,30 @@
+apiVersion: run.googleapis.com/v1
+kind: Job
+metadata:
+  name: ccc-bus-allocation-optimizer
+spec:
+  template:
+    metadata:
+      annotations:
+        run.googleapis.com/execution-environment: gen2
+    spec:
+      taskCount: 1
+      template:
+        spec:
+          maxRetries: 0
+          timeoutSeconds: "86400"
+          containers:
+            - image: REGION-docker.pkg.dev/PROJECT_ID/ccc-bus/allocation-optimizer:latest
+              resources:
+                limits:
+                  cpu: "2"
+                  memory: 2Gi
+              env:
+                - name: SUPABASE_URL
+                  value: SET_AT_DEPLOY_TIME
+                - name: SUPABASE_SERVICE_ROLE_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      key: latest
+                      name: ccc-bus-supabase-service-role-key
+

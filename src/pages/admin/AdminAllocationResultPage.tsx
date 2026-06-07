@@ -14,7 +14,7 @@ import {
 import { useLocation, useNavigate } from 'react-router-dom';
 
 import AdminHeader from './AdminHeader';
-import { getAdminRole, getBusAllocations } from '../../lib/adminService';
+import { getLatestConfirmedBusAllocation } from '../../lib/adminService';
 import { supabase } from '../../lib/supabase';
 import type {
   ConfirmedTicket,
@@ -59,8 +59,15 @@ interface AllocationRoute {
   destinations?: Array<{ name: string }>;
 }
 
+interface AllocationBus {
+  label: string;
+  capacity: number;
+  destination: string;
+}
+
 interface AllocationRow {
   allocation_data: {
+    buses?: AllocationBus[];
     routePlan?: AllocationRoute[];
   } | null;
 }
@@ -103,9 +110,9 @@ const toReservationItem = (row: ReservationRow): ReservationItem => {
     campus: saved.campus ?? row.campus ?? '-',
     stationPreferences:
       saved.stationPreferences ?? row.station_preferences ?? [],
-    status: saved.status ?? row.status ?? 'requested',
+    status: row.status ?? saved.status ?? 'requested',
     confirmedTicket:
-      saved.confirmedTicket ?? row.confirmed_ticket ?? undefined,
+      row.confirmed_ticket ?? saved.confirmedTicket ?? undefined,
     paymentStatus: row.payments?.[0]?.status ?? 'none',
   };
 };
@@ -196,23 +203,8 @@ const AdminAllocationResultPage = () => {
     setLoadError(null);
 
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (!session) {
-        navigate('/admin/login');
-        return;
-      }
-
-      const role = await getAdminRole(session.user.id);
-      if (role?.role !== 'global_admin') {
-        navigate('/');
-        return;
-      }
-
-      const [allocationRows, reservationResult] = await Promise.all([
-        getBusAllocations(),
+      const [latestAllocation, reservationResult] = await Promise.all([
+        getLatestConfirmedBusAllocation(),
         supabase
           .from('reservations')
           .select(
@@ -223,10 +215,17 @@ const AdminAllocationResultPage = () => {
 
       if (reservationResult.error) throw reservationResult.error;
 
-      const latestAllocation = (allocationRows as AllocationRow[])[0];
+      const allocationData = (latestAllocation as AllocationRow | null)
+        ?.allocation_data;
+      const workspaceRoutes = allocationData?.buses?.map((bus) => ({
+        busLabel: bus.label,
+        capacity: bus.capacity,
+        destinations: [{ name: bus.destination }],
+      }));
       setRoutes(
         navigationAllocation?.routePlan ??
-          latestAllocation?.allocation_data?.routePlan ??
+          workspaceRoutes ??
+          allocationData?.routePlan ??
           []
       );
       setReservations(
@@ -240,7 +239,7 @@ const AdminAllocationResultPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [navigate, navigationAllocation]);
+  }, [navigationAllocation]);
 
   useEffect(() => {
     // Initial page load synchronizes external Supabase data.
@@ -418,7 +417,7 @@ const AdminAllocationResultPage = () => {
 
   const downloadCsv = () => {
     const rows = [
-      ['호차', '좌석', '이름', '캠퍼스', '연락처', '결제 상태', '도착역'],
+      ['호차', '좌석', '이름', '캠퍼스', '연락처', '입금 상태', '행선지'],
       ...busGroups.flatMap((bus) =>
         bus.passengers.map((passenger) => [
           bus.busNumber,
@@ -509,7 +508,7 @@ const AdminAllocationResultPage = () => {
           <div className={styles.emptyState}>배차 결과를 불러오는 중입니다.</div>
         ) : busGroups.length === 0 ? (
           <div className={styles.emptyState}>
-            확정 티켓이 있는 배차 결과가 없습니다.
+            확정 버스표가 있는 배차 결과가 없습니다.
           </div>
         ) : (
           <>
@@ -538,7 +537,7 @@ const AdminAllocationResultPage = () => {
                       {bus.passengers.length}/{bus.capacity}명 · 빈 좌석{' '}
                       {bus.emptySeats}
                     </span>
-                    <small>{bus.destinations.join(' · ') || '도착역 미지정'}</small>
+                    <small>{bus.destinations.join(' · ') || '행선지 미지정'}</small>
                   </button>
                 ))}
               </div>
@@ -617,9 +616,9 @@ const AdminAllocationResultPage = () => {
                         setPaymentFilter(event.target.value);
                         setPassengerPage(1);
                       }}
-                      aria-label="결제 상태 필터"
+                      aria-label="입금 상태 필터"
                     >
-                      <option value="all">모든 결제 상태</option>
+                      <option value="all">모든 입금 상태</option>
                       <option value="completed">입금 완료</option>
                       <option value="pending">미입금</option>
                       <option value="refunded">환불</option>
@@ -631,9 +630,9 @@ const AdminAllocationResultPage = () => {
                         setDestinationFilter(event.target.value);
                         setPassengerPage(1);
                       }}
-                      aria-label="도착역 필터"
+                      aria-label="행선지 필터"
                     >
-                      <option value="all">모든 도착역</option>
+                      <option value="all">모든 행선지</option>
                       {selectedBus.destinations.map((destination) => (
                         <option key={destination} value={destination}>
                           {destination}
@@ -650,7 +649,7 @@ const AdminAllocationResultPage = () => {
                           <th>캠퍼스</th>
                           <th>연락처</th>
                           <th>결제</th>
-                          <th>확정 도착역</th>
+                          <th>확정 행선지</th>
                           <th>수정</th>
                         </tr>
                       </thead>
@@ -733,8 +732,8 @@ const AdminAllocationResultPage = () => {
                       ))}
                       <td>
                         {reservation.stationPreferences.length === 0
-                          ? '도착역 선호 정보 없음'
-                          : '배차 가능한 좌석 또는 선호 도착역 미매칭'}
+                          ? '행선지 선호 정보 없음'
+                          : '배차 가능한 좌석 또는 선호 행선지 미매칭'}
                       </td>
                     </tr>
                   ))}

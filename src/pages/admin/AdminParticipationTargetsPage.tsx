@@ -11,7 +11,6 @@ import {
 } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminHeader from './AdminHeader';
-import { getAdminRole } from '../../lib/adminService';
 import { supabase } from '../../lib/supabase';
 import {
   getParticipationTargetsSetting,
@@ -34,23 +33,6 @@ interface CampusOptionRow {
   campus: string | null;
 }
 
-interface TeamGroup {
-  key: string;
-  district: string;
-  team: string;
-  campuses: CampusTargetRow[];
-  total: number;
-  missingCount: number;
-}
-
-interface DistrictGroup {
-  district: string;
-  teams: TeamGroup[];
-  total: number;
-  campusCount: number;
-  missingCount: number;
-}
-
 type CampusTargetField = 'district' | 'team' | 'campus';
 type SpreadsheetColumn = CampusTargetField | 'target';
 
@@ -68,6 +50,8 @@ interface ParticipationSnapshot {
   participationTargets: Record<string, number>;
 }
 
+type SaveStatus = 'saving' | 'saved' | 'error';
+
 const SPREADSHEET_COLUMNS: SpreadsheetColumn[] = [
   'district',
   'team',
@@ -78,7 +62,7 @@ const SPREADSHEET_COLUMN_LABELS: Record<SpreadsheetColumn, string> = {
   district: '지구',
   team: '팀',
   campus: '캠퍼스',
-  target: '참여인원',
+  target: '참여 인원',
 };
 
 const getCampusKey = (district: string, team: string, campus: string) =>
@@ -174,11 +158,10 @@ const AdminParticipationTargetsPage = () => {
   const navigate = useNavigate();
   const manualRowIdRef = useRef(0);
   const saveTimerRef = useRef<number | null>(null);
+  const saveRevisionRef = useRef(0);
   const latestSettingRef = useRef<ParticipationTargetsSetting | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isAdmin, setIsAdmin] = useState(false);
   const [campuses, setCampuses] = useState<CampusTargetRow[]>([]);
-  const [searchText, setSearchText] = useState('');
   const [columnFilters, setColumnFilters] = useState<ColumnFilters>({
     district: [],
     team: [],
@@ -193,15 +176,10 @@ const AdminParticipationTargetsPage = () => {
   );
   const [isSelectingCells, setIsSelectingCells] = useState(false);
   const [, setUndoStack] = useState<ParticipationSnapshot[]>([]);
-  const [showMissingOnly, setShowMissingOnly] = useState(false);
-  const [expandedDistricts, setExpandedDistricts] = useState<
-    Record<string, boolean>
-  >({});
-  const [expandedTeams, setExpandedTeams] = useState<Record<string, boolean>>(
-    {}
-  );
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved');
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [targetsLoaded, setTargetsLoaded] = useState(false);
   const [participationTargets, setParticipationTargets] = useState<
@@ -209,27 +187,8 @@ const AdminParticipationTargetsPage = () => {
   >({});
 
   useEffect(() => {
-    const checkAdminAndLoadCampuses = async () => {
+    const loadCampuses = async () => {
       try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-
-        if (!session) {
-          navigate('/login');
-          return;
-        }
-
-        const adminRole = await getAdminRole(session.user.id);
-
-        if (!adminRole || adminRole.role !== 'global_admin') {
-          alert('전체 관리자만 접근할 수 있습니다.');
-          navigate('/');
-          return;
-        }
-
-        setIsAdmin(true);
-
         const [campusResult, participationSetting] = await Promise.all([
           supabase
             .from('campus_options')
@@ -278,8 +237,8 @@ const AdminParticipationTargetsPage = () => {
       }
     };
 
-    checkAdminAndLoadCampuses();
-  }, [navigate]);
+    void loadCampuses();
+  }, []);
 
   useEffect(() => {
     if (!isSelectingCells) return undefined;
@@ -292,12 +251,24 @@ const AdminParticipationTargetsPage = () => {
   }, [isSelectingCells]);
 
   const persistParticipationTargets = useCallback(
-    async (setting: ParticipationTargetsSetting) => {
+    async (setting: ParticipationTargetsSetting, revision: number) => {
       try {
         await updateParticipationTargetsSetting(setting);
+        if (saveRevisionRef.current === revision) {
+          setSaveStatus('saved');
+          setLastSavedAt(new Date());
+          setError((current) =>
+            current === '예상 참여 인원을 DB에 저장하지 못했습니다.'
+              ? null
+              : current
+          );
+        }
       } catch (saveError) {
         console.error('Failed to save participation targets:', saveError);
-        setError('예상 참여 인원을 DB에 저장하지 못했습니다.');
+        if (saveRevisionRef.current === revision) {
+          setSaveStatus('error');
+          setError('예상 참여 인원을 DB에 저장하지 못했습니다.');
+        }
       }
     },
     []
@@ -311,6 +282,8 @@ const AdminParticipationTargetsPage = () => {
       targets: participationTargets,
     };
     latestSettingRef.current = setting;
+    const revision = saveRevisionRef.current + 1;
+    saveRevisionRef.current = revision;
 
     if (saveTimerRef.current !== null) {
       window.clearTimeout(saveTimerRef.current);
@@ -318,7 +291,8 @@ const AdminParticipationTargetsPage = () => {
 
     saveTimerRef.current = window.setTimeout(() => {
       saveTimerRef.current = null;
-      void persistParticipationTargets(setting);
+      setSaveStatus('saving');
+      void persistParticipationTargets(setting, revision);
     }, 400);
   }, [
     campuses,
@@ -944,16 +918,7 @@ const AdminParticipationTargetsPage = () => {
   const filterOptionSearchValue = normalizeName(filterSearchText);
 
   const filteredCampuses = useMemo(() => {
-    const searchValue = normalizeName(searchText);
-
     return campuses.filter((row) => {
-      const matchesMissing =
-        !showMissingOnly || (participationTargets[row.key] || 0) === 0;
-      const matchesSearch =
-        !searchValue ||
-        [row.district, row.team, row.campus].some((value) =>
-          normalizeName(value).includes(searchValue)
-        );
       const matchesColumns = SPREADSHEET_COLUMNS.every((column) => {
         const selectedValues = columnFilters[column];
 
@@ -963,16 +928,9 @@ const AdminParticipationTargetsPage = () => {
         );
       });
 
-      return matchesMissing && matchesSearch && matchesColumns;
+      return matchesColumns;
     });
-  }, [
-    campuses,
-    columnFilters,
-    getColumnDisplayValue,
-    participationTargets,
-    searchText,
-    showMissingOnly,
-  ]);
+  }, [campuses, columnFilters, getColumnDisplayValue]);
 
   const teamTotals = useMemo(() => {
     const map = new Map<string, number>();
@@ -1012,71 +970,6 @@ const AdminParticipationTargetsPage = () => {
         .length,
     [campuses, participationTargets]
   );
-
-  const districtGroups = useMemo<DistrictGroup[]>(() => {
-    const districtMap = new Map<string, Map<string, CampusTargetRow[]>>();
-
-    filteredCampuses.forEach((campus) => {
-      const teamMap =
-        districtMap.get(campus.district) ||
-        new Map<string, CampusTargetRow[]>();
-      const teamCampuses = teamMap.get(campus.team) || [];
-
-      teamMap.set(campus.team, [...teamCampuses, campus]);
-      districtMap.set(campus.district, teamMap);
-    });
-
-    return Array.from(districtMap.entries()).map(([district, teamMap]) => {
-      const teams = Array.from(teamMap.entries()).map(([team, teamCampuses]) => {
-        const key = `${district}|${team}`;
-        const total = teamCampuses.reduce(
-          (sum, campus) => sum + (participationTargets[campus.key] || 0),
-          0
-        );
-        const missingCount = teamCampuses.filter(
-          (campus) => (participationTargets[campus.key] || 0) === 0
-        ).length;
-
-        return {
-          key,
-          district,
-          team,
-          campuses: teamCampuses,
-          total,
-          missingCount,
-        };
-      });
-
-      return {
-        district,
-        teams,
-        total: teams.reduce((sum, team) => sum + team.total, 0),
-        campusCount: teams.reduce(
-          (sum, team) => sum + team.campuses.length,
-          0
-        ),
-        missingCount: teams.reduce((sum, team) => sum + team.missingCount, 0),
-      };
-    });
-  }, [filteredCampuses, participationTargets]);
-
-  const isDistrictExpanded = (district: string) =>
-    expandedDistricts[district] ?? true;
-  const isTeamExpanded = (teamKey: string) => expandedTeams[teamKey] ?? true;
-
-  const toggleDistrict = (district: string) => {
-    setExpandedDistricts((prev) => ({
-      ...prev,
-      [district]: !(prev[district] ?? true),
-    }));
-  };
-
-  const toggleTeam = (teamKey: string) => {
-    setExpandedTeams((prev) => ({
-      ...prev,
-      [teamKey]: !(prev[teamKey] ?? true),
-    }));
-  };
 
   const getSelectionBounds = () => {
     if (!cellSelection) return null;
@@ -1245,15 +1138,6 @@ const AdminParticipationTargetsPage = () => {
     );
   }
 
-  if (!isAdmin) {
-    return (
-      <div className={styles.pageContainer}>
-        <AdminHeader />
-        <main className={styles.main}>관리자만 접근할 수 있습니다.</main>
-      </div>
-    );
-  }
-
   return (
     <div className={styles.pageContainer}>
       <AdminHeader />
@@ -1261,28 +1145,55 @@ const AdminParticipationTargetsPage = () => {
       <main className={styles.main}>
         <div className={styles.header}>
           <div>
-            <h1>참여 인원 입력</h1>
-            <p>캠퍼스 값을 입력하면 팀과 지구 합계가 자동으로 계산됩니다.</p>
+            <div className={styles.titleRow}>
+              <h1>참여 인원 관리</h1>
+              <span
+                className={`${styles.saveStatus} ${styles[`saveStatus_${saveStatus}`]}`}
+                role="status"
+              >
+                {saveStatus === 'saving'
+                  ? '저장 중...'
+                  : saveStatus === 'error'
+                    ? '저장 실패'
+                    : lastSavedAt
+                      ? `저장됨 · ${lastSavedAt.toLocaleTimeString('ko-KR', {
+                          hour: 'numeric',
+                          minute: '2-digit',
+                        })}`
+                      : '자동 저장'}
+              </span>
+            </div>
+            <p>
+              캠퍼스별 예상 참여 인원을 입력하면 팀·지구 합계와 신청률이 자동으로 계산됩니다.
+            </p>
           </div>
 
           <button type="button" onClick={() => navigate('/admin/tickets')}>
-            예매율 보기
+            신청률 현황 보기
           </button>
         </div>
 
-        <div className={styles.guidePanel}>
-          <h2>처음 사용하는 경우</h2>
-          <ol>
-            <li>일괄 입력 표에서 참여인원 칸만 채웁니다.</li>
-            <li>엑셀의 숫자 열을 복사해 첫 칸에 붙여넣을 수 있습니다.</li>
-            <li>기존 CSV/TSV 파일이 있으면 파일 불러오기로 반영합니다.</li>
-            <li>아래 목록에서 누락된 캠퍼스가 없는지 확인합니다.</li>
-          </ol>
-          <p>
-            입력값은 이 브라우저에 저장되며, 예매율 보기 화면에서 자동으로
-            캠퍼스 합계가 팀과 지구 합계로 반영됩니다.
-          </p>
-        </div>
+        <details className={styles.guidePanel}>
+          <summary>
+            <span>
+              <strong>처음 사용하시나요?</strong>
+              참여 인원 입력 방법을 확인하세요.
+            </span>
+            <b>사용 방법 보기</b>
+          </summary>
+          <div className={styles.guideContent}>
+            <ol>
+              <li>일괄 입력 표의 참여 인원 열에 숫자를 입력합니다.</li>
+              <li>엑셀의 숫자 열을 복사해 첫 번째 입력칸에 붙여넣을 수 있습니다.</li>
+              <li>기존 파일이 있다면 CSV/TSV 불러오기로 한 번에 반영합니다.</li>
+              <li>참여 인원 열 필터에서 0명인 캠퍼스를 확인합니다.</li>
+            </ol>
+            <p>
+              입력한 참여 인원은 DB에 자동 저장되며, 팀·지구 합계와 신청률 현황에
+              반영됩니다.
+            </p>
+          </div>
+        </details>
 
         <div className={styles.summaryGrid}>
           <div>
@@ -1294,7 +1205,7 @@ const AdminParticipationTargetsPage = () => {
             <strong>{campuses.length.toLocaleString()}개</strong>
           </div>
           <div>
-            <span>미입력 캠퍼스</span>
+            <span>0명 캠퍼스</span>
             <strong>{missingCampusCount.toLocaleString()}개</strong>
           </div>
           <div>
@@ -1311,7 +1222,7 @@ const AdminParticipationTargetsPage = () => {
           <div className={styles.sectionTitleBlock}>
             <h2>일괄 입력</h2>
             <p>
-              지구, 팀, 캠퍼스를 표로 불러온 뒤 참여인원 칸만 채우면 됩니다.
+              지구, 팀, 캠퍼스를 표로 불러온 뒤 참여 인원 칸만 채우면 됩니다.
               엑셀에서 숫자 열을 복사해 첫 입력칸에 붙여넣어도 아래로 반영됩니다.
             </p>
           </div>
@@ -1324,10 +1235,18 @@ const AdminParticipationTargetsPage = () => {
               <button type="button" onClick={() => handleAddCampusRow('below')}>
                 아래에 행 추가
               </button>
-              <button type="button" onClick={handleDeleteSelectedCampusRows}>
+              <button
+                type="button"
+                className={styles.dangerButton}
+                onClick={handleDeleteSelectedCampusRows}
+              >
                 선택 행 삭제
               </button>
-              <button type="button" onClick={handleDeleteFilteredCampusRows}>
+              <button
+                type="button"
+                className={styles.dangerButton}
+                onClick={handleDeleteFilteredCampusRows}
+              >
                 필터 결과 삭제
               </button>
             </div>
@@ -1486,13 +1405,7 @@ const AdminParticipationTargetsPage = () => {
             </div>
 
             <div className={styles.actionRow}>
-              <button type="button" onClick={downloadCsvTemplate}>
-                CSV 템플릿 다운로드
-              </button>
-              <button type="button" onClick={handleReloadCampusRows}>
-                DB 목록 다시 불러오기
-              </button>
-              <label>
+              <label className={styles.primaryAction}>
                 CSV/TSV 불러오기
                 <input
                   type="file"
@@ -1500,12 +1413,22 @@ const AdminParticipationTargetsPage = () => {
                   onChange={handleFileChange}
                 />
               </label>
+              <button type="button" onClick={downloadCsvTemplate}>
+                CSV 템플릿 다운로드
+              </button>
+              <button
+                type="button"
+                className={styles.tertiaryAction}
+                onClick={handleReloadCampusRows}
+              >
+                조직 목록 새로고침
+              </button>
             </div>
 
             <div className={styles.helpGrid}>
               <div>
                 <strong>표 입력</strong>
-                <span>참여인원 칸에 입력하면 바로 저장됩니다.</span>
+                <span>참여 인원 칸에 입력하면 DB에 자동 저장됩니다.</span>
               </div>
               <div>
                 <strong>엑셀 붙여넣기</strong>
@@ -1522,7 +1445,7 @@ const AdminParticipationTargetsPage = () => {
 
             {validationErrors.length > 0 && (
               <div className={styles.validationErrorReport}>
-                <h3>⚠️ 데이터 입력 양식 오류 ({validationErrors.length}건)</h3>
+                <h3>데이터 입력 양식 오류 ({validationErrors.length}건)</h3>
                 <ul>
                   {validationErrors.map((err, idx) => (
                     <li key={idx}>{err}</li>
@@ -1533,121 +1456,6 @@ const AdminParticipationTargetsPage = () => {
           </div>
         </section>
 
-        <section className={styles.section}>
-          <div className={styles.tableHeader}>
-            <div className={styles.sectionTitleBlock}>
-              <h2>캠퍼스별 참여 인원</h2>
-              <p>
-                지구와 팀을 펼쳐 캠퍼스별 인원을 직접 수정할 수 있습니다.
-                팀/지구 합계는 캠퍼스 입력값을 기준으로 자동 계산됩니다.
-              </p>
-            </div>
-            <div className={styles.filterControls}>
-              <label className={styles.missingToggle}>
-                <input
-                  type="checkbox"
-                  checked={showMissingOnly}
-                  onChange={(event) => setShowMissingOnly(event.target.checked)}
-                />
-                미입력만
-              </label>
-              <input
-                type="search"
-                value={searchText}
-                onChange={(event) => setSearchText(event.target.value)}
-                placeholder="지구, 팀, 캠퍼스 검색"
-              />
-            </div>
-          </div>
-
-          <div className={styles.inlineGuide}>
-            <span>▾ 버튼으로 지구와 팀을 접거나 펼칠 수 있습니다.</span>
-            <span>미입력만을 켜면 아직 0명인 캠퍼스만 확인합니다.</span>
-            <span>검색은 지구, 팀, 캠퍼스 이름 모두에 적용됩니다.</span>
-          </div>
-
-          <div className={styles.accordionList}>
-            {districtGroups.length === 0 ? (
-              <p className={styles.emptyText}>조건에 맞는 캠퍼스가 없습니다.</p>
-            ) : (
-              districtGroups.map((districtGroup) => {
-                const districtOpen = isDistrictExpanded(districtGroup.district);
-
-                return (
-                  <div
-                    key={districtGroup.district}
-                    className={styles.districtPanel}
-                  >
-                    <button
-                      type="button"
-                      className={styles.districtHeader}
-                      onClick={() => toggleDistrict(districtGroup.district)}
-                    >
-                      <span>{districtOpen ? '▾' : '▸'}</span>
-                      <strong>{districtGroup.district}</strong>
-                      <small>{districtGroup.campusCount}개 캠퍼스</small>
-                      <small>미입력 {districtGroup.missingCount}개</small>
-                      <b>{districtGroup.total.toLocaleString()}명</b>
-                    </button>
-
-                    {districtOpen && (
-                      <div className={styles.teamList}>
-                        {districtGroup.teams.map((teamGroup) => {
-                          const teamOpen = isTeamExpanded(teamGroup.key);
-
-                          return (
-                            <div key={teamGroup.key} className={styles.teamPanel}>
-                              <button
-                                type="button"
-                                className={styles.teamHeader}
-                                onClick={() => toggleTeam(teamGroup.key)}
-                              >
-                                <span>{teamOpen ? '▾' : '▸'}</span>
-                                <strong>{teamGroup.team}</strong>
-                                <small>
-                                  {teamGroup.campuses.length}개 캠퍼스
-                                </small>
-                                <small>미입력 {teamGroup.missingCount}개</small>
-                                <b>{teamGroup.total.toLocaleString()}명</b>
-                              </button>
-
-                              {teamOpen && (
-                                <div className={styles.campusGrid}>
-                                  {teamGroup.campuses.map((campus) => (
-                                    <div
-                                      key={campus.key}
-                                      className={styles.campusRow}
-                                    >
-                                      <span>{campus.campus}</span>
-                                      <input
-                                        type="number"
-                                        min={0}
-                                        value={
-                                          participationTargets[campus.key] || ''
-                                        }
-                                        onChange={(event) =>
-                                          handleTargetChange(
-                                            campus.key,
-                                            event.target.value
-                                          )
-                                        }
-                                        placeholder="0"
-                                      />
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </section>
       </main>
     </div>
   );

@@ -39,7 +39,8 @@ values
   ('first_reservation_deadline', '{"deadline_at": null}'::jsonb),
   ('seoul_district_transfer_account', '{"account_number": ""}'::jsonb),
   ('participation_targets', '{"rows": [], "targets": {}}'::jsonb),
-  ('global_scenario_checklist', '{"checked_step_ids": []}'::jsonb)
+  ('global_scenario_checklist', '{"checked_step_ids": []}'::jsonb),
+  ('simulation_enabled', '{"enabled": false}'::jsonb)
 on conflict (key) do nothing;
 
 alter table app_settings enable row level security;
@@ -53,23 +54,4 @@ for select
 to authenticated
 using (true);
 
-create policy "Global admins can manage app settings"
-on app_settings
-for all
-to authenticated
-using (
-  exists (
-    select 1
-    from admin_roles
-    where admin_roles.user_id = auth.uid()
-      and admin_roles.role = 'global_admin'
-  )
-)
-with check (
-  exists (
-    select 1
-    from admin_roles
-    where admin_roles.user_id = auth.uid()
-      and admin_roles.role = 'global_admin'
-  )
-);
+revoke insert, update, delete on table public.app_settings from public, anon, authenticated;

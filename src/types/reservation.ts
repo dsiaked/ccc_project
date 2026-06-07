@@ -18,6 +18,23 @@ export interface ConfirmedTicket {
   confirmedAt: string;
 }
 
+export interface RemainingSeatClaim {
+  allocationId: string;
+  allocationName: string;
+  busId: string;
+  busLabel: string;
+  destination: string;
+  departureTime: string;
+  boardingPlace: string;
+  seatNumber: string;
+  amount: number;
+  depositorName: string;
+  transferAccount: string;
+  status: 'pending_payment' | 'confirmed';
+  requestedAt: string;
+  confirmedAt?: string;
+}
+
 export interface ReturnBusReservation {
   id: string;
 
@@ -33,6 +50,7 @@ export interface ReturnBusReservation {
   status: ReservationStatus;
 
   confirmedTicket?: ConfirmedTicket;
+  remainingSeatClaim?: RemainingSeatClaim;
 
   requestedAt: string;
   updatedAt?: string;

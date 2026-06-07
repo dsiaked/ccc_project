@@ -1,6 +1,7 @@
-/* eslint-disable react-refresh/only-export-components */
 import { lazy, type ReactNode } from 'react';
+import { Navigate, Route, Routes } from 'react-router-dom';
 
+import { AdminAuthProvider } from '../components/AdminAuthProvider';
 import AdminProtectedRoute from '../components/AdminProtectedRoute';
 import type { AdminRoleType } from '../lib/adminService';
 
@@ -8,7 +9,7 @@ const AdminLoginPage = lazy(() => import('../pages/admin/AdminLoginPage'));
 const CampusAdminPage = lazy(() => import('../pages/admin/AdminCampusPage'));
 const AdminGlobalPage = lazy(() => import('../pages/admin/AdminGlobalPage'));
 const BusAllocationPage = lazy(
-  () => import('../pages/admin/AdminAllocationPage')
+  () => import('../pages/admin/AdminExactAllocationPage')
 );
 const AdminTicketPage = lazy(() => import('../pages/admin/AdminTicketPage'));
 const AdminCampusTransferPage = lazy(
@@ -26,14 +27,14 @@ const AdminCampusRequestsPage = lazy(
 const AdminPersonalTicketPage = lazy(
   () => import('../pages/admin/AdminPersonalTicketPage')
 );
+const AdminCampusIssueReviewPage = lazy(
+  () => import('../pages/admin/AdminCampusIssueReviewPage')
+);
 const AdminCampusAdminManagePage = lazy(
   () => import('../pages/admin/AdminCampusAdminManagePage')
 );
 const AdminSetupCheckPage = lazy(
   () => import('../pages/admin/AdminSetupCheckPage')
-);
-const AdminHomeAnnouncementPage = lazy(
-  () => import('../pages/admin/AdminHomeAnnouncementPage')
 );
 const AdminAllocationLogicPage = lazy(
   () => import('../pages/admin/AdminAllocationLogicPage')
@@ -46,6 +47,9 @@ const AdminAllocationResultPage = lazy(
 );
 const AdminAllocationWorkspacePage = lazy(
   () => import('../pages/admin/AdminAllocationWorkspacePage')
+);
+const AdminSimulationPage = lazy(
+  () => import('../pages/admin/AdminSimulationPage')
 );
 
 const globalAdminOnly = ['global_admin'] as const satisfies readonly AdminRoleType[];
@@ -62,78 +66,102 @@ const adminRoute = (
   <AdminProtectedRoute allowedRoles={allowedRoles}>{element}</AdminProtectedRoute>
 );
 
-export const adminRoutes = [
-  { path: '/admin/login', element: <AdminLoginPage /> },
+const adminRoutes = [
+  { path: 'login', element: <AdminLoginPage /> },
   {
-    path: '/admin/global',
+    path: 'global',
     element: adminRoute(<AdminGlobalPage />, globalAdminOnly),
   },
   {
-    path: '/admin/campus',
+    path: 'campus',
     element: adminRoute(<CampusAdminPage />, campusAdminOnly),
   },
   {
-    path: '/admin/tickets',
+    path: 'tickets',
     element: adminRoute(<AdminTicketPage />, globalAdminOnly),
   },
   {
-    path: '/admin/users',
+    path: 'users',
     element: adminRoute(<AdminPersonalTicketPage />, globalAdminOnly),
   },
   {
-    path: '/admin/personal-tickets',
+    path: 'personal-tickets',
     element: adminRoute(<AdminPersonalTicketPage />, globalAdminOnly),
   },
   {
-    path: '/admin/campus-admins',
+    path: 'campus-issues',
+    element: adminRoute(<AdminCampusIssueReviewPage />, globalAdminOnly),
+  },
+  {
+    path: 'campus-admins',
     element: adminRoute(<AdminCampusAdminManagePage />, globalAdminOnly),
   },
   {
-    path: '/admin/setup-check',
+    path: 'setup-check',
     element: adminRoute(<AdminSetupCheckPage />, globalAdminOnly),
   },
   {
-    path: '/admin/home-announcements',
-    element: adminRoute(<AdminHomeAnnouncementPage />, globalAdminOnly),
+    path: 'simulation',
+    element: adminRoute(<AdminSimulationPage />, globalAdminOnly),
   },
   {
-    path: '/admin/participation-targets',
+    path: 'home-announcements',
+    element: adminRoute(
+      <Navigate to="/admin/campus-requests?tab=home" replace />,
+      globalAdminOnly
+    ),
+  },
+  {
+    path: 'participation-targets',
     element: adminRoute(<AdminParticipationTargetsPage />, globalAdminOnly),
   },
   {
-    path: '/admin/reservation-deadline',
+    path: 'reservation-deadline',
     element: adminRoute(<AdminReservationDeadlinePage />, globalAdminOnly),
   },
   {
-    path: '/admin/campus-requests',
+    path: 'campus-requests',
     element: adminRoute(<AdminCampusRequestsPage />, allAdminRoles),
   },
   {
-    path: '/admin/allocation',
+    path: 'allocation',
     element: adminRoute(<BusAllocationPage />, globalAdminOnly),
   },
   {
-    path: '/admin/allocation/result',
+    path: 'allocation/result',
     element: adminRoute(<AdminAllocationResultPage />, globalAdminOnly),
   },
   {
-    path: '/admin/allocation/workspace',
+    path: 'allocation/workspace',
     element: adminRoute(<AdminAllocationWorkspacePage />, globalAdminOnly),
   },
   {
-    path: '/admin/allocation/logic',
+    path: 'allocation/logic',
     element: adminRoute(<AdminAllocationLogicPage />, globalAdminOnly),
   },
   {
-    path: '/admin/bus-allocation',
+    path: 'bus-allocation',
     element: adminRoute(<BusAllocationPage />, globalAdminOnly),
   },
   {
-    path: '/admin/remaining-seat-sales',
+    path: 'remaining-seat-sales',
     element: adminRoute(<AdminRemainingSeatSalesPage />, globalAdminOnly),
   },
   {
-    path: '/admin/campus-transfer',
+    path: 'campus-transfer',
     element: adminRoute(<AdminCampusTransferPage />, globalAdminOnly),
   },
 ];
+
+const AdminRoutes = () => (
+  <AdminAuthProvider>
+    <Routes>
+      {adminRoutes.map((route) => (
+        <Route key={route.path} path={route.path} element={route.element} />
+      ))}
+      <Route path="*" element={<Navigate to="/admin/login" replace />} />
+    </Routes>
+  </AdminAuthProvider>
+);
+
+export default AdminRoutes;

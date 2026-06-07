@@ -231,7 +231,9 @@ create table if not exists bus_allocations (
   total_cost integer not null default 0,
   total_capacity integer not null default 0,
   created_by uuid references auth.users(id),
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  revision bigint not null default 0
 );
 
 
@@ -314,15 +316,6 @@ drop policy if exists "Global admins can manage bus allocations" on bus_allocati
 -- 9. reservations RLS 정책
 -- =========================================================
 
--- 일반 사용자: 자기 예약 생성
-create policy "Users can insert own reservations"
-on reservations
-for insert
-to authenticated
-with check (
-  auth.uid() = user_id
-);
-
 -- 일반 사용자: 자기 예약 조회
 create policy "Users can view own reservations"
 on reservations
@@ -330,32 +323,6 @@ for select
 to authenticated
 using (
   auth.uid() = user_id
-);
-
--- 일반 사용자: 자기 예약 수정
--- 확정 전까지만 수정 가능하게 제한
-create policy "Users can update own reservations"
-on reservations
-for update
-to authenticated
-using (
-  auth.uid() = user_id
-  and status = 'requested'
-)
-with check (
-  auth.uid() = user_id
-  and status = 'requested'
-);
-
--- 일반 사용자: 자기 예약 삭제
--- 확정 전까지만 삭제 가능
-create policy "Users can delete own reservations"
-on reservations
-for delete
-to authenticated
-using (
-  auth.uid() = user_id
-  and status = 'requested'
 );
 
 -- 캠퍼스 관리자: 자기 캠퍼스 예약 전체 조회
@@ -388,26 +355,8 @@ using (
 );
 
 -- 전체 관리자: 예약 확정, 상태 변경 가능
-create policy "Global admins can update reservations"
-on reservations
-for update
-to authenticated
-using (
-  exists (
-    select 1
-    from admin_roles
-    where admin_roles.user_id = auth.uid()
-      and admin_roles.role = 'global_admin'
-  )
-)
-with check (
-  exists (
-    select 1
-    from admin_roles
-    where admin_roles.user_id = auth.uid()
-      and admin_roles.role = 'global_admin'
-  )
-);
+-- Reservation writes are only allowed through validated SECURITY DEFINER RPCs.
+revoke insert, update, delete on table public.reservations from public, anon, authenticated;
 
 
 -- =========================================================
@@ -420,15 +369,6 @@ on payments
 for select
 to authenticated
 using (
-  auth.uid() = user_id
-);
-
--- 일반 사용자: 자기 payment 생성
-create policy "Users can insert own payments"
-on payments
-for insert
-to authenticated
-with check (
   auth.uid() = user_id
 );
 
@@ -450,33 +390,6 @@ using (
 );
 
 -- 캠퍼스 관리자: 자기 캠퍼스 payment 입금 확인 가능
-create policy "Campus admins can update campus payments"
-on payments
-for update
-to authenticated
-using (
-  exists (
-    select 1
-    from reservations
-    join admin_roles
-      on admin_roles.campus = reservations.campus
-    where reservations.id = payments.reservation_id
-      and admin_roles.user_id = auth.uid()
-      and admin_roles.role = 'campus_admin'
-  )
-)
-with check (
-  exists (
-    select 1
-    from reservations
-    join admin_roles
-      on admin_roles.campus = reservations.campus
-    where reservations.id = payments.reservation_id
-      and admin_roles.user_id = auth.uid()
-      and admin_roles.role = 'campus_admin'
-  )
-);
-
 -- 전체 관리자: 모든 payment 조회
 create policy "Global admins can view all payments"
 on payments
@@ -492,26 +405,8 @@ using (
 );
 
 -- 전체 관리자: 모든 payment 수정
-create policy "Global admins can update all payments"
-on payments
-for update
-to authenticated
-using (
-  exists (
-    select 1
-    from admin_roles
-    where admin_roles.user_id = auth.uid()
-      and admin_roles.role = 'global_admin'
-  )
-)
-with check (
-  exists (
-    select 1
-    from admin_roles
-    where admin_roles.user_id = auth.uid()
-      and admin_roles.role = 'global_admin'
-  )
-);
+-- Payment writes are only allowed through validated SECURITY DEFINER RPCs.
+revoke insert, update, delete on table public.payments from public, anon, authenticated;
 
 
 -- =========================================================
@@ -553,12 +448,8 @@ to authenticated
 using (public.is_global_admin());
 
 -- 전체 관리자: 관리자 권한 관리
-create policy "Global admins can manage admin roles"
-on admin_roles
-for all
-to authenticated
-using (public.is_global_admin())
-with check (public.is_global_admin());
+-- Admin role writes are only allowed through validated SECURITY DEFINER RPCs.
+revoke insert, update, delete on table public.admin_roles from public, anon, authenticated;
 
 
 -- =========================================================
@@ -604,36 +495,10 @@ create policy "Global admins can view bus allocations"
 on bus_allocations
 for select
 to authenticated
-using (
-  exists (
-    select 1
-    from admin_roles
-    where admin_roles.user_id = auth.uid()
-      and admin_roles.role = 'global_admin'
-  )
-);
+using (public.is_global_admin());
 
 -- 전체 관리자: 배분안 관리
-create policy "Global admins can manage bus allocations"
-on bus_allocations
-for all
-to authenticated
-using (
-  exists (
-    select 1
-    from admin_roles
-    where admin_roles.user_id = auth.uid()
-      and admin_roles.role = 'global_admin'
-  )
-)
-with check (
-  exists (
-    select 1
-    from admin_roles
-    where admin_roles.user_id = auth.uid()
-      and admin_roles.role = 'global_admin'
-  )
-);
+revoke insert, update, delete on table public.bus_allocations from public, anon, authenticated;
 
 
 -- =========================================================

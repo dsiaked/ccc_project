@@ -20,10 +20,19 @@ alter table bus_options
   add column if not exists estimated_price integer not null default 0;
 
 alter table bus_options
+  add column if not exists max_count integer not null default 999;
+
+alter table bus_options
   add column if not exists notes text;
 
 alter table bus_options
   add column if not exists created_at timestamptz not null default now();
+
+alter table bus_options
+  drop constraint if exists bus_options_max_count_positive;
+
+alter table bus_options
+  add constraint bus_options_max_count_positive check (max_count > 0);
 
 alter table bus_options enable row level security;
 
@@ -36,26 +45,7 @@ for select
 to authenticated
 using (true);
 
-create policy "Global admins can manage bus options"
-on bus_options
-for all
-to authenticated
-using (
-  exists (
-    select 1
-    from admin_roles
-    where admin_roles.user_id = auth.uid()
-      and admin_roles.role = 'global_admin'
-  )
-)
-with check (
-  exists (
-    select 1
-    from admin_roles
-    where admin_roles.user_id = auth.uid()
-      and admin_roles.role = 'global_admin'
-  )
-);
+revoke insert, update, delete on table public.bus_options from public, anon, authenticated;
 
 notify pgrst, 'reload schema';
 

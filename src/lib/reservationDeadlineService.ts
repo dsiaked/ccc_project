@@ -38,18 +38,13 @@ export const getReservationDeadline = async (): Promise<ReservationDeadlineSetti
 export const updateReservationDeadline = async (
   deadlineAt: string | null
 ): Promise<ReservationDeadlineSetting> => {
-  const { data, error } = await supabase
-    .from('app_settings')
-    .upsert(
-      {
-        key: RESERVATION_DEADLINE_KEY,
-        value: { deadline_at: deadlineAt },
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'key' }
-    )
-    .select('key, value')
-    .single();
+  const { data, error } = await supabase.rpc(
+    'update_app_setting_as_global_admin',
+    {
+      p_key: RESERVATION_DEADLINE_KEY,
+      p_value: { deadline_at: deadlineAt },
+    }
+  );
 
   if (error) {
     throw error;

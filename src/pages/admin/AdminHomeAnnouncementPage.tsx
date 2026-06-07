@@ -1,14 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { ArrowLeft, Megaphone, Save } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
+import { useAdminAuth } from '../../components/AdminAuthProvider';
 import AdminHeader from './AdminHeader';
-import { getAdminRole } from '../../lib/adminService';
 import {
   createHomeAnnouncement,
   type HomeAnnouncement,
 } from '../../lib/announcementService';
-import { supabase } from '../../lib/supabase';
 
 import styles from './AdminHomeAnnouncementPage.module.css';
 
@@ -32,9 +31,8 @@ const getErrorMessage = (error: unknown) => {
 
 const AdminHomeAnnouncementPage = () => {
   const navigate = useNavigate();
+  const { session } = useAdminAuth();
 
-  const [loading, setLoading] = useState(true);
-  const [adminUserId, setAdminUserId] = useState<string | null>(null);
   const [noticeTitle, setNoticeTitle] = useState('');
   const [noticeContent, setNoticeContent] = useState('');
   const [noticeSaving, setNoticeSaving] = useState(false);
@@ -42,59 +40,11 @@ const AdminHomeAnnouncementPage = () => {
     null
   );
 
-  useEffect(() => {
-    let isMounted = true;
-
-    const checkAdminRole = async () => {
-      try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-
-        if (!session) {
-          navigate('/admin/login');
-          return;
-        }
-
-        const adminRole = await getAdminRole(session.user.id);
-
-        if (!adminRole || adminRole.role !== 'global_admin') {
-          if (isMounted) {
-            alert('전체 관리자만 접근할 수 있습니다.');
-            navigate('/');
-          }
-          return;
-        }
-
-        if (isMounted) {
-          setAdminUserId(session.user.id);
-        }
-      } catch (error) {
-        console.error('전체 관리자 권한 확인 실패:', error);
-
-        if (isMounted) {
-          alert('관리자 정보를 확인할 수 없습니다.');
-          navigate('/admin/login');
-        }
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
-      }
-    };
-
-    checkAdminRole();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [navigate]);
-
   const handleCreateNotice = async () => {
     const normalizedTitle = noticeTitle.trim();
     const normalizedContent = noticeContent.trim();
 
-    if (!adminUserId) {
+    if (!session) {
       alert('로그인 정보를 확인할 수 없습니다.');
       return;
     }
@@ -110,7 +60,7 @@ const AdminHomeAnnouncementPage = () => {
       const createdNotice = await createHomeAnnouncement({
         title: normalizedTitle,
         content: normalizedContent,
-        createdBy: adminUserId,
+        createdBy: session.user.id,
       });
 
       setLatestNotice(createdNotice);
@@ -124,17 +74,6 @@ const AdminHomeAnnouncementPage = () => {
       setNoticeSaving(false);
     }
   };
-
-  if (loading) {
-    return (
-      <div className={styles.pageContainer}>
-        <AdminHeader />
-        <main className={styles.main}>
-          <p>로딩 중...</p>
-        </main>
-      </div>
-    );
-  }
 
   return (
     <div className={styles.pageContainer}>

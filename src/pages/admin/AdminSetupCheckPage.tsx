@@ -1,8 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   ArrowLeft,
   ArrowRight,
   Building2,
+  Bus,
+  CalendarClock,
+  CheckCircle2,
   ChevronDown,
   ChevronUp,
   Database,
@@ -17,14 +21,17 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 import AdminHeader from './AdminHeader';
 import {
-  getAdminRole,
+  addBusOption,
+  deleteBusOption,
+  getBusOptions,
   getBusTicketPrice,
   getReservationDataResetStats,
   resetReservationData,
+  updateBusOption,
   updateBusTicketPrice,
   type ReservationDataResetOptions,
   type ReservationDataResetStats,
@@ -35,6 +42,11 @@ import {
   getDistrictTransferAccountNumber,
   updateDistrictTransferAccountNumber,
 } from '../../lib/districtTransferAccountService';
+import {
+  formatReservationDeadline,
+  getReservationDeadline,
+  updateReservationDeadline,
+} from '../../lib/reservationDeadlineService';
 
 import styles from './AdminSetupCheckPage.module.css';
 
@@ -75,13 +87,81 @@ interface NewStationDraft {
   address: string;
 }
 
-type SetupDetailId = 'organization' | 'campus-admins' | 'destinations';
+interface NewCampusDraft {
+  district: string;
+  team: string;
+  campus: string;
+}
+
+interface BusOptionRow {
+  id: string;
+  capacity: number;
+  estimated_price: number;
+  max_count?: number | null;
+  notes?: string | null;
+}
+
+interface BusOptionDraft {
+  capacity: string;
+  estimatedPrice: string;
+  maxCount: string;
+  notes: string;
+}
+
+type SetupDetailId =
+  | 'organization'
+  | 'campus-admins'
+  | 'destinations'
+  | 'bus-options';
 
 const RESET_CONFIRM_TEXT = '신청정보 초기화';
 const emptyNewStationDraft: NewStationDraft = {
   name: '',
   line: '',
   address: '',
+};
+const emptyNewCampusDraft: NewCampusDraft = {
+  district: '',
+  team: '',
+  campus: '',
+};
+
+const getSetupDetailFromSearch = (search: string): SetupDetailId | null => {
+  const detail = new URLSearchParams(search).get('detail');
+  return detail === 'organization' ||
+    detail === 'campus-admins' ||
+    detail === 'destinations' ||
+    detail === 'bus-options'
+    ? detail
+    : null;
+};
+const emptyBusOptionDraft: BusOptionDraft = {
+  capacity: '',
+  estimatedPrice: '',
+  maxCount: '999',
+  notes: '',
+};
+
+const formatDateTimeLocal = (isoValue: string | null) => {
+  if (!isoValue) return '';
+
+  const date = new Date(isoValue);
+
+  if (Number.isNaN(date.getTime())) return '';
+
+  const timezoneOffsetMs = date.getTimezoneOffset() * 60 * 1000;
+
+  return new Date(date.getTime() - timezoneOffsetMs)
+    .toISOString()
+    .slice(0, 16);
+};
+
+const parseDateTimeLocal = (value: string) => {
+  if (!value) return null;
+
+  const date = new Date(value);
+
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
 };
 
 const KAKAO_MAP_SDK_ID = 'kakao-map-sdk';
@@ -262,19 +342,34 @@ const getErrorMessage = (error: unknown) => {
 
 const AdminSetupCheckPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [loading, setLoading] = useState(true);
   const [savingPrice, setSavingPrice] = useState(false);
   const [savingAccountNumber, setSavingAccountNumber] = useState(false);
+  const [savingDeadline, setSavingDeadline] = useState(false);
   const [savingStationId, setSavingStationId] = useState<string | null>(null);
+  const [savingBusOptionId, setSavingBusOptionId] = useState<string | null>(
+    null
+  );
   const [addingStation, setAddingStation] = useState(false);
+  const [addingCampus, setAddingCampus] = useState(false);
+  const [addingBusOption, setAddingBusOption] = useState(false);
   const [deletingStationId, setDeletingStationId] = useState<string | null>(
     null
   );
+  const [deletingBusOptionId, setDeletingBusOptionId] = useState<string | null>(
+    null
+  );
   const [resettingData, setResettingData] = useState(false);
+  const [showResetPanel, setShowResetPanel] = useState(false);
+  const [showCompletedSettings, setShowCompletedSettings] = useState(false);
   const [campuses, setCampuses] = useState<CampusSetupRow[]>([]);
   const [stations, setStations] = useState<StationSetupRow[]>([]);
+  const [busOptions, setBusOptions] = useState<BusOptionRow[]>([]);
   const [busTicketPrice, setBusTicketPrice] = useState(0);
   const [busTicketPriceInput, setBusTicketPriceInput] = useState('');
+  const [deadlineAt, setDeadlineAt] = useState<string | null>(null);
+  const [deadlineInput, setDeadlineInput] = useState('');
   const [accountNumber, setAccountNumber] = useState('');
   const [accountNumberInput, setAccountNumberInput] = useState('');
   const [resetStats, setResetStats] =
@@ -284,14 +379,27 @@ const AdminSetupCheckPage = () => {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [stationError, setStationError] = useState<string | null>(null);
+  const [campusError, setCampusError] = useState<string | null>(null);
   const [activeDetailId, setActiveDetailId] = useState<SetupDetailId | null>(
-    null
+    () => getSetupDetailFromSearch(location.search)
   );
+  const [detailPortalTarget, setDetailPortalTarget] =
+    useState<HTMLElement | null>(null);
   const [stationDraft, setStationDraft] = useState<StationSetupRow | null>(
     null
   );
+  const [busOptionDraft, setBusOptionDraft] = useState<{
+    id: string;
+    values: BusOptionDraft;
+  } | null>(null);
   const [newStationDraft, setNewStationDraft] = useState<NewStationDraft>(
     emptyNewStationDraft
+  );
+  const [newCampusDraft, setNewCampusDraft] = useState<NewCampusDraft>(
+    emptyNewCampusDraft
+  );
+  const [newBusOptionDraft, setNewBusOptionDraft] = useState<BusOptionDraft>(
+    emptyBusOptionDraft
   );
 
   const summary = useMemo(() => {
@@ -352,6 +460,20 @@ const AdminSetupCheckPage = () => {
       isReady: summary.campusCount > 0 && summary.missingAdminCount === 0,
     },
     {
+      id: 'destinations',
+      icon: MapPin,
+      title: '행선지',
+      description:
+        '신청자가 귀가 버스의 희망 행선지로 선택할 수 있는 행선지를 확인합니다.',
+      status:
+        stations.length > 0
+          ? `${stations.length.toLocaleString()}개 등록`
+          : '행선지 미등록',
+      actionLabel: '행선지 확인 및 수정',
+      actionPath: '',
+      isReady: stations.length > 0,
+    },
+    {
       id: 'bus-price',
       icon: DollarSign,
       title: '버스표 가격',
@@ -366,33 +488,76 @@ const AdminSetupCheckPage = () => {
       isReady: busTicketPrice > 0,
     },
     {
+      id: 'bus-options',
+      icon: Bus,
+      title: '버스 옵션',
+      description:
+        '배차 계산에 사용할 버스의 좌석 수, 예상 가격, 사용 가능 대수를 설정합니다.',
+      status:
+        busOptions.length > 0
+          ? `${busOptions.length.toLocaleString()}개 등록`
+          : '버스 옵션 미등록',
+      actionLabel: '버스 옵션 확인 및 수정',
+      actionPath: '',
+      isReady: busOptions.length > 0,
+    },
+    {
       id: 'district-transfer-account',
       icon: Landmark,
       title: '서울지구 송금 계좌',
       description:
-        '캠퍼스 관리자가 버스표 금액을 송금할 서울지구 계좌번호를 설정합니다.',
-      status: accountNumber || '계좌번호 미설정',
-      actionLabel: '계좌번호 저장',
+        '캠퍼스 관리자가 버스표 금액을 송금할 서울지구 계좌 번호를 설정합니다.',
+      status: accountNumber || '계좌 번호 미설정',
+      actionLabel: '계좌 번호 저장',
       actionPath: '',
       isReady: Boolean(accountNumber),
     },
     {
-      id: 'destinations',
-      icon: MapPin,
-      title: '행선지',
+      id: 'reservation-deadline',
+      icon: CalendarClock,
+      title: '신청 마감 일시',
       description:
-        '신청자가 귀가 버스의 희망 도착지로 선택할 수 있는 행선지를 확인합니다.',
-      status:
-        stations.length > 0
-          ? `${stations.length.toLocaleString()}개 등록`
-          : '행선지 미등록',
-      actionLabel: '행선지 확인 및 수정',
+        '신청과 수정이 종료되는 날짜와 시간을 설정합니다. 비우면 마감 제한이 해제됩니다.',
+      status: deadlineAt ? '신청 마감 일시 설정됨' : '신청 마감 일시 미설정',
+      actionLabel: '신청 마감 일시 저장',
       actionPath: '',
-      isReady: stations.length > 0,
+      isReady: Boolean(deadlineAt),
     },
   ];
   const readySetupCount = setupItems.filter((item) => item.isReady).length;
-  const nextSetupItem = setupItems.find((item) => !item.isReady) ?? null;
+  const pendingSetupItems = setupItems.filter((item) => !item.isReady);
+  const completedSetupItems = setupItems.filter((item) => item.isReady);
+  const busOptionSummary = useMemo(() => {
+    if (busOptions.length === 0) {
+      return {
+        headline: '미설정',
+        detail: '배차 계산에 사용할 버스를 등록해주세요.',
+      };
+    }
+
+    const capacities = busOptions.map((option) => option.capacity);
+    const prices = busOptions.map((option) => option.estimated_price);
+    const totalMaxCount = busOptions.reduce(
+      (sum, option) => sum + (option.max_count ?? 999),
+      0
+    );
+    const minCapacity = Math.min(...capacities);
+    const maxCapacity = Math.max(...capacities);
+    const minPrice = Math.min(...prices);
+    const maxPrice = Math.max(...prices);
+
+    if (busOptions.length === 1) {
+      return {
+        headline: `${minCapacity.toLocaleString()}인승 · 최대 ${totalMaxCount.toLocaleString()}대`,
+        detail: `대당 예상 ${minPrice.toLocaleString()}원`,
+      };
+    }
+
+    return {
+      headline: `${busOptions.length.toLocaleString()}개 옵션 · ${minCapacity.toLocaleString()}~${maxCapacity.toLocaleString()}인승`,
+      detail: `대당 ${minPrice.toLocaleString()}~${maxPrice.toLocaleString()}원 · 최대 ${totalMaxCount.toLocaleString()}대`,
+    };
+  }, [busOptions]);
   const setupProgressPercent = Math.round(
     (readySetupCount / setupItems.length) * 100
   );
@@ -492,7 +657,7 @@ const AdminSetupCheckPage = () => {
       stage: 'reference',
       label: '앱 설정',
       count: resetStats.appSettings,
-      detail: '표 가격과 신청 마감일을 기본값으로 복원',
+      detail: '버스표 가격과 신청 마감 일시를 기본값으로 복원',
       danger: true,
     },
     {
@@ -523,7 +688,7 @@ const AdminSetupCheckPage = () => {
     {
       id: 'userAccounts',
       stage: 'users',
-      label: '유저 계정·데이터',
+      label: '사용자 계정·데이터',
       count: resetStats.userAccounts,
       detail: '현재 로그인한 전체 관리자만 유지',
       danger: true,
@@ -554,7 +719,7 @@ const AdminSetupCheckPage = () => {
       id: 'application',
       step: '3단계',
       title: '신청·입금 생성',
-      description: '예약 신청과 연결된 입금 상태',
+      description: '신청과 연결된 입금 상태',
     },
     {
       id: 'operation',
@@ -569,23 +734,6 @@ const AdminSetupCheckPage = () => {
     setError(null);
 
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (!session) {
-        navigate('/admin/login');
-        return;
-      }
-
-      const adminRole = await getAdminRole(session.user.id);
-
-      if (!adminRole || adminRole.role !== 'global_admin') {
-        alert('전체 관리자만 접근할 수 있습니다.');
-        navigate('/');
-        return;
-      }
-
       const [
         campusResult,
         adminRoleResult,
@@ -594,6 +742,8 @@ const AdminSetupCheckPage = () => {
         reservationDataStats,
         participationSetting,
         districtTransferAccountNumber,
+        savedBusOptions,
+        reservationDeadline,
       ] = await Promise.all([
         supabase
           .from('campus_options')
@@ -615,6 +765,8 @@ const AdminSetupCheckPage = () => {
         getReservationDataResetStats(),
         getParticipationTargetsSetting(),
         getDistrictTransferAccountNumber(),
+        getBusOptions(),
+        getReservationDeadline(),
       ]);
 
       if (campusResult.error) throw campusResult.error;
@@ -627,11 +779,7 @@ const AdminSetupCheckPage = () => {
           getCampusKey(role.district ?? '', role.team ?? '', role.campus ?? '')
         )
       );
-      const savedCampusRows = participationSetting.rows;
-      const sourceCampusRows =
-        savedCampusRows && savedCampusRows.length > 0
-          ? savedCampusRows
-          : ((campusResult.data ?? []) as CampusOptionRow[]);
+      const sourceCampusRows = (campusResult.data ?? []) as CampusOptionRow[];
       const rows = normalizeCampusRows(sourceCampusRows).map((item) => ({
         key: item.key,
         district: item.district,
@@ -643,8 +791,11 @@ const AdminSetupCheckPage = () => {
 
       setCampuses(rows);
       setStations((stationResult.data ?? []) as StationSetupRow[]);
+      setBusOptions(savedBusOptions as BusOptionRow[]);
       setBusTicketPrice(ticketPrice);
       setBusTicketPriceInput(String(ticketPrice));
+      setDeadlineAt(reservationDeadline.deadlineAt);
+      setDeadlineInput(formatDateTimeLocal(reservationDeadline.deadlineAt));
       setAccountNumber(districtTransferAccountNumber);
       setAccountNumberInput(districtTransferAccountNumber);
       setResetStats(reservationDataStats);
@@ -660,11 +811,22 @@ const AdminSetupCheckPage = () => {
     // Initial page load is an external Supabase synchronization.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadSetup();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!activeDetailId || loading) return;
+
+    window.setTimeout(() => {
+      document
+        .getElementById(`detail-${activeDetailId}`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 0);
+  }, [activeDetailId, detailPortalTarget, loading]);
 
   const toggleSetupDetail = (id: SetupDetailId) => {
     setStationDraft(null);
+    setBusOptionDraft(null);
+    setDetailPortalTarget(null);
     setActiveDetailId((current) => (current === id ? null : id));
   };
 
@@ -673,6 +835,61 @@ const AdminSetupCheckPage = () => {
     setMessage(null);
     setError(null);
     setStationError(null);
+  };
+
+  const handleAddCampus = async () => {
+    const districtName = newCampusDraft.district.trim();
+    const teamName = newCampusDraft.team.trim();
+    const campusName = newCampusDraft.campus.trim();
+
+    if (!districtName || !teamName || !campusName) {
+      setCampusError('지구, 팀, 캠퍼스 이름을 모두 입력해주세요.');
+      return;
+    }
+
+    setAddingCampus(true);
+    setMessage(null);
+    setError(null);
+    setCampusError(null);
+
+    try {
+      const { error: campusError } = await supabase.rpc(
+        'create_campus_scope_as_global_admin',
+        { p_district: districtName, p_team: teamName, p_campus: campusName }
+      );
+      if (campusError) throw campusError;
+
+      /*const campusLookup = await supabase
+        .from('campuses')
+        .select('id')
+        .eq('team_id', teamId)
+        .eq('name', campusName)
+        .maybeSingle();
+      if (campusLookup.error) throw campusLookup.error;
+      if (campusLookup.data) {
+        setCampusError('같은 지구와 팀에 이미 등록된 캠퍼스입니다.');
+        return;
+      }
+
+      const campusInsert = await supabase
+        .from('campuses')
+        .insert({ team_id: teamId, name: campusName, is_active: true });
+      if (campusInsert.error) throw campusInsert.error;*/
+
+      setNewCampusDraft(emptyNewCampusDraft);
+      setMessage(
+        `${districtName} / ${teamName} / ${campusName} 캠퍼스를 등록했습니다.`
+      );
+      await loadSetup();
+      setActiveDetailId('organization');
+    } catch (addError) {
+      console.error('Failed to add campus:', addError);
+      setCampusError(
+        `캠퍼스 등록 중 오류가 발생했습니다: ${getErrorMessage(addError)}`
+      );
+    } finally {
+      setAddingCampus(false);
+    }
   };
 
   const updateStationDraft = (
@@ -705,17 +922,17 @@ const AdminSetupCheckPage = () => {
       const coordinates = address
         ? await geocodeStationAddress(address)
         : { lat: null, lng: null };
-      const { data, error: updateError } = await supabase
-        .from('stations')
-        .update({
-          name,
-          line: stationDraft.line?.trim() || null,
-          address,
-          ...coordinates,
-        })
-        .eq('id', stationDraft.id)
-        .select('id, name, line, address, lat, lng, is_active')
-        .single();
+      const { data, error: updateError } = await supabase.rpc(
+        'upsert_station_as_global_admin',
+        {
+          p_id: stationDraft.id,
+          p_name: name,
+          p_line: stationDraft.line?.trim() || null,
+          p_address: address,
+          p_lat: coordinates.lat,
+          p_lng: coordinates.lng,
+        }
+      );
 
       if (updateError) throw updateError;
 
@@ -757,17 +974,17 @@ const AdminSetupCheckPage = () => {
       const coordinates = address
         ? await geocodeStationAddress(address)
         : { lat: null, lng: null };
-      const { data, error: insertError } = await supabase
-        .from('stations')
-        .insert({
-          name,
-          line: newStationDraft.line.trim() || null,
-          address,
-          ...coordinates,
-          is_active: true,
-        })
-        .select('id, name, line, address, lat, lng, is_active')
-        .single();
+      const { data, error: insertError } = await supabase.rpc(
+        'upsert_station_as_global_admin',
+        {
+          p_id: null,
+          p_name: name,
+          p_line: newStationDraft.line.trim() || null,
+          p_address: address,
+          p_lat: coordinates.lat,
+          p_lng: coordinates.lng,
+        }
+      );
 
       if (insertError) throw insertError;
 
@@ -797,10 +1014,10 @@ const AdminSetupCheckPage = () => {
     setError(null);
 
     try {
-      const { error: deleteError } = await supabase
-        .from('stations')
-        .delete()
-        .eq('id', station.id);
+      const { error: deleteError } = await supabase.rpc(
+        'delete_station_as_global_admin',
+        { p_id: station.id }
+      );
 
       if (deleteError) throw deleteError;
 
@@ -816,6 +1033,172 @@ const AdminSetupCheckPage = () => {
       );
     } finally {
       setDeletingStationId(null);
+    }
+  };
+
+  const parseBusOptionDraft = (draft: BusOptionDraft) => {
+    const capacity = Number(draft.capacity);
+    const estimatedPrice = Number(draft.estimatedPrice);
+    const maxCount = Number(draft.maxCount);
+
+    if (!Number.isInteger(capacity) || capacity < 1) {
+      throw new Error('좌석 수는 1명 이상의 정수로 입력해주세요.');
+    }
+
+    if (!Number.isInteger(estimatedPrice) || estimatedPrice < 0) {
+      throw new Error('예상 가격은 0원 이상의 정수로 입력해주세요.');
+    }
+
+    if (!Number.isInteger(maxCount) || maxCount < 1) {
+      throw new Error('사용 가능 대수는 1대 이상의 정수로 입력해주세요.');
+    }
+
+    return {
+      capacity,
+      estimatedPrice,
+      maxCount,
+      notes: draft.notes.trim() || null,
+    };
+  };
+
+  const handleAddBusOption = async () => {
+    if (busOptions.length > 0) {
+      setError('버스 옵션은 하나만 등록할 수 있습니다. 기존 옵션을 수정해주세요.');
+      return;
+    }
+
+    setAddingBusOption(true);
+    setMessage(null);
+    setError(null);
+
+    try {
+      const values = parseBusOptionDraft(newBusOptionDraft);
+
+      await addBusOption(
+        values.capacity,
+        values.estimatedPrice,
+        values.notes ?? undefined,
+        values.maxCount
+      );
+
+      setBusOptions((await getBusOptions()) as BusOptionRow[]);
+      setNewBusOptionDraft(emptyBusOptionDraft);
+      setMessage('버스 옵션을 추가했습니다.');
+    } catch (addError) {
+      console.error('Failed to add bus option:', addError);
+      setError(`버스 옵션 추가에 실패했습니다: ${getErrorMessage(addError)}`);
+    } finally {
+      setAddingBusOption(false);
+    }
+  };
+
+  const startBusOptionEdit = (option: BusOptionRow) => {
+    setBusOptionDraft({
+      id: option.id,
+      values: {
+        capacity: String(option.capacity),
+        estimatedPrice: String(option.estimated_price),
+        maxCount: String(option.max_count ?? 999),
+        notes: option.notes ?? '',
+      },
+    });
+    setMessage(null);
+    setError(null);
+  };
+
+  const updateBusOptionDraft = (
+    field: keyof BusOptionDraft,
+    value: string
+  ) => {
+    setError(null);
+    setBusOptionDraft((current) =>
+      current
+        ? { ...current, values: { ...current.values, [field]: value } }
+        : current
+    );
+  };
+
+  const handleSaveBusOption = async () => {
+    if (!busOptionDraft) return;
+
+    setSavingBusOptionId(busOptionDraft.id);
+    setMessage(null);
+    setError(null);
+
+    try {
+      const values = parseBusOptionDraft(busOptionDraft.values);
+      await updateBusOption(
+        busOptionDraft.id,
+        values.capacity,
+        values.estimatedPrice,
+        values.notes,
+        values.maxCount
+      );
+
+      setBusOptions((await getBusOptions()) as BusOptionRow[]);
+      setBusOptionDraft(null);
+      setMessage('버스 옵션을 수정했습니다.');
+    } catch (saveError) {
+      console.error('Failed to save bus option:', saveError);
+      setError(`버스 옵션 수정에 실패했습니다: ${getErrorMessage(saveError)}`);
+    } finally {
+      setSavingBusOptionId(null);
+    }
+  };
+
+  const handleDeleteBusOption = async (option: BusOptionRow) => {
+    if (!window.confirm(`${option.capacity}인승 버스 옵션을 삭제할까요?`)) {
+      return;
+    }
+
+    setDeletingBusOptionId(option.id);
+    setMessage(null);
+    setError(null);
+
+    try {
+      await deleteBusOption(option.id);
+      setBusOptions((current) =>
+        current.filter((item) => item.id !== option.id)
+      );
+      if (busOptionDraft?.id === option.id) setBusOptionDraft(null);
+      setMessage('버스 옵션을 삭제했습니다.');
+    } catch (deleteError) {
+      console.error('Failed to delete bus option:', deleteError);
+      setError(`버스 옵션 삭제에 실패했습니다: ${getErrorMessage(deleteError)}`);
+    } finally {
+      setDeletingBusOptionId(null);
+    }
+  };
+
+  const handleSaveDeadline = async () => {
+    const deadlineIso = parseDateTimeLocal(deadlineInput);
+
+    if (deadlineInput && !deadlineIso) {
+      setError('신청 마감 일시를 올바른 날짜와 시간으로 입력해주세요.');
+      return;
+    }
+
+    setSavingDeadline(true);
+    setMessage(null);
+    setError(null);
+
+    try {
+      const savedDeadline = await updateReservationDeadline(deadlineIso);
+
+      setDeadlineAt(savedDeadline.deadlineAt);
+      setDeadlineInput(formatDateTimeLocal(savedDeadline.deadlineAt));
+      setMessage(
+        savedDeadline.deadlineAt
+          ? `신청 마감 일시를 ${formatReservationDeadline(savedDeadline.deadlineAt)}로 저장했습니다.`
+          : '신청 마감 일시를 해제했습니다.'
+      );
+    } catch (saveError) {
+      console.error('Failed to save reservation deadline:', saveError);
+      setError(
+        `신청 마감 일시 저장에 실패했습니다: ${getErrorMessage(saveError)}`
+      );
+    } finally {
+      setSavingDeadline(false);
     }
   };
 
@@ -901,7 +1284,7 @@ const AdminSetupCheckPage = () => {
     const nextAccountNumber = accountNumberInput.trim();
 
     if (!nextAccountNumber) {
-      setError('서울지구 송금 계좌번호를 입력해주세요.');
+      setError('서울지구 송금 계좌 번호를 입력해주세요.');
       return;
     }
 
@@ -915,11 +1298,11 @@ const AdminSetupCheckPage = () => {
 
       setAccountNumber(savedAccountNumber);
       setAccountNumberInput(savedAccountNumber);
-      setMessage('서울지구 송금 계좌번호를 저장했습니다.');
+      setMessage('서울지구 송금 계좌 번호를 저장했습니다.');
     } catch (saveError) {
       console.error('Failed to save district transfer account number:', saveError);
       setError(
-        `서울지구 송금 계좌번호 저장 중 오류가 발생했습니다: ${getErrorMessage(saveError)}`
+        `서울지구 송금 계좌 번호 저장 중 오류가 발생했습니다: ${getErrorMessage(saveError)}`
       );
     } finally {
       setSavingAccountNumber(false);
@@ -928,7 +1311,7 @@ const AdminSetupCheckPage = () => {
 
   const handleResetReservationData = async () => {
     const confirmText = hasSelectedUserReset
-      ? '유저 데이터 전체 삭제'
+      ? '사용자 데이터 전체 삭제'
       : hasSelectedSetupReset
         ? '전체 설정 초기화'
         : RESET_CONFIRM_TEXT;
@@ -979,6 +1362,157 @@ const AdminSetupCheckPage = () => {
     }
   };
 
+  const renderSetupItem = (
+    item: (typeof setupItems)[number],
+    index: number,
+    emphasize = false
+  ) => {
+    const Icon = item.icon;
+
+    return (
+      <div key={item.id} className={styles.setupItemGroup}>
+        <article
+          id={`setup-${item.id}`}
+          className={`${styles.setupRow} ${
+            item.isReady ? styles.setupRowReady : styles.setupRowPending
+          } ${emphasize ? styles.setupRowPriority : ''} ${
+            activeDetailId === item.id ? styles.setupRowActive : ''
+          }`}
+        >
+          <div className={styles.setupIdentity}>
+            <span className={styles.setupNumber}>
+              {String(index + 1).padStart(2, '0')}
+            </span>
+            <div className={styles.iconBox}>
+              <Icon size={20} />
+            </div>
+            <div className={styles.setupCopy}>
+              <h3>{item.title}</h3>
+              <p>{item.description}</p>
+            </div>
+          </div>
+
+          <div className={styles.setupStatus}>
+            <span>현재 상태</span>
+            <div>
+              <span
+                className={item.isReady ? styles.readyBadge : styles.warningBadge}
+              >
+                {item.status}
+              </span>
+            </div>
+          </div>
+
+          <div className={styles.setupControl}>
+            {item.id === 'bus-price' ? (
+              <div className={styles.inlineEditor}>
+                <input
+                  type="number"
+                  min={0}
+                  value={busTicketPriceInput}
+                  onChange={(event) => setBusTicketPriceInput(event.target.value)}
+                  placeholder="예: 20000"
+                  aria-label="1인 버스표 가격"
+                />
+                <button
+                  type="button"
+                  className={styles.primaryButton}
+                  onClick={() => void handleSaveBusTicketPrice()}
+                  disabled={savingPrice}
+                >
+                  {savingPrice ? '저장 중...' : busTicketPrice > 0 ? '수정' : '설정하기'}
+                </button>
+              </div>
+            ) : item.id === 'district-transfer-account' ? (
+              <div className={styles.inlineEditor}>
+                <input
+                  type="text"
+                  value={accountNumberInput}
+                  onChange={(event) => setAccountNumberInput(event.target.value)}
+                  placeholder="예: 국민 123456-01-123456"
+                  aria-label="서울지구 계좌 번호"
+                />
+                <button
+                  type="button"
+                  className={styles.primaryButton}
+                  onClick={() => void handleSaveAccountNumber()}
+                  disabled={savingAccountNumber}
+                >
+                  {savingAccountNumber ? '저장 중...' : accountNumber ? '수정' : '설정하기'}
+                </button>
+              </div>
+            ) : item.id === 'reservation-deadline' ? (
+              <div className={styles.deadlineEditor}>
+                <input
+                  type="datetime-local"
+                  value={deadlineInput}
+                  onChange={(event) => setDeadlineInput(event.target.value)}
+                  aria-label="신청 마감 날짜 및 시간"
+                />
+                <button
+                  type="button"
+                  className={styles.secondaryButton}
+                  onClick={() => setDeadlineInput('')}
+                  disabled={savingDeadline}
+                >
+                  입력 비우기
+                </button>
+                <button
+                  type="button"
+                  className={styles.primaryButton}
+                  onClick={() => void handleSaveDeadline()}
+                  disabled={savingDeadline}
+                >
+                  {savingDeadline ? '저장 중...' : deadlineAt ? '수정' : '설정하기'}
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className={`${styles.detailToggleButton} ${
+                  !item.isReady ? styles.priorityActionButton : ''
+                }`}
+                onClick={() => {
+                  if (
+                    item.id === 'organization' ||
+                    item.id === 'campus-admins' ||
+                    item.id === 'destinations' ||
+                    item.id === 'bus-options'
+                  ) {
+                    toggleSetupDetail(item.id);
+                  } else {
+                    navigate(item.actionPath);
+                  }
+                }}
+                aria-label={`${item.title} ${
+                  activeDetailId === item.id ? '접기' : item.isReady ? '펼치기' : '설정하기'
+                }`}
+                aria-expanded={activeDetailId === item.id}
+              >
+                <span>
+                  {activeDetailId === item.id
+                    ? '접기'
+                    : item.isReady
+                      ? '펼치기'
+                      : '설정하기'}
+                </span>
+                {activeDetailId === item.id ? (
+                  <ChevronUp size={16} />
+                ) : (
+                  <ChevronDown size={16} />
+                )}
+              </button>
+            )}
+          </div>
+        </article>
+        <div
+          id={`detail-slot-${item.id}`}
+          ref={activeDetailId === item.id ? setDetailPortalTarget : undefined}
+        />
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className={styles.pageContainer}>
@@ -1007,10 +1541,10 @@ const AdminSetupCheckPage = () => {
         <section className={styles.header}>
           <div>
             <span className={styles.eyebrow}>Step 0</span>
-            <h1>설정 확인</h1>
+            <h1>운영 초기값 설정</h1>
             <p>
-              신청을 받기 전에 서울지구 조직 구조, 캠퍼스 관리자 권한, 버스표
-              가격, 행선지를 먼저 확인합니다.
+              신청을 받기 전에 조직 구조, 관리자 권한, 요금, 송금 계좌,
+              행선지, 버스 옵션과 신청 마감 일시를 설정합니다.
             </p>
           </div>
 
@@ -1026,12 +1560,15 @@ const AdminSetupCheckPage = () => {
 
         <section className={styles.readinessPanel}>
           <div className={styles.readinessMain}>
-            <span>초기 설정 준비율</span>
-            <strong>{setupProgressPercent}%</strong>
+            <span>초기 설정 완료 항목</span>
+            <strong>
+              {readySetupCount}
+              <small> / {setupItems.length}개</small>
+            </strong>
             <div
               className={styles.progressTrack}
               role="progressbar"
-              aria-label="초기 설정 준비율"
+              aria-label="초기 설정 완료 항목"
               aria-valuemin={0}
               aria-valuemax={setupItems.length}
               aria-valuenow={readySetupCount}
@@ -1043,49 +1580,6 @@ const AdminSetupCheckPage = () => {
               준비되었습니다.
             </p>
           </div>
-
-          <div
-            className={`${styles.readinessNextAction} ${
-              nextSetupItem ? '' : styles.readinessComplete
-            }`}
-          >
-            <div>
-              <span>{nextSetupItem ? '다음으로 해결할 설정' : '설정 완료'}</span>
-              <strong>
-                {nextSetupItem
-                  ? nextSetupItem.title
-                  : '신청을 받을 준비가 되었습니다'}
-              </strong>
-              <p>
-                {nextSetupItem
-                  ? nextSetupItem.status
-                  : '모든 필수 설정이 시스템 기준을 충족합니다.'}
-              </p>
-            </div>
-
-            {nextSetupItem && (
-              <button
-                type="button"
-                className={styles.primaryButton}
-                onClick={() => {
-                  if (
-                    nextSetupItem.id === 'organization' ||
-                    nextSetupItem.id === 'campus-admins' ||
-                    nextSetupItem.id === 'destinations'
-                  ) {
-                    toggleSetupDetail(nextSetupItem.id);
-                  } else {
-                    document
-                      .getElementById(`setup-${nextSetupItem.id}`)
-                      ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                  }
-                }}
-              >
-                {nextSetupItem.actionLabel}
-                <ArrowRight size={16} />
-              </button>
-            )}
-          </div>
         </section>
 
         {(message || error) && (
@@ -1094,150 +1588,75 @@ const AdminSetupCheckPage = () => {
           </p>
         )}
 
-        <section className={styles.summaryGrid}>
+        <div className={styles.sectionHeading}>
           <div>
-            <span>지구 / 팀 / 캠퍼스 / 예상 참여 인원</span>
-            <strong>
-              {summary.districtCount} / {summary.teamCount} /{' '}
-              {summary.campusCount} / {summary.totalTarget.toLocaleString()}명
-            </strong>
+            <span>지금 필요한 작업</span>
+            <h2>미완료 필수 설정</h2>
+            <p>운영을 시작하기 전에 아래 항목을 먼저 완료해주세요.</p>
           </div>
+          <strong>
+            {pendingSetupItems.length}개 남음
+          </strong>
+        </div>
 
-          <div>
-            <span>현재 버스표 가격</span>
-            <strong>{busTicketPrice.toLocaleString()}원</strong>
-          </div>
-
-          <div>
-            <span>서울지구 송금 계좌</span>
-            <strong>{accountNumber || '미설정'}</strong>
-          </div>
-
-          <div>
-            <span>등록 행선지</span>
-            <strong>{stations.length.toLocaleString()}개</strong>
-          </div>
+        <section className={styles.setupList}>
+          {pendingSetupItems.length > 0 ? (
+            pendingSetupItems.map((item, index) =>
+              renderSetupItem(item, index, true)
+            )
+          ) : (
+            <div className={styles.allReadyState}>
+              <CheckCircle2 size={22} />
+              <div>
+                <strong>모든 필수 설정이 완료되었습니다.</strong>
+                <p>완료된 설정은 아래에서 펼쳐 확인하거나 수정할 수 있습니다.</p>
+              </div>
+            </div>
+          )}
         </section>
 
-        <section className={styles.setupGrid}>
-          {setupItems.map((item) => {
-            const Icon = item.icon;
+        <section className={styles.completedSettings}>
+          <button
+            type="button"
+            className={styles.completedSettingsToggle}
+            onClick={() => setShowCompletedSettings((current) => !current)}
+            aria-expanded={showCompletedSettings}
+          >
+            <span>
+              <CheckCircle2 size={17} />
+              완료된 설정 보기
+              <strong>{completedSetupItems.length}개</strong>
+            </span>
+            {showCompletedSettings ? (
+              <ChevronUp size={17} />
+            ) : (
+              <ChevronDown size={17} />
+            )}
+          </button>
 
-            return (
-              <article
-                key={item.id}
-                id={`setup-${item.id}`}
-                className={`${styles.setupCard} ${
-                  item.isReady ? styles.setupCardReady : ''
-                }`}
-              >
-                <div className={styles.cardTopRow}>
-                  <div className={styles.iconBox}>
-                    <Icon size={22} />
-                  </div>
-                </div>
-
-                <div className={styles.cardBody}>
-                  <h2>{item.title}</h2>
-                  <p>{item.description}</p>
-                  <span
-                    className={
-                      item.isReady ? styles.readyBadge : styles.warningBadge
-                    }
-                  >
-                    {item.status}
-                  </span>
-                </div>
-
-                {item.id === 'bus-price' ? (
-                  <div className={styles.priceEditor}>
-                    <label>
-                      <span>1인 버스표 가격</span>
-                      <input
-                        type="number"
-                        min={0}
-                        value={busTicketPriceInput}
-                        onChange={(event) =>
-                          setBusTicketPriceInput(event.target.value)
-                        }
-                        placeholder="예: 20000"
-                      />
-                    </label>
-
-                    <button
-                      type="button"
-                      className={styles.primaryButton}
-                      onClick={() => void handleSaveBusTicketPrice()}
-                      disabled={savingPrice}
-                    >
-                      {savingPrice ? '저장 중...' : item.actionLabel}
-                    </button>
-                  </div>
-                ) : item.id === 'district-transfer-account' ? (
-                  <div className={styles.priceEditor}>
-                    <label>
-                      <span>서울지구 계좌번호</span>
-                      <input
-                        type="text"
-                        value={accountNumberInput}
-                        onChange={(event) =>
-                          setAccountNumberInput(event.target.value)
-                        }
-                        placeholder="예: 국민 123456-01-123456"
-                      />
-                    </label>
-
-                    <button
-                      type="button"
-                      className={styles.primaryButton}
-                      onClick={() => void handleSaveAccountNumber()}
-                      disabled={savingAccountNumber}
-                    >
-                      {savingAccountNumber ? '저장 중...' : item.actionLabel}
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    className={styles.secondaryButton}
-                    onClick={() => {
-                      if (
-                        item.id === 'organization' ||
-                        item.id === 'campus-admins' ||
-                        item.id === 'destinations'
-                      ) {
-                        toggleSetupDetail(item.id);
-                      } else {
-                        navigate(item.actionPath);
-                      }
-                    }}
-                  >
-                    {item.actionLabel}
-                    {activeDetailId === item.id ? (
-                      <ChevronUp size={16} />
-                    ) : (
-                      <ChevronDown size={16} />
-                    )}
-                  </button>
-                )}
-              </article>
-            );
-          })}
+          {showCompletedSettings && (
+            <div className={styles.completedSettingsList}>
+              {completedSetupItems.map((item, index) =>
+                renderSetupItem(item, pendingSetupItems.length + index)
+              )}
+            </div>
+          )}
         </section>
 
+        {detailPortalTarget &&
+          createPortal(
+            <>
         {activeDetailId === 'organization' && (
-          <section className={styles.detailPanel}>
+          <section
+            id="detail-organization"
+            className={styles.detailPanel}
+          >
             <div className={styles.panelHeader}>
               <div>
-                <h2>
-                  {missingTargetCampuses.length > 0
-                    ? '인원을 먼저 입력할 캠퍼스'
-                    : '캠퍼스별 인원 현황'}
-                </h2>
+                <h2>실제 조직 및 캠퍼스 등록</h2>
                 <p>
-                  {missingTargetCampuses.length > 0
-                    ? '예상 참여 인원이 비어 있는 캠퍼스를 보여줍니다.'
-                    : '모든 캠퍼스의 예상 참여 인원이 입력되었습니다.'}
+                  지구와 팀이 없으면 함께 생성하고, 실제 운영에 사용할 캠퍼스를
+                  조직 구조에 등록합니다.
                 </p>
               </div>
               <div className={styles.panelActions}>
@@ -1258,6 +1677,75 @@ const AdminSetupCheckPage = () => {
                 </button>
               </div>
             </div>
+
+            <div className={styles.campusAddPanel}>
+              <div className={styles.busOptionAddHeading}>
+                <div>
+                  <strong>새 캠퍼스 등록</strong>
+                  <span>없는 지구와 팀은 등록 과정에서 함께 생성됩니다.</span>
+                </div>
+                <button
+                  type="button"
+                  className={styles.primaryButton}
+                  onClick={() => void handleAddCampus()}
+                  disabled={addingCampus}
+                >
+                  <Plus size={16} />
+                  {addingCampus ? '등록 중...' : '캠퍼스 등록'}
+                </button>
+              </div>
+
+              <div className={styles.campusAddForm}>
+                <label>
+                  <span>지구</span>
+                  <input
+                    value={newCampusDraft.district}
+                    onChange={(event) => {
+                      setCampusError(null);
+                      setNewCampusDraft((current) => ({
+                        ...current,
+                        district: event.target.value,
+                      }));
+                    }}
+                    placeholder="예: 서울지구"
+                  />
+                </label>
+                <label>
+                  <span>팀</span>
+                  <input
+                    value={newCampusDraft.team}
+                    onChange={(event) => {
+                      setCampusError(null);
+                      setNewCampusDraft((current) => ({
+                        ...current,
+                        team: event.target.value,
+                      }));
+                    }}
+                    placeholder="예: 동팀"
+                  />
+                </label>
+                <label>
+                  <span>캠퍼스</span>
+                  <input
+                    value={newCampusDraft.campus}
+                    onChange={(event) => {
+                      setCampusError(null);
+                      setNewCampusDraft((current) => ({
+                        ...current,
+                        campus: event.target.value,
+                      }));
+                    }}
+                    placeholder="예: 서울대학교"
+                  />
+                </label>
+              </div>
+            </div>
+
+            {campusError && (
+              <p className={styles.stationErrorMessage} role="alert">
+                {campusError}
+              </p>
+            )}
 
             <div className={styles.tableWrap}>
               <table>
@@ -1288,7 +1776,10 @@ const AdminSetupCheckPage = () => {
         )}
 
         {activeDetailId === 'campus-admins' && (
-          <section className={styles.detailPanel}>
+          <section
+            id="detail-campus-admins"
+            className={styles.detailPanel}
+          >
             <div className={styles.panelHeader}>
               <div>
                 <h2>
@@ -1360,12 +1851,15 @@ const AdminSetupCheckPage = () => {
         )}
 
         {activeDetailId === 'destinations' && (
-          <section className={styles.detailPanel}>
+          <section
+            id="detail-destinations"
+            className={styles.detailPanel}
+          >
             <div className={styles.panelHeader}>
               <div>
                 <h2>행선지 확인 현황</h2>
                 <p>
-                  등록한 행선지는 사용자 신청 화면의 희망 도착지 선택 목록에
+                  등록한 행선지는 사용자 신청 화면의 희망 행선지 선택 목록에
                   표시됩니다.
                 </p>
               </div>
@@ -1564,7 +2058,334 @@ const AdminSetupCheckPage = () => {
           </section>
         )}
 
-        <section className={styles.resetPanel}>
+        {activeDetailId === 'bus-options' && (
+          <section
+            id="detail-bus-options"
+            className={styles.detailPanel}
+          >
+            <div className={styles.panelHeader}>
+              <div>
+                <h2>버스 옵션 관리</h2>
+                <p>
+                  최저비용 배차 계산에 사용할 단일 버스의 운영 조건을
+                  관리합니다.
+                </p>
+              </div>
+              <span className={styles.panelCount}>
+                {busOptions.length > 0 ? '설정 완료' : '미설정'}
+              </span>
+            </div>
+
+            {busOptions.length === 0 ? (
+              <div className={styles.busOptionAddPanel}>
+                <div className={styles.busOptionAddHeading}>
+                  <div>
+                    <strong>버스 옵션 설정</strong>
+                    <span>배차 계산에 사용할 차량 한 종류를 입력해주세요.</span>
+                  </div>
+                  <button
+                    type="button"
+                    className={styles.primaryButton}
+                    onClick={() => void handleAddBusOption()}
+                    disabled={addingBusOption}
+                  >
+                    <Plus size={16} />
+                    {addingBusOption ? '설정 중...' : '옵션 설정'}
+                  </button>
+                </div>
+
+                <div className={styles.busOptionAddForm}>
+                  <label>
+                    <span>좌석 수</span>
+                    <input
+                      type="number"
+                      min={1}
+                      value={newBusOptionDraft.capacity}
+                      onChange={(event) =>
+                        setNewBusOptionDraft((current) => ({
+                          ...current,
+                          capacity: event.target.value,
+                        }))
+                      }
+                      placeholder="예: 45"
+                    />
+                  </label>
+                  <label>
+                    <span>예상 가격</span>
+                    <input
+                      type="number"
+                      min={0}
+                      value={newBusOptionDraft.estimatedPrice}
+                      onChange={(event) =>
+                        setNewBusOptionDraft((current) => ({
+                          ...current,
+                          estimatedPrice: event.target.value,
+                        }))
+                      }
+                      placeholder="예: 920000"
+                    />
+                  </label>
+                  <label>
+                    <span>사용 가능 대수</span>
+                    <input
+                      type="number"
+                      min={1}
+                      value={newBusOptionDraft.maxCount}
+                      onChange={(event) =>
+                        setNewBusOptionDraft((current) => ({
+                          ...current,
+                          maxCount: event.target.value,
+                        }))
+                      }
+                      placeholder="예: 10"
+                    />
+                  </label>
+                  <label>
+                    <span>메모</span>
+                    <input
+                      value={newBusOptionDraft.notes}
+                      onChange={(event) =>
+                        setNewBusOptionDraft((current) => ({
+                          ...current,
+                          notes: event.target.value,
+                        }))
+                      }
+                      placeholder="선택 입력"
+                    />
+                  </label>
+                </div>
+              </div>
+            ) : null}
+
+            <div className={styles.tableWrap}>
+              <table>
+                <thead>
+                  <tr>
+                    <th>좌석 수</th>
+                    <th>예상 가격</th>
+                    <th>사용 가능 대수</th>
+                    <th>메모</th>
+                    <th>관리</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {busOptions.length > 0 ? (
+                    busOptions.map((option) => {
+                      const isEditing = busOptionDraft?.id === option.id;
+
+                      return (
+                        <tr key={option.id}>
+                          <td>
+                            {isEditing ? (
+                              <input
+                                className={styles.optionTableInput}
+                                type="number"
+                                min={1}
+                                value={busOptionDraft.values.capacity}
+                                onChange={(event) =>
+                                  updateBusOptionDraft(
+                                    'capacity',
+                                    event.target.value
+                                  )
+                                }
+                                aria-label={`${option.capacity}인승 좌석 수`}
+                              />
+                            ) : (
+                              `${option.capacity.toLocaleString()}명`
+                            )}
+                          </td>
+                          <td>
+                            {isEditing ? (
+                              <input
+                                className={styles.optionTableInput}
+                                type="number"
+                                min={0}
+                                value={busOptionDraft.values.estimatedPrice}
+                                onChange={(event) =>
+                                  updateBusOptionDraft(
+                                    'estimatedPrice',
+                                    event.target.value
+                                  )
+                                }
+                                aria-label={`${option.capacity}인승 예상 가격`}
+                              />
+                            ) : (
+                              `${option.estimated_price.toLocaleString()}원`
+                            )}
+                          </td>
+                          <td>
+                            {isEditing ? (
+                              <input
+                                className={styles.optionTableInput}
+                                type="number"
+                                min={1}
+                                value={busOptionDraft.values.maxCount}
+                                onChange={(event) =>
+                                  updateBusOptionDraft(
+                                    'maxCount',
+                                    event.target.value
+                                  )
+                                }
+                                aria-label={`${option.capacity}인승 사용 가능 대수`}
+                              />
+                            ) : (
+                              `${(option.max_count ?? 999).toLocaleString()}대`
+                            )}
+                          </td>
+                          <td>
+                            {isEditing ? (
+                              <input
+                                className={`${styles.tableInput} ${styles.addressInput}`}
+                                value={busOptionDraft.values.notes}
+                                onChange={(event) =>
+                                  updateBusOptionDraft(
+                                    'notes',
+                                    event.target.value
+                                  )
+                                }
+                                aria-label={`${option.capacity}인승 메모`}
+                              />
+                            ) : (
+                              option.notes || '-'
+                            )}
+                          </td>
+                          <td>
+                            <div className={styles.rowActions}>
+                              {isEditing ? (
+                                <>
+                                  <button
+                                    type="button"
+                                    className={styles.rowSaveButton}
+                                    onClick={() => void handleSaveBusOption()}
+                                    disabled={
+                                      savingBusOptionId === option.id
+                                    }
+                                  >
+                                    <Save size={14} />
+                                    {savingBusOptionId === option.id
+                                      ? '저장 중'
+                                      : '저장'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className={styles.rowCancelButton}
+                                    onClick={() => setBusOptionDraft(null)}
+                                    disabled={
+                                      savingBusOptionId === option.id
+                                    }
+                                  >
+                                    <X size={14} />
+                                    취소
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <button
+                                    type="button"
+                                    className={styles.rowEditButton}
+                                    onClick={() => startBusOptionEdit(option)}
+                                  >
+                                    <Pencil size={14} />
+                                    수정
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className={styles.rowDeleteButton}
+                                    onClick={() =>
+                                      void handleDeleteBusOption(option)
+                                    }
+                                    disabled={
+                                      deletingBusOptionId === option.id
+                                    }
+                                  >
+                                    <Trash2 size={14} />
+                                    {deletingBusOptionId === option.id
+                                      ? '삭제 중'
+                                      : '삭제'}
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <tr>
+                      <td colSpan={5} className={styles.emptyTableCell}>
+                        등록된 버스 옵션이 없습니다.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
+            </>,
+            detailPortalTarget
+          )}
+
+        <section className={styles.compactSummarySection}>
+          <div className={styles.compactSummaryHeader}>
+            <div>
+              <span>현재 설정 요약</span>
+              <h2>저장된 운영 정보</h2>
+            </div>
+            <strong>{readySetupCount} / {setupItems.length} 완료</strong>
+          </div>
+
+          <div className={styles.summaryGrid}>
+            <div>
+              <span>조직 · 예상 참여 인원</span>
+              <strong>
+                지구 {summary.districtCount} · 팀 {summary.teamCount} · 캠퍼스{' '}
+                {summary.campusCount} · {summary.totalTarget.toLocaleString()}명
+              </strong>
+            </div>
+
+            <div>
+              <span>버스표 가격</span>
+              <strong>{busTicketPrice.toLocaleString()}원</strong>
+            </div>
+
+            <div>
+              <span>송금 계좌</span>
+              <strong>{accountNumber || '미설정'}</strong>
+            </div>
+
+            <div>
+              <span>행선지</span>
+              <strong>{stations.length.toLocaleString()}개 등록</strong>
+            </div>
+
+            <div className={styles.busOptionSummary}>
+              <span>버스 옵션</span>
+              <strong>{busOptionSummary.headline}</strong>
+              <small>{busOptionSummary.detail}</small>
+            </div>
+
+            <div>
+              <span>신청 마감</span>
+              <strong>{formatReservationDeadline(deadlineAt)}</strong>
+            </div>
+          </div>
+        </section>
+
+        <div className={styles.dangerZoneHeading}>
+          <div>
+            <span>위험 구역</span>
+            <h2>신청정보 및 운영 데이터 초기화</h2>
+            <p>일반 설정 작업과 분리된 관리자용 데이터 삭제 도구입니다.</p>
+          </div>
+          <strong>삭제 후 복구 불가</strong>
+        </div>
+
+        <section
+          className={`${styles.resetPanel} ${
+            showResetPanel ? styles.resetPanelOpen : ''
+          }`}
+        >
           <div className={styles.resetPanelHeader}>
             <div className={styles.resetIconBox}>
               <Database size={22} />
@@ -1573,13 +2394,27 @@ const AdminSetupCheckPage = () => {
               <h2>DB 정보 초기화</h2>
               <p>
                 운영 데이터뿐 아니라 행선지, 버스 옵션, 앱 설정, 공지,
-                캠퍼스 관리자 권한, 조직 구조, 유저 계정을 선택적으로
+                캠퍼스 관리자 권한, 조직 구조, 사용자 계정을 선택적으로
                 초기화합니다. 현재 로그인한 전체 관리자 계정은 보호됩니다.
               </p>
             </div>
+            <button
+              type="button"
+              className={styles.resetToggleButton}
+              onClick={() => setShowResetPanel((current) => !current)}
+              aria-expanded={showResetPanel}
+            >
+              {showResetPanel ? '초기화 도구 닫기' : '초기화 도구 열기'}
+              {showResetPanel ? (
+                <ChevronUp size={16} />
+              ) : (
+                <ChevronDown size={16} />
+              )}
+            </button>
           </div>
 
-          <div className={styles.resetStageList}>
+          {showResetPanel && (
+            <div className={styles.resetStageList}>
             {resetStages.map((stage) => {
               const stageTargets = resetTargets.filter(
                 (target) => target.stage === stage.id
@@ -1622,12 +2457,14 @@ const AdminSetupCheckPage = () => {
                 </section>
               );
             })}
-          </div>
+            </div>
+          )}
 
-          <div className={styles.resetPanelFooter}>
+          {showResetPanel && (
+            <div className={styles.resetPanelFooter}>
             <p>
               선택한 {selectedResetRows.toLocaleString()}건은 삭제 후 되돌릴
-              수 없습니다. 유저 데이터 삭제 시 현재 로그인한 전체 관리자
+              수 없습니다. 사용자 데이터 삭제 시 현재 로그인한 전체 관리자
               계정만 보호됩니다. Supabase에
               `sql/setup/60_reset_reservation_data.sql`을 먼저 적용해야 합니다.
             </p>
@@ -1640,7 +2477,8 @@ const AdminSetupCheckPage = () => {
               <Trash2 size={16} />
               {resettingData ? '초기화 중...' : '선택 정보 초기화'}
             </button>
-          </div>
+            </div>
+          )}
         </section>
 
       </main>

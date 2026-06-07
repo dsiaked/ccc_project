@@ -14,7 +14,14 @@ insert into app_settings (key, value)
 values ('bus_ticket_price', '{"price": 0}'::jsonb)
 on conflict (key) do nothing;
 
-create or replace function upsert_reservation_payment(
+-- Payment rows are created and changed only through the authorized RPC below.
+drop policy if exists "Users can insert own payments" on public.payments;
+drop policy if exists "Campus admins can update campus payments" on public.payments;
+drop policy if exists "Global admins can update all payments" on public.payments;
+
+revoke insert, update, delete on table public.payments from public, anon, authenticated;
+
+create or replace function public.upsert_reservation_payment(
   p_payment_id uuid,
   p_reservation_id uuid,
   p_user_id uuid,
@@ -28,13 +35,57 @@ set search_path = public
 as $$
 declare
   v_payment payments;
+  v_reservation reservations;
 begin
+  if auth.uid() is null then
+    raise exception 'Authentication is required.';
+  end if;
+
   if p_status not in ('pending', 'completed', 'refunded') then
     raise exception 'Invalid payment status: %', p_status;
   end if;
 
+  select *
+  into v_reservation
+  from public.reservations
+  where id = p_reservation_id;
+
+  if v_reservation.id is null then
+    raise exception 'Reservation not found.';
+  end if;
+
+  if p_user_id is distinct from v_reservation.user_id then
+    raise exception 'Payment user does not match the reservation owner.';
+  end if;
+
+  if not exists (
+    select 1
+    from public.admin_roles
+    where admin_roles.user_id = auth.uid()
+      and (
+        admin_roles.role = 'global_admin'
+        or (
+          admin_roles.role = 'campus_admin'
+          and (
+            (
+              admin_roles.district_id = v_reservation.district_id
+              and admin_roles.team_id = v_reservation.team_id
+              and admin_roles.campus_id = v_reservation.campus_id
+            )
+            or (
+              admin_roles.district = v_reservation.district
+              and admin_roles.team = v_reservation.team
+              and admin_roles.campus = v_reservation.campus
+            )
+          )
+        )
+      )
+  ) then
+    raise exception 'Not authorized to manage this reservation payment.';
+  end if;
+
   if p_payment_id is not null then
-    update payments
+    update public.payments
     set
       amount = greatest(coalesce(p_amount, 0), 0),
       status = p_status,
@@ -48,14 +99,18 @@ begin
       end,
       updated_at = now()
     where id = p_payment_id
+      and reservation_id = p_reservation_id
+      and user_id = v_reservation.user_id
     returning * into v_payment;
 
     if v_payment.id is not null then
       return v_payment;
     end if;
+
+    raise exception 'Payment does not match the selected reservation.';
   end if;
 
-  insert into payments (
+  insert into public.payments (
     user_id,
     reservation_id,
     amount,
@@ -65,7 +120,7 @@ begin
     updated_at
   )
   values (
-    p_user_id,
+    v_reservation.user_id,
     p_reservation_id,
     greatest(coalesce(p_amount, 0), 0),
     p_status,
@@ -86,6 +141,13 @@ begin
   return v_payment;
 end;
 $$;
+
+revoke all on function public.upsert_reservation_payment(
+  uuid, uuid, uuid, integer, text
+) from public, anon;
+grant execute on function public.upsert_reservation_payment(
+  uuid, uuid, uuid, integer, text
+) to authenticated;
 
 create or replace function get_bus_ticket_price()
 returns integer

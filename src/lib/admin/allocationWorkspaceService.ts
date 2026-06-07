@@ -1,13 +1,8 @@
 import { supabase } from '../supabase';
-import type { BusAllocationResult } from './busAllocationAlgorithm';
 import type {
   ReturnBusReservation,
   StationPreference,
 } from '../../types/reservation';
-import {
-  assignPassengersToPreferredBuses,
-  optimizePassengerAssignmentsForMinimumCost,
-} from './allocationPassengerOptimizer';
 import { describeAllocationWorkspaceChanges } from './allocationWorkspaceHistory';
 
 export type AllocationWorkspaceStatus = 'draft' | 'confirmed' | 'archived';
@@ -28,6 +23,7 @@ export interface AllocationWorkspaceBus {
 export interface AllocationWorkspacePassenger {
   reservationId: string;
   name: string;
+  phone: string;
   campus: string;
   team: string;
   preferences: string[];
@@ -57,17 +53,38 @@ export interface AllocationWorkspaceVersion extends AllocationWorkspaceSnapshot 
   label: string;
 }
 
+export interface AllocationWorkspaceVersionSummary {
+  id: string;
+  createdAt: string;
+  actorId: string;
+  label: string;
+  changes?: string[];
+}
+
 export interface AllocationWorkspaceData extends AllocationWorkspaceSnapshot {
-  schemaVersion: 1;
+  schemaVersion: 1 | 2;
   status: AllocationWorkspaceStatus;
-  sourceAllocation: BusAllocationResult;
+  sourceAllocation: Record<string, unknown>;
+  sourceOptimizationJobId?: string;
+  optimalBaseline?: {
+    totalBuses: number;
+    totalCost: number;
+    secondChoiceCount: number;
+    inputHash: string;
+  };
   optimization: {
     mode: string;
     firstChoiceWeight: number;
     costWeight: number;
   };
   allowMinimumPassengerOverride: boolean;
-  versions: AllocationWorkspaceVersion[];
+  allowOutOfPreferenceOverride?: boolean;
+  outOfPreferenceAcknowledgement?: {
+    actorId: string;
+    at: string;
+    passengerIds: string[];
+  };
+  versions?: AllocationWorkspaceVersion[];
   history: AllocationWorkspaceHistory[];
   editLock?: {
     actorId: string;
@@ -84,6 +101,8 @@ export interface AllocationWorkspaceRow {
   total_capacity: number;
   created_by: string;
   created_at: string;
+  updated_at: string;
+  revision: number;
 }
 
 export interface AllocationWorkspaceSummary {
@@ -114,6 +133,15 @@ export interface AllocationConfirmationPreflightCheck {
   valid: boolean;
 }
 
+export interface AllocationConfirmationPreflightDetail {
+  key: AllocationConfirmationPreflightCheck['key'];
+  message: string;
+  passenger_id?: string;
+  reservation_id?: string;
+  bus_id?: string;
+  requires_refresh?: boolean;
+}
+
 export interface AllocationConfirmationPreflight {
   valid: boolean;
   checked_at: string;
@@ -121,11 +149,13 @@ export interface AllocationConfirmationPreflight {
   passenger_count: number;
   active_reservation_count: number;
   checks: AllocationConfirmationPreflightCheck[];
+  details: AllocationConfirmationPreflightDetail[];
 }
 
 interface ReservationRow {
   id: string;
   name: string | null;
+  phone: string | null;
   campus: string | null;
   team: string | null;
   station_preferences: StationPreference[] | null;
@@ -139,8 +169,6 @@ const uniqueId = (prefix: string) =>
   `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
 const ACTIVE_RESERVATION_PAGE_SIZE = 1000;
-const MAX_WORKSPACE_VERSIONS = 20;
-
 const getPreferences = (row: ReservationRow) => {
   const saved = row.data?.stationPreferences ?? row.station_preferences ?? [];
 
@@ -158,7 +186,7 @@ const getActiveReservationRows = async () => {
     const from = rows.length;
     const { data, error, count } = await supabase
       .from('reservations')
-      .select('id, name, campus, team, station_preferences, status, data', {
+      .select('id, name, phone, campus, team, station_preferences, status, data', {
         count: totalCount === null ? 'exact' : undefined,
       })
       .neq('status', 'cancelled')
@@ -184,6 +212,7 @@ const reservationRowToWorkspacePassenger = (
 ): AllocationWorkspacePassenger => ({
   reservationId: row.id,
   name: row.data?.name ?? row.name ?? '-',
+  phone: row.data?.phone ?? row.phone ?? '-',
   campus: row.data?.campus ?? row.campus ?? '-',
   team: row.data?.team ?? row.team ?? '-',
   preferences: getPreferences(row),
@@ -202,6 +231,7 @@ const hasSamePassengers = (
       candidate !== undefined &&
       passenger.reservationId === candidate.reservationId &&
       passenger.name === candidate.name &&
+      passenger.phone === candidate.phone &&
       passenger.campus === candidate.campus &&
       passenger.team === candidate.team &&
       passenger.busId === candidate.busId &&
@@ -214,6 +244,199 @@ const hasSamePassengers = (
     );
   });
 
+export const mergeActivePassengersIntoDraft = (
+  workspace: AllocationWorkspaceData,
+  activePassengers: AllocationWorkspacePassenger[]
+) => {
+  if (workspace.status !== 'draft') return workspace;
+
+  const previousById = new Map(
+    workspace.passengers.map((passenger) => [passenger.reservationId, passenger])
+  );
+  const buses = clone(workspace.buses);
+  const passengers = activePassengers.map((passenger) => {
+    const previous = previousById.get(passenger.reservationId);
+    return previous
+      ? {
+          ...passenger,
+          busId: previous.busId,
+          seatNumber: previous.seatNumber,
+        }
+      : { ...passenger, busId: null, seatNumber: null };
+  });
+  const newPassengerIds = new Set(
+    passengers
+      .filter((passenger) => !previousById.has(passenger.reservationId))
+      .map((passenger) => passenger.reservationId)
+  );
+  const activePassengerIds = new Set(
+    passengers.map((passenger) => passenger.reservationId)
+  );
+  const cancelledCount = workspace.passengers.filter(
+    (passenger) => !activePassengerIds.has(passenger.reservationId)
+  ).length;
+  const occupancy = new Map<string, number>();
+  const usedSeats = new Map<string, Set<number>>();
+
+  passengers.forEach((passenger) => {
+    if (!passenger.busId || passenger.seatNumber === null) return;
+    occupancy.set(passenger.busId, (occupancy.get(passenger.busId) ?? 0) + 1);
+    const seats = usedSeats.get(passenger.busId) ?? new Set<number>();
+    seats.add(passenger.seatNumber);
+    usedSeats.set(passenger.busId, seats);
+  });
+
+  const nextSeat = (bus: AllocationWorkspaceBus) => {
+    const seats = usedSeats.get(bus.id) ?? new Set<number>();
+    for (let seat = 1; seat <= bus.capacity; seat += 1) {
+      if (!seats.has(seat)) return seat;
+    }
+    return null;
+  };
+  const assign = (
+    passenger: AllocationWorkspacePassenger,
+    bus: AllocationWorkspaceBus
+  ) => {
+    const seat = nextSeat(bus);
+    if (seat === null) return false;
+    passenger.busId = bus.id;
+    passenger.seatNumber = seat;
+    occupancy.set(bus.id, (occupancy.get(bus.id) ?? 0) + 1);
+    const seats = usedSeats.get(bus.id) ?? new Set<number>();
+    seats.add(seat);
+    usedSeats.set(bus.id, seats);
+    return true;
+  };
+  const preferredAvailableBuses = (passenger: AllocationWorkspacePassenger) =>
+    buses
+      .filter(
+        (bus) =>
+          passenger.preferences.includes(bus.destination) &&
+          (occupancy.get(bus.id) ?? 0) < bus.capacity
+      )
+      .sort((left, right) => {
+        const rankDifference =
+          passenger.preferences.indexOf(left.destination) -
+          passenger.preferences.indexOf(right.destination);
+        if (rankDifference !== 0) return rankDifference;
+        const campusDifference =
+          passengers.filter(
+            (candidate) =>
+              candidate.busId === right.id && candidate.campus === passenger.campus
+          ).length -
+          passengers.filter(
+            (candidate) =>
+              candidate.busId === left.id && candidate.campus === passenger.campus
+          ).length;
+        if (campusDifference !== 0) return campusDifference;
+        const teamDifference =
+          passengers.filter(
+            (candidate) =>
+              candidate.busId === right.id && candidate.team === passenger.team
+          ).length -
+          passengers.filter(
+            (candidate) =>
+              candidate.busId === left.id && candidate.team === passenger.team
+          ).length;
+        if (teamDifference !== 0) return teamDifference;
+        const remainingSeatDifference =
+          right.capacity -
+          (occupancy.get(right.id) ?? 0) -
+          (left.capacity - (occupancy.get(left.id) ?? 0));
+        if (remainingSeatDifference !== 0) return remainingSeatDifference;
+        return left.label.localeCompare(right.label);
+      });
+
+  const pending = passengers.filter((passenger) => !passenger.busId);
+  pending.forEach((passenger) => {
+    const bus = preferredAvailableBuses(passenger)[0];
+    if (bus) assign(passenger, bus);
+  });
+
+  const template = buses[0];
+  const usedLabels = new Set(buses.map((bus) => bus.label));
+  let addedBusCount = 0;
+  while (template && pending.some((passenger) => !passenger.busId)) {
+    const remaining = pending.filter((passenger) => !passenger.busId);
+    const destinationScores = new Map<
+      string,
+      { matching: number; firstChoice: number }
+    >();
+    remaining.forEach((passenger) => {
+      passenger.preferences.forEach((destination, rank) => {
+        if (!destination) return;
+        const score = destinationScores.get(destination) ?? {
+          matching: 0,
+          firstChoice: 0,
+        };
+        score.matching += 1;
+        if (rank === 0) score.firstChoice += 1;
+        destinationScores.set(destination, score);
+      });
+    });
+    const destination = [...destinationScores.entries()].sort(
+      ([leftDestination, left], [rightDestination, right]) =>
+        right.matching - left.matching ||
+        right.firstChoice - left.firstChoice ||
+        leftDestination.localeCompare(rightDestination)
+    )[0]?.[0];
+    if (!destination) break;
+
+    addedBusCount += 1;
+    let labelIndex = addedBusCount;
+    while (usedLabels.has(`${destination} 추가 ${labelIndex}`)) labelIndex += 1;
+    const label = `${destination} 추가 ${labelIndex}`;
+    usedLabels.add(label);
+    const bus: AllocationWorkspaceBus = {
+      ...clone(template),
+      id: uniqueId('auto-bus'),
+      label,
+      destination,
+      maxAvailableCount: undefined,
+    };
+    buses.push(bus);
+
+    remaining
+      .filter((passenger) => passenger.preferences.includes(destination))
+      .sort(
+        (left, right) =>
+          left.preferences.indexOf(destination) -
+            right.preferences.indexOf(destination) ||
+          left.campus.localeCompare(right.campus) ||
+          left.team.localeCompare(right.team) ||
+          left.reservationId.localeCompare(right.reservationId)
+      )
+      .slice(0, bus.capacity)
+      .forEach((passenger) => assign(passenger, bus));
+  }
+
+  const changed =
+    addedBusCount > 0 ||
+    cancelledCount > 0 ||
+    !hasSamePassengers(workspace.passengers, passengers);
+  if (!changed) return workspace;
+
+  const now = new Date().toISOString();
+  return {
+    ...workspace,
+    buses,
+    passengers,
+    allowMinimumPassengerOverride: false,
+    allowOutOfPreferenceOverride: false,
+    outOfPreferenceAcknowledgement: undefined,
+    history: [
+      ...workspace.history,
+      {
+        id: uniqueId('history'),
+        at: now,
+        actorId: 'system',
+        action: 'active_reservations_refreshed',
+        detail: `활성 예약을 반영했습니다. 신규 ${newPassengerIds.size}명, 취소 제거 ${cancelledCount}명, 자동 추가 버스 ${addedBusCount}대.`,
+      },
+    ],
+  };
+};
+
 export const refreshDraftWorkspacePassengers = async (
   workspace: AllocationWorkspaceData
 ) => {
@@ -225,41 +448,15 @@ export const refreshDraftWorkspacePassengers = async (
   const existingById = new Map(
     workspace.passengers.map((passenger) => [passenger.reservationId, passenger])
   );
-  const passengers = reservationRows.map((row) =>
+  const activePassengers = reservationRows.map((row) =>
     reservationRowToWorkspacePassenger(row, existingById.get(row.id))
   );
-  const changed = !hasSamePassengers(workspace.passengers, passengers);
+  const refreshed = mergeActivePassengersIntoDraft(workspace, activePassengers);
+  const changed = refreshed !== workspace;
 
   return {
-    workspace: changed ? { ...workspace, passengers } : workspace,
+    workspace: refreshed,
     changed,
-  };
-};
-
-export const optimizeDraftWorkspace = (workspace: AllocationWorkspaceData) => {
-  if (workspace.status !== 'draft') return workspace;
-
-  const resetPassengers = workspace.passengers.map((passenger) => ({
-    ...passenger,
-    busId: null,
-    seatNumber: null,
-  }));
-  const initialAssignment = assignPassengersToPreferredBuses(
-    workspace.buses,
-    resetPassengers
-  );
-  const optimized =
-    workspace.optimization.mode === '최소 비용'
-      ? optimizePassengerAssignmentsForMinimumCost(
-          initialAssignment.buses,
-          initialAssignment.passengers
-        )
-      : initialAssignment;
-
-  return {
-    ...workspace,
-    buses: optimized.buses,
-    passengers: optimized.passengers,
   };
 };
 
@@ -278,6 +475,34 @@ export const getFirstChoiceCoverage = (workspace: AllocationWorkspaceData) => {
   }).length;
 
   return (firstChoiceCount / workspace.passengers.length) * 100;
+};
+
+export const getOutOfPreferencePassengerIds = (
+  workspace: AllocationWorkspaceData
+) => {
+  const busById = new Map(workspace.buses.map((bus) => [bus.id, bus]));
+  return workspace.passengers
+    .filter((passenger) => {
+      const bus = passenger.busId ? busById.get(passenger.busId) : undefined;
+      return Boolean(bus && !passenger.preferences.includes(bus.destination));
+    })
+    .map((passenger) => passenger.reservationId);
+};
+
+export const getBelowMinimumBusIds = (workspace: AllocationWorkspaceData) => {
+  const passengerCountByBus = new Map<string, number>();
+  workspace.passengers.forEach((passenger) => {
+    if (!passenger.busId) return;
+    passengerCountByBus.set(
+      passenger.busId,
+      (passengerCountByBus.get(passenger.busId) ?? 0) + 1
+    );
+  });
+  return workspace.buses
+    .filter(
+      (bus) => (passengerCountByBus.get(bus.id) ?? 0) < bus.minimumPassengers
+    )
+    .map((bus) => bus.id);
 };
 
 export const validateWorkspace = (
@@ -304,7 +529,7 @@ export const validateWorkspace = (
     }
     labels.add(bus.label.trim());
 
-    if (!bus.destination.trim()) errors.push(`${bus.label}: 도착역이 없습니다.`);
+    if (!bus.destination.trim()) errors.push(`${bus.label}: 행선지가 없습니다.`);
     if (!bus.departureTime.trim()) errors.push(`${bus.label}: 출발 시간이 없습니다.`);
     if (!bus.boardingPlace.trim()) errors.push(`${bus.label}: 탑승 장소가 없습니다.`);
 
@@ -323,8 +548,8 @@ export const validateWorkspace = (
 
     passengers.forEach((passenger) => {
       if (!passenger.preferences.includes(bus.destination)) {
-        errors.push(
-          `${passenger.name}: ${bus.destination}은 1·2지망 도착역이 아닙니다.`
+        warnings.push(
+          `${passenger.name}: ${bus.destination}은 1·2지망 외 행선지입니다. 관리자 확인이 필요합니다.`
         );
       }
 
@@ -333,7 +558,7 @@ export const validateWorkspace = (
         passenger.seatNumber < 1 ||
         passenger.seatNumber > bus.capacity
       ) {
-        errors.push(`${passenger.name}: 유효한 좌석번호가 필요합니다.`);
+        errors.push(`${passenger.name}: 유효한 좌석 번호가 필요합니다.`);
       } else if (seats.has(passenger.seatNumber)) {
         errors.push(`${bus.label}: ${passenger.seatNumber}번 좌석이 중복되었습니다.`);
       } else {
@@ -371,7 +596,7 @@ export const validateWorkspace = (
       errors.push(`${passenger.name}: 존재하지 않는 버스에 배차되었습니다.`);
     }
     if (passenger.preferences.length < 2) {
-      errors.push(`${passenger.name}: 1·2지망 도착역 정보가 필요합니다.`);
+      errors.push(`${passenger.name}: 1·2지망 행선지 정보가 필요합니다.`);
     }
   });
 
@@ -381,157 +606,17 @@ export const validateWorkspace = (
   };
 };
 
-export const createAllocationWorkspace = async ({
-  name,
-  allocation,
-  departureTime,
-  boardingPlace,
-  actorId,
-  optimizationMode,
-  firstChoiceWeight,
-  costWeight,
-}: {
-  name: string;
-  allocation: BusAllocationResult;
-  departureTime: string;
-  boardingPlace: string;
-  actorId: string;
-  optimizationMode: string;
-  firstChoiceWeight: number;
-  costWeight: number;
-}) => {
-  const reservationRows = await getActiveReservationRows();
-  const { data: optionRows, error: optionError } = await supabase
-    .from('bus_options')
-    .select('*');
-  if (optionError) throw optionError;
-  const buses: AllocationWorkspaceBus[] = [];
-  const optionByCapacityAndPrice = new Map(
-    (optionRows ?? []).map((option) => [
-      `${option.capacity}:${option.estimated_price}`,
-      option,
-    ])
-  );
-
-  allocation.routePlan.forEach((route) => {
-    route.destinations.forEach((destination, destinationIndex) => {
-      const option = optionByCapacityAndPrice.get(
-        `${route.capacity}:${route.price}`
-      );
-      buses.push({
-        id: uniqueId('bus'),
-        optionId: option?.id,
-        label:
-          route.destinations.length === 1
-            ? route.busLabel
-            : `${route.busLabel}-${destinationIndex + 1}`,
-        capacity: route.capacity,
-        price: route.price,
-        maxAvailableCount: option?.max_count ?? 999,
-        destination: destination.name,
-        departureTime,
-        boardingPlace,
-        minimumPassengers: 36,
-      });
-    });
+export const acquireAllocationWorkspaceLock = async (id: string) => {
+  const { data, error } = await supabase.rpc('acquire_allocation_workspace_lock', {
+    p_allocation_id: id,
   });
 
-  const passengers = reservationRows.map((row) =>
-    reservationRowToWorkspacePassenger(row)
-  );
-
-  const initialAssignment = assignPassengersToPreferredBuses(buses, passengers);
-
-  const optimized =
-    optimizationMode === '최소 비용'
-      ? optimizePassengerAssignmentsForMinimumCost(
-          initialAssignment.buses,
-          initialAssignment.passengers
-        )
-      : initialAssignment;
-  const now = new Date().toISOString();
-  const workspace: AllocationWorkspaceData = {
-    schemaVersion: 1,
-    status: 'draft',
-    sourceAllocation: allocation,
-    buses: optimized.buses,
-    passengers: optimized.passengers,
-    optimization: {
-      mode: optimizationMode,
-      firstChoiceWeight,
-      costWeight,
-    },
-    allowMinimumPassengerOverride: false,
-    versions: [],
-    history: [
-      {
-        id: uniqueId('history'),
-        at: now,
-        actorId,
-        action: 'draft_created',
-        detail: '자동 배차 임시안을 생성했습니다.',
-      },
-    ],
+  if (error) throwAllocationRpcError(error);
+  const result = data as {
+    lock_acquired: boolean;
+    row: AllocationWorkspaceRow;
   };
-  const totals = getWorkspaceTotals(workspace);
-  const { data, error } = await supabase
-    .from('bus_allocations')
-    .insert({
-      allocation_name: name,
-      allocation_data: workspace,
-      total_cost: totals.totalCost,
-      total_capacity: totals.totalCapacity,
-      created_by: actorId,
-    })
-    .select('*')
-    .single();
-
-  if (error) throw error;
-  return data as AllocationWorkspaceRow;
-};
-
-export const getAllocationWorkspace = async (id: string) => {
-  const { data, error } = await supabase
-    .from('bus_allocations')
-    .select('*')
-    .eq('id', id)
-    .single();
-
-  if (error) throw error;
-  return data as AllocationWorkspaceRow;
-};
-
-export const acquireAllocationWorkspaceLock = async (
-  id: string,
-  actorId: string
-) => {
-  const row = await getAllocationWorkspace(id);
-  const lock = row.allocation_data.editLock;
-  const isLockedByOther =
-    lock &&
-    lock.actorId !== actorId &&
-    new Date(lock.expiresAt).getTime() > Date.now();
-
-  if (isLockedByOther) {
-    return { row, readOnly: true };
-  }
-
-  const nextData: AllocationWorkspaceData = {
-    ...row.allocation_data,
-    editLock: {
-      actorId,
-      expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
-    },
-  };
-  const { data, error } = await supabase
-    .from('bus_allocations')
-    .update({ allocation_data: nextData })
-    .eq('id', id)
-    .select('*')
-    .single();
-
-  if (error) throw error;
-  return { row: data as AllocationWorkspaceRow, readOnly: false };
+  return { row: result.row, readOnly: !result.lock_acquired };
 };
 
 export const getDraftAllocationWorkspaceSummaries = async () => {
@@ -551,6 +636,25 @@ export const getDraftAllocationWorkspaceSummaries = async () => {
   }));
 };
 
+export const getConfirmedAllocationWorkspaceSummaries = async () => {
+  const { data, error } = await supabase.rpc(
+    'get_confirmed_allocation_summaries'
+  );
+
+  if (error) throwAllocationRpcError(error);
+  const rows = (data ?? []) as Array<
+    Omit<AllocationWorkspaceSummary, 'status'>
+  >;
+  return rows.map((row) => ({
+    ...row,
+    status: 'confirmed' as const,
+    total_cost: Number(row.total_cost),
+    total_capacity: Number(row.total_capacity),
+    bus_count: Number(row.bus_count),
+    passenger_count: Number(row.passenger_count),
+  }));
+};
+
 export const deleteDraftAllocationWorkspace = async (
   row: AllocationWorkspaceRow
 ) => {
@@ -558,17 +662,12 @@ export const deleteDraftAllocationWorkspace = async (
     throw new Error('임시 배차안만 삭제할 수 있습니다.');
   }
 
-  const { data, error } = await supabase
-    .from('bus_allocations')
-    .delete()
-    .eq('id', row.id)
-    .filter('allocation_data->>status', 'eq', 'draft')
-    .select('id');
+  const { error } = await supabase.rpc('delete_draft_allocation_workspace', {
+    p_allocation_id: row.id,
+    p_expected_revision: row.revision,
+  });
 
-  if (error) throw error;
-  if (!data || data.length === 0) {
-    throw new Error('임시 배차안이 이미 변경되었거나 삭제되었습니다.');
-  }
+  if (error) throwAllocationRpcError(error);
 };
 
 export const saveAllocationWorkspace = async (
@@ -577,46 +676,46 @@ export const saveAllocationWorkspace = async (
   actorId: string,
   detail = '배차안 변경사항을 저장했습니다.'
 ) => {
-  const nextWorkspace = prepareWorkspaceForSave(workspace, actorId, detail);
-  const totals = getWorkspaceTotals(nextWorkspace);
+  const prepared = prepareWorkspaceForSave(row.allocation_data, workspace, actorId, detail);
+  const totals = getWorkspaceTotals(prepared.workspace);
   const { data, error } = await supabase
-    .from('bus_allocations')
-    .update({
-      allocation_data: nextWorkspace,
-      total_cost: totals.totalCost,
-      total_capacity: totals.totalCapacity,
+    .rpc('save_draft_allocation_workspace_v2', {
+      p_allocation_id: row.id,
+      p_expected_revision: row.revision,
+      p_allocation_data: prepared.workspace,
+      p_total_cost: totals.totalCost,
+      p_total_capacity: totals.totalCapacity,
+      p_version_id: prepared.version.id,
+      p_version_label: prepared.version.label,
+      p_version_changes: prepared.version.changes,
     })
-    .eq('id', row.id)
-    .select('*')
     .single();
 
-  if (error) throw error;
+  if (error) throwAllocationRpcError(error);
   return data as AllocationWorkspaceRow;
 };
 
 const prepareWorkspaceForSave = (
+  previousWorkspace: AllocationWorkspaceData,
   workspace: AllocationWorkspaceData,
   actorId: string,
   detail: string
 ) => {
   const now = new Date().toISOString();
-  const nextWorkspace = clone(workspace);
   const versionId = uniqueId('version');
   const changes = describeAllocationWorkspaceChanges(
-    workspace.versions.at(-1),
+    previousWorkspace,
     workspace
   );
-  nextWorkspace.versions = [
-    ...nextWorkspace.versions,
-    {
-      id: versionId,
-      createdAt: now,
-      actorId,
-      label: `저장 ${nextWorkspace.versions.length + 1}`,
-      buses: clone(workspace.buses),
-      passengers: clone(workspace.passengers),
-    },
-  ].slice(-MAX_WORKSPACE_VERSIONS);
+  const { versions: _legacyVersions, ...workspaceWithoutVersions } = clone(workspace);
+  void _legacyVersions;
+  const label = `저장 ${previousWorkspace.history.filter(
+    (item) => item.versionId
+  ).length + 1}`;
+  const nextWorkspace: AllocationWorkspaceData = {
+    ...workspaceWithoutVersions,
+    schemaVersion: 2,
+  };
   nextWorkspace.history = [
     ...nextWorkspace.history,
     {
@@ -629,7 +728,47 @@ const prepareWorkspaceForSave = (
       versionId,
     },
   ];
-  return nextWorkspace;
+  return {
+    workspace: nextWorkspace,
+    version: {
+      id: versionId,
+      label,
+      changes,
+    },
+  };
+};
+
+export const getAllocationWorkspaceVersions = async (
+  allocationId: string
+): Promise<AllocationWorkspaceVersionSummary[]> => {
+  const { data, error } = await supabase.rpc('get_allocation_workspace_versions', {
+    p_allocation_id: allocationId,
+  });
+  if (error) throwAllocationRpcError(error);
+
+  return ((data ?? []) as Array<{
+    id: string;
+    created_at: string;
+    actor_id: string;
+    label: string;
+    changes: string[] | null;
+  }>).map((version) => ({
+    id: version.id,
+    createdAt: version.created_at,
+    actorId: version.actor_id,
+    label: version.label,
+    changes: version.changes ?? undefined,
+  }));
+};
+
+export const getAllocationWorkspaceVersionSnapshot = async (
+  versionId: string
+): Promise<AllocationWorkspaceSnapshot> => {
+  const { data, error } = await supabase.rpc('get_allocation_workspace_version_snapshot', {
+    p_version_id: versionId,
+  });
+  if (error) throwAllocationRpcError(error);
+  return data as unknown as AllocationWorkspaceSnapshot;
 };
 
 const throwAllocationRpcError = (error: {
@@ -640,14 +779,61 @@ const throwAllocationRpcError = (error: {
     error.code === 'PGRST202' ||
     error.message?.includes('schema cache') ||
     error.message?.includes('get_draft_allocation_summaries') ||
+    error.message?.includes('get_confirmed_allocation_summaries') ||
     error.message?.includes('validate_allocation_workspace_confirmation') ||
+    error.message?.includes('acquire_allocation_workspace_lock') ||
+    error.message?.includes('save_draft_allocation_workspace') ||
+    error.message?.includes('get_allocation_workspace_versions') ||
+    error.message?.includes('get_allocation_workspace_version_snapshot') ||
+    error.message?.includes('delete_draft_allocation_workspace') ||
+    error.message?.includes('remove_cancelled_passenger_from_confirmed_allocations') ||
     error.message?.includes('save_confirmed_allocation_workspace') ||
     error.message?.includes('cancel_confirmed_allocation_workspace')
   ) {
     throw new Error(
-      '배차 확정 DB 함수가 설치되지 않았습니다. Supabase SQL Editor에서 sql/setup/55_atomic_allocation_confirmation.sql을 실행해주세요.'
+      '배차 확정 또는 버전 저장 DB 함수가 설치되지 않았습니다. Supabase SQL Editor에서 sql/setup/55_atomic_allocation_confirmation.sql과 sql/setup/64_allocation_workspace_versions.sql을 순서대로 실행해주세요.'
     );
   }
+  const confirmationErrorMessages: Record<string, string> = {
+    'Allocation workspace changed. Reload before saving.':
+      '다른 관리자가 이 배차안을 변경했습니다. 최신 내용을 다시 불러온 뒤 저장해주세요.',
+    'Allocation workspace lock is owned by another administrator.':
+      '다른 관리자가 이 배차안을 편집 중입니다.',
+    'Allocation workspace lock expired. Reopen the workspace.':
+      '편집 잠금이 만료되었습니다. 배차안을 다시 열어주세요.',
+    'Allocation workspace not found.':
+      '배차안을 찾을 수 없습니다.',
+    'Only draft allocations can be deleted.':
+      '임시 배차안만 삭제할 수 있습니다.',
+    'Only global admins can edit allocations.':
+      '전체 관리자 권한이 있어야 배차안을 수정할 수 있습니다.',
+    'Only global admins can confirm allocations.':
+      '전체 관리자 권한이 없어 배차를 확정할 수 없습니다.',
+    'Invalid confirmed allocation payload.':
+      '확정할 배차 데이터의 형식이 올바르지 않습니다.',
+    'Only draft or confirmed allocations can be saved as confirmed.':
+      '이미 삭제되었거나 확정할 수 없는 상태의 배차안입니다.',
+    'Confirmed allocations need at least one bus and passenger.':
+      '배차 확정에는 버스와 승객이 각각 한 명 이상 필요합니다.',
+    'Every bus needs valid required details.':
+      '필수 정보가 누락되었거나 정원이 올바르지 않은 버스가 있습니다.',
+    'Every passenger needs a bus and valid seat number.':
+      '버스 또는 유효한 좌석 번호가 지정되지 않은 승객이 있습니다.',
+    'Duplicate reservation IDs exist in the allocation.':
+      '같은 신청자가 배차안에 중복으로 포함되어 있습니다.',
+    'Invalid bus, seat, or destination assignment exists.':
+      '버스, 좌석 번호 또는 행선지가 올바르지 않은 배차가 있습니다.',
+    'Duplicate seat assignments exist.':
+      '같은 버스에서 중복으로 배정된 좌석이 있습니다.',
+    'Active reservations changed after the draft was created.':
+      '임시 배차안 생성 후 활성 신청자가 변경되었습니다. 최신 신청자를 반영해주세요.',
+    'Not every active reservation was confirmed.':
+      '일부 활성 신청자의 배차 확정 처리가 누락되었습니다.',
+  };
+  const translatedMessage = error.message
+    ? confirmationErrorMessages[error.message]
+    : undefined;
+  if (translatedMessage) throw new Error(translatedMessage);
   throw error;
 };
 
@@ -656,7 +842,7 @@ export const validateAllocationWorkspaceConfirmation = async (
   workspace: AllocationWorkspaceData
 ) => {
   const { data, error } = await supabase.rpc(
-    'validate_allocation_workspace_confirmation',
+    'validate_allocation_workspace_confirmation_v2',
     {
       p_allocation_id: row.id,
       p_allocation_data: workspace,
@@ -672,11 +858,19 @@ export const confirmAllocationWorkspace = async (
   actorId: string
 ) => {
   const validation = validateWorkspace(workspace);
+  const belowMinimumBusIds = getBelowMinimumBusIds(workspace);
+  const outOfPreferencePassengerIds = getOutOfPreferencePassengerIds(workspace);
   if (validation.errors.length > 0) {
     throw new Error(validation.errors[0]);
   }
-  if (validation.warnings.length > 0 && !workspace.allowMinimumPassengerOverride) {
+  if (belowMinimumBusIds.length > 0 && !workspace.allowMinimumPassengerOverride) {
     throw new Error('최소 탑승 인원 미달 경고를 예외 승인해야 합니다.');
+  }
+  if (
+    outOfPreferencePassengerIds.length > 0 &&
+    !workspace.allowOutOfPreferenceOverride
+  ) {
+    throw new Error('1·2지망 외 배정 경고를 별도로 승인해야 합니다.');
   }
 
   const now = new Date().toISOString();
@@ -693,23 +887,28 @@ export const confirmAllocationWorkspace = async (
         action: 'confirmed',
         detail:
           validation.warnings.length > 0
-            ? '최소 탑승 인원 미달을 예외 승인하고 전체 배차를 확정했습니다.'
+            ? '관리자 경고 사항을 확인하고 전체 배차를 확정했습니다.'
             : '전체 배차를 확정했습니다.',
       },
     ],
   };
-  const savedWorkspace = prepareWorkspaceForSave(
+  const prepared = prepareWorkspaceForSave(
+    row.allocation_data,
     nextWorkspace,
     actorId,
     '확정 배차 상태를 저장했습니다.'
   );
-  const totals = getWorkspaceTotals(savedWorkspace);
+  const totals = getWorkspaceTotals(prepared.workspace);
   const { data, error } = await supabase
-    .rpc('save_confirmed_allocation_workspace', {
+    .rpc('save_confirmed_allocation_workspace_v3', {
       p_allocation_id: row.id,
-      p_allocation_data: savedWorkspace,
+      p_expected_revision: row.revision,
+      p_allocation_data: prepared.workspace,
       p_total_cost: totals.totalCost,
       p_total_capacity: totals.totalCapacity,
+      p_version_id: prepared.version.id,
+      p_version_label: prepared.version.label,
+      p_version_changes: prepared.version.changes,
     })
     .single();
 
@@ -737,18 +936,23 @@ export const cancelConfirmedWorkspace = async (
       },
     ],
   };
-  const savedWorkspace = prepareWorkspaceForSave(
+  const prepared = prepareWorkspaceForSave(
+    row.allocation_data,
     nextWorkspace,
     actorId,
     '확정 취소 상태를 저장했습니다.'
   );
-  const totals = getWorkspaceTotals(savedWorkspace);
+  const totals = getWorkspaceTotals(prepared.workspace);
   const { data, error } = await supabase
-    .rpc('cancel_confirmed_allocation_workspace', {
+    .rpc('cancel_confirmed_allocation_workspace_v2', {
       p_allocation_id: row.id,
-      p_allocation_data: savedWorkspace,
+      p_expected_revision: row.revision,
+      p_allocation_data: prepared.workspace,
       p_total_cost: totals.totalCost,
       p_total_capacity: totals.totalCapacity,
+      p_version_id: prepared.version.id,
+      p_version_label: prepared.version.label,
+      p_version_changes: prepared.version.changes,
     })
     .single();
 
@@ -762,23 +966,36 @@ export const saveConfirmedWorkspaceChanges = async (
   actorId: string
 ) => {
   const validation = validateWorkspace(workspace);
+  const belowMinimumBusIds = getBelowMinimumBusIds(workspace);
+  const outOfPreferencePassengerIds = getOutOfPreferencePassengerIds(workspace);
   if (validation.errors.length > 0) throw new Error(validation.errors[0]);
-  if (validation.warnings.length > 0 && !workspace.allowMinimumPassengerOverride) {
+  if (belowMinimumBusIds.length > 0 && !workspace.allowMinimumPassengerOverride) {
     throw new Error('최소 탑승 인원 미달 경고를 예외 승인해야 합니다.');
   }
+  if (
+    outOfPreferencePassengerIds.length > 0 &&
+    !workspace.allowOutOfPreferenceOverride
+  ) {
+    throw new Error('1·2지망 외 배정 경고를 별도로 승인해야 합니다.');
+  }
 
-  const savedWorkspace = prepareWorkspaceForSave(
+  const prepared = prepareWorkspaceForSave(
+    row.allocation_data,
     workspace,
     actorId,
     '확정 배차 수정사항을 즉시 반영했습니다.'
   );
-  const totals = getWorkspaceTotals(savedWorkspace);
+  const totals = getWorkspaceTotals(prepared.workspace);
   const { data, error } = await supabase
-    .rpc('save_confirmed_allocation_workspace', {
+    .rpc('save_confirmed_allocation_workspace_v3', {
       p_allocation_id: row.id,
-      p_allocation_data: savedWorkspace,
+      p_expected_revision: row.revision,
+      p_allocation_data: prepared.workspace,
       p_total_cost: totals.totalCost,
       p_total_capacity: totals.totalCapacity,
+      p_version_id: prepared.version.id,
+      p_version_label: prepared.version.label,
+      p_version_changes: prepared.version.changes,
     })
     .single();
 
@@ -788,54 +1005,13 @@ export const saveConfirmedWorkspaceChanges = async (
 
 export const removeCancelledPassengerFromConfirmedWorkspace = async (
   reservationId: string,
-  actorId: string
+  _actorId?: string
 ) => {
-  const { data, error: loadError } = await supabase
-    .from('bus_allocations')
-    .select('*')
-    .filter('allocation_data->>status', 'eq', 'confirmed');
-  if (loadError) throw loadError;
-  const confirmedRows = (data ?? []) as AllocationWorkspaceRow[];
-
-  await Promise.all(
-    confirmedRows.map(async (row) => {
-      const passenger = row.allocation_data.passengers.find(
-        (item) => item.reservationId === reservationId
-      );
-      if (!passenger) return;
-
-      const bus = row.allocation_data.buses.find(
-        (item) => item.id === passenger.busId
-      );
-      const nextWorkspace: AllocationWorkspaceData = {
-        ...clone(row.allocation_data),
-        passengers: row.allocation_data.passengers.filter(
-          (item) => item.reservationId !== reservationId
-        ),
-        history: [
-          ...row.allocation_data.history,
-          {
-            id: uniqueId('history'),
-            at: new Date().toISOString(),
-            actorId,
-            action: 'passenger_cancelled',
-            detail: `${passenger.name} 예매 취소: ${bus?.label ?? '미배차'} ${
-              passenger.seatNumber ?? '-'
-            }번 좌석을 빈자리로 남겼습니다.`,
-          },
-        ],
-      };
-      const totals = getWorkspaceTotals(nextWorkspace);
-      const { error } = await supabase
-        .from('bus_allocations')
-        .update({
-          allocation_data: nextWorkspace,
-          total_cost: totals.totalCost,
-          total_capacity: totals.totalCapacity,
-        })
-        .eq('id', row.id);
-
-      if (error) throw error;
-    })
+  void _actorId;
+  const { error } = await supabase.rpc(
+    'remove_cancelled_passenger_from_confirmed_allocations',
+    { p_reservation_id: reservationId }
   );
+
+  if (error) throwAllocationRpcError(error);
 };

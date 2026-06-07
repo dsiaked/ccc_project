@@ -3,13 +3,11 @@ import { ArrowLeft, CalendarClock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 import AdminHeader from './AdminHeader';
-import { getAdminRole } from '../../lib/adminService';
 import {
   formatReservationDeadline,
   getReservationDeadline,
   updateReservationDeadline,
 } from '../../lib/reservationDeadlineService';
-import { supabase } from '../../lib/supabase';
 
 import styles from './AdminReservationDeadlinePage.module.css';
 
@@ -58,7 +56,6 @@ const parseDateTimeLocal = (value: string) => {
 const AdminReservationDeadlinePage = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
-  const [isAdmin, setIsAdmin] = useState(false);
   const [deadlineAt, setDeadlineAt] = useState<string | null>(null);
   const [deadlineInput, setDeadlineInput] = useState('');
   const [saving, setSaving] = useState(false);
@@ -67,30 +64,12 @@ const AdminReservationDeadlinePage = () => {
   useEffect(() => {
     let isMounted = true;
 
-    const checkAdminAndLoadDeadline = async () => {
+    const loadDeadline = async () => {
       try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-
-        if (!session) {
-          navigate('/admin/login');
-          return;
-        }
-
-        const adminRole = await getAdminRole(session.user.id);
-
-        if (!adminRole || adminRole.role !== 'global_admin') {
-          alert('전체 관리자만 접근할 수 있습니다.');
-          navigate('/');
-          return;
-        }
-
         const setting = await getReservationDeadline();
 
         if (!isMounted) return;
 
-        setIsAdmin(true);
         setDeadlineAt(setting.deadlineAt);
         setDeadlineInput(formatDateTimeLocal(setting.deadlineAt));
         setNowMs(Date.now());
@@ -109,12 +88,12 @@ const AdminReservationDeadlinePage = () => {
       }
     };
 
-    checkAdminAndLoadDeadline();
+    void loadDeadline();
 
     return () => {
       isMounted = false;
     };
-  }, [navigate]);
+  }, []);
 
   const isClosed = Boolean(deadlineAt && new Date(deadlineAt).getTime() <= nowMs);
 
@@ -122,15 +101,15 @@ const AdminReservationDeadlinePage = () => {
     const deadlineIso = parseDateTimeLocal(deadlineInput);
 
     if (deadlineInput && !deadlineIso) {
-      alert('마감 기한을 올바른 날짜와 시간으로 입력해주세요.');
+      alert('신청 마감 일시를 올바른 날짜와 시간으로 입력해주세요.');
       return;
     }
 
     const confirmMessage = deadlineIso
-      ? `신청 마감 기한을 ${formatReservationDeadline(
+      ? `신청 마감 일시를 ${formatReservationDeadline(
           deadlineIso
         )}(으)로 설정할까요?`
-      : '신청 마감 기한을 해제할까요?';
+      : '신청 마감 일시를 해제할까요?';
 
     const ok = window.confirm(confirmMessage);
 
@@ -145,7 +124,7 @@ const AdminReservationDeadlinePage = () => {
       setDeadlineInput(formatDateTimeLocal(savedDeadline.deadlineAt));
       setNowMs(Date.now());
 
-      alert('신청 마감 기한을 저장했습니다.');
+      alert('신청 마감 일시를 저장했습니다.');
     } catch (error) {
       console.error('신청 마감 저장 실패:', error);
       alert(
@@ -162,17 +141,6 @@ const AdminReservationDeadlinePage = () => {
         <AdminHeader />
         <main className={styles.main}>
           <p>로딩 중...</p>
-        </main>
-      </div>
-    );
-  }
-
-  if (!isAdmin) {
-    return (
-      <div className={styles.pageContainer}>
-        <AdminHeader />
-        <main className={styles.main}>
-          <p>관리자만 접근할 수 있습니다.</p>
         </main>
       </div>
     );
@@ -197,7 +165,7 @@ const AdminReservationDeadlinePage = () => {
             <span className={styles.overline}>운영 시나리오 4단계</span>
             <h1>신청 마감 설정</h1>
             <p>
-              설정한 기한 이후에는 사용자가 버스 예매 신청이나 수정을 저장할 수
+              설정한 기한 이후에는 사용자가 버스 신청이나 수정을 저장할 수
               없습니다.
             </p>
           </div>
@@ -216,7 +184,7 @@ const AdminReservationDeadlinePage = () => {
           <h2>사용 방법</h2>
           <ol>
             <li>마감할 날짜와 시간을 선택합니다.</li>
-            <li>저장하면 그 시각 이후부터 사용자 예매 저장이 막힙니다.</li>
+            <li>저장하면 그 시각 이후부터 사용자 신청 저장이 막힙니다.</li>
             <li>기한을 비우고 저장하면 다시 신청 가능한 상태가 됩니다.</li>
           </ol>
         </section>
@@ -224,7 +192,7 @@ const AdminReservationDeadlinePage = () => {
         <section className={styles.formPanel}>
           <div className={styles.formGrid}>
             <label className={styles.field}>
-              <span>마감 기한</span>
+              <span>신청 마감 일시</span>
               <input
                 type="datetime-local"
                 value={deadlineInput}
@@ -238,9 +206,9 @@ const AdminReservationDeadlinePage = () => {
               <p>
                 {deadlineAt
                   ? isClosed
-                    ? '현재 사용자는 새 예매를 저장할 수 없습니다.'
-                    : '마감 전까지 사용자는 예매를 저장할 수 있습니다.'
-                  : '아직 마감 기한이 설정되지 않았습니다.'}
+                    ? '현재 사용자는 새 신청을 저장할 수 없습니다.'
+                    : '마감 전까지 사용자는 신청을 저장할 수 있습니다.'
+                  : '아직 신청 마감 일시가 설정되지 않았습니다.'}
               </p>
             </div>
           </div>
@@ -261,7 +229,7 @@ const AdminReservationDeadlinePage = () => {
               onClick={handleSaveDeadline}
               disabled={saving}
             >
-              {saving ? '저장 중...' : '마감 기한 저장'}
+              {saving ? '저장 중...' : '신청 마감 일시 저장'}
             </button>
           </div>
         </section>

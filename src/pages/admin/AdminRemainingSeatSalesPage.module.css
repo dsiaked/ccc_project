@@ -1,37 +1,38 @@
 .pageContainer {
   min-height: 100vh;
   background: #f3f4f6;
-  display: flex;
-  flex-direction: column;
 }
 
 .main {
-  flex: 1;
   width: 100%;
   max-width: 1180px;
   margin: 0 auto;
-  padding: 20px;
-  padding-top: 100px;
+  padding: 100px 20px 48px;
 }
 
-.backButton {
+.backButton,
+.refreshButton,
+.operationPanel button,
+.claimActions button,
+.busCardHeader button {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  height: 40px;
-  padding: 0 14px;
-  margin-bottom: 18px;
-  border: 1px solid #d0d5dd;
+  justify-content: center;
+  gap: 7px;
   border-radius: 10px;
-  background: #ffffff;
-  color: #344054;
-  font-size: 14px;
-  font-weight: 800;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 900;
   cursor: pointer;
 }
 
-.backButton:hover {
-  background: #f9fafb;
+.backButton {
+  height: 40px;
+  margin-bottom: 18px;
+  padding: 0 14px;
+  border: 1px solid #d0d5dd;
+  background: #ffffff;
+  color: #344054;
 }
 
 .header {
@@ -42,15 +43,14 @@
 }
 
 .headerIcon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: grid;
+  flex-shrink: 0;
   width: 58px;
   height: 58px;
+  place-items: center;
   border-radius: 16px;
   background: #dcfce7;
   color: #166534;
-  flex-shrink: 0;
 }
 
 .header h1 {
@@ -67,72 +67,13 @@
   line-height: 1.6;
 }
 
-.controlPanel {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 14px;
+.loadErrorBox,
+.operationPanel,
+.panel {
   margin-bottom: 16px;
-  padding: 18px;
   border: 1px solid #eaecf0;
-  border-radius: 14px;
+  border-radius: 16px;
   background: #ffffff;
-}
-
-.controlPanel label {
-  flex: 1;
-  display: grid;
-  gap: 8px;
-}
-
-.controlPanel label span,
-.formGrid label span {
-  color: #344054;
-  font-size: 13px;
-  font-weight: 900;
-}
-
-.controlPanel select,
-.formGrid input,
-.searchBox input {
-  width: 100%;
-  height: 42px;
-  border: 1px solid #d0d5dd;
-  border-radius: 10px;
-  background: #ffffff;
-  color: #101828;
-  font-size: 14px;
-  font-weight: 700;
-  font-family: inherit;
-  outline: none;
-}
-
-.controlPanel select,
-.formGrid input {
-  padding: 0 12px;
-}
-
-.controlPanel select:focus,
-.formGrid input:focus,
-.searchBox input:focus {
-  border-color: #22c55e;
-  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.12);
-}
-
-.controlPanel button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  height: 42px;
-  padding: 0 14px;
-  border: 1px solid #bbf7d0;
-  border-radius: 10px;
-  background: #f0fdf4;
-  color: #166534;
-  font-size: 14px;
-  font-weight: 900;
-  cursor: pointer;
 }
 
 .loadErrorBox {
@@ -140,49 +81,81 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 16px;
   padding: 16px;
-  border: 1px solid #fed7aa;
-  border-radius: 12px;
+  border-color: #fed7aa;
   background: #fff7ed;
-}
-
-.loadErrorBox strong {
-  display: block;
-  margin-bottom: 6px;
   color: #9a3412;
-  font-size: 14px;
-  font-weight: 900;
 }
 
-.loadErrorBox p {
-  margin: 0;
-  color: #c2410c;
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 1.5;
-}
-
+.loadErrorBox p,
 .loadErrorBox small {
   display: block;
-  margin-top: 8px;
-  color: #9a3412;
-  font-size: 12px;
-  font-weight: 800;
-  line-height: 1.5;
+  margin: 5px 0 0;
 }
 
 .loadErrorBox button {
   flex-shrink: 0;
-  height: 38px;
-  padding: 0 14px;
+  padding: 10px 14px;
   border: 1px solid #fdba74;
-  border-radius: 9px;
+  border-radius: 10px;
   background: #ffffff;
   color: #9a3412;
-  font-size: 13px;
   font-weight: 900;
-  cursor: pointer;
+}
+
+.operationPanel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 18px;
+}
+
+.operationPanel div {
+  display: grid;
+  gap: 4px;
+}
+
+.operationPanel span,
+.panelHeader span {
+  color: #667085;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.operationPanel strong {
+  color: #101828;
+  font-size: 20px;
+  font-weight: 900;
+}
+
+.operationPanel p {
+  margin: 0;
+  color: #667085;
+  font-size: 13px;
+}
+
+.operationPanel button {
+  min-height: 42px;
+  padding: 0 14px;
+}
+
+.closeSalesButton {
+  border: 1px solid #fecaca;
+  background: #fff1f2;
+  color: #be123c;
+}
+
+.openSalesButton {
+  border: 1px solid #86efac;
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.refreshButton {
+  border: 1px solid #d0d5dd;
+  background: #ffffff;
+  color: #344054;
 }
 
 .summaryGrid {
@@ -195,7 +168,7 @@
 .summaryGrid div {
   padding: 16px;
   border: 1px solid #eaecf0;
-  border-radius: 12px;
+  border-radius: 13px;
   background: #ffffff;
 }
 
@@ -208,162 +181,50 @@
 
 .summaryGrid strong {
   display: block;
-  margin-top: 8px;
+  margin-top: 7px;
   color: #101828;
   font-size: 24px;
   font-weight: 900;
 }
 
-.emptyState {
-  padding: 28px;
-  border: 1px dashed #cbd5e1;
-  border-radius: 14px;
-  background: #ffffff;
-  color: #475569;
-  font-size: 15px;
-  font-weight: 800;
-  text-align: center;
+.attentionSummary {
+  border-color: #fde68a !important;
+  background: #fffbeb !important;
 }
 
-.contentGrid {
-  display: grid;
-  grid-template-columns: minmax(320px, 0.85fr) minmax(0, 1.15fr);
-  gap: 16px;
-  align-items: start;
+.attentionSummary strong {
+  color: #a16207;
 }
 
 .panel {
   padding: 18px;
-  border: 1px solid #eaecf0;
-  border-radius: 14px;
-  background: #ffffff;
 }
 
 .panelHeader {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
+  gap: 14px;
   margin-bottom: 14px;
 }
 
 .panelHeader h2 {
-  margin: 0;
+  margin: 4px 0 0;
   color: #101828;
-  font-size: 17px;
+  font-size: 19px;
   font-weight: 900;
 }
 
-.panelHeader span {
-  color: #15803d;
-  font-size: 12px;
-  font-weight: 900;
-  text-align: right;
-}
-
-.routeList,
-.candidateList {
-  display: grid;
-  gap: 10px;
-}
-
-.routeCard,
-.candidateCard {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 14px;
-  width: 100%;
-  padding: 14px;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  background: #ffffff;
-  text-align: left;
-  cursor: pointer;
-}
-
-.routeCard:hover,
-.candidateCard:hover {
-  border-color: #86efac;
-  background: #f7fef9;
-}
-
-.selectedRoute,
-.selectedCandidate {
-  border-color: #22c55e;
-  background: #f0fdf4;
-}
-
-.routeCard strong,
-.candidateCard strong {
-  display: block;
-  color: #101828;
-  font-size: 14px;
-  font-weight: 900;
-}
-
-.routeCard p,
-.candidateCard p {
-  margin: 5px 0 0;
-  color: #667085;
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 1.45;
-}
-
-.routeCard > span,
-.candidateCard > span {
-  flex-shrink: 0;
-  display: grid;
-  gap: 3px;
+.panelHeader > strong {
   color: #15803d;
   font-size: 13px;
   font-weight: 900;
-  text-align: right;
-}
-
-.routeCard small {
-  color: #667085;
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.formGrid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  margin-bottom: 14px;
-}
-
-.formGrid label {
-  display: grid;
-  gap: 7px;
-}
-
-.searchBox {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  height: 42px;
-  margin-bottom: 12px;
-  padding: 0 12px;
-  border: 1px solid #d0d5dd;
-  border-radius: 10px;
-  background: #ffffff;
-  color: #667085;
-}
-
-.searchBox input {
-  height: 40px;
-  padding: 0;
-  border: 0;
-  box-shadow: none;
 }
 
 .emptyText {
   margin: 0;
-  padding: 16px;
-  border-radius: 10px;
+  padding: 22px;
+  border-radius: 12px;
   background: #f9fafb;
   color: #667085;
   font-size: 14px;
@@ -371,58 +232,276 @@
   text-align: center;
 }
 
-.confirmButton {
+.claimList {
+  display: grid;
+  gap: 12px;
+}
+
+.claimCard {
+  padding: 16px;
+  border: 1px solid #fde68a;
+  border-radius: 14px;
+  background: #fffdf5;
+}
+
+.claimMain {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.pendingBadge {
   display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  margin-bottom: 7px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #a16207;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.claimMain h3 {
+  margin: 0;
+  color: #101828;
+  font-size: 17px;
+  font-weight: 900;
+}
+
+.claimMain p {
+  margin: 5px 0 0;
+  color: #667085;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.amountBlock {
+  display: grid;
+  gap: 3px;
+  text-align: right;
+}
+
+.amountBlock span,
+.amountBlock small {
+  color: #667085;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.amountBlock strong {
+  color: #101828;
+  font-size: 19px;
+  font-weight: 900;
+}
+
+.claimDetails {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
-  width: 100%;
-  height: 46px;
-  margin-top: 14px;
-  border: none;
+  margin: 14px 0;
+}
+
+.claimDetails div {
+  min-width: 0;
+  padding: 10px;
   border-radius: 10px;
+  background: #ffffff;
+}
+
+.claimDetails dt {
+  color: #667085;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.claimDetails dd {
+  margin: 4px 0 0;
+  color: #101828;
+  font-size: 13px;
+  font-weight: 900;
+  overflow-wrap: anywhere;
+}
+
+.claimActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.claimActions button {
+  min-height: 40px;
+  padding: 0 13px;
+  border: none;
+}
+
+.confirmButton {
   background: #16a34a;
   color: #ffffff;
+}
+
+.cancelButton {
+  background: #fff1f2;
+  color: #be123c;
+}
+
+.claimActions button:disabled,
+.operationPanel button:disabled,
+.busCardHeader button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.busGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.busCard {
+  padding: 14px;
+  border: 1px solid #bbf7d0;
+  border-radius: 13px;
+  background: #f7fef9;
+}
+
+.hiddenBusCard {
+  border-color: #e5e7eb;
+  background: #f9fafb;
+  opacity: 0.78;
+}
+
+.busCardHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.busCardHeader > div {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 3px 7px;
+  min-width: 0;
+  color: #15803d;
+}
+
+.busCardHeader svg {
+  grid-row: 1 / 3;
+}
+
+.busCardHeader strong {
+  color: #101828;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.busCardHeader span {
+  color: #667085;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.busCardHeader button {
+  flex-shrink: 0;
+  padding: 7px 9px;
+  border: 1px solid #d0d5dd;
+  background: #ffffff;
+  color: #344054;
+}
+
+.busMetrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+  margin-top: 13px;
+}
+
+.busMetrics div {
+  display: grid;
+  gap: 4px;
+  padding: 9px;
+  border-radius: 9px;
+  background: #ffffff;
+}
+
+.busMetrics span {
+  color: #667085;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.busMetrics strong {
+  color: #101828;
   font-size: 15px;
+  font-weight: 900;
+}
+
+.completedToggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #344054;
+  font: inherit;
+  font-size: 14px;
   font-weight: 900;
   cursor: pointer;
 }
 
-.confirmButton:hover {
-  background: #15803d;
+.completedToggle span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
-.confirmButton:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
+.completedList {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.completedList > div {
+  display: grid;
+  grid-template-columns: 1fr 1.5fr auto;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 10px;
+  background: #f9fafb;
+}
+
+.completedList strong,
+.completedList b {
+  color: #101828;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.completedList span {
+  color: #667085;
+  font-size: 13px;
+  font-weight: 700;
 }
 
 @media (max-width: 900px) {
+  .operationPanel,
   .summaryGrid,
-  .contentGrid,
-  .formGrid {
-    grid-template-columns: 1fr;
+  .busGrid,
+  .claimDetails {
+    grid-template-columns: 1fr 1fr;
   }
 
-  .controlPanel {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .controlPanel button,
-  .loadErrorBox button {
-    width: 100%;
-  }
-
-  .loadErrorBox {
-    flex-direction: column;
+  .operationPanel div {
+    grid-column: 1 / -1;
   }
 }
 
 @media (max-width: 640px) {
   .main {
-    padding: 16px;
-    padding-top: 92px;
+    padding: 92px 14px 32px;
   }
 
   .header {
@@ -431,5 +510,26 @@
 
   .header h1 {
     font-size: 25px;
+  }
+
+  .operationPanel,
+  .summaryGrid,
+  .busGrid,
+  .claimDetails,
+  .completedList > div {
+    grid-template-columns: 1fr;
+  }
+
+  .claimMain,
+  .claimActions {
+    flex-direction: column;
+  }
+
+  .amountBlock {
+    text-align: left;
+  }
+
+  .claimActions button {
+    width: 100%;
   }
 }

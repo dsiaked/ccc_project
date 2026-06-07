@@ -1,24 +1,19 @@
 export {
-  assignCampusAdmin,
   cancelCampusAdmin,
   getAdminRole,
-  getAllDistricts,
+  getAdminRoles,
   getCampusesByTeam,
-  getCampusAdminByCampus,
   getDistrictsForAdmin,
   getTeamsByDistrict,
   registerCampusAdmin,
-  removeCampusAdmin,
-  searchUsersForAdmin,
   searchUsersForCampusManager,
-  setAdminRole,
+  setActiveCampusAdminRole,
 } from '../adminService';
 
 export type {
   AdminRole,
   AdminRoleType,
   AdminUserSearchResult,
-  CampusAdminRole,
   CampusManagerSearchParams,
   CampusOptionViewRow,
   SelectOption,

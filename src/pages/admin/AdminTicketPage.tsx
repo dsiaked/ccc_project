@@ -3,7 +3,6 @@ import { ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import AdminHeader from './AdminHeader';
 import { supabase } from '../../lib/supabase';
-import { getAdminRole } from '../../lib/adminService';
 import { getParticipationTargetsSetting } from '../../lib/participationTargetsService';
 import type { ReturnBusReservation } from '../../types/reservation';
 import styles from './AdminTicketPage.module.css';
@@ -14,7 +13,12 @@ interface ReservationWithUser extends ReturnBusReservation {
 
 type ParticipationScope = 'district' | 'team' | 'campus';
 type CoverageScopeFilter = 'all' | ParticipationScope;
-type CoverageSortOption = 'organization' | 'rate-desc' | 'rate-asc';
+type CoverageSortOption =
+  | 'organization'
+  | 'rate-desc'
+  | 'rate-asc'
+  | 'subscriber-rate-desc'
+  | 'subscriber-rate-asc';
 
 interface CoverageRow {
   key: string;
@@ -29,18 +33,22 @@ interface CoverageRow {
   cancelledCount: number;
   participantTarget: number;
   reservationRate: number | null;
+  subscriberRate: number | null;
   reservationGap: number | null;
   campusAdminName: string | null;
   campusAdminPhone: string | null;
+  campusAdminManagedCount: number;
 }
 
 type CoverageBaseRow = Omit<
   CoverageRow,
   | 'participantTarget'
   | 'reservationRate'
+  | 'subscriberRate'
   | 'reservationGap'
   | 'campusAdminName'
   | 'campusAdminPhone'
+  | 'campusAdminManagedCount'
 >;
 
 interface ReservationRow {
@@ -74,6 +82,7 @@ interface CampusOptionRow {
 interface CampusAdminProfile {
   name: string | null;
   phone: string | null;
+  managedCampusCount?: number;
 }
 
 interface CampusAdminRow {
@@ -196,7 +205,6 @@ const AdminTicketPage = () => {
     SubscriberProfileRow[]
   >([]);
   const [loading, setLoading] = useState(true);
-  const [isAdmin, setIsAdmin] = useState(false);
   const [coverageScopeFilter, setCoverageScopeFilter] =
     useState<CoverageScopeFilter>('campus');
   const [coverageSearchText, setCoverageSearchText] = useState('');
@@ -206,27 +214,8 @@ const AdminTicketPage = () => {
     Record<string, number>
   >({});
   useEffect(() => {
-    const checkAdminAndLoadReservations = async () => {
+    const loadReservations = async () => {
       try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-
-        if (!session) {
-          navigate('/login');
-          return;
-        }
-
-        const adminRole = await getAdminRole(session.user.id);
-
-        if (!adminRole || adminRole.role !== 'global_admin') {
-          alert('전체 관리자만 접근할 수 있습니다.');
-          navigate('/');
-          return;
-        }
-
-        setIsAdmin(true);
-
         const [
           reservationData,
           subscriberProfileData,
@@ -309,9 +298,9 @@ const AdminTicketPage = () => {
             campus: savedData.campus || item.campus || '',
             stationPreferences:
               savedData.stationPreferences || item.station_preferences || [],
-            status: savedData.status || item.status || 'requested',
+            status: item.status || savedData.status || 'requested',
             confirmedTicket:
-              savedData.confirmedTicket || item.confirmed_ticket || undefined,
+              item.confirmed_ticket || savedData.confirmedTicket || undefined,
             requestedAt:
               savedData.requestedAt ||
               item.created_at ||
@@ -355,17 +344,25 @@ const AdminTicketPage = () => {
         setParticipationTargets(participationSetting.targets);
       } catch (error) {
         console.error('Failed to load reservations:', error);
-        alert('예약 정보를 로드할 수 없습니다.');
+        alert('신청 정보를 로드할 수 없습니다.');
       } finally {
         setLoading(false);
       }
     };
 
-    checkAdminAndLoadReservations();
-  }, [navigate]);
+    void loadReservations();
+  }, []);
 
   const campusAdminMap = useMemo(() => {
     const map = new Map<string, CampusAdminProfile>();
+    const managedCampusCounts = new Map<string, number>();
+
+    campusAdmins.forEach((admin) => {
+      managedCampusCounts.set(
+        admin.user_id,
+        (managedCampusCounts.get(admin.user_id) ?? 0) + 1
+      );
+    });
 
     campusAdmins.forEach((admin) => {
       if (!admin.district || !admin.team || !admin.campus) return;
@@ -382,6 +379,7 @@ const AdminTicketPage = () => {
       map.set(key, {
         name: admin.profile?.name || null,
         phone: admin.profile?.phone || null,
+        managedCampusCount: managedCampusCounts.get(admin.user_id) ?? 1,
       });
     });
 
@@ -499,8 +497,12 @@ const AdminTicketPage = () => {
           participantTarget,
           reservationGap,
           reservationRate:
+            row.subscriberCount > 0
+              ? (row.reservationCount / row.subscriberCount) * 100
+              : null,
+          subscriberRate:
             participantTarget > 0
-              ? (row.reservationCount / participantTarget) * 100
+              ? (row.subscriberCount / participantTarget) * 100
               : null,
           campusAdminName:
             row.scope === 'campus'
@@ -510,6 +512,10 @@ const AdminTicketPage = () => {
             row.scope === 'campus'
               ? campusAdminMap.get(row.key)?.phone || null
               : null,
+          campusAdminManagedCount:
+            row.scope === 'campus'
+              ? campusAdminMap.get(row.key)?.managedCampusCount || 0
+              : 0,
         };
       })
       .sort((a, b) => {
@@ -565,13 +571,17 @@ const AdminTicketPage = () => {
     if (coverageSortOption === 'organization') return rows;
 
     return [...rows].sort((a, b) => {
-      if (a.reservationRate === null) return b.reservationRate === null ? 0 : 1;
-      if (b.reservationRate === null) return -1;
+      const rateKey = coverageSortOption.startsWith('subscriber-rate')
+        ? 'subscriberRate'
+        : 'reservationRate';
+      const aRate = a[rateKey];
+      const bRate = b[rateKey];
+
+      if (aRate === null) return bRate === null ? 0 : 1;
+      if (bRate === null) return -1;
 
       const rateDifference =
-        coverageSortOption === 'rate-desc'
-          ? b.reservationRate - a.reservationRate
-          : a.reservationRate - b.reservationRate;
+        coverageSortOption.endsWith('-desc') ? bRate - aRate : aRate - bRate;
 
       return rateDifference || a.label.localeCompare(b.label, 'ko');
     });
@@ -588,6 +598,15 @@ const AdminTicketPage = () => {
   const lowReservationRateCampusCount = campusCoverageRows.filter(
     (row) => row.reservationRate !== null && row.reservationRate < 50
   ).length;
+  const lowSubscriberRateCampusCount = campusCoverageRows.filter(
+    (row) => row.subscriberRate !== null && row.subscriberRate < 50
+  ).length;
+  const totalReservationRate =
+    subscriberCount > 0 ? (activeReservationCount / subscriberCount) * 100 : null;
+  const totalSubscriberRate =
+    totalParticipantTarget > 0
+      ? (subscriberCount / totalParticipantTarget) * 100
+      : null;
 
   if (loading) {
     return (
@@ -595,17 +614,6 @@ const AdminTicketPage = () => {
         <AdminHeader />
         <main className={styles.main}>
           <p>로딩 중...</p>
-        </main>
-      </div>
-    );
-  }
-
-  if (!isAdmin) {
-    return (
-      <div className={styles.pageContainer}>
-        <AdminHeader />
-        <main className={styles.main}>
-          <p>관리자만 접근할 수 있습니다.</p>
         </main>
       </div>
     );
@@ -630,10 +638,10 @@ const AdminTicketPage = () => {
         <div className={styles.header}>
           <div>
             <p className={styles.eyebrow}>버스표 운영 현황</p>
-            <h1>참여 기준 대비 신청률</h1>
+            <h1>가입 및 신청 전환 현황</h1>
             <p>
-              캠퍼스별 참여 기준과 신청 현황을 비교해 배차 전 확인이 필요한
-              조직을 점검합니다.
+              캠퍼스별 가입 인원, 신청 인원, 예상 참여 인원을 비교해 배차 전 확인이
+              필요한 조직을 점검합니다.
             </p>
           </div>
         </div>
@@ -641,13 +649,13 @@ const AdminTicketPage = () => {
         <div className={styles.statsBar}>
           {[
             {
-              label: '예매인원',
+              label: '신청 인원',
               value: activeReservationCount,
               description: '관리자 신청 취소 제외',
               tone: 'reservation',
             },
             {
-              label: '가입인원',
+              label: '가입 인원',
               value: subscriberCount,
               description: '전체 가입 프로필',
               tone: 'subscriber',
@@ -655,7 +663,7 @@ const AdminTicketPage = () => {
             {
               label: '수련회 참여인원',
               value: totalParticipantTarget,
-              description: '등록된 참여 기준 합계',
+              description: '등록된 예상 참여 인원 합계',
               tone: 'participant',
             },
           ].map((item) => (
@@ -676,13 +684,11 @@ const AdminTicketPage = () => {
         <div className={styles.coverageSection}>
           <div className={styles.sectionHeader}>
             <div>
-              <h2>조직별 신청률</h2>
+              <h2>조직별 신청률 및 가입률</h2>
               <p>
-                참여 인원은 수련회 등록 인원이며, 예매 인원은 실제 수련회 버스를
-                예매한 인원입니다. 두 집계 기준이 달라 예매율은 100%를 초과하거나
-                100%에 미달할 수 있습니다. 캠퍼스 참여 기준을 바탕으로 팀과 지구
-                신청률을 자동 합산하며, 기준 미입력 조직은 먼저 참여 기준을
-                설정해주세요.
+                신청률은 가입 인원 중 버스를 신청한 비율(신청 인원 ÷ 가입 인원)이며,
+                가입률은 예상 참여 인원 중 가입을 완료한 비율(가입 인원 ÷ 참여 인원)입니다.
+                캠퍼스 데이터를 바탕으로 팀과 지구 비율도 자동 합산합니다.
               </p>
             </div>
 
@@ -714,15 +720,17 @@ const AdminTicketPage = () => {
             <div className={styles.coverageToolbarActions}>
               <select
                 className={styles.coverageSortSelect}
-                aria-label="예매 현황 정렬"
+                aria-label="신청 현황 정렬"
                 value={coverageSortOption}
                 onChange={(event) =>
                   setCoverageSortOption(event.target.value as CoverageSortOption)
                 }
               >
                 <option value="organization">조직 순</option>
-                <option value="rate-desc">예매율 높은 순</option>
-                <option value="rate-asc">예매율 낮은 순</option>
+                <option value="rate-desc">신청률 높은 순</option>
+                <option value="rate-asc">신청률 낮은 순</option>
+                <option value="subscriber-rate-desc">가입률 높은 순</option>
+                <option value="subscriber-rate-asc">가입률 낮은 순</option>
               </select>
 
               <input
@@ -737,9 +745,30 @@ const AdminTicketPage = () => {
 
           <div className={styles.coverageInsightGrid}>
             <div className={styles.coverageInsight}>
-              <span>예매율 50% 미만 캠퍼스 / 전체 캠퍼스</span>
+              <span>전체 신청률 · 신청 인원 / 가입 인원</span>
+              <strong>
+                {totalReservationRate === null
+                  ? '-'
+                  : `${totalReservationRate.toFixed(1)}%`}
+              </strong>
+            </div>
+            <div className={styles.coverageInsight}>
+              <span>전체 가입률 · 가입 인원 / 참여 인원</span>
+              <strong>
+                {totalSubscriberRate === null ? '-' : `${totalSubscriberRate.toFixed(1)}%`}
+              </strong>
+            </div>
+            <div className={styles.coverageInsight}>
+              <span>신청률 50% 미만 캠퍼스 / 전체 캠퍼스</span>
               <strong>
                 {lowReservationRateCampusCount.toLocaleString()} /{' '}
+                {campusCoverageRows.length.toLocaleString()}개
+              </strong>
+            </div>
+            <div className={styles.coverageInsight}>
+              <span>가입률 50% 미만 캠퍼스 / 전체 캠퍼스</span>
+              <strong>
+                {lowSubscriberRateCampusCount.toLocaleString()} /{' '}
                 {campusCoverageRows.length.toLocaleString()}개
               </strong>
             </div>
@@ -752,9 +781,10 @@ const AdminTicketPage = () => {
                   <th>단위</th>
                   <th>조직</th>
                   <th className={styles.peopleHeader}>
-                    예매인원 / 가입인원 / 수련회 참여인원
+                    신청 인원 / 가입 인원 / 수련회 참여인원
                   </th>
-                  <th>예매율</th>
+                  <th>신청률 (신청/가입)</th>
+                  <th>가입률 (가입/참여)</th>
                   <th>관리자</th>
                   <th>확정</th>
                   <th>관리자에 의한 신청 취소</th>
@@ -764,14 +794,18 @@ const AdminTicketPage = () => {
               <tbody>
                 {filteredCoverageRows.length === 0 ? (
                   <tr>
-                    <td className={styles.emptyCoverageCell} colSpan={7}>
-                      조건에 맞는 예매 현황이 없습니다.
+                    <td className={styles.emptyCoverageCell} colSpan={8}>
+                      조건에 맞는 신청 현황이 없습니다.
                     </td>
                   </tr>
                 ) : (
                   filteredCoverageRows.map((row) => {
-                    const isLowRate =
+                    const isLowReservationRate =
                       row.reservationRate !== null && row.reservationRate < 50;
+                    const isLowSubscriberRate =
+                      row.subscriberRate !== null && row.subscriberRate < 50;
+                    const isLowRate =
+                      isLowReservationRate || isLowSubscriberRate;
 
                     return (
                       <tr
@@ -794,7 +828,7 @@ const AdminTicketPage = () => {
                         <td className={styles.coverageLabel}>{row.label}</td>
                         <td className={styles.peopleRatioCell}>
                           <span>
-                            <em>예매</em>
+                            <em>신청</em>
                             <strong>{row.reservationCount.toLocaleString()}명</strong>
                           </span>
                           <span>
@@ -813,7 +847,7 @@ const AdminTicketPage = () => {
                         <td>
                           <div
                             className={`${styles.rateCell} ${
-                              isLowRate ? styles.rateCellLow : ''
+                              isLowReservationRate ? styles.rateCellLow : ''
                             }`}
                           >
                             <div className={styles.rateBarTrack}>
@@ -839,6 +873,33 @@ const AdminTicketPage = () => {
                             </span>
                           </div>
                         </td>
+                        <td>
+                          <div
+                            className={`${styles.rateCell} ${
+                              isLowSubscriberRate ? styles.rateCellLow : ''
+                            }`}
+                          >
+                            <div className={styles.rateBarTrack}>
+                              <div
+                                className={`${styles.rateBarFill} ${
+                                  styles[`rate_${getRateStatus(row.subscriberRate)}`]
+                                }`}
+                                style={{
+                                  width: `${
+                                    row.subscriberRate === null
+                                      ? 0
+                                      : Math.min(row.subscriberRate, 100)
+                                  }%`,
+                                }}
+                              />
+                            </div>
+                            <span>
+                              {row.subscriberRate === null
+                                ? '-'
+                                : `${row.subscriberRate.toFixed(1)}%`}
+                            </span>
+                          </div>
+                        </td>
                         <td className={styles.campusAdminCell}>
                           {row.scope !== 'campus' ? (
                             <span>-</span>
@@ -846,6 +907,11 @@ const AdminTicketPage = () => {
                             <>
                               <strong>{row.campusAdminName || '이름 없음'}</strong>
                               <span>{row.campusAdminPhone || '번호 없음'}</span>
+                              {row.campusAdminManagedCount > 1 && (
+                                <span className={styles.multiCampusAdminBadge}>
+                                  총 {row.campusAdminManagedCount}개 캠퍼스 관리
+                                </span>
+                              )}
                             </>
                           ) : (
                             <span>미등록</span>

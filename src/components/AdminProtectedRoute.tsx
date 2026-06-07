@@ -1,65 +1,50 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 
-import { requireAdminRole } from '../lib/adminAuth';
 import type { AdminRoleType } from '../lib/adminService';
+import { useAdminAuth } from './AdminAuthProvider';
+import styles from './AdminProtectedRoute.module.css';
 
 interface AdminProtectedRouteProps {
   children: ReactNode;
   allowedRoles: readonly AdminRoleType[];
 }
 
-type AuthCheckState =
-  | 'checking'
-  | 'authorized'
-  | 'not_logged_in'
-  | 'not_authorized';
-
 const AdminProtectedRoute = ({
   children,
   allowedRoles,
 }: AdminProtectedRouteProps) => {
   const location = useLocation();
-  const [authState, setAuthState] = useState<AuthCheckState>('checking');
-  const [unauthorizedPath, setUnauthorizedPath] = useState('/');
+  const { status, adminRole, refresh } = useAdminAuth();
 
-  useEffect(() => {
-    let isMounted = true;
-
-    requireAdminRole([...allowedRoles])
-      .then((result) => {
-        if (!isMounted) return;
-
-        if (!result.ok && result.adminRole) {
-          setUnauthorizedPath(
-            result.adminRole.role === 'campus_admin'
-              ? '/admin/campus'
-              : '/admin/global'
-          );
-        }
-
-        setAuthState(result.ok ? 'authorized' : result.reason);
-      })
-      .catch(() => {
-        if (!isMounted) return;
-
-        setAuthState('not_authorized');
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, [allowedRoles]);
-
-  if (authState === 'checking') {
-    return null;
+  if (status === 'loading') {
+    return (
+      <main className={styles.statusPage} aria-busy="true" aria-live="polite">
+        <div className={styles.spinner} aria-hidden="true" />
+        <p>관리자 권한을 확인하고 있습니다.</p>
+      </main>
+    );
   }
 
-  if (authState === 'not_logged_in') {
+  if (status === 'anonymous') {
     return <Navigate to="/admin/login" replace state={{ from: location }} />;
   }
 
-  if (authState === 'not_authorized') {
+  if (status === 'error') {
+    return (
+      <main className={styles.statusPage} role="alert">
+        <p>관리자 권한을 확인하지 못했습니다.</p>
+        <button type="button" onClick={() => void refresh()}>
+          다시 시도
+        </button>
+      </main>
+    );
+  }
+
+  if (!adminRole || !allowedRoles.includes(adminRole.role)) {
+    const unauthorizedPath =
+      adminRole?.role === 'campus_admin' ? '/admin/campus' : '/admin/global';
+
     return <Navigate to={unauthorizedPath} replace />;
   }
 

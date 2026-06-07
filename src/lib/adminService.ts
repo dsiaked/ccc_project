@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import type { ConfirmedTicket, ReturnBusReservation } from '../types/reservation';
 
 // ===== 공통 타입 =====
 
@@ -38,6 +39,12 @@ export interface AdminUserSearchResult {
   campus: string | null;
   role: AdminRoleType | null;
   adminRoleId: string | null;
+  managedCampuses?: Array<{
+    id: string;
+    district: string | null;
+    team: string | null;
+    campus: string | null;
+  }>;
 }
 
 export interface SelectOption {
@@ -58,6 +65,8 @@ export type CampusManagerSearchParams = {
   district?: string;
   team?: string;
   campus?: string;
+  page?: number;
+  pageSize?: number;
 };
 
 export type UserSearchResult = {
@@ -70,24 +79,18 @@ export type UserSearchResult = {
   campus: string | null;
 };
 
-export type CampusAdminRole = {
-  id: string;
-  user_id: string;
-  role: string;
-  district: string | null;
-  team: string | null;
-  campus: string | null;
-  created_at: string;
-  profiles?: {
-    id: string;
-    email: string | null;
-    name: string | null;
-  } | null;
-};
-
-type PaymentStatsRow = {
-  status: 'pending' | 'completed' | 'refunded' | string | null;
-  amount: number | null;
+export type AdminCreateUserInput = {
+  email: string;
+  password: string;
+  name: string;
+  phone: string;
+  organizationMode: 'registered' | 'manual';
+  districtId?: string;
+  teamId?: string;
+  campusId?: string;
+  district?: string;
+  team?: string;
+  campus?: string;
 };
 
 type CampusTransferStatsRow = {
@@ -144,6 +147,7 @@ type CampusRequestRow = {
   content: string;
   admin_response: string | null;
   is_global_notice?: boolean | null;
+  is_archived?: boolean | null;
   district: string;
   team: string;
   campus: string;
@@ -279,11 +283,21 @@ async function getDeletableUserCount() {
 // ===== 관리자 권한 기본 =====
 
 const ADMIN_ROLE_CACHE_TTL_MS = 30_000;
+const ACTIVE_CAMPUS_ADMIN_ROLE_KEY = 'ccc-bus-active-campus-admin-role';
 const adminRoleCache = new Map<
   string,
-  { value: AdminRole | null; expiresAt: number }
+  { value: AdminRole[]; expiresAt: number }
 >();
-const adminRoleRequests = new Map<string, Promise<AdminRole | null>>();
+const adminRoleRequests = new Map<string, Promise<AdminRole[]>>();
+
+const getActiveCampusAdminRoleStorageKey = (userId: string) =>
+  `${ACTIVE_CAMPUS_ADMIN_ROLE_KEY}:${userId}`;
+
+const getStoredActiveCampusAdminRoleId = (userId: string) => {
+  if (typeof window === 'undefined') return null;
+
+  return window.localStorage.getItem(getActiveCampusAdminRoleStorageKey(userId));
+};
 
 const invalidateAdminRoleCache = (userId?: string) => {
   if (userId) {
@@ -296,7 +310,7 @@ const invalidateAdminRoleCache = (userId?: string) => {
   adminRoleRequests.clear();
 };
 
-export async function getAdminRole(userId: string) {
+export async function getAdminRoles(userId: string) {
   const cached = adminRoleCache.get(userId);
 
   if (cached && cached.expiresAt > Date.now()) {
@@ -320,21 +334,17 @@ export async function getAdminRole(userId: string) {
 
     if (error) {
       console.error('Failed to get admin role:', error);
-      return null;
+      return [];
     }
 
     const roles = (data ?? []) as AdminRole[];
-    const role =
-      roles.find((item) => item.role === 'global_admin') ||
-      roles.find((item) => item.role === 'campus_admin') ||
-      null;
 
     adminRoleCache.set(userId, {
-      value: role,
+      value: roles,
       expiresAt: Date.now() + ADMIN_ROLE_CACHE_TTL_MS,
     });
 
-    return role;
+    return roles;
   })();
 
   adminRoleRequests.set(userId, request);
@@ -346,34 +356,42 @@ export async function getAdminRole(userId: string) {
   }
 }
 
-export async function setAdminRole(
-  userId: string,
-  role: AdminRoleType,
-  campus?: string
-) {
-  try {
-    const { error: deleteError } = await supabase
-      .from('admin_roles')
-      .delete()
-      .eq('user_id', userId);
+export async function getAdminRole(userId: string) {
+  const roles = await getAdminRoles(userId);
+  const globalAdminRole = roles.find((item) => item.role === 'global_admin');
 
-    if (deleteError) throw deleteError;
+  if (globalAdminRole) return globalAdminRole;
 
-    const { error: insertError } = await supabase.from('admin_roles').insert({
-      user_id: userId,
-      role,
-      campus: campus || null,
-    });
+  const campusAdminRoles = roles.filter(
+    (item) => item.role === 'campus_admin'
+  );
+  const activeRoleId = getStoredActiveCampusAdminRoleId(userId);
 
-    if (insertError) throw insertError;
+  return (
+    campusAdminRoles.find((item) => item.id === activeRoleId) ||
+    campusAdminRoles[0] ||
+    null
+  );
+}
 
-    invalidateAdminRoleCache(userId);
+export async function setActiveCampusAdminRole(userId: string, roleId: string) {
+  const roles = await getAdminRoles(userId);
+  const targetRole = roles.find(
+    (item) => item.id === roleId && item.role === 'campus_admin'
+  );
 
-    return { success: true };
-  } catch (error) {
-    console.error('Failed to set admin role:', error);
-    throw error;
+  if (!targetRole) {
+    throw new Error('선택한 캠퍼스 관리자 권한을 찾을 수 없습니다.');
   }
+
+  if (typeof window !== 'undefined') {
+    window.localStorage.setItem(
+      getActiveCampusAdminRoleStorageKey(userId),
+      targetRole.id
+    );
+  }
+
+  return targetRole;
 }
 
 // ===== campus_options view 기반 지구/팀/캠퍼스 조회 =====
@@ -446,250 +464,140 @@ export async function getCampusesByTeam(teamId: string) {
   return Array.from(map.values());
 }
 
-// 기존 코드 호환용 함수
-export async function getAllDistricts() {
-  const districts = await getDistrictsForAdmin();
-  return districts.map((district) => district.name);
+export async function deleteUserAccountForAdmin(userId: string) {
+  const { data, error } = await supabase.rpc('delete_user_account_as_admin', {
+    p_user_id: userId,
+  });
+
+  if (error) {
+    if (
+      error.code === 'PGRST202' ||
+      error.message.includes('delete_user_account_as_admin')
+    ) {
+      throw new Error(
+        '사용자 삭제 DB 함수가 설치되지 않았습니다. Supabase SQL Editor에서 sql/setup/63_admin_delete_user_account.sql을 실행해주세요.'
+      );
+    }
+
+    const deletionErrorMessages: Record<string, string> = {
+      'Only global admins can delete user accounts.':
+        '전체 관리자 권한이 있어야 사용자 계정을 삭제할 수 있습니다.',
+      'A user ID is required.': '삭제할 사용자 ID가 필요합니다.',
+      'The currently signed-in account cannot be deleted.':
+        '현재 로그인한 계정은 삭제할 수 없습니다.',
+      'Global admin accounts cannot be deleted.':
+        '전체 관리자 계정은 삭제할 수 없습니다. 먼저 전체 관리자 권한을 해제해주세요.',
+    };
+    const translatedMessage = deletionErrorMessages[error.message];
+    if (translatedMessage) throw new Error(translatedMessage);
+
+    throw error;
+  }
+
+  invalidateAdminRoleCache(userId);
+  return Boolean(data);
 }
 
-// ===== 관리자 검색 =====
+export async function createUserAccountForAdmin(input: AdminCreateUserInput) {
+  const { data, error } = await supabase.functions.invoke('admin-user-manager', {
+    body: {
+      action: 'create',
+      ...input,
+    },
+  });
 
-export async function searchUsersForAdmin(keyword: string) {
-  const normalizedKeyword = keyword.trim();
+  if (error) {
+    let message = error.message;
+    const context = (error as { context?: Response }).context;
 
-  if (!normalizedKeyword) {
-    return [];
+    if (context) {
+      const responseBody = await context.clone().json().catch(() => null);
+      if (responseBody?.error) {
+        message = String(responseBody.error);
+      }
+    }
+
+    throw new Error(
+      message ||
+        '사용자 추가 서버 함수 호출에 실패했습니다. admin-user-manager Edge Function 배포 상태를 확인해주세요.'
+    );
   }
 
-  const likeKeyword = `%${normalizedKeyword}%`;
-
-  const { data: profileUsers, error: profileError } = await supabase
-    .from('profiles')
-    .select('id, email, name, phone, district, team, campus')
-    .or(
-      `email.ilike.${likeKeyword},name.ilike.${likeKeyword},phone.ilike.${likeKeyword},district.ilike.${likeKeyword},team.ilike.${likeKeyword},campus.ilike.${likeKeyword}`
-    )
-    .limit(30);
-
-  if (profileError) {
-    console.error('Failed to search profile users:', profileError);
-    throw profileError;
+  if (data?.error) {
+    throw new Error(String(data.error));
   }
 
-  const userMap = new Map<string, AdminUserSearchResult>();
-
-  for (const item of profileUsers || []) {
-    userMap.set(item.id, {
-      userId: item.id,
-      name: item.name || '이름 없음',
-      email: item.email || null,
-      phone: item.phone || null,
-      district: item.district || null,
-      team: item.team || null,
-      campus: item.campus || null,
-      role: null,
-      adminRoleId: null,
-    });
+  if (!data?.userId) {
+    throw new Error('생성된 사용자 정보를 확인할 수 없습니다.');
   }
 
-  const { data: reservationUsers, error: reservationError } = await supabase
-    .from('reservations')
-    .select('user_id, name, phone, district, team, campus, created_at')
-    .or(
-      `name.ilike.${likeKeyword},phone.ilike.${likeKeyword},district.ilike.${likeKeyword},team.ilike.${likeKeyword},campus.ilike.${likeKeyword}`
-    )
-    .order('created_at', { ascending: false })
-    .limit(30);
-
-  if (reservationError) {
-    console.error('Failed to search reservation users:', reservationError);
-    throw reservationError;
-  }
-
-  for (const item of reservationUsers || []) {
-    if (!item.user_id) continue;
-
-    const existing = userMap.get(item.user_id);
-
-    userMap.set(item.user_id, {
-      userId: item.user_id,
-      name: existing?.name || item.name || '이름 없음',
-      email: existing?.email || null,
-      phone: existing?.phone || item.phone || null,
-      district: existing?.district || item.district || null,
-      team: existing?.team || item.team || null,
-      campus: existing?.campus || item.campus || null,
-      role: null,
-      adminRoleId: null,
-    });
-  }
-
-  const userIds = Array.from(userMap.keys());
-
-  if (userIds.length === 0) {
-    return [];
-  }
-
-  const { data: roles, error: roleError } = await supabase
-    .from('admin_roles')
-    .select('id, user_id, role, district, team, campus')
-    .in('user_id', userIds);
-
-  if (roleError) {
-    console.error('Failed to get admin roles:', roleError);
-    throw roleError;
-  }
-
-  for (const role of roles || []) {
-    const target = userMap.get(role.user_id);
-
-    if (!target) continue;
-
-    target.role = role.role as AdminRoleType;
-    target.adminRoleId = role.id;
-    target.district = role.district || target.district;
-    target.team = role.team || target.team;
-    target.campus = role.campus || target.campus;
-  }
-
-  return Array.from(userMap.values());
+  return data as { userId: string; email: string };
 }
 
 export async function searchUsersForCampusManager({
   district,
   team,
   campus,
+  page = 1,
+  pageSize = 50,
 }: CampusManagerSearchParams) {
-  let profileQuery = supabase
-    .from('profiles')
-    .select('id, email, name, phone, district, team, campus')
-    .order('district', { ascending: true, nullsFirst: false })
-    .order('team', { ascending: true, nullsFirst: false })
-    .order('campus', { ascending: true, nullsFirst: false })
-    .order('name', { ascending: true, nullsFirst: false })
-    .limit(200);
+  const normalizedPage = Math.max(1, Math.floor(page));
+  const normalizedPageSize = Math.min(100, Math.max(1, Math.floor(pageSize)));
+  const { data, error } = await supabase.rpc(
+    'get_campus_admin_manage_users_page',
+    {
+      p_district: district ?? null,
+      p_team: team ?? null,
+      p_campus: campus ?? null,
+      p_limit: normalizedPageSize,
+      p_offset: (normalizedPage - 1) * normalizedPageSize,
+    }
+  );
 
-  if (district) {
-    profileQuery = profileQuery.eq('district', district);
+  if (error) {
+    if (
+      error.code === 'PGRST202' ||
+      error.message.includes('get_campus_admin_manage_users_page')
+    ) {
+      throw new Error(
+        '캠퍼스 관리자 검색 DB 함수가 설치되지 않았습니다. sql/setup/75_campus_admin_manage_users_page.sql을 적용해주세요.'
+      );
+    }
+
+    throw error;
   }
 
-  if (team) {
-    profileQuery = profileQuery.eq('team', team);
-  }
+  const rows = (data ?? []) as Array<{
+    user_id: string;
+    email: string | null;
+    name: string | null;
+    phone: string | null;
+    district: string | null;
+    team: string | null;
+    campus: string | null;
+    role: AdminRoleType | null;
+    admin_role_id: string | null;
+    managed_campuses: AdminUserSearchResult['managedCampuses'];
+    total_count: number | string | null;
+  }>;
 
-  if (campus) {
-    profileQuery = profileQuery.eq('campus', campus);
-  }
-
-  const { data: profileUsers, error: profileError } = await profileQuery;
-
-  if (profileError) {
-    console.error('profiles 유저 조회 실패:', profileError);
-    throw new Error(profileError.message);
-  }
-
-  if (!profileUsers || profileUsers.length === 0) {
-    return [];
-  }
-
-  const userIds = profileUsers
-    .map((user) => user.id)
-    .filter(Boolean);
-
-  if (userIds.length === 0) {
-    return [];
-  }
-
-  const { data: roles, error: roleError } = await supabase
-    .from('admin_roles')
-    .select('id, user_id, role, district, team, campus')
-    .in('user_id', userIds);
-
-  if (roleError) {
-    console.error('admin_roles 조회 실패:', roleError);
-    throw new Error(roleError.message);
-  }
-
-  return profileUsers.map((user) => {
-    const userDistrict = user.district || null;
-    const userTeam = user.team || null;
-    const userCampus = user.campus || null;
-
-    const matchedAdminRole =
-      roles?.find((role) => {
-        if (role.user_id !== user.id) return false;
-
-        if (role.role === 'global_admin') {
-          return true;
-        }
-
-        if (role.role === 'campus_admin') {
-          /*
-            null 값이 있는 경우에는 비교 대상에서 제외합니다.
-            즉, user나 role 쪽에 district/team/campus가 비어 있으면
-            해당 campus_admin 매칭은 하지 않습니다.
-          */
-          if (!role.district || !role.team || !role.campus) return false;
-          if (!userDistrict || !userTeam || !userCampus) return false;
-
-          return (
-            role.district === userDistrict &&
-            role.team === userTeam &&
-            role.campus === userCampus
-          );
-        }
-
-        return false;
-      }) ?? null;
-
-    return {
-      userId: user.id,
-      email: user.email || null,
-      name: user.name || '이름 없음',
-      phone: user.phone || null,
-      district: userDistrict,
-      team: userTeam,
-      campus: userCampus,
-      role: matchedAdminRole?.role ?? null,
-      adminRoleId: matchedAdminRole?.id ?? null,
-    } as AdminUserSearchResult;
-  });
-}
-
-// ===== 캠퍼스 관리자 등록/취소/변경 =====
-
-export async function getCampusAdminByCampus(
-  district: string,
-  team: string,
-  campus: string
-) {
-  const { data, error } = await supabase
-    .from('admin_roles')
-    .select(
-      `
-      id,
-      user_id,
-      role,
-      district,
-      team,
-      campus,
-      created_at,
-      profiles:user_id (
-        id,
-        email,
-        name
-      )
-    `
-    )
-    .eq('role', 'campus_admin')
-    .eq('district', district)
-    .eq('team', team)
-    .eq('campus', campus)
-    .maybeSingle();
-
-  if (error) throw error;
-
-  return data as CampusAdminRole | null;
+  return {
+    users: rows.map((row) => ({
+      userId: row.user_id,
+      email: row.email,
+      name: row.name || '이름 없음',
+      phone: row.phone,
+      district: row.district,
+      team: row.team,
+      campus: row.campus,
+      role: row.role,
+      adminRoleId: row.admin_role_id,
+      managedCampuses: row.managed_campuses ?? [],
+    })),
+    totalCount: Number(rows[0]?.total_count ?? 0),
+    page: normalizedPage,
+    pageSize: normalizedPageSize,
+  };
 }
 
 export async function registerCampusAdmin({
@@ -715,39 +623,12 @@ export async function registerCampusAdmin({
     같은 지구/팀/캠퍼스에 이미 캠퍼스 관리자가 있으면 먼저 제거합니다.
     그래서 기존 관리자가 등록되어 있어도 새 관리자로 변경할 수 있습니다.
   */
-  const { error: deleteError } = await supabase
-    .from('admin_roles')
-    .delete()
-    .eq('role', 'campus_admin')
-    .eq('district', district)
-    .eq('team', team)
-    .eq('campus', campus);
-
-  if (deleteError) throw deleteError;
-
-  const { error: insertError } = await supabase.from('admin_roles').insert({
-    user_id: userId,
-    role: 'campus_admin',
-    district,
-    team,
-    campus,
-    granted_by: user.id,
-    updated_at: new Date().toISOString(),
+  const { error } = await supabase.rpc('assign_campus_admin_as_global_admin', {
+    p_user_id: userId,
+    p_district: district,
+    p_team: team,
+    p_campus: campus,
   });
-
-  if (insertError) throw insertError;
-
-  invalidateAdminRoleCache();
-
-  return { success: true };
-}
-
-export async function cancelCampusAdmin(adminRoleId: string) {
-  const { error } = await supabase
-    .from('admin_roles')
-    .delete()
-    .eq('id', adminRoleId)
-    .eq('role', 'campus_admin');
 
   if (error) throw error;
 
@@ -756,138 +637,14 @@ export async function cancelCampusAdmin(adminRoleId: string) {
   return { success: true };
 }
 
-// 기존 코드 호환용 함수
-export async function assignCampusAdmin(userId: string, campus: string) {
-  const { error: deleteError } = await supabase
-    .from('admin_roles')
-    .delete()
-    .eq('user_id', userId)
-    .eq('role', 'campus_admin')
-    .eq('campus', campus);
-
-  if (deleteError) {
-    console.error('Failed to clear previous campus admin role:', deleteError);
-    throw deleteError;
-  }
-
-  const { error } = await supabase.from('admin_roles').insert({
-    user_id: userId,
-    role: 'campus_admin',
-    campus,
-    updated_at: new Date().toISOString(),
+export async function cancelCampusAdmin(adminRoleId: string) {
+  const { error } = await supabase.rpc('cancel_campus_admin_as_global_admin', {
+    p_admin_role_id: adminRoleId,
   });
 
-  if (error) {
-    console.error('Failed to assign campus admin:', error);
-    throw error;
-  }
+  if (error) throw error;
 
-  invalidateAdminRoleCache(userId);
-
-  return { success: true };
-}
-
-// 기존 코드 호환용 함수
-export async function removeCampusAdmin(userId: string) {
-  const { error } = await supabase
-    .from('admin_roles')
-    .delete()
-    .eq('user_id', userId)
-    .eq('role', 'campus_admin');
-
-  if (error) {
-    console.error('Failed to remove campus admin:', error);
-    throw error;
-  }
-
-  invalidateAdminRoleCache(userId);
-
-  return { success: true };
-}
-
-// ===== 입금 관리 =====
-
-export async function createPayment(
-  userId: string,
-  reservationId: string,
-  amount: number
-) {
-  try {
-    const { error } = await supabase.from('payments').insert({
-      user_id: userId,
-      reservation_id: reservationId,
-      amount,
-      status: 'pending',
-    });
-
-    if (error) throw error;
-
-    return { success: true };
-  } catch (error) {
-    console.error('Failed to create payment:', error);
-    throw error;
-  }
-}
-
-export async function verifyPayment(
-  paymentId: string,
-  verifiedBy: string,
-  notes?: string
-) {
-  const { error } = await supabase
-    .from('payments')
-    .update({
-      status: 'completed',
-      verified_by: verifiedBy,
-      verified_at: new Date().toISOString(),
-      notes: notes || null,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', paymentId);
-
-  if (error) {
-    console.error('Failed to verify payment:', error);
-    throw new Error(
-      `[입금 확인 실패] ${error.message}${
-        error.details ? ` / ${error.details}` : ''
-      }${error.hint ? ` / hint: ${error.hint}` : ''}`
-    );
-  }
-
-  return { success: true };
-}
-
-export async function updatePaymentStatus(
-  paymentId: string,
-  status: 'pending' | 'completed' | 'refunded',
-  verifiedBy?: string
-) {
-  const updateData =
-    status === 'completed'
-      ? {
-          status,
-          verified_by: verifiedBy || null,
-          verified_at: new Date().toISOString(),
-        }
-      : {
-          status,
-          verified_by: null,
-          verified_at: null,
-        };
-
-  const { error } = await supabase
-    .from('payments')
-    .update(updateData)
-    .eq('id', paymentId);
-
-  if (error) {
-    console.error('입금 상태 변경 실패:', error);
-    throw new Error(
-      `[입금 상태 변경 실패] ${error.message}${
-        error.details ? ` / ${error.details}` : ''
-      }${error.hint ? ` / hint: ${error.hint}` : ''}`
-    );
-  }
+  invalidateAdminRoleCache();
 
   return { success: true };
 }
@@ -922,40 +679,53 @@ export async function createOrUpdatePaymentStatus({
   return data;
 }
 
+export async function updatePersonalTicketAsAdmin(
+  reservationId: string,
+  nextStatus: 'requested' | 'confirmed' | 'cancelled',
+  ticket: ConfirmedTicket | null = null
+) {
+  const { data, error } = await supabase
+    .rpc('update_personal_ticket_as_admin', {
+      p_reservation_id: reservationId,
+      p_next_status: nextStatus,
+      p_ticket: ticket,
+    })
+    .single();
 
-export async function getPaymentStats() {
-  try {
-    const { data, error } = await supabase
-      .from('payments')
-      .select('status, amount');
+  if (error) {
+    if (
+      error.code === 'PGRST202' ||
+      error.message.includes('update_personal_ticket_as_admin')
+    ) {
+      throw new Error(
+        '개인 버스표 관리 DB 함수가 설치되지 않았습니다. sql/setup/66_atomic_admin_personal_ticket.sql을 적용해주세요.'
+      );
+    }
 
-    if (error) throw error;
-
-    const stats = {
-      completed: 0,
-      pending: 0,
-      refunded: 0,
-      totalCompleted: 0,
-      completedCount: 0,
+    const messages: Record<string, string> = {
+      'Only global admins can manage personal tickets.':
+        '전체 관리자 권한이 있어야 개인 버스표를 관리할 수 있습니다.',
+      'Reservation not found.': '예약을 찾을 수 없습니다.',
+      'A valid bus and seat number are required.':
+        '확정 배차안에 있는 버스와 올바른 좌석 번호를 입력해주세요.',
+      'The selected bus does not exist in the confirmed allocation.':
+        '선택한 버스가 현재 확정 배차안에 없습니다.',
+      'The selected bus name is duplicated in confirmed allocations.':
+        '확정 배차안에 같은 버스 이름이 중복되어 있습니다.',
+      'The selected seat number exceeds the bus capacity.':
+        '선택한 좌석 번호가 버스 정원을 초과합니다.',
+      'The selected seat number is already assigned.':
+        '선택한 좌석은 이미 다른 승객에게 배정되었습니다.',
     };
-
-    ((data || []) as PaymentStatsRow[]).forEach((payment) => {
-      if (payment.status === 'completed') {
-        stats.completed += 1;
-        stats.totalCompleted += payment.amount || 0;
-        stats.completedCount += 1;
-      } else if (payment.status === 'pending') {
-        stats.pending += 1;
-      } else if (payment.status === 'refunded') {
-        stats.refunded += 1;
-      }
-    });
-
-    return stats;
-  } catch (error) {
-    console.error('Failed to get payment stats:', error);
-    throw error;
+    throw new Error(messages[error.message] ?? error.message);
   }
+
+  return data as {
+    status: ReturnBusReservation['status'];
+    confirmed_ticket: ConfirmedTicket | null;
+    data: ReturnBusReservation;
+    updated_at: string;
+  };
 }
 
 
@@ -1167,18 +937,14 @@ export async function confirmCampusTransferById(params: {
       throw new Error(error.message);
     }
 
-    const { data: fallbackData, error: fallbackError } = await supabase
-      .from('campus_transfers')
-      .update({
-        status: 'confirmed',
-        confirmed_by: params.confirmedBy,
-        confirmed_at: new Date().toISOString(),
-        actual_confirmed_amount: normalizedAmount,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', params.transferId)
-      .select('id, status, actual_confirmed_amount')
-      .maybeSingle();
+    const { data: fallbackData, error: fallbackError } = await supabase.rpc(
+      'confirm_campus_transfer_amount',
+      {
+        p_transfer_id: params.transferId,
+        p_confirmed_by: params.confirmedBy,
+        p_actual_confirmed_amount: normalizedAmount,
+      }
+    );
 
     if (fallbackError) {
       console.error('Failed to confirm campus transfer:', fallbackError);
@@ -1231,18 +997,10 @@ export async function revertCampusTransferConfirmationById(params: {
     );
   }
 
-  const { data, error } = await supabase
-    .from('campus_transfers')
-    .update({
-      status: 'sent',
-      confirmed_by: null,
-      confirmed_at: null,
-      actual_confirmed_amount: null,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', params.transferId)
-    .select('id, status')
-    .maybeSingle();
+  const { data, error } = await supabase.rpc(
+    'revert_campus_transfer_confirmation_as_global_admin',
+    { p_transfer_id: params.transferId }
+  );
 
   if (error) {
     console.error('Failed to revert campus transfer confirmation:', error);
@@ -1327,6 +1085,8 @@ export interface CampusRequest {
   content: string;
   adminResponse: string | null;
   isGlobalNotice: boolean;
+  isArchived: boolean;
+  noticeTargets: CampusNoticeTarget[];
   district: string;
   team: string;
   campus: string;
@@ -1336,6 +1096,12 @@ export interface CampusRequest {
   createdAt: string;
   updatedAt: string;
   messages: CampusRequestMessage[];
+}
+
+export interface CampusNoticeTarget {
+  district: string;
+  team: string;
+  campus: string;
 }
 
 export interface CampusRequestMessage {
@@ -1426,7 +1192,8 @@ const getSupabaseErrorMessage = (error: unknown) => {
 
 const mapCampusRequest = (
   row: CampusRequestRow,
-  messages: CampusRequestMessage[] = []
+  messages: CampusRequestMessage[] = [],
+  noticeTargets: CampusNoticeTarget[] = []
 ): CampusRequest => ({
   id: row.id,
   type: row.type,
@@ -1435,6 +1202,8 @@ const mapCampusRequest = (
   content: row.content,
   adminResponse: row.admin_response,
   isGlobalNotice: Boolean(row.is_global_notice),
+  isArchived: Boolean(row.is_archived),
+  noticeTargets,
   district: row.district,
   team: row.team,
   campus: row.campus,
@@ -1446,6 +1215,28 @@ const mapCampusRequest = (
   messages: sortCampusRequestMessages(messages),
 });
 
+async function getCampusNoticeTargets(noticeIds: string[]) {
+  const targetsByNotice = new Map<string, CampusNoticeTarget[]>();
+  if (noticeIds.length === 0) return targetsByNotice;
+
+  const { data, error } = await supabase
+    .from('campus_notice_targets')
+    .select('notice_id, district, team, campus')
+    .in('notice_id', noticeIds);
+
+  if (error) throw new Error(error.message);
+
+  (
+    (data ?? []) as Array<CampusNoticeTarget & { notice_id: string }>
+  ).forEach(({ notice_id, district, team, campus }) => {
+    const current = targetsByNotice.get(notice_id) ?? [];
+    current.push({ district, team, campus });
+    targetsByNotice.set(notice_id, current);
+  });
+
+  return targetsByNotice;
+}
+
 async function getGlobalCampusNoticeRows() {
   const { data, error } = await supabase.rpc('get_global_campus_notices');
 
@@ -1453,118 +1244,6 @@ async function getGlobalCampusNoticeRows() {
     data: (data ?? []) as CampusRequestRow[],
     error,
   };
-}
-
-export async function getCampusRequests(adminRole: AdminRole) {
-  const baseQuery = () =>
-    supabase
-      .from('campus_requests')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-  let requestRows: CampusRequestRow[];
-
-  if (adminRole.role === 'campus_admin') {
-    const [scopedResult, noticeResult] = await Promise.all([
-      baseQuery()
-        .eq('district', adminRole.district)
-        .eq('team', adminRole.team)
-        .eq('campus', adminRole.campus)
-        .eq('is_global_notice', false),
-      getGlobalCampusNoticeRows(),
-    ]);
-
-    if (
-      isMissingGlobalNoticeColumnError(scopedResult.error) ||
-      isMissingGlobalNoticeColumnError(noticeResult.error)
-    ) {
-      const { data, error } = await baseQuery()
-        .eq('district', adminRole.district)
-        .eq('team', adminRole.team)
-        .eq('campus', adminRole.campus);
-
-      if (error) {
-        console.error('캠퍼스 문의 조회 실패:', error);
-        throw new Error(error.message);
-      }
-
-      requestRows = (data ?? []) as CampusRequestRow[];
-    } else {
-      if (scopedResult.error) {
-        console.error('캠퍼스 문의 조회 실패:', scopedResult.error);
-        throw new Error(scopedResult.error.message);
-      }
-
-      if (
-        'error' in noticeResult &&
-        noticeResult.error &&
-        !String(noticeResult.error.code ?? '').includes('PGRST202')
-      ) {
-        console.error('전체 공지 조회 실패:', noticeResult.error);
-        throw new Error(noticeResult.error.message);
-      }
-
-      const rowMap = new Map<string, CampusRequestRow>();
-
-      [
-        ...(scopedResult.data ?? []),
-        ...(('error' in noticeResult && noticeResult.error
-          ? []
-          : noticeResult.data) ?? []),
-      ].forEach(
-        (request) => {
-          rowMap.set(request.id, request as CampusRequestRow);
-        }
-      );
-
-      requestRows = Array.from(rowMap.values()).sort(
-        (a, b) =>
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      );
-    }
-  } else {
-    const { data, error } = await baseQuery();
-
-    if (error) {
-      console.error('캠퍼스 문의 조회 실패:', error);
-      throw new Error(error.message);
-    }
-
-    requestRows = (data ?? []) as CampusRequestRow[];
-  }
-
-  const requestIds = requestRows.map((request) => request.id);
-
-  if (requestIds.length === 0) {
-    return [];
-  }
-
-  const { data: messageData, error: messageError } = await supabase
-    .from('campus_request_messages')
-    .select('*')
-    .in('request_id', requestIds)
-    .order('created_at', { ascending: true });
-
-  if (messageError) {
-    console.error('캠퍼스 문의 메시지 조회 실패:', messageError);
-    throw new Error(messageError.message);
-  }
-
-  const messagesByRequest = new Map<string, CampusRequestMessage[]>();
-
-  ((messageData ?? []) as CampusRequestMessageRow[]).forEach((messageRow) => {
-    const nextMessage = mapCampusRequestMessage(messageRow);
-    const currentMessages = messagesByRequest.get(nextMessage.requestId) ?? [];
-
-    messagesByRequest.set(nextMessage.requestId, [
-      ...currentMessages,
-      nextMessage,
-    ]);
-  });
-
-  return requestRows.map((request) =>
-    mapCampusRequest(request, messagesByRequest.get(request.id) ?? [])
-  );
 }
 
 export async function getCampusRequestsPage(
@@ -1626,11 +1305,19 @@ export async function getCampusRequestsPage(
     return { items: [], total: count ?? 0 };
   }
 
-  const { data: messageData, error: messageError } = await supabase
-    .from('campus_request_messages')
-    .select('*')
-    .in('request_id', requestIds)
-    .order('created_at', { ascending: true });
+  const [{ data: messageData, error: messageError }, targetsByNotice] =
+    await Promise.all([
+      supabase
+        .from('campus_request_messages')
+        .select('*')
+        .in('request_id', requestIds)
+        .order('created_at', { ascending: true }),
+      getCampusNoticeTargets(
+        requestRows
+          .filter((request) => request.is_global_notice)
+          .map((request) => request.id)
+      ),
+    ]);
 
   if (messageError) {
     console.error('캠퍼스 문의 페이지 메시지 조회 실패:', messageError);
@@ -1648,7 +1335,11 @@ export async function getCampusRequestsPage(
 
   return {
     items: requestRows.map((request) =>
-      mapCampusRequest(request, messagesByRequest.get(request.id) ?? [])
+      mapCampusRequest(
+        request,
+        messagesByRequest.get(request.id) ?? [],
+        targetsByNotice.get(request.id) ?? []
+      )
     ),
     total: count ?? 0,
   };
@@ -1713,12 +1404,17 @@ export async function getGlobalCampusNotices() {
   }
 
   return {
-    data: (data ?? []).map((row) => mapCampusRequest(row)),
+    data: await Promise.all(
+      (data ?? []).map(async (row) => {
+        const targets = await getCampusNoticeTargets([row.id]);
+        return mapCampusRequest(row, [], targets.get(row.id) ?? []);
+      })
+    ),
     error: null,
   };
 }
 
-export async function createGlobalCampusNotice(params: {
+async function createLegacyGlobalCampusNotice(params: {
   title: string;
   content: string;
   createdBy: string;
@@ -1770,6 +1466,47 @@ export async function createGlobalCampusNotice(params: {
   }
 
   return mapCampusRequest(data as CampusRequestRow);
+}
+
+export async function createGlobalCampusNotice(params: {
+  title: string;
+  content: string;
+  createdBy: string;
+  targets: CampusNoticeTarget[];
+}) {
+  const { data, error } = await supabase.rpc('create_targeted_campus_notice', {
+    p_title: params.title,
+    p_content: params.content,
+    p_targets: params.targets,
+  });
+
+  if (error) {
+    if (String(error.message).includes('create_targeted_campus_notice')) {
+      return createLegacyGlobalCampusNotice(params);
+    }
+    throw new Error(error.message);
+  }
+
+  return mapCampusRequest(data as CampusRequestRow, [], params.targets);
+}
+
+export async function updateGlobalCampusNotice(params: {
+  noticeId: string;
+  title: string;
+  content: string;
+  targets: CampusNoticeTarget[];
+  archived: boolean;
+}) {
+  const { data, error } = await supabase.rpc('update_targeted_campus_notice', {
+    p_notice_id: params.noticeId,
+    p_title: params.title,
+    p_content: params.content,
+    p_targets: params.targets,
+    p_archived: params.archived,
+  });
+
+  if (error) throw new Error(error.message);
+  return mapCampusRequest(data as CampusRequestRow, [], params.targets);
 }
 
 export async function createCampusRequest(params: {
@@ -1832,7 +1569,7 @@ export async function createCampusRequestMessage(params: {
     .single();
 
   if (error) {
-    console.error('罹좏띁??臾몄쓽 硫붿떆吏 ?깅줉 ?ㅽ뙣:', error);
+    console.error('캠퍼스 문의 메시지 등록 실패:', error);
     throw new Error(error.message);
   }
 
@@ -1899,34 +1636,6 @@ export async function updateCampusRequestStatus(params: {
   }
 
   return mapCampusRequest(data as CampusRequestRow);
-}
-
-// ===== 캠퍼스 예약 조회 =====
-
-export async function getCampusReservationsByTeam(campus: string, team?: string) {
-  try {
-    let query = supabase
-      .from('reservations')
-      .select(
-        'id, user_id, name, phone, district, team, campus, station_preferences, status, confirmed_ticket, created_at'
-      )
-      .eq('campus', campus);
-
-    if (team) {
-      query = query.eq('team', team);
-    }
-
-    const { data, error } = await query.order('created_at', {
-      ascending: false,
-    });
-
-    if (error) throw error;
-
-    return data || [];
-  } catch (error) {
-    console.error('Failed to get campus reservations:', error);
-    throw error;
-  }
 }
 
 export async function getReservationsWithPaymentByTeamCampus(
@@ -2017,11 +1726,12 @@ export async function addBusOption(
   maxCount = 999
 ) {
   try {
-    const { error } = await supabase.from('bus_options').insert({
-      capacity,
-      estimated_price: estimatedPrice,
-      notes,
-      max_count: maxCount,
+    const { error } = await supabase.rpc('upsert_bus_option_as_global_admin', {
+      p_id: null,
+      p_capacity: capacity,
+      p_estimated_price: estimatedPrice,
+      p_notes: notes ?? null,
+      p_max_count: maxCount,
     });
 
     if (error) throw error;
@@ -2031,6 +1741,25 @@ export async function addBusOption(
     console.error('Failed to add bus option:', error);
     throw error;
   }
+}
+
+export async function updateBusOption(
+  id: string,
+  capacity: number,
+  estimatedPrice: number,
+  notes?: string | null,
+  maxCount = 999
+) {
+  const { error } = await supabase.rpc('upsert_bus_option_as_global_admin', {
+    p_id: id,
+    p_capacity: capacity,
+    p_estimated_price: estimatedPrice,
+    p_notes: notes ?? null,
+    p_max_count: maxCount,
+  });
+
+  if (error) throw error;
+  return { success: true };
 }
 
 export async function getBusOptions() {
@@ -2051,7 +1780,9 @@ export async function getBusOptions() {
 
 export async function deleteBusOption(id: string) {
   try {
-    const { error } = await supabase.from('bus_options').delete().eq('id', id);
+    const { error } = await supabase.rpc('delete_bus_option_as_global_admin', {
+      p_id: id,
+    });
 
     if (error) throw error;
 
@@ -2066,18 +1797,12 @@ export async function deleteBusOption(id: string) {
 
 export async function saveBusAllocation(
   allocationName: string,
-  allocationData: unknown,
-  totalCost: number,
-  totalCapacity: number,
-  createdBy: string
+  allocationData: unknown
 ) {
   try {
-    const { error } = await supabase.from('bus_allocations').insert({
-      allocation_name: allocationName,
-      allocation_data: allocationData,
-      total_cost: totalCost,
-      total_capacity: totalCapacity,
-      created_by: createdBy,
+    const { error } = await supabase.rpc('create_bus_allocation_as_global_admin', {
+      p_allocation_name: allocationName,
+      p_allocation_data: allocationData,
     });
 
     if (error) throw error;
@@ -2089,29 +1814,26 @@ export async function saveBusAllocation(
   }
 }
 
-export async function getBusAllocations() {
+export async function getLatestConfirmedBusAllocation() {
   try {
     const { data, error } = await supabase
       .from('bus_allocations')
-      .select('*')
-      .order('created_at', { ascending: false });
+      .select(
+        'id, allocation_name, allocation_data, total_cost, total_capacity, created_at, updated_at'
+      )
+      .filter('allocation_data->>status', 'eq', 'confirmed')
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
     if (error) throw error;
 
-    return data || [];
+    return data;
   } catch (error) {
-    console.error('Failed to get bus allocations:', error);
+    console.error('Failed to get latest confirmed bus allocation:', error);
     throw error;
   }
 }
-
-export { calculateOptimalBusAllocation } from './admin/busAllocationAlgorithm';
-export type {
-  BusAllocationCalculateOptions,
-  BusAllocationResult,
-  BusOptionInput,
-  DestinationStats,
-} from './admin/busAllocationAlgorithm';
 
 export async function getBusTicketPrice(): Promise<number> {
   const { data, error } = await supabase.rpc('get_bus_ticket_price');

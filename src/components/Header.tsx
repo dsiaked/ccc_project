@@ -1,12 +1,14 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { LogIn, LogOut, Menu } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import Sidebar from './Sidebar';
 import styles from './Header.module.css';
+
+const Sidebar = lazy(() => import('./Sidebar'));
 
 const Header = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [hasOpenedSidebar, setHasOpenedSidebar] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   const location = useLocation();
@@ -15,7 +17,13 @@ const Header = () => {
     ? '/admin/global'
     : '/';
 
-  const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
+  const toggleSidebar = () => {
+    if (!isSidebarOpen) {
+      setHasOpenedSidebar(true);
+    }
+
+    setIsSidebarOpen((current) => !current);
+  };
 
   useEffect(() => {
     const checkLogin = async () => {
@@ -43,37 +51,37 @@ const Header = () => {
     };
   }, []);
 
-    const handleAuthButtonClick = async () => {
-      if (isLoggedIn) {
-        const { error } = await supabase.auth.signOut();
+  const handleAuthButtonClick = async () => {
+    if (isLoggedIn) {
+      const { error } = await supabase.auth.signOut();
 
-        if (error) {
-          alert('로그아웃 중 문제가 발생했습니다.');
-          return;
-        }
-
-        alert('로그아웃되었습니다.');
-        navigate('/');
+      if (error) {
+        alert('로그아웃 중 문제가 발생했습니다.');
         return;
       }
 
-      navigate('/login');
-    };
+      alert('로그아웃되었습니다.');
+      navigate('/');
+      return;
+    }
 
-    
+    navigate('/login');
+  };
 
   return (
     <header className={styles.header}>
-      <div
+      <button
+        type="button"
         className={styles.logo}
         onClick={() => navigate(homePath)}
-        style={{ cursor: 'pointer' }}
+        aria-label="홈으로 이동"
       >
         CCC 여름수련회 버스
-      </div>
+      </button>
 
       <div className={styles.rightGroup}>
         <button
+          type="button"
           className={styles.loginButton}
           aria-label={isLoggedIn ? '로그아웃' : '로그인'}
           onClick={handleAuthButtonClick}
@@ -90,6 +98,7 @@ const Header = () => {
         </button>
 
         <button
+          type="button"
           className={styles.menuButton}
           aria-label="메뉴 열기"
           onClick={toggleSidebar}
@@ -98,10 +107,14 @@ const Header = () => {
         </button>
       </div>
 
-      <Sidebar
-        isOpen={isSidebarOpen}
-        onClose={() => setIsSidebarOpen(false)}
-      />
+      {hasOpenedSidebar && (
+        <Suspense fallback={null}>
+          <Sidebar
+            isOpen={isSidebarOpen}
+            onClose={() => setIsSidebarOpen(false)}
+          />
+        </Suspense>
+      )}
     </header>
   );
 };

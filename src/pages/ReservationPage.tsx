@@ -41,9 +41,8 @@ const createReservationId = () => {
 };
 
 const reservationSteps = [
-  '기본정보',
-  '소속 선택',
-  '도착역 선택',
+  '신청자 정보',
+  '행선지 선택',
   '확인',
 ] as const;
 
@@ -144,6 +143,7 @@ const ReservationPage = () => {
     null
   );
   const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [formStatus, setFormStatus] = useState<{
@@ -185,7 +185,13 @@ const ReservationPage = () => {
 const [isStationCandidateModalOpen, setIsStationCandidateModalOpen] =
   useState(false);
 const [stationCandidateSearch, setStationCandidateSearch] = useState('');
+const [candidateFirstStation, setCandidateFirstStation] =
+  useState<StationOption | null>(null);
+const [candidateSecondStation, setCandidateSecondStation] =
+  useState<StationOption | null>(null);
 const [isDepositConfirmModalOpen, setIsDepositConfirmModalOpen] =
+  useState(false);
+const [showDepositRequiredMessage, setShowDepositRequiredMessage] =
   useState(false);
 
 const [stationOptions, setStationOptions] = useState<StationOption[]>([]);
@@ -225,7 +231,7 @@ const [stationSelectMode, setStationSelectMode] = useState<
 >('recommend');
 
 useEffect(() => {
-  if (currentStep !== 2 || stationSelectMode !== 'recommend' || isKakaoReady) {
+  if (currentStep !== 1 || stationSelectMode !== 'recommend' || isKakaoReady) {
     return;
   }
 
@@ -422,7 +428,7 @@ useEffect(() => {
       setCampusSearch(matchedCampus.name);
       setSelectedCampus(matchedCampus.name);
     } catch (error) {
-      console.error('프로필/예약 조직 정보 동기화 실패:', error);
+      console.error('프로필/신청 조직 정보 동기화 실패:', error);
     }
   };
 
@@ -446,8 +452,8 @@ useEffect(() => {
     } catch (error) {
       if (!isMounted) return;
 
-      console.error('도착역 정보 로드 실패:', error);
-      alert('도착역 정보를 불러오지 못했습니다.');
+      console.error('행선지 정보 로드 실패:', error);
+      alert('행선지 정보를 불러오지 못했습니다.');
     } finally {
       if (isMounted) setIsStationLoading(false);
     }
@@ -577,7 +583,7 @@ const handlePlaceConfirm = (place: PlaceCandidate) => {
 
   if (stationOptions.length === 0) {
     setNearbyStations([]);
-    alert('도착역 후보 정보를 불러오지 못했습니다.');
+    alert('행선지 후보 정보를 불러오지 못했습니다.');
     return;
   }
 
@@ -607,12 +613,12 @@ const handleApplyRecommendation = (
   rank: 1 | 2
 ) => {
   if (rank === 1 && secondStation?.id === station.id) {
-    alert('이미 2지망으로 선택한 도착역입니다.');
+    alert('이미 2지망으로 선택한 행선지입니다.');
     return;
   }
 
   if (rank === 2 && firstStation?.id === station.id) {
-    alert('이미 1지망으로 선택한 도착역입니다.');
+    alert('이미 1지망으로 선택한 행선지입니다.');
     return;
   }
 
@@ -740,19 +746,30 @@ const handleCandidateStationSelect = (
   rank: 1 | 2,
   station: StationOption
 ) => {
-  if (rank === 1 && secondStation?.id === station.id) {
-    alert('이미 2지망으로 선택한 도착역입니다.');
-    return;
-  }
+  if (rank === 1) setCandidateFirstStation(station);
+  if (rank === 2) setCandidateSecondStation(station);
+};
 
-  if (rank === 2 && firstStation?.id === station.id) {
-    alert('이미 1지망으로 선택한 도착역입니다.');
-    return;
-  }
-
-  handleStationSelect(rank, station);
+const closeStationCandidateModal = () => {
   setIsStationCandidateModalOpen(false);
   setStationCandidateSearch('');
+  setCandidateFirstStation(null);
+  setCandidateSecondStation(null);
+};
+
+const handleOpenStationCandidateModal = () => {
+  setCandidateFirstStation(firstStation);
+  setCandidateSecondStation(secondStation);
+  setStationCandidateSearch('');
+  setIsStationCandidateModalOpen(true);
+};
+
+const handleConfirmCandidateStations = () => {
+  if (!candidateFirstStation || !candidateSecondStation) return;
+
+  handleStationSelect(1, candidateFirstStation);
+  handleStationSelect(2, candidateSecondStation);
+  closeStationCandidateModal();
 };
 
   const handleCancelReservation = async () => {
@@ -766,7 +783,7 @@ const handleCandidateStationSelect = (
       alert('신청 정보가 삭제되었습니다.');
       navigate('/');
     } catch (error) {
-      console.error('예약 삭제 실패:', error);
+      console.error('신청 삭제 실패:', error);
       alert('신청 삭제에 실패했습니다. 다시 시도해주세요.');
     }
   };
@@ -799,9 +816,6 @@ const handleCandidateStationSelect = (
       if (!phone.trim()) {
         errors.phone = '연락처를 입력해주세요.';
       }
-    }
-
-    if (step === 1) {
       if (!selectedDistrict) {
         errors.district = '지구를 선택해주세요.';
       }
@@ -815,18 +829,18 @@ const handleCandidateStationSelect = (
       }
     }
 
-    if (step === 2) {
+    if (step === 1) {
       if (!firstStation) {
-        errors.firstStation = '1지망 도착역을 선택해주세요.';
+        errors.firstStation = '1지망 행선지를 선택해주세요.';
       }
 
       if (!secondStation) {
-        errors.secondStation = '2지망 도착역을 선택해주세요.';
+        errors.secondStation = '2지망 행선지를 선택해주세요.';
       }
 
       if (firstStation && secondStation && firstStation.id === secondStation.id) {
         errors.stationPreference =
-          '1지망과 2지망은 서로 다른 도착역으로 선택해주세요.';
+          '1지망과 2지망은 서로 다른 행선지로 선택해주세요.';
       }
     }
 
@@ -858,11 +872,10 @@ const handleCandidateStationSelect = (
     const errors = {
       ...getStepValidationErrors(0),
       ...getStepValidationErrors(1),
-      ...getStepValidationErrors(2),
     };
 
     if (Object.keys(errors).length > 0) {
-      const firstInvalidStep = [0, 1, 2].find(
+      const firstInvalidStep = [0, 1].find(
         (step) => Object.keys(getStepValidationErrors(step)).length > 0
       );
 
@@ -882,8 +895,7 @@ const handleCandidateStationSelect = (
 
   const getVisibleStepErrors = () => {
     const fieldsByStep = [
-      ['name', 'phone'],
-      ['district', 'team', 'campus'],
+      ['name', 'phone', 'district', 'team', 'campus'],
       ['firstStation', 'secondStation', 'stationPreference'],
       [],
     ];
@@ -903,7 +915,7 @@ const handleCandidateStationSelect = (
 
     if (!validateCurrentStepInline()) return;
 
-    if (currentStep === 2 && targetStep === 3) {
+    if (currentStep === 1 && targetStep === 2) {
       setIsDepositConfirmModalOpen(true);
       return;
     }
@@ -921,7 +933,7 @@ const handleCandidateStationSelect = (
 
     if (!validateCurrentStepInline()) return;
 
-    if (currentStep === 2) {
+    if (currentStep === 1) {
       setIsDepositConfirmModalOpen(true);
       return;
     }
@@ -950,7 +962,7 @@ const handleCandidateStationSelect = (
     if (reservationDeadline.isClosed) {
       setFormStatus({
         type: 'error',
-        message: `신청이 마감되어 신청 정보를 저장할 수 없습니다. 마감 시간: ${formatReservationDeadline(
+        message: `신청이 마감되어 신청 정보를 저장할 수 없습니다. 신청 마감 일시: ${formatReservationDeadline(
           reservationDeadline.deadlineAt
         )}`,
       });
@@ -958,6 +970,8 @@ const handleCandidateStationSelect = (
     }
 
     if (!validateAllStepsInline()) return;
+
+    setIsSubmitting(true);
 
     try {
       const {
@@ -1012,11 +1026,13 @@ const handleCandidateStationSelect = (
 
       navigate('/ticket');
     } catch (error) {
-      console.error('예약 저장 실패:', error);
+      console.error('신청 저장 실패:', error);
       setFormStatus({
         type: 'error',
         message: '신청 저장에 실패했습니다. 다시 시도해주세요.',
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -1037,7 +1053,7 @@ const handleCandidateStationSelect = (
       <div className={styles.stationSelectCard}>
         <div className={styles.stationSelectHeader}>
           <span>{rank}지망</span>
-          <strong>{selectedStation?.name || '도착역 미선택'}</strong>
+          <strong>{selectedStation?.name || '행선지 미선택'}</strong>
         </div>
 
         <div className={styles.searchBox}>
@@ -1121,7 +1137,7 @@ const handleCandidateStationSelect = (
               </h1>
 
               <p className={styles.subtitle}>
-                수련회 종료 후 집으로 돌아가는 버스의 희망 도착역을 신청해주세요
+                수련회 종료 후 집으로 돌아가는 버스의 희망 행선지를 신청해주세요
               </p>
             </div>
 
@@ -1141,8 +1157,18 @@ const handleCandidateStationSelect = (
 
             {reservationDeadline.isClosed && !isConfirmed && (
               <div className={styles.closedNoticeBox}>
-                신청이 마감되어 새로 신청하거나 수정할 수 없습니다.
-                마감 시간: {formatReservationDeadline(reservationDeadline.deadlineAt)}
+                <strong>일반 신청이 마감되었습니다.</strong>
+                <span>
+                  신청 마감 일시: {formatReservationDeadline(reservationDeadline.deadlineAt)}
+                </span>
+                {!savedReservation && (
+                  <button
+                    type="button"
+                    onClick={() => navigate('/remaining-seats')}
+                  >
+                    잔여 좌석 확인하기
+                  </button>
+                )}
               </div>
             )}
 
@@ -1257,8 +1283,15 @@ const handleCandidateStationSelect = (
                   </>
                 )}
 
-                {currentStep === 1 && (
+                {currentStep === 0 && (
                   <>
+                <div className={styles.sectionDivider} />
+
+                <div className={styles.preferenceHeader}>
+                  <h2>소속 정보</h2>
+                  <p>지구, 팀, 캠퍼스를 순서대로 선택해주세요.</p>
+                </div>
+
                 <div className={styles.inputGroup}>
                   <label className={styles.label}>
                     지구 선택 <span className={styles.required}>*</span>
@@ -1379,25 +1412,15 @@ const handleCandidateStationSelect = (
                   </>
                 )}
 
-                {currentStep === 2 && (
+                {currentStep === 1 && (
                   <>
                 <div className={styles.sectionDivider} />
 
                 <div className={styles.preferenceHeader}>
-                  <h2>희망 도착역 선택</h2>
+                  <h2>희망 행선지 선택</h2>
                   <p>
                     가까운 역을 추천받거나 직접 검색해서 1·2지망을 선택해주세요.
                   </p>
-                </div>
-
-                <div className={styles.depositNotice}>
-                  <div className={styles.depositNoticeIcon}>
-                    <Coins size={20} />
-                  </div>
-                  <div className={styles.depositNoticeContent}>
-                    <strong>입금 안내</strong>
-                    <p>캠퍼스 회계순장 계좌로 <strong>20,000원</strong> 입금 부탁드립니다.</p>
-                  </div>
                 </div>
 
                 <div className={styles.preferenceSummaryGrid}>
@@ -1453,10 +1476,10 @@ const handleCandidateStationSelect = (
   <div className={styles.recommendationHeader}>
     <MapPin size={20} color="#2563eb" />
     <div>
-      <h3>주변 도착역 추천</h3>
+      <h3>주변 행선지 추천</h3>
       <p>
-        주소나 장소명을 입력한 뒤 실제 도착역을 확정하면,
-        그 장소에서 가까운 도착역 3곳을 추천합니다.
+        주소나 장소명을 입력한 뒤 실제 행선지를 확정하면,
+        그 장소에서 가까운 행선지 3곳을 추천합니다.
       </p>
     </div>
   </div>
@@ -1533,7 +1556,7 @@ const handleCandidateStationSelect = (
 
   {selectedPlace && (
     <div className={styles.selectedBox}>
-      <strong>확정된 도착역: {selectedPlace.name}</strong>
+      <strong>확정된 행선지: {selectedPlace.name}</strong>
       {selectedPlace.address && <p>{selectedPlace.address}</p>}
     </div>
   )}
@@ -1587,7 +1610,7 @@ const handleCandidateStationSelect = (
 
   {selectedPlace && nearbyStations.length === 0 && (
     <p className={styles.emptyResult}>
-      추천 가능한 도착역이 없습니다. 관리자에게 도착역 좌표 등록 여부를 확인해주세요.
+      추천 가능한 행선지가 없습니다. 관리자에게 행선지 좌표 등록 여부를 확인해주세요.
     </p>
   )}
 </div>
@@ -1599,12 +1622,9 @@ const handleCandidateStationSelect = (
                       <button
                         type="button"
                         className={styles.candidateOpenButton}
-                        onClick={() => {
-                          setIsStationCandidateModalOpen(true);
-                          setStationCandidateSearch('');
-                        }}
+                        onClick={handleOpenStationCandidateModal}
                       >
-                        도착역 후보 전체 보기
+                        행선지 후보 전체 보기
                       </button>
                     )}
 
@@ -1630,7 +1650,7 @@ const handleCandidateStationSelect = (
                   </>
                 )}
 
-                {currentStep === 3 && (
+                {currentStep === 2 && (
                   <>
                 <div className={styles.confirmSummary}>
                   <h2>신청 내용 확인</h2>
@@ -1667,7 +1687,7 @@ const handleCandidateStationSelect = (
                     <strong>안내:</strong>{' '}
                     {isConfirmed
                       ? '버스표가 확정된 이후에는 신청 정보를 직접 수정할 수 없습니다.'
-                      : '신청 완료 후 관리자가 희망 도착역을 참고하여 버스를 배정합니다.'}
+                      : '신청 완료 후 관리자가 희망 행선지를 참고하여 버스를 배정합니다.'}
                   </p>
                 </div>
                   </>
@@ -1684,16 +1704,6 @@ const handleCandidateStationSelect = (
                     </button>
                   )}
 
-                  {isEditMode && !isReservationLocked && (
-                    <button
-                      type="button"
-                      className={styles.deleteButton}
-                      onClick={handleCancelReservation}
-                    >
-                      신청 삭제하기
-                    </button>
-                  )}
-
                   {isConfirmed ? (
                     <button
                       type="button"
@@ -1706,9 +1716,14 @@ const handleCandidateStationSelect = (
                     <button
                       type="button"
                       className={styles.submitButton}
-                      disabled
+                      onClick={() =>
+                        savedReservation
+                          ? undefined
+                          : navigate('/remaining-seats')
+                      }
+                      disabled={Boolean(savedReservation)}
                     >
-                      신청 마감
+                      {savedReservation ? '신청 마감' : '잔여 좌석 선택하기'}
                     </button>
                   ) : currentStep < reservationSteps.length - 1 ? (
                     <button
@@ -1722,12 +1737,29 @@ const handleCandidateStationSelect = (
                     <button
                       type="button"
                       className={styles.submitButton}
+                      disabled={isSubmitting}
                       onClick={() => void handleSubmit()}
                     >
-                      {isEditMode ? '신청 수정하기' : '신청 완료하기'}
+                      {isSubmitting
+                        ? '신청 처리 중...'
+                        : isEditMode
+                          ? '신청 수정하기'
+                          : '신청 완료하기'}
                     </button>
                   )}
                 </div>
+
+                {isEditMode && !isReservationLocked && (
+                  <div className={styles.deleteAction}>
+                    <span>신청을 취소하시겠어요?</span>
+                    <button
+                      type="button"
+                      onClick={handleCancelReservation}
+                    >
+                      신청 삭제
+                    </button>
+                  </div>
+                )}
               </form>
             </div>
 
@@ -1744,10 +1776,7 @@ const handleCandidateStationSelect = (
 {isStationCandidateModalOpen && (
   <div
     className={styles.modalOverlay}
-    onClick={() => {
-      setIsStationCandidateModalOpen(false);
-      setStationCandidateSearch('');
-    }}
+    onClick={closeStationCandidateModal}
   >
     <div
       className={styles.stationModal}
@@ -1756,16 +1785,13 @@ const handleCandidateStationSelect = (
       <div className={styles.modalHeader}>
         <div>
           <p className={styles.modalEyebrow}>STATION CANDIDATES</p>
-          <h2>도착역 후보 전체 보기</h2>
+          <h2>행선지 후보 전체 보기</h2>
         </div>
 
         <button
           type="button"
           className={styles.modalCloseButton}
-          onClick={() => {
-            setIsStationCandidateModalOpen(false);
-            setStationCandidateSearch('');
-          }}
+          onClick={closeStationCandidateModal}
         >
           닫기
         </button>
@@ -1789,8 +1815,8 @@ const handleCandidateStationSelect = (
       <div className={styles.candidateList}>
         {stationCandidateResults.length > 0 ? (
           stationCandidateResults.map((station) => {
-            const isFirstSelected = firstStation?.id === station.id;
-            const isSecondSelected = secondStation?.id === station.id;
+            const isFirstSelected = candidateFirstStation?.id === station.id;
+            const isSecondSelected = candidateSecondStation?.id === station.id;
 
             return (
               <div key={station.id} className={styles.candidateItem}>
@@ -1826,6 +1852,20 @@ const handleCandidateStationSelect = (
           <p className={styles.emptyResult}>검색 결과가 없습니다.</p>
         )}
       </div>
+
+      <div className={styles.candidateModalFooter}>
+        <div>
+          <span>1지망 {candidateFirstStation?.name || '미선택'}</span>
+          <span>2지망 {candidateSecondStation?.name || '미선택'}</span>
+        </div>
+        <button
+          type="button"
+          disabled={!candidateFirstStation || !candidateSecondStation}
+          onClick={handleConfirmCandidateStations}
+        >
+          선택 완료
+        </button>
+      </div>
     </div>
   </div>
 )}
@@ -1833,7 +1873,10 @@ const handleCandidateStationSelect = (
 {isDepositConfirmModalOpen && (
   <div
     className={styles.modalOverlay}
-    onClick={() => setIsDepositConfirmModalOpen(false)}
+    onClick={() => {
+      setIsDepositConfirmModalOpen(false);
+      setShowDepositRequiredMessage(false);
+    }}
   >
     <div
       className={styles.confirmModal}
@@ -1842,32 +1885,36 @@ const handleCandidateStationSelect = (
       <div className={styles.confirmModalIcon}>
         <Coins size={28} />
       </div>
-      <h3>입금 여부 확인</h3>
+      <h3>입금 상태 확인</h3>
       <p>
         캠퍼스 회계순장 계좌로
         <br />
         <strong>20,000원</strong> 입금 하셨나요?
       </p>
+      {showDepositRequiredMessage && (
+        <div className={styles.confirmModalNotice} role="status">
+          신청을 완료하려면 먼저 입금이 필요합니다. 입금 후 다시 진행해
+          주세요.
+        </div>
+      )}
       <div className={styles.confirmModalButtons}>
         <button
           type="button"
           className={styles.confirmModalNoBtn}
-          onClick={() => {
-            setIsDepositConfirmModalOpen(false);
-            alert('캠퍼스 회계순장 계좌로 20,000원을 입금하셔야 귀가 버스 신청을 완료하실 수 있습니다. 입금 후 다시 신청을 진행해 주세요.');
-          }}
+          onClick={() => setShowDepositRequiredMessage(true)}
         >
-          아니요
+          아직 입금 전이에요
         </button>
         <button
           type="button"
           className={styles.confirmModalYesBtn}
           onClick={() => {
             setIsDepositConfirmModalOpen(false);
-            setCurrentStep(3);
+            setShowDepositRequiredMessage(false);
+            setCurrentStep(2);
           }}
         >
-          네
+          입금했어요
         </button>
       </div>
     </div>

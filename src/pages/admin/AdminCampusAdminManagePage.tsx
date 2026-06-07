@@ -12,10 +12,10 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
+import { useAdminAuth } from '../../components/AdminAuthProvider';
 import AdminHeader from './AdminHeader';
 import {
   cancelCampusAdmin,
-  getAdminRole,
   getCampusesByTeam,
   getDistrictsForAdmin,
   getTeamsByDistrict,
@@ -24,7 +24,6 @@ import {
   type AdminUserSearchResult,
   type SelectOption,
 } from '../../lib/adminService';
-import { supabase } from '../../lib/supabase';
 import { getParticipationTargetsSetting } from '../../lib/participationTargetsService';
 
 import styles from './AdminCampusAdminManagePage.module.css';
@@ -34,6 +33,8 @@ interface SavedCampusRow {
   team: string;
   campus: string;
 }
+
+const USER_PAGE_SIZE = 50;
 
 const makeSavedOptionId = (...parts: string[]) => parts.join('|');
 
@@ -80,6 +81,7 @@ const getErrorMessage = (error: unknown) => {
 
 const AdminCampusAdminManagePage = () => {
   const navigate = useNavigate();
+  const { adminRole } = useAdminAuth();
 
   const [loading, setLoading] = useState(true);
   const [districts, setDistricts] = useState<SelectOption[]>([]);
@@ -97,6 +99,8 @@ const AdminCampusAdminManagePage = () => {
   const [searchedUsers, setSearchedUsers] = useState<AdminUserSearchResult[]>(
     []
   );
+  const [searchPage, setSearchPage] = useState(1);
+  const [searchTotalCount, setSearchTotalCount] = useState(0);
   const [searchingUsers, setSearchingUsers] = useState(false);
   const [actionLoadingUserId, setActionLoadingUserId] = useState<string | null>(
     null
@@ -134,17 +138,6 @@ const AdminCampusAdminManagePage = () => {
     setLoading(true);
 
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (!session) {
-        navigate('/admin/login');
-        return;
-      }
-
-      const adminRole = await getAdminRole(session.user.id);
-
       if (!adminRole || adminRole.role !== 'global_admin') {
         alert('전체 관리자만 접근할 수 있습니다.');
         navigate('/');
@@ -206,6 +199,8 @@ const AdminCampusAdminManagePage = () => {
     setTeams([]);
     setCampuses([]);
     setSearchedUsers([]);
+    setSearchPage(1);
+    setSearchTotalCount(0);
 
     if (!districtId) return;
 
@@ -285,22 +280,34 @@ const AdminCampusAdminManagePage = () => {
     setSelectedCampusId(campusId);
     setSelectedCampusName(campus?.name ?? '');
     setSearchedUsers([]);
+    setSearchPage(1);
+    setSearchTotalCount(0);
   };
 
-  const handleSearchUsers = async () => {
+  const loadUsersPage = async (page: number) => {
+    const result = await searchUsersForCampusManager({
+      district: selectedDistrictName || undefined,
+      team: selectedTeamName || undefined,
+      campus: selectedCampusName || undefined,
+      page,
+      pageSize: USER_PAGE_SIZE,
+    });
+
+    setSearchedUsers(result.users);
+    setSearchPage(result.page);
+    setSearchTotalCount(result.totalCount);
+
+    return result;
+  };
+
+  const handleSearchUsers = async (page = 1) => {
     resetMessage();
     setSearchingUsers(true);
 
     try {
-      const users = await searchUsersForCampusManager({
-        district: selectedDistrictName || undefined,
-        team: selectedTeamName || undefined,
-        campus: selectedCampusName || undefined,
-      });
+      const result = await loadUsersPage(page);
 
-      setSearchedUsers(users);
-
-      if (users.length === 0) {
+      if (result.users.length === 0) {
         setMessage({ type: 'error', text: '검색 결과가 없습니다.' });
       }
     } catch (error) {
@@ -315,13 +322,8 @@ const AdminCampusAdminManagePage = () => {
   };
 
   const refreshCampusUsers = async () => {
-    const users = await searchUsersForCampusManager({
-      district: selectedDistrictName || undefined,
-      team: selectedTeamName || undefined,
-      campus: selectedCampusName || undefined,
-    });
-
-    setSearchedUsers(users);
+    const lastPage = Math.max(1, Math.ceil(searchTotalCount / USER_PAGE_SIZE));
+    await loadUsersPage(Math.min(searchPage, lastPage));
   };
 
   const handleAssignOrChangeCampusAdmin = async (
@@ -591,7 +593,7 @@ const AdminCampusAdminManagePage = () => {
             <button
               type="button"
               className={styles.primaryButton}
-              onClick={() => void handleSearchUsers()}
+              onClick={() => void handleSearchUsers(1)}
               disabled={searchingUsers || !selectedCampusName}
             >
               <Search size={16} />
@@ -619,7 +621,7 @@ const AdminCampusAdminManagePage = () => {
               <h2>검색 결과</h2>
               <p>선택한 캠퍼스 범위에 맞는 사용자를 확인하고 권한을 지정합니다.</p>
             </div>
-            <span><Users size={14} /> {searchedUsers.length}명</span>
+            <span><Users size={14} /> 총 {searchTotalCount}명</span>
           </div>
 
           {searchedUsers.length === 0 ? (
@@ -684,6 +686,21 @@ const AdminCampusAdminManagePage = () => {
                         <span>연락처: {user.phone || '미등록'}</span>
                         {user.email && <span>이메일: {user.email}</span>}
                       </div>
+                      {user.managedCampuses &&
+                        user.managedCampuses.length > 0 && (
+                          <div className={styles.managedCampusList}>
+                            <strong>
+                              현재 관리 캠퍼스 {user.managedCampuses.length}개
+                            </strong>
+                            {user.managedCampuses.map((scope) => (
+                              <span key={scope.id}>
+                                {[scope.district, scope.team, scope.campus]
+                                  .filter(Boolean)
+                                  .join(' / ')}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                     </div>
 
                     <div className={styles.userAction}>
@@ -721,6 +738,35 @@ const AdminCampusAdminManagePage = () => {
                   </article>
                 );
               })}
+            </div>
+          )}
+
+          {searchTotalCount > USER_PAGE_SIZE && (
+            <div className={styles.filterActions}>
+              <span>
+                {searchPage} / {Math.ceil(searchTotalCount / USER_PAGE_SIZE)} 페이지
+              </span>
+              <div>
+                <button
+                  type="button"
+                  className={styles.mutedButton}
+                  onClick={() => void handleSearchUsers(searchPage - 1)}
+                  disabled={searchingUsers || searchPage <= 1}
+                >
+                  이전
+                </button>
+                <button
+                  type="button"
+                  className={styles.primaryButton}
+                  onClick={() => void handleSearchUsers(searchPage + 1)}
+                  disabled={
+                    searchingUsers ||
+                    searchPage >= Math.ceil(searchTotalCount / USER_PAGE_SIZE)
+                  }
+                >
+                  다음
+                </button>
+              </div>
             </div>
           )}
         </section>

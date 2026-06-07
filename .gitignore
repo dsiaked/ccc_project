@@ -12,6 +12,9 @@ dist
 dist-ssr
 outputs
 .tmp
+.venv
+__pycache__/
+*.py[cod]
 *.local
 
 # Editor directories and files

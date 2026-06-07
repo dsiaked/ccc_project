@@ -635,51 +635,5 @@ using (
   )
 );
 
-create policy "Campus admins can update campus payments"
-on payments
-for update
-to authenticated
-using (
-  exists (
-    select 1
-    from reservations
-    join admin_roles
-      on (
-        (
-          admin_roles.district_id = reservations.district_id
-          and admin_roles.team_id = reservations.team_id
-          and admin_roles.campus_id = reservations.campus_id
-        )
-        or (
-          admin_roles.district = reservations.district
-          and admin_roles.team = reservations.team
-          and admin_roles.campus = reservations.campus
-        )
-      )
-    where reservations.id = payments.reservation_id
-      and admin_roles.user_id = auth.uid()
-      and admin_roles.role = 'campus_admin'
-  )
-)
-with check (
-  exists (
-    select 1
-    from reservations
-    join admin_roles
-      on (
-        (
-          admin_roles.district_id = reservations.district_id
-          and admin_roles.team_id = reservations.team_id
-          and admin_roles.campus_id = reservations.campus_id
-        )
-        or (
-          admin_roles.district = reservations.district
-          and admin_roles.team = reservations.team
-          and admin_roles.campus = reservations.campus
-        )
-      )
-    where reservations.id = payments.reservation_id
-      and admin_roles.user_id = auth.uid()
-      and admin_roles.role = 'campus_admin'
-  )
-);
+-- Payment writes are only allowed through validated SECURITY DEFINER RPCs.
+revoke insert, update, delete on table public.payments from public, anon, authenticated;

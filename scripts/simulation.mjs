@@ -50,6 +50,7 @@
  *
  *   npm.cmd run simulation -- seed:reservations
  *     - 캠퍼스별 인기 행선지에 편향된 다양한 예약을 생성합니다.
+ *     - 매 10번째 시뮬레이션 계정은 미신청자로 남깁니다.
  *     - 모든 사용자가 서로 다른 1지망과 2지망 행선지를 선택합니다.
  *     - 신청 시각은 최근 하루 사이에 불규칙하게 분산합니다.
  *     - 관리자에 의한 신청 취소 없이 모든 예약을 requested 상태로 생성합니다.
@@ -299,6 +300,8 @@ const hashString = (value) => {
   return hash >>> 0;
 };
 const deterministicUnit = (value) => hashString(value) / 0x100000000;
+const shouldCreateSimulationReservation = (user) =>
+  Math.max(1, user.sequence) % 10 !== 0;
 const chunks = (items, size = CHUNK_SIZE) => {
   const result = [];
   for (let index = 0; index < items.length; index += size) {
@@ -840,9 +843,24 @@ function validPaymentStatus(status) {
 }
 
 function buildCampusAssignments(campuses, count) {
-  const weighted = campuses.map((campus, index) => ({
+  const weighted = campuses.map((campus) => ({
     campus,
-    weight: campuses.length - index,
+    weight: (() => {
+      const key = `campus|${campus.district ?? ''}|${campus.team ?? ''}|${campus.campus ?? ''}`;
+      const tierUnit = deterministicUnit(`${key}:distribution-tier`);
+      const tierFactor =
+        tierUnit < 0.15
+          ? 0.5
+          : tierUnit < 0.45
+            ? 0.76
+            : tierUnit < 0.78
+              ? 1
+              : tierUnit < 0.94
+                ? 1.35
+                : 1.75;
+      const jitter = 0.94 + (hashString(`${key}:distribution-jitter`) % 13) / 100;
+      return tierFactor * jitter;
+    })(),
   }));
   const totalWeight = weighted.reduce((sum, item) => sum + item.weight, 0);
   const allocations = weighted.map((item) => {
@@ -1191,6 +1209,10 @@ function requestedAtFor(user, now) {
 
 async function seedReservations() {
   const users = await loadSimulationUsers();
+  const reservationUsers = users.filter(shouldCreateSimulationReservation);
+  const nonReservationUserIds = users
+    .filter((user) => !shouldCreateSimulationReservation(user))
+    .map((user) => user.userId);
   const adminIds = users
     .filter((user) => user.simRole === 'campus_admin')
     .map((user) => user.userId);
@@ -1208,7 +1230,9 @@ async function seedReservations() {
   }
   const stations = await loadStations();
   const now = Date.now();
-  const rows = users.map((user) => {
+  await deleteRowsByIds('payments', 'user_id', nonReservationUserIds);
+  await deleteRowsByIds('reservations', 'user_id', nonReservationUserIds);
+  const rows = reservationUsers.map((user) => {
     const requestedAt = requestedAtFor(user, now);
     const preferences = buildStationPreferences(stations, user);
     const status = 'requested';
@@ -1253,7 +1277,9 @@ async function seedReservations() {
   }
   const sortedFirstChoices = [...firstChoiceCounts.values()].sort((a, b) => a - b);
   console.table({
+    전체_계정: users.length,
     전체_예약: rows.length,
+    미신청_계정: users.length - rows.length,
     신청_상태: rows.filter((row) => row.status === 'requested').length,
     취소_상태: rows.filter((row) => row.status === 'cancelled').length,
     '2지망까지_선택': rows.filter((row) => row.station_preferences.length === 2).length,
@@ -1266,13 +1292,20 @@ async function seedReservations() {
 async function seedPayments() {
   const users = await loadSimulationUsers();
   const userIds = users.map((user) => user.userId);
+  const expectedReservationUsers = users.filter(shouldCreateSimulationReservation);
+  const expectedReservationUserIds = new Set(
+    expectedReservationUsers.map((user) => user.userId),
+  );
   const reservations = await fetchRowsByIds(
     'reservations',
     'id,user_id,status',
     'user_id',
     userIds,
   );
-  if (reservations.length !== users.length) {
+  if (
+    reservations.length !== expectedReservationUsers.length ||
+    reservations.some((reservation) => !expectedReservationUserIds.has(reservation.user_id))
+  ) {
     throw new Error('예약이 완전하지 않습니다. seed:reservations를 먼저 실행하세요.');
   }
   const cancelledReservations = reservations.filter(
@@ -1650,6 +1683,12 @@ async function verify() {
     ids,
   );
   const requested = reservations.filter((row) => row.status === 'requested');
+  const expectedReservationUserIds = new Set(
+    users.filter(shouldCreateSimulationReservation).map((user) => user.userId),
+  );
+  const reservationUserIds = new Set(
+    reservations.map((reservation) => reservation.user_id),
+  );
   const [profiles, payments, adminRoles, transfers] = await Promise.all([
     countRows('profiles', 'id', ids),
     countRows('payments', 'user_id', ids),
@@ -1664,6 +1703,7 @@ async function verify() {
     프로필: profiles,
     관리자_권한: adminRoles,
     예약: reservations.length,
+    미신청_계정: users.length - reservations.length,
     요청_예약: requested.length,
     입금: payments,
     캠퍼스_송금: transfers,
@@ -1673,7 +1713,9 @@ async function verify() {
   if (
     profiles !== users.length ||
     adminRoles !== adminIds.length ||
-    reservations.length !== users.length ||
+    reservations.length !== expectedReservationUserIds.size ||
+    [...expectedReservationUserIds].some((id) => !reservationUserIds.has(id)) ||
+    [...reservationUserIds].some((id) => !expectedReservationUserIds.has(id)) ||
     payments !== requested.length
   ) {
     throw new Error('시뮬레이션 검증에 실패했습니다. 위 요약을 확인하세요.');

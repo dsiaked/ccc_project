@@ -6,14 +6,13 @@ import {
   CheckCircle2,
   CircleHelp,
   CreditCard,
-  Megaphone,
+  MessageSquare,
   Timer,
   Users,
 } from 'lucide-react';
 
 import { supabase } from '../../lib/supabase';
 import {
-  getAdminRole,
   getBusTicketPrice,
   getCampusTransferStats,
   type CampusTransferStat,
@@ -38,20 +37,20 @@ import AdminHeader from './AdminHeader';
 const operationScenarioSteps = [
   {
     id: 'initial-setup',
-    title: '기초 세팅 확인',
-    description: '조직, 참여 목표, 캠퍼스 관리자 권한을 먼저 점검합니다.',
-    actionLabel: '기초 세팅 점검하기',
+    title: '운영 초기값 설정',
+    description: '조직, 예상 참여 인원, 캠퍼스 관리자 권한을 먼저 점검합니다.',
+    actionLabel: '운영 초기값 설정하기',
     actionPath: '/admin/setup-check',
   },
   {
     id: 'post-deadline-operations',
-    title: '공지-예매시작-신청 마감',
-    description: '신청 마감 기한을 설정하고, 각 팀과 캠퍼스에 공지를 전달한 뒤 예매를 시작합니다.',
-    checks: ['신청 마감 기한 설정', '팀·캠퍼스별 공지 전달', '예매 시작'],
-    actionLabel: '신청 마감일 설정하기',
+    title: '공지-신청시작-신청 마감',
+    description: '신청 마감 일시를 설정하고, 각 팀과 캠퍼스에 공지를 전달한 뒤 신청을 시작합니다.',
+    checks: ['신청 마감 일시 설정', '팀·캠퍼스별 공지 전달', '신청 시작'],
+    actionLabel: '신청 마감 일시 설정하기',
     actionPath: '/admin/reservation-deadline',
     actionLinks: [
-      { label: '예매 현황 확인하기', path: '/admin/tickets' },
+      { label: '신청 현황 확인하기', path: '/admin/tickets' },
     ],
   },
   {
@@ -69,21 +68,21 @@ const operationScenarioSteps = [
   {
     id: 'allocation-planning',
     title: '배차 계획 산출',
-    description: '신청 인원과 도착지별 수요를 바탕으로 배차 계획을 산출하고 결과를 검토합니다.',
+    description: '신청 인원과 행선지별 수요를 바탕으로 배차 계획을 산출하고 결과를 검토합니다.',
     actionLabel: '배차 계획 산출하기',
     actionPath: '/admin/allocation',
   },
   {
     id: 'remaining-seat-sales',
     title: '배차 확정 이후 잔여 좌석 판매',
-    description: '배차 확정 후 남은 좌석을 추가 판매하고 관리합니다.',
+    description: '배차 확정 후 잔여 좌석을 추가 판매하고 관리합니다.',
     actionLabel: '잔여 좌석 관리하기',
     actionPath: '/admin/remaining-seat-sales',
   },
   {
     id: 'final-check',
     title: '출발 전 최종 점검',
-    description: '탑승 명단, 입금 상태, 출발 장소, 안내 사항을 마지막으로 확인합니다.',
+    description: '탑승 명단, 입금 상태, 탑승 장소, 안내 사항을 마지막으로 확인합니다.',
     actionLabel: '최종 명단 확인하기',
     actionPath: '/admin/tickets',
   },
@@ -95,20 +94,14 @@ const operationScenarioStepIds = new Set<string>(
 
 const quickActions = [
   {
-    title: '공지 작성',
-    description: '홈 화면 공지사항과 안내 문구를 관리합니다.',
-    path: '/admin/home-announcements',
-    icon: Megaphone,
-  },
-  {
     title: '개별 사용자 관리',
     description: '사용자별 관리자 권한과 개인 버스표 정보를 함께 관리합니다.',
     path: '/admin/users',
     icon: CreditCard,
   },
   {
-    title: '문의 게시판',
-    description: '추가 신청, 환불, 입금 오류, 명단 수정 문의를 확인합니다.',
+    title: '공지·문의 관리',
+    description: '캠퍼스 문의와 캠퍼스 공지, 홈화면 공지를 함께 관리합니다.',
     path: '/admin/campus-requests',
     icon: CircleHelp,
   },
@@ -125,7 +118,7 @@ const formatCurrency = (amount: number) => `${amount.toLocaleString()}원`;
 const formatPercent = (value: number) => `${value.toFixed(1)}%`;
 
 const getDeadlineRemainingText = (deadlineAt: string | null, nowMs: number) => {
-  if (!deadlineAt) return '마감 기한을 설정해주세요.';
+  if (!deadlineAt) return '신청 마감 일시를 설정해주세요.';
 
   const remainingMs = new Date(deadlineAt).getTime() - nowMs;
 
@@ -149,6 +142,9 @@ const AdminGlobalPage = () => {
   const [reservationCount, setReservationCount] = useState(0);
   const [busTicketPrice, setBusTicketPrice] = useState(0);
   const [participationTarget, setParticipationTarget] = useState(0);
+  const [unresolvedRequestCount, setUnresolvedRequestCount] = useState(0);
+  const [draftAllocationCount, setDraftAllocationCount] = useState(0);
+  const [confirmedAllocationCount, setConfirmedAllocationCount] = useState(0);
   const [campusTransfers, setCampusTransfers] = useState<CampusTransferStat[]>(
     []
   );
@@ -183,23 +179,6 @@ const AdminGlobalPage = () => {
     setLoadError(null);
 
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (!session) {
-        navigate('/admin/login');
-        return;
-      }
-
-      const adminRole = await getAdminRole(session.user.id);
-
-      if (!adminRole || adminRole.role !== 'global_admin') {
-        setLoadError('전체 관리자만 접근할 수 있습니다.');
-        navigate('/');
-        return;
-      }
-
       const [
         transfers,
         subscriberCountResult,
@@ -208,6 +187,9 @@ const AdminGlobalPage = () => {
         deadline,
         participationSetting,
         scenarioChecklist,
+        unresolvedRequestResult,
+        draftAllocationResult,
+        confirmedAllocationResult,
       ] =
         await Promise.all([
           getCampusTransferStats(),
@@ -222,15 +204,29 @@ const AdminGlobalPage = () => {
           getReservationDeadline(),
           getParticipationTargetsSetting(),
           getGlobalScenarioChecklist(operationScenarioStepIds),
+          supabase
+            .from('campus_requests')
+            .select('id', { count: 'exact', head: true })
+            .neq('status', 'resolved')
+            .eq('is_global_notice', false),
+          supabase
+            .from('bus_allocations')
+            .select('id', { count: 'exact', head: true })
+            .filter('allocation_data->>status', 'eq', 'draft'),
+          supabase
+            .from('bus_allocations')
+            .select('id', { count: 'exact', head: true })
+            .filter('allocation_data->>status', 'eq', 'confirmed'),
         ]);
 
-      if (reservationCountResult.error) {
-        throw reservationCountResult.error;
-      }
+      const dashboardError =
+        reservationCountResult.error ??
+        subscriberCountResult.error ??
+        unresolvedRequestResult.error ??
+        draftAllocationResult.error ??
+        confirmedAllocationResult.error;
 
-      if (subscriberCountResult.error) {
-        throw subscriberCountResult.error;
-      }
+      if (dashboardError) throw dashboardError;
 
       setCampusTransfers(transfers);
       setSubscriberCount(subscriberCountResult.count ?? 0);
@@ -239,13 +235,16 @@ const AdminGlobalPage = () => {
       setReservationDeadline(deadline);
       setParticipationTarget(getTotalParticipationTarget(participationSetting));
       setCheckedScenarioStepIds(scenarioChecklist);
+      setUnresolvedRequestCount(unresolvedRequestResult.count ?? 0);
+      setDraftAllocationCount(draftAllocationResult.count ?? 0);
+      setConfirmedAllocationCount(confirmedAllocationResult.count ?? 0);
     } catch (error) {
       console.error('Failed to load data:', error);
       setLoadError('대시보드 데이터를 불러올 수 없습니다. 잠시 후 다시 시도해주세요.');
     } finally {
       setLoading(false);
     }
-  }, [navigate]);
+  }, []);
 
   useEffect(() => {
     const timerId = window.setTimeout(() => {
@@ -277,13 +276,6 @@ const AdminGlobalPage = () => {
     expectedPaymentAmount > 0
       ? (totalCompletedAmount / expectedPaymentAmount) * 100
       : 0;
-  const pendingCampusCount = campusTransfers.filter(
-    (transfer) => transfer.status === 'pending'
-  ).length;
-  const confirmedCampusCount = campusTransfers.filter(
-    (transfer) =>
-      transfer.status === 'confirmed' && !transfer.hasAdditionalSettlement
-  ).length;
   const scenarioProgress =
     (checkedScenarioStepIds.length / operationScenarioSteps.length) * 100;
   const currentScenarioIndex = operationScenarioSteps.findIndex(
@@ -300,6 +292,18 @@ const AdminGlobalPage = () => {
     : isReservationClosed
       ? '마감됨'
       : '신청 가능';
+  const allocationStatus =
+    confirmedAllocationCount > 0
+      ? '확정 완료'
+      : draftAllocationCount > 0
+        ? '임시안 검토 중'
+        : '배차안 미생성';
+  const allocationDescription =
+    confirmedAllocationCount > 0
+      ? `확정 배차안 ${confirmedAllocationCount.toLocaleString()}개`
+      : draftAllocationCount > 0
+        ? `임시 배차안 ${draftAllocationCount.toLocaleString()}개`
+        : '배차 계산을 시작해주세요.';
 
   if (loading) {
     return (
@@ -385,12 +389,12 @@ const AdminGlobalPage = () => {
             </div>
             <div className={styles.peopleMetricValues}>
               <div>
-                <span>가입자</span>
-                <strong>{subscriberCount.toLocaleString()}명</strong>
-              </div>
-              <div>
                 <span>신청자</span>
                 <strong>{totalPeople.toLocaleString()}명</strong>
+              </div>
+              <div>
+                <span>가입자</span>
+                <strong>{subscriberCount.toLocaleString()}명</strong>
               </div>
               <div>
                 <span>예상 인원</span>
@@ -399,33 +403,46 @@ const AdminGlobalPage = () => {
             </div>
           </div>
 
-          <div className={styles.metric}>
-            <div className={styles.metricIconAmber}>
-              <Timer size={22} />
-            </div>
-            <span>입금 대기 캠퍼스</span>
-            <strong>
-              {pendingCampusCount.toLocaleString()} /{' '}
-              {campusTransfers.length.toLocaleString()}개
-            </strong>
-            <p>{confirmedCampusCount.toLocaleString()}개 캠퍼스 본부 확인</p>
-          </div>
-
-          <div className={styles.metric}>
+          <button
+            type="button"
+            className={styles.metric}
+            onClick={() => navigate('/admin/campus-transfer')}
+            aria-label={`입금률 ${formatPercent(paymentCollectionRate)}, 입금 관리로 이동`}
+          >
               <div className={styles.metricIconGreen}>
                 <CreditCard size={22} />
               </div>
-              <span>실제 입금액 / 예상 입금액</span>
+              <span>입금률</span>
               <strong>{formatPercent(paymentCollectionRate)}</strong>
               <p>
                 {formatCurrency(totalCompletedAmount)} /{' '}
                 {formatCurrency(expectedPaymentAmount)}
               </p>
               <p className={styles.metricFormula}>
-                예매 신청자 {reservationCount.toLocaleString()}명 × 버스표{' '}
+                신청자 {reservationCount.toLocaleString()}명 × 버스표{' '}
                 {formatCurrency(busTicketPrice)}
               </p>
-          </div>
+          </button>
+
+          <button
+            type="button"
+            className={`${styles.metric} ${
+              unresolvedRequestCount > 0 ? styles.attentionMetric : ''
+            }`}
+            onClick={() => navigate('/admin/campus-requests')}
+            aria-label={`미처리 문의 ${unresolvedRequestCount}건, 문의 관리로 이동`}
+          >
+            <div className={styles.metricIconAmber}>
+              <MessageSquare size={22} />
+            </div>
+            <span>미처리 문의</span>
+            <strong>{unresolvedRequestCount.toLocaleString()}건</strong>
+            <p>
+              {unresolvedRequestCount > 0
+                ? '확인이 필요한 문의가 있습니다.'
+                : '모든 문의를 처리했습니다.'}
+            </p>
+          </button>
 
           <button
             type="button"
@@ -460,6 +477,34 @@ const AdminGlobalPage = () => {
                 {formatReservationDeadline(reservationDeadline.deadlineAt)}
               </p>
             )}
+          </button>
+
+          <button
+            type="button"
+            className={`${styles.metric} ${
+              confirmedAllocationCount > 0
+                ? styles.successMetric
+                : draftAllocationCount > 0
+                  ? styles.progressMetric
+                  : styles.attentionMetric
+            }`}
+            onClick={() => navigate('/admin/allocation')}
+            aria-label={`배차 상태 ${allocationStatus}, 배차 관리로 이동`}
+          >
+            <div
+              className={
+                confirmedAllocationCount > 0
+                  ? styles.metricIconGreen
+                  : draftAllocationCount > 0
+                    ? styles.metricIconBlue
+                    : styles.metricIconAmber
+              }
+            >
+              <Bus size={22} />
+            </div>
+            <span>배차 상태</span>
+            <strong>{allocationStatus}</strong>
+            <p>{allocationDescription}</p>
           </button>
         </section>
 

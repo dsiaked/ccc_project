@@ -10,7 +10,7 @@ export async function getStationOptions(): Promise<StationOption[]> {
     .order('name', { ascending: true });
 
   if (error) {
-    console.error('도착역 정보 로드 실패:', error);
+    console.error('행선지 정보 로드 실패:', error);
     throw error;
   }
 

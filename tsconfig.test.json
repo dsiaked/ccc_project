@@ -11,8 +11,6 @@
     "outDir": ".tmp/test-dist"
   },
   "include": [
-    "src/lib/admin/busAllocationAlgorithm.ts",
-    "src/lib/admin/allocationPassengerOptimizer.ts",
     "src/lib/admin/allocationWorkspaceHistory.ts",
     "tests/**/*.test.ts"
   ]

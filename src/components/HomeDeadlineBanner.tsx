@@ -14,7 +14,7 @@ const HOUR_MS = 60 * MINUTE_MS;
 const DAY_MS = 24 * HOUR_MS;
 
 const getRemainingText = (deadlineAt: string | null, nowMs: number) => {
-  if (!deadlineAt) return '마감 시간이 아직 설정되지 않았습니다.';
+  if (!deadlineAt) return '신청 마감 일시가 아직 설정되지 않았습니다.';
 
   const remainingMs = new Date(deadlineAt).getTime() - nowMs;
 
@@ -89,10 +89,10 @@ const HomeDeadlineBanner = () => {
       </div>
 
       <div className={styles.content}>
-        <span>{loading ? '마감 시간 확인 중' : '신청 마감'}</span>
+        <span>{loading ? '신청 마감 일시 확인 중' : '신청 마감'}</span>
         <strong>{loading ? '잠시만 기다려주세요' : remainingText}</strong>
         {!loading && deadlineAt && (
-          <p>마감 시간: {formatReservationDeadline(deadlineAt)}</p>
+          <p>신청 마감 일시: {formatReservationDeadline(deadlineAt)}</p>
         )}
       </div>
     </section>

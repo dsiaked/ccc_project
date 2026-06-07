@@ -2,24 +2,22 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding-top: 32px;
-  padding-bottom: 40px;
-  background: linear-gradient(to bottom, #f9fafb, #ffffff);
+  padding: 4px 16px 32px;
+  background: #ffffff;
   width: 100%;
 }
 
 .container {
   width: 100%;
-  padding: 0 16px;
 }
 
 .card {
   position: relative;
-  height: 500px;
+  min-height: 224px;
   width: 100%;
-  border-radius: 16px;
+  border-radius: 22px;
   overflow: hidden;
-  box-shadow: 0px 25px 50px -12px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 16px 36px -16px rgba(15, 23, 42, 0.35);
   transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
 
@@ -49,40 +47,62 @@
   left: 0;
   width: 100%;
   height: 100%;
-  background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.2) 60%, rgba(0,0,0,0) 100%);
+  background: linear-gradient(90deg, rgba(15, 23, 42, 0.92) 0%, rgba(15, 23, 42, 0.74) 62%, rgba(15, 23, 42, 0.28) 100%);
   display: flex;
-  align-items: flex-end;
+  align-items: center;
 }
 
 .content {
-  padding: 32px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 24px;
   width: 100%;
 }
 
+.eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 8px;
+  color: #bfdbfe;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
 .title {
-  font-weight: 700;
-  font-size: 36px;
-  line-height: 48px;
+  max-width: 310px;
+  margin: 0;
+  font-weight: 900;
+  font-size: 25px;
+  line-height: 1.3;
   color: #ffffff;
-  margin-bottom: 12px;
   text-shadow: 0 2px 4px rgba(0,0,0,0.3);
 }
 
 .subtitle {
-  font-weight: 400;
-  font-size: 20px;
-  line-height: 28px;
+  max-width: 330px;
+  margin: 8px 0 0;
+  font-weight: 500;
+  font-size: 13px;
+  line-height: 1.6;
   color: #ffffff;
-  margin-bottom: 32px;
   text-shadow: 0 1px 2px rgba(0,0,0,0.3);
 }
 
 .ctaButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  flex-shrink: 0;
   background-color: #ffffff;
   color: var(--color-primary);
-  font-weight: 600;
-  font-size: 16px;
-  padding: 12px 24px;
+  font-weight: 800;
+  font-size: 13px;
+  padding: 11px 16px;
   border-radius: 10px;
   transition: all 0.2s ease;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
@@ -96,4 +116,32 @@
 
 .ctaButton:active {
   transform: scale(0.98);
+}
+
+.ctaButton:disabled {
+  cursor: wait;
+  opacity: 0.75;
+}
+
+@media (max-width: 640px) {
+  .card {
+    min-height: 240px;
+  }
+
+  .content {
+    align-items: flex-start;
+    flex-direction: column;
+    justify-content: flex-end;
+    gap: 16px;
+    padding: 20px;
+  }
+
+  .title {
+    max-width: 280px;
+    font-size: 23px;
+  }
+
+  .ctaButton {
+    width: 100%;
+  }
 }

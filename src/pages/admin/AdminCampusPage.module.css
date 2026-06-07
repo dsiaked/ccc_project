@@ -15,7 +15,7 @@
 }
 
 .header {
-  margin-bottom: 32px;
+  margin-bottom: 24px;
 }
 
 .adminScopeBadge {
@@ -32,9 +32,9 @@
 }
 
 .header h1 {
-  font-size: 32px;
-  font-weight: 700;
-  color: #1f2937;
+  font-size: 30px;
+  font-weight: 900;
+  color: #0f172a;
   margin: 0 0 8px;
 }
 
@@ -122,24 +122,66 @@
 
 .statsBar {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.guidePanel {
+  margin-bottom: 20px;
+  overflow: hidden;
+  border: 1px solid #dbe3ed;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.guideToggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 16px;
-  margin-bottom: 24px;
+  width: 100%;
+  padding: 14px 16px;
+  border: 0;
+  background: #ffffff;
+  color: #0f172a;
+  text-align: left;
+  cursor: pointer;
+}
+
+.guideToggle:hover {
+  background: #f8fafc;
+}
+
+.guideToggle span {
+  display: grid;
+  gap: 2px;
+}
+
+.guideToggle strong {
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.guideToggle small {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .guideSection {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-  margin-bottom: 24px;
+  gap: 12px;
+  padding: 0 12px 12px;
+  border-top: 1px solid #eef2f7;
 }
 
 .guideSection > div {
-  padding: 18px;
+  padding: 14px;
   border-radius: 8px;
-  background: #ffffff;
+  background: #f8fafc;
   border: 1px solid #e5e7eb;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
 }
 
 .guideSection strong {
@@ -189,17 +231,13 @@
 .stat {
   background: white;
   border-radius: 8px;
-  padding: 20px;
-  border-left: 4px solid #9ca3af;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+  padding: 16px;
+  border: 1px solid #e2e8f0;
+  border-left: 4px solid #94a3b8;
 }
 
 .stat.statCompleted {
   border-left-color: #10b981;
-}
-
-.stat.statPending {
-  border-left-color: #f59e0b;
 }
 
 .statLabel {
@@ -213,18 +251,17 @@
 
 .statValue {
   display: block;
-  font-size: 28px;
-  font-weight: 700;
-  color: #1f2937;
+  font-size: 24px;
+  font-weight: 900;
+  color: #0f172a;
 }
 
 .paymentRatioCard {
-  margin: -4px 0 24px;
-  padding: 18px;
+  margin: 0 0 24px;
+  padding: 14px 16px;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   background: #ffffff;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
 }
 
 .paymentRatioHeader {
@@ -239,7 +276,7 @@
   display: block;
   margin-top: 4px;
   color: #111827;
-  font-size: 18px;
+  font-size: 14px;
   font-weight: 900;
 }
 
@@ -251,57 +288,22 @@
 
 .paymentRatioPercent {
   color: #166534;
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 900;
 }
 
 .paymentRatioBar {
   display: flex;
   width: 100%;
-  height: 24px;
+  height: 8px;
   overflow: hidden;
   border-radius: 999px;
-  background: #f59e0b;
+  background: #fde68a;
 }
 
 .paymentRatioPaid {
   height: 100%;
   background: #10b981;
-}
-
-.paymentRatioUnpaid {
-  height: 100%;
-  background: #f59e0b;
-}
-
-.paymentRatioLegend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px 18px;
-  margin-top: 12px;
-  color: #475569;
-  font-size: 13px;
-  font-weight: 800;
-}
-
-.paymentRatioLegend span {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.paymentRatioLegend i {
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
-}
-
-.legendPaid {
-  background: #10b981;
-}
-
-.legendUnpaid {
-  background: #f59e0b;
 }
 
 .actionBar {
@@ -316,7 +318,11 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
+  padding: 14px 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #ffffff;
 }
 
 .listTitle {
@@ -331,6 +337,34 @@
   color: #64748b;
   font-size: 13px;
   line-height: 1.5;
+}
+
+.listActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.listToggleButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 42px;
+  padding: 10px 13px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #475569;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.listToggleButton:hover {
+  border-color: #94a3b8;
+  background: #f8fafc;
+  color: #0f172a;
 }
 
 .imageSaveButton {
@@ -405,13 +439,14 @@
 .tableContainer {
   background: white;
   border-radius: 8px;
-  overflow: hidden;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  overflow-x: auto;
+  border: 1px solid #e2e8f0;
   margin-bottom: 24px;
 }
 
 .table {
   width: 100%;
+  min-width: 920px;
   border-collapse: collapse;
 }
 
@@ -421,7 +456,7 @@
 }
 
 .table th {
-  padding: 16px;
+  padding: 13px 14px;
   text-align: left;
   font-size: 13px;
   font-weight: 600;
@@ -436,9 +471,10 @@
 }
 
 .table td {
-  padding: 16px;
+  padding: 13px 14px;
   border-bottom: 1px solid #e5e7eb;
   font-size: 14px;
+  vertical-align: top;
 }
 
 .table tbody tr:hover {
@@ -511,34 +547,54 @@
 }
 
 .ticketConfirmed {
-  min-width: 190px;
-  max-width: 240px;
-  padding: 10px 12px;
-  border: 1px solid #bfdbfe;
+  min-width: 210px;
+  max-width: 250px;
+  overflow: hidden;
+  border: 1px solid #c7d2fe;
   border-radius: 8px;
-  background: #eff6ff;
+  background: #ffffff;
 }
 
-.ticketTopLine {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
+.ticketDestination {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
   gap: 6px;
-  margin-bottom: 8px;
+  padding: 7px 9px;
+  border-bottom: 1px solid #dbeafe;
+  background: linear-gradient(135deg, #eff6ff 0%, #eef2ff 100%);
 }
 
-.ticketTopLine strong {
-  color: #0f172a;
+.ticketDestination span {
+  color: #4f46e5;
+  font-size: 9px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.ticketDestination strong {
+  overflow: hidden;
+  color: #172554;
   font-size: 14px;
   font-weight: 900;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ticketAssignment {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 6px 9px 3px;
 }
 
 .ticketBadge,
 .seatBadge {
   display: inline-flex;
   align-items: center;
-  min-height: 22px;
-  padding: 3px 8px;
+  min-height: 20px;
+  padding: 2px 7px;
   border-radius: 999px;
   font-size: 11px;
   font-weight: 900;
@@ -546,6 +602,7 @@
 }
 
 .ticketBadge {
+  gap: 4px;
   background: #dbeafe;
   color: #1d4ed8;
 }
@@ -558,29 +615,38 @@
 
 .ticketMetaList {
   display: grid;
+  gap: 4px;
+  padding: 4px 9px 8px;
+}
+
+.ticketMetaItem {
+  display: flex;
+  align-items: flex-start;
   gap: 5px;
-  margin: 0;
-}
-
-.ticketMetaList div {
-  display: grid;
-  grid-template-columns: 34px minmax(0, 1fr);
-  gap: 6px;
-}
-
-.ticketMetaList dt {
+  min-width: 0;
   color: #64748b;
-  font-size: 11px;
-  font-weight: 900;
 }
 
-.ticketMetaList dd {
-  margin: 0;
-  color: #475569;
-  font-size: 12px;
-  font-weight: 700;
+.ticketMetaItem > span {
+  display: flex;
+  align-items: baseline;
+  min-width: 0;
+  gap: 5px;
+}
+
+.ticketMetaItem small {
+  color: #64748b;
+  font-size: 9px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.ticketMetaItem strong {
+  overflow-wrap: anywhere;
+  color: #334155;
+  font-size: 11px;
+  font-weight: 800;
   line-height: 1.35;
-  word-break: keep-all;
 }
 
 .ticketPending {
@@ -598,29 +664,6 @@
   padding: 40px 16px !important;
   color: #888888;
   font-size: 14px;
-}
-
-.successMessage {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  background: #f0fdf4;
-  border: 2px solid #10b981;
-  border-radius: 8px;
-  padding: 20px;
-}
-
-.successTitle {
-  font-size: 16px;
-  font-weight: 600;
-  color: #166534;
-  margin: 0 0 4px;
-}
-
-.successText {
-  font-size: 14px;
-  color: #15803d;
-  margin: 0;
 }
 
 input[type='checkbox'] {
@@ -641,7 +684,7 @@ input[type='checkbox'] {
   }
 
   .statsBar {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: 1fr;
   }
 
   .paymentRatioHeader {
@@ -684,6 +727,15 @@ input[type='checkbox'] {
     width: 100%;
   }
 
+  .listActions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .listToggleButton {
+    width: 100%;
+  }
+
   .verifyButton,
   .verifyAllButton {
     width: 100%;
@@ -702,11 +754,6 @@ input[type='checkbox'] {
     overflow-x: auto;
   }
 
-  .successMessage {
-    flex-direction: column;
-    text-align: center;
-  }
-
   .transferBox {
     flex-direction: column;
     align-items: stretch;
@@ -717,6 +764,10 @@ input[type='checkbox'] {
   }
 
   .transferSummaryGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .transferDetailGrid {
     grid-template-columns: 1fr;
   }
 
@@ -750,8 +801,8 @@ input[type='checkbox'] {
 }
 
 .transferBoxConfirmed {
-  border-color: #bbf7d0;
-  background: #f7fef9;
+  border-color: #86efac;
+  background: #ffffff;
 }
 
 .transferBoxNeedsUpdate {
@@ -793,10 +844,16 @@ input[type='checkbox'] {
   line-height: 1.6;
 }
 
+.transferDetailGrid {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.1fr) minmax(300px, 1fr);
+  gap: 12px;
+  margin-top: 16px;
+}
+
 .transferAccountBox {
   display: grid;
   gap: 6px;
-  margin-top: 16px;
   padding: 14px;
   border: 1px solid #bfdbfe;
   border-radius: 8px;
@@ -832,7 +889,6 @@ input[type='checkbox'] {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
-  margin-top: 16px;
 }
 
 .transferSummaryGrid > div {
@@ -912,6 +968,10 @@ input[type='checkbox'] {
   border-color: #bbf7d0;
   background: #f0fdf4;
   color: #166534;
+}
+
+.transferStatusBox.transferStatusConfirmed {
+  padding: 14px 16px;
 }
 
 .transferStatusNeedsUpdate {

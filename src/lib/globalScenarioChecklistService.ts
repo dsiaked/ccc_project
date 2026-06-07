@@ -68,14 +68,10 @@ export async function getGlobalScenarioChecklist(
 export async function updateGlobalScenarioChecklist(
   checkedStepIds: string[]
 ): Promise<void> {
-  const { error } = await supabase.from('app_settings').upsert(
-    {
-      key: SETTING_KEY,
-      value: { checked_step_ids: checkedStepIds },
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: 'key' }
-  );
+  const { error } = await supabase.rpc('update_app_setting_as_global_admin', {
+    p_key: SETTING_KEY,
+    p_value: { checked_step_ids: checkedStepIds },
+  });
 
   if (error) throw error;
 }

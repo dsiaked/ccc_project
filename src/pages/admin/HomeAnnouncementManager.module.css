@@ -1,0 +1,291 @@
+.manager {
+  display: grid;
+  gap: 20px;
+}
+
+.composer,
+.card,
+.empty {
+  border: 1px solid #dfe3e8;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.composer {
+  padding: 18px;
+  border-color: #b7c7e7;
+  background: #f8fbff;
+}
+
+.composerHeader,
+.listHeader,
+.cardHeader,
+.headerActions,
+.formActions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.composerHeader {
+  align-items: flex-start;
+}
+
+.composerHeader h2,
+.listHeader h2,
+.card h3 {
+  margin: 0;
+  color: #101828;
+  font-weight: 900;
+}
+
+.composerHeader h2,
+.listHeader h2 {
+  font-size: 19px;
+}
+
+.composerHeader p,
+.listHeader p {
+  margin: 6px 0 0;
+  color: #667085;
+  font-size: 14px;
+}
+
+.headerActions > span {
+  color: #475467;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.form {
+  display: grid;
+  gap: 16px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #d7e3ff;
+}
+
+.form label {
+  display: grid;
+  gap: 7px;
+}
+
+.form label span {
+  color: #344054;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.form input,
+.form textarea {
+  width: 100%;
+  border: 1px solid #ccd3dc;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #101828;
+  font: inherit;
+}
+
+.form input {
+  height: 42px;
+  padding: 0 12px;
+}
+
+.form textarea {
+  min-height: 132px;
+  padding: 11px 12px;
+  line-height: 1.55;
+  resize: vertical;
+}
+
+.form input:focus,
+.form textarea:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.formActions {
+  justify-content: flex-end;
+}
+
+.primaryButton,
+.secondaryButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 38px;
+  padding: 0 13px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.primaryButton {
+  border: 1px solid #2563eb;
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.secondaryButton {
+  border: 1px solid #ccd3dc;
+  background: #ffffff;
+  color: #344054;
+}
+
+.primaryButton:disabled,
+.secondaryButton:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.listHeader {
+  align-items: flex-end;
+}
+
+.list {
+  display: grid;
+  gap: 10px;
+}
+
+.card {
+  padding: 18px;
+}
+
+.cardHeader {
+  align-items: flex-start;
+}
+
+.cardHeader > div {
+  display: grid;
+  gap: 8px;
+}
+
+.card h3 {
+  font-size: 17px;
+}
+
+.card time {
+  color: #667085;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.card p {
+  margin: 14px 0 0;
+  color: #344054;
+  font-size: 14px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+
+.publishedBadge {
+  width: fit-content;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #166534;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.pinnedBadge {
+  width: fit-content;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.editForm {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.editForm input,
+.editForm textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #ccd3dc;
+  border-radius: 8px;
+  font: inherit;
+}
+
+.dateGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.dateGrid label {
+  display: grid;
+  gap: 6px;
+  color: #344054;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.scheduleText {
+  margin-top: 12px;
+  color: #667085;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.cardActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.cardActions > button:not(.primaryButton):not(.secondaryButton) {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid #ccd3dc;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #344054;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.empty {
+  padding: 44px 18px;
+  color: #667085;
+  font-size: 14px;
+  font-weight: 800;
+  text-align: center;
+}
+
+@media (max-width: 720px) {
+  .composerHeader,
+  .listHeader,
+  .cardHeader,
+  .headerActions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .secondaryButton,
+  .primaryButton {
+    width: 100%;
+  }
+
+  .dateGrid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -94,25 +94,7 @@ using (
 );
 
 drop policy if exists "Global admins can update campus transfers" on campus_transfers;
-create policy "Global admins can update campus transfers"
-on campus_transfers
-for update
-using (
-  exists (
-    select 1
-    from admin_roles
-    where admin_roles.user_id = auth.uid()
-      and admin_roles.role = 'global_admin'
-  )
-)
-with check (
-  exists (
-    select 1
-    from admin_roles
-    where admin_roles.user_id = auth.uid()
-      and admin_roles.role = 'global_admin'
-  )
-);
+revoke insert, update, delete on table public.campus_transfers from public, anon, authenticated;
 
 update campus_transfers
 set
