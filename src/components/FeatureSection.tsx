@@ -15,11 +15,15 @@ const FeatureSection = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    let isMounted = true;
+
     const loadReservation = async () => {
       try {
         const {
           data: { session },
         } = await supabase.auth.getSession();
+
+        if (!isMounted) return;
 
         if (!session) {
           setReservation(null);
@@ -27,19 +31,26 @@ const FeatureSection = () => {
         }
 
         const savedReservation = await getReservation();
+        if (!isMounted) return;
+
         setReservation(savedReservation);
       } catch (error) {
         console.error('예약 정보 로드 실패:', error);
-        setReservation(null);
+        if (isMounted) setReservation(null);
       } finally {
-        setIsLoading(false);
+        if (isMounted) setIsLoading(false);
       }
     };
 
     loadReservation();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const isConfirmed = reservation?.status === 'confirmed';
+  const confirmedTicket = reservation?.confirmedTicket;
 
   const handleClick = () => {
     if (reservation) {
@@ -62,7 +73,7 @@ const FeatureSection = () => {
     }
 
     if (isConfirmed) {
-      return '관리자가 버스표를 확정했습니다.';
+      return '관리자가 버스표를 확정했습니다. 탑승 전 호차, 좌석, 출발 정보를 꼭 확인해주세요.';
     }
 
     return '신청 정보가 접수되었고 관리자 확인을 기다리고 있습니다.';
@@ -71,7 +82,12 @@ const FeatureSection = () => {
   return (
     <section className={styles.section}>
       <div className={styles.container}>
-        <button className={styles.card} type="button" onClick={handleClick}>
+        <button
+          className={styles.card}
+          type="button"
+          onClick={handleClick}
+          aria-label={`${statusLabel} 귀가 버스표 확인`}
+        >
           <div className={styles.topArea}>
             <div className={styles.iconContainer}>
               <Ticket size={30} color="#ffffff" />
@@ -101,7 +117,7 @@ const FeatureSection = () => {
 
           <div className={styles.content}>
             <p className={styles.eyebrow}>RETURN BUS TICKET</p>
-            <h3 className={styles.title}>귀가 버스 확인표</h3>
+            <h3 className={styles.title}>귀가 버스표</h3>
             <p className={styles.description}>
               {isLoading ? '신청 정보를 불러오는 중...' : statusDescription}
             </p>
@@ -109,6 +125,11 @@ const FeatureSection = () => {
 
           {!isLoading && reservation && (
             <div className={styles.ticketPreview}>
+              <div className={styles.infoRow}>
+                <span>신청자</span>
+                <strong>{reservation.name || '미입력'}</strong>
+              </div>
+
               <div className={styles.infoRow}>
                 <span>소속</span>
                 <strong>
@@ -118,25 +139,52 @@ const FeatureSection = () => {
               </div>
 
               <div className={styles.infoRow}>
-                <span>1지망</span>
+                <span>희망 도착역</span>
                 <strong>
-                  {reservation.stationPreferences?.[0]?.station?.name ||
-                    '미선택'}
+                  {reservation.stationPreferences
+                    ?.slice(0, 3)
+                    .map(
+                      (preference) =>
+                        `${preference.rank}지망 ${preference.station.name}`
+                    )
+                    .join(' / ') || '미선택'}
                 </strong>
               </div>
 
-              <div className={styles.infoRow}>
-                <span>2지망</span>
-                <strong>
-                  {reservation.stationPreferences?.[1]?.station?.name ||
-                    '미선택'}
-                </strong>
-              </div>
+              {isConfirmed && confirmedTicket ? (
+                <div className={styles.confirmedTicketPreview}>
+                  <div className={styles.confirmedBox}>
+                    <span>확정 탑승 정보</span>
+                    <strong>
+                      {[confirmedTicket.dropoffStation, confirmedTicket.busNumber]
+                        .filter(Boolean)
+                        .join(' ')}
+                    </strong>
+                  </div>
 
-              {isConfirmed && reservation.confirmedTicket && (
+                  <dl className={styles.confirmedSummaryList}>
+                    <div>
+                      <dt>좌석번호</dt>
+                      <dd>{confirmedTicket.seatNumber || '현장 안내'}</dd>
+                    </div>
+                    <div>
+                      <dt>출발시간</dt>
+                      <dd>{confirmedTicket.departureTime}</dd>
+                    </div>
+                    <div>
+                      <dt>탑승장소</dt>
+                      <dd>{confirmedTicket.boardingPlace}</dd>
+                    </div>
+                    <div>
+                      <dt>하차 도착역</dt>
+                      <dd>{confirmedTicket.dropoffStation}</dd>
+                    </div>
+                  </dl>
+                </div>
+              ) : (
                 <div className={styles.confirmedBox}>
-                  <span>확정 도착역</span>
-<strong>확정표 확인 가능</strong>
+                  <span>배차 상태</span>
+                  <strong>관리자 확인 대기</strong>
                 </div>
               )}
             </div>
@@ -144,13 +192,24 @@ const FeatureSection = () => {
 
           {!isLoading && !reservation && (
             <div className={styles.emptyBox}>
-              <p>신청을 완료하면 이곳에서 접수 상태와 확정표를 확인할 수 있습니다.</p>
+              <p>
+                신청을 완료하면 이곳에서 신청자, 소속, 희망 도착역, 확정
+                탑승 정보를 확인할 수 있습니다.
+              </p>
             </div>
           )}
 
           <div className={styles.bottomArea}>
-            <span>{reservation ? '확인표 보러가기' : '귀가 버스 신청하기'}</span>
-            <ArrowRight size={18} />
+            <span>
+              {isConfirmed
+                ? '확정 버스표 보기'
+                : reservation
+                  ? '버스표 보러가기'
+                  : '귀가 버스 신청하기'}
+            </span>
+            <span className={styles.bottomIcon} aria-hidden="true">
+              <ArrowRight size={17} />
+            </span>
           </div>
         </button>
       </div>

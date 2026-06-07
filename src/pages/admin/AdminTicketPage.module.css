@@ -65,41 +65,72 @@
 
 .statsBar {
   display: grid;
-  grid-template-columns: minmax(220px, 320px);
-  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
   margin-bottom: 32px;
 }
 
 .stat {
+  position: relative;
+  overflow: hidden;
   background: white;
-  border-radius: 8px;
-  padding: 20px;
-  border-left: 4px solid #667eea;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+  border: 1px solid #e4e7ec;
+  border-radius: 12px;
+  padding: 20px 22px;
+  box-shadow: 0 3px 10px rgba(16, 24, 40, 0.06);
+}
+
+.stat::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  content: '';
+  background: #667eea;
+}
+
+.stat_reservation::before {
+  background: #667eea;
+}
+
+.stat_subscriber::before {
+  background: #0ea5e9;
+}
+
+.stat_participant::before {
+  background: #f59e0b;
 }
 
 .statLabel {
   display: block;
-  font-size: 12px;
-  color: #888888;
-  font-weight: 500;
-  margin-bottom: 8px;
-  text-transform: uppercase;
+  margin-bottom: 10px;
+  color: #475467;
+  font-size: 13px;
+  font-weight: 800;
 }
 
 .statValue {
-  display: block;
-  font-size: 28px;
-  font-weight: 700;
-  color: #667eea;
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  color: #101828;
+  font-size: 32px;
+  font-weight: 900;
+  letter-spacing: -0.04em;
+}
+
+.statValue small {
+  color: #667085;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0;
 }
 
 .statHint {
   display: block;
-  margin-top: 6px;
+  margin-top: 8px;
+  color: #98a2b3;
   font-size: 12px;
   font-weight: 700;
-  color: #888888;
 }
 
 .coverageSection {
@@ -194,7 +225,29 @@
   font-family: inherit;
 }
 
-.coverageSearchInput:focus {
+.coverageToolbarActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex: 1;
+}
+
+.coverageSortSelect {
+  height: 42px;
+  padding: 0 34px 0 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #1f2937;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.coverageSearchInput:focus,
+.coverageSortSelect:focus {
   outline: none;
   border-color: #667eea;
   box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
@@ -234,7 +287,7 @@
 
 .coverageTable {
   width: 100%;
-  min-width: 780px;
+  min-width: 900px;
   border-collapse: collapse;
   font-size: 14px;
 }
@@ -257,6 +310,11 @@
   font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
+}
+
+.peopleHeader {
+  min-width: 310px;
+  line-height: 1.45;
 }
 
 .coverageLabel {
@@ -310,20 +368,32 @@
 
 .peopleRatioCell {
   display: grid;
+  grid-template-columns: repeat(3, minmax(78px, 1fr));
+  gap: 6px;
+  min-width: 310px;
+}
+
+.peopleRatioCell span {
+  display: grid;
   gap: 3px;
-  min-width: 120px;
+  padding: 8px 9px;
+  border: 1px solid #eaecf0;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.76);
+}
+
+.peopleRatioCell em {
+  color: #667085;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 800;
 }
 
 .peopleRatioCell strong {
   color: #1f2937;
+  font-size: 13px;
   font-weight: 900;
   white-space: nowrap;
-}
-
-.peopleRatioCell span {
-  color: #667085;
-  font-size: 12px;
-  font-weight: 700;
 }
 
 .rateCell {
@@ -372,6 +442,25 @@
 
 .rate_unset {
   background: #98a2b3;
+}
+
+.campusAdminCell {
+  display: grid;
+  gap: 3px;
+  min-width: 120px;
+}
+
+.campusAdminCell strong {
+  color: #1f2937;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.campusAdminCell span {
+  color: #667085;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 .gapUnset,
@@ -426,6 +515,10 @@
     grid-template-columns: 1fr;
   }
 
+  .stat {
+    padding: 18px 20px;
+  }
+
   .coverageSection {
     padding: 16px;
   }
@@ -449,6 +542,15 @@
   }
 
   .coverageSearchInput {
+    width: 100%;
+  }
+
+  .coverageToolbarActions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .coverageSortSelect {
     width: 100%;
   }
 

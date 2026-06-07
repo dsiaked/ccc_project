@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { ArrowLeft, Megaphone, Save } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
-import Header from '../../components/Header';
+import AdminHeader from './AdminHeader';
 import { getAdminRole } from '../../lib/adminService';
 import {
   createHomeAnnouncement,
@@ -128,7 +128,7 @@ const AdminHomeAnnouncementPage = () => {
   if (loading) {
     return (
       <div className={styles.pageContainer}>
-        <Header />
+        <AdminHeader />
         <main className={styles.main}>
           <p>로딩 중...</p>
         </main>
@@ -138,7 +138,7 @@ const AdminHomeAnnouncementPage = () => {
 
   return (
     <div className={styles.pageContainer}>
-      <Header />
+      <AdminHeader />
 
       <main className={styles.main}>
         <button

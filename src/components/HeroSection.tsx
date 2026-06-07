@@ -23,7 +23,7 @@ const HeroSection = () => {
                 className={styles.ctaButton}
                 onClick={() => navigate('/reservation')}
               >
-                지금 버스 예매하기
+                지금 버스 신청하기
               </button>
             </div>
           </div>

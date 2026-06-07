@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { ShieldCheck } from 'lucide-react';
 import Header from '../../components/Header';
 import { supabase } from '../../lib/supabase';
@@ -7,6 +7,7 @@ import { getAdminRole } from '../../lib/adminService';
 import styles from '../LoginPage.module.css';
 
 const AdminLoginPage = () => {
+  const location = useLocation();
   const navigate = useNavigate();
 
   const [email, setEmail] = useState('');
@@ -47,25 +48,32 @@ const AdminLoginPage = () => {
         throw new Error('로그인 정보를 확인할 수 없습니다.');
       }
       
-      console.log('로그인 유저 ID:', data.user.id);
-
       const adminRole = await getAdminRole(data.user.id);
 
-      console.log('관리자 권한 조회 결과:', adminRole);
-      
       if (!adminRole) {
         await supabase.auth.signOut();
         setError('관리자 권한이 없는 계정입니다.');
         return;
       }
 
+      const requestedLocation = location.state?.from;
+      const requestedPath =
+        requestedLocation &&
+        typeof requestedLocation.pathname === 'string' &&
+        requestedLocation.pathname.startsWith('/admin/') &&
+        requestedLocation.pathname !== '/admin/login'
+          ? `${requestedLocation.pathname}${requestedLocation.search ?? ''}${
+              requestedLocation.hash ?? ''
+            }`
+          : null;
+
       if (adminRole.role === 'campus_admin') {
-        navigate('/admin/campus');
+        navigate(requestedPath ?? '/admin/campus', { replace: true });
         return;
       }
 
       if (adminRole.role === 'global_admin') {
-        navigate('/admin/global');
+        navigate(requestedPath ?? '/admin/global', { replace: true });
         return;
       }
 

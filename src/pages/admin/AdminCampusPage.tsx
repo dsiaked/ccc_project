@@ -1,18 +1,31 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, CheckCircle2, MessageSquare } from 'lucide-react';
-import Header from '../../components/Header';
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Download,
+  Megaphone,
+  MessageSquare,
+} from 'lucide-react';
+import AdminHeader from './AdminHeader';
 import { supabase } from '../../lib/supabase';
 import {
   getAdminRole,
   getBusTicketPrice,
   getCampusTransferByScope,
   getCampusTransferStats,
+  getGlobalCampusNotices,
   getReservationsWithPaymentByTeamCampus,
   createOrUpdatePaymentStatus,
   markCampusTransferSent,
+  type CampusRequest,
   type CampusTransferStat,
 } from '../../lib/adminService';
+import {
+  getUnreadCampusNotices,
+  markCampusNoticesRead,
+} from '../../lib/adminNoticeReadState';
+import { getDistrictTransferAccountNumber } from '../../lib/districtTransferAccountService';
 import styles from './AdminCampusPage.module.css';
 
 interface PaymentInfo {
@@ -28,7 +41,7 @@ interface PaymentInfo {
 }
 
 interface StationPreference {
-  rank: 1 | 2 | 3;
+  rank: 1 | 2;
   station: {
     id: string;
     name: string;
@@ -90,6 +103,57 @@ const formatDateTime = (value: string | null) => {
   }).format(new Date(value));
 };
 
+const getStationName = (
+  reservation: ReservationWithPayment,
+  rank: StationPreference['rank']
+) =>
+  reservation.station_preferences?.find(
+    (preference) => preference.rank === rank
+  )?.station?.name || '-';
+
+const getPaymentStatusLabel = (payment: PaymentInfo | null) => {
+  if (payment?.status === 'completed') return '입금 확인';
+  if (payment?.status === 'refunded') return '환불';
+
+  return '미입금';
+};
+
+const getConfirmedTicketLabel = (
+  reservation: ReservationWithPayment
+) => {
+  const ticket = reservation.confirmed_ticket;
+
+  if (!ticket) return '미확정';
+
+  return [
+    ticket.busNumber,
+    ticket.seatNumber ? `${ticket.seatNumber}번 좌석` : null,
+    ticket.boardingPlace,
+    ticket.departureTime,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+};
+
+const fitCanvasText = (
+  context: CanvasRenderingContext2D,
+  value: string,
+  maxWidth: number
+) => {
+  if (context.measureText(value).width <= maxWidth) return value;
+
+  let fitted = value;
+
+  while (
+    fitted.length > 0 &&
+    context.measureText(`${fitted}…`).width > maxWidth
+  ) {
+    fitted = fitted.slice(0, -1);
+  }
+
+  return `${fitted}…`;
+};
+
 const findCampusTransfer = (
   transferStats: CampusTransferStat[],
   scope: CampusAdminScope
@@ -111,12 +175,16 @@ const CampusAdminPage = () => {
   const [loading, setLoading] = useState(true);
   const [verifying, setVerifying] = useState(false);
   const [transferSending, setTransferSending] = useState(false);
+  const [savingApplicantImage, setSavingApplicantImage] = useState(false);
 
   const [adminScope, setAdminScope] = useState<CampusAdminScope | null>(null);
   const [campusTransfer, setCampusTransfer] =
     useState<CampusTransferStat | null>(null);
+  const [campusNotices, setCampusNotices] = useState<CampusRequest[]>([]);
   const [campus, setCampus] = useState('');
   const [ticketPrice, setTicketPrice] = useState(0);
+  const [districtTransferAccountNumber, setDistrictTransferAccountNumber] =
+    useState('');
 
   const getPayment = (reservation: ReservationWithPayment) => {
     return reservation.payments?.[0] || null;
@@ -154,7 +222,7 @@ const CampusAdminPage = () => {
       targetTeam
     );
 
-    setReservations(data as ReservationWithPayment[]);
+    setReservations(data as unknown as ReservationWithPayment[]);
   };
 
   useEffect(() => {
@@ -195,14 +263,33 @@ const CampusAdminPage = () => {
           campus: adminRole.campus,
         };
 
-        const [data, price, transferStatus] = await Promise.all([
+        const [
+          reservationsResult,
+          priceResult,
+          transferStatusResult,
+          noticesResult,
+          transferAccountNumberResult,
+        ] = await Promise.allSettled([
           getReservationsWithPaymentByTeamCampus(
             adminRole.campus,
             adminRole.team
           ),
           getBusTicketPrice(),
           loadCampusTransferStatus(nextScope),
+          getGlobalCampusNotices().then((result) => {
+            if (result.error) throw result.error;
+
+            return getUnreadCampusNotices(
+              session.user.id,
+              result.data ?? []
+            );
+          }),
+          getDistrictTransferAccountNumber(),
         ]);
+
+        if (reservationsResult.status === 'rejected') {
+          throw reservationsResult.reason;
+        }
 
         if (isMounted) {
           setAdminScope({
@@ -212,9 +299,39 @@ const CampusAdminPage = () => {
           });
 
           setCampus(adminRole.campus);
-          setTicketPrice(price);
-          setReservations(data as ReservationWithPayment[]);
-          setCampusTransfer(transferStatus);
+          setReservations(
+            reservationsResult.value as unknown as ReservationWithPayment[]
+          );
+
+          if (priceResult.status === 'fulfilled') {
+            setTicketPrice(priceResult.value);
+          } else {
+            console.warn('Failed to load bus ticket price:', priceResult.reason);
+          }
+
+          if (transferStatusResult.status === 'fulfilled') {
+            setCampusTransfer(transferStatusResult.value);
+          } else {
+            console.warn(
+              'Failed to load campus transfer status:',
+              transferStatusResult.reason
+            );
+          }
+
+          if (noticesResult.status === 'fulfilled') {
+            setCampusNotices(noticesResult.value);
+          } else {
+            console.warn('Failed to load campus notices:', noticesResult.reason);
+          }
+
+          if (transferAccountNumberResult.status === 'fulfilled') {
+            setDistrictTransferAccountNumber(transferAccountNumberResult.value);
+          } else {
+            console.warn(
+              'Failed to load district transfer account number:',
+              transferAccountNumberResult.reason
+            );
+          }
         }
       } catch (error) {
         console.error('Failed to load reservations:', error);
@@ -279,17 +396,177 @@ const CampusAdminPage = () => {
   const paymentRate =
     totalPeople > 0 ? Math.round((paidPeople / totalPeople) * 100) : 0;
 
-  const totalAmount = useMemo(() => {
-    return reservations.reduce((sum, reservation) => {
-      const payment = getPayment(reservation);
+  const totalAmount =
+    reservations.filter((reservation) => reservation.status !== 'cancelled')
+      .length * ticketPrice;
 
-      if (payment?.status === 'completed') {
-        return sum + ticketPrice;
+  const handleSaveApplicantListImage = async () => {
+    if (reservations.length === 0 || savingApplicantImage) return;
+
+    setSavingApplicantImage(true);
+
+    try {
+      await document.fonts.ready;
+
+      const columns = [
+        { label: '번호', width: 70 },
+        { label: '이름', width: 140 },
+        { label: '1지망', width: 150 },
+        { label: '2지망', width: 150 },
+        { label: '배차 확정', width: 300 },
+        { label: '입금 상태', width: 130 },
+        { label: '신청일', width: 140 },
+      ];
+      const margin = 48;
+      const titleHeight = 150;
+      const headerHeight = 54;
+      const rowHeight = 54;
+      const footerHeight = 54;
+      const tableWidth = columns.reduce((sum, column) => sum + column.width, 0);
+      const logicalWidth = tableWidth + margin * 2;
+      const logicalHeight =
+        titleHeight +
+        headerHeight +
+        reservations.length * rowHeight +
+        footerHeight;
+      const scale = Math.min(2, 16000 / Math.max(logicalWidth, logicalHeight));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.ceil(logicalWidth * scale);
+      canvas.height = Math.ceil(logicalHeight * scale);
+
+      const context = canvas.getContext('2d');
+
+      if (!context) {
+        throw new Error('이미지를 생성할 수 없습니다.');
       }
 
-      return sum;
-    }, 0);
-  }, [reservations, ticketPrice]);
+      context.scale(scale, scale);
+      context.fillStyle = '#ffffff';
+      context.fillRect(0, 0, logicalWidth, logicalHeight);
+
+      context.fillStyle = '#111827';
+      context.font =
+        '800 28px "Pretendard", "Noto Sans KR", "Malgun Gothic", sans-serif';
+      context.fillText(
+        `${
+          adminScope
+            ? `${adminScope.district} ${adminScope.team} ${adminScope.campus}`
+            : campus
+        } 버스 신청자 목록`,
+        margin,
+        56
+      );
+
+      context.fillStyle = '#475569';
+      context.font =
+        '600 15px "Pretendard", "Noto Sans KR", "Malgun Gothic", sans-serif';
+      context.fillText(
+        `전체 ${stats.total}명 · 입금 확인 ${stats.completed}명 · 미입금 ${stats.pending}명`,
+        margin,
+        88
+      );
+      context.fillText(
+        `저장 시각 ${formatDateTime(new Date().toISOString())}`,
+        margin,
+        116
+      );
+
+      let x = margin;
+      const tableTop = titleHeight;
+
+      context.fillStyle = '#f1f5f9';
+      context.fillRect(margin, tableTop, tableWidth, headerHeight);
+      context.strokeStyle = '#cbd5e1';
+      context.lineWidth = 1;
+      context.font =
+        '800 14px "Pretendard", "Noto Sans KR", "Malgun Gothic", sans-serif';
+      context.textBaseline = 'middle';
+
+      columns.forEach((column) => {
+        context.strokeRect(x, tableTop, column.width, headerHeight);
+        context.fillStyle = '#334155';
+        context.fillText(column.label, x + 12, tableTop + headerHeight / 2);
+        x += column.width;
+      });
+
+      reservations.forEach((reservation, index) => {
+        const payment = getPayment(reservation);
+        const rowTop = tableTop + headerHeight + index * rowHeight;
+        const values = [
+          String(index + 1),
+          reservation.name,
+          getStationName(reservation, 1),
+          getStationName(reservation, 2),
+          getConfirmedTicketLabel(reservation),
+          getPaymentStatusLabel(payment),
+          new Date(reservation.created_at).toLocaleDateString('ko-KR'),
+        ];
+
+        context.fillStyle =
+          payment?.status === 'completed'
+            ? '#f0fdf4'
+            : index % 2 === 0
+              ? '#ffffff'
+              : '#f8fafc';
+        context.fillRect(margin, rowTop, tableWidth, rowHeight);
+
+        x = margin;
+        context.font =
+          '600 13px "Pretendard", "Noto Sans KR", "Malgun Gothic", sans-serif';
+
+        columns.forEach((column, columnIndex) => {
+          context.strokeStyle = '#e2e8f0';
+          context.strokeRect(x, rowTop, column.width, rowHeight);
+          context.fillStyle =
+            column.label === '입금 상태' && payment?.status === 'completed'
+              ? '#166534'
+              : '#334155';
+          context.fillText(
+            fitCanvasText(context, values[columnIndex], column.width - 24),
+            x + 12,
+            rowTop + rowHeight / 2
+          );
+          x += column.width;
+        });
+      });
+
+      context.fillStyle = '#64748b';
+      context.font =
+        '500 12px "Pretendard", "Noto Sans KR", "Malgun Gothic", sans-serif';
+      context.fillText(
+        '개인정보가 포함된 이미지입니다. 필요한 범위에서만 사용해 주세요.',
+        margin,
+        logicalHeight - 22
+      );
+
+      const blob = await new Promise<Blob>((resolve, reject) => {
+        canvas.toBlob((result) => {
+          if (result) resolve(result);
+          else reject(new Error('이미지 파일을 생성할 수 없습니다.'));
+        }, 'image/png');
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      const date = new Date();
+      const dateText = [
+        date.getFullYear(),
+        String(date.getMonth() + 1).padStart(2, '0'),
+        String(date.getDate()).padStart(2, '0'),
+      ].join('-');
+
+      link.href = url;
+      link.download = `${campus || '캠퍼스'}_버스_신청자_목록_${dateText}.png`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 0);
+    } catch (error) {
+      console.error('신청자 목록 이미지 저장 실패:', error);
+      alert(`신청자 목록 이미지 저장에 실패했습니다: ${getErrorMessage(error)}`);
+    } finally {
+      setSavingApplicantImage(false);
+    }
+  };
 
   const canSendCampusTransfer =
     totalPeople > 0 && paidPeople === totalPeople && !transferSending;
@@ -473,10 +750,29 @@ const CampusAdminPage = () => {
     }
   };
 
+  const handleOpenCampusRequests = () => {
+    if (adminScope && campusNotices.length > 0) {
+      void supabase.auth.getSession().then(({ data }) => {
+        const userId = data.session?.user.id;
+
+        if (userId) {
+          void markCampusNoticesRead(
+            userId,
+            campusNotices.map((notice) => notice.id)
+          ).catch((error) => {
+            console.error('Failed to mark campus notices read:', error);
+          });
+        }
+      });
+    }
+
+    navigate('/admin/campus-requests');
+  };
+
   if (loading) {
     return (
       <div className={styles.pageContainer}>
-        <Header />
+        <AdminHeader />
 
         <main className={styles.main}>
           <p>로딩 중...</p>
@@ -487,7 +783,7 @@ const CampusAdminPage = () => {
 
   return (
     <div className={styles.pageContainer}>
-      <Header />
+      <AdminHeader />
 
       <main className={styles.main}>
         <div className={styles.header}>
@@ -502,6 +798,30 @@ const CampusAdminPage = () => {
             본부 송금 금액을 집계합니다.
           </p>
         </div>
+
+        {campusNotices.length > 0 && (
+          <section className={styles.noticeAlert}>
+            <div className={styles.noticeAlertIcon}>
+              <Megaphone size={20} />
+            </div>
+            <div className={styles.noticeAlertContent}>
+              <div className={styles.noticeAlertHeader}>
+                <strong>본부 공지 {campusNotices.length}건</strong>
+                <span>
+                  최근 공지 {formatDateTime(campusNotices[0]?.createdAt ?? null)}
+                </span>
+              </div>
+              <p>{campusNotices[0]?.title}</p>
+            </div>
+            <button
+              type="button"
+              className={styles.noticeAlertButton}
+              onClick={handleOpenCampusRequests}
+            >
+              공지 확인
+            </button>
+          </section>
+        )}
 
         <section className={styles.guideSection}>
           <div>
@@ -555,6 +875,27 @@ const CampusAdminPage = () => {
               {totalAmount.toLocaleString()}원
             </span>
           </div>
+        </div>
+
+        <div className={styles.listToolbar}>
+          <div>
+            <h2 className={styles.listTitle}>버스 신청자 목록</h2>
+            <p className={styles.listMeta}>
+              현재 목록 전체를 표 형태의 PNG 이미지로 저장합니다.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            className={styles.imageSaveButton}
+            onClick={handleSaveApplicantListImage}
+            disabled={reservations.length === 0 || savingApplicantImage}
+          >
+            <Download size={18} />
+            {savingApplicantImage
+              ? '이미지 생성 중...'
+              : '버스 신청자 목록 이미지 저장'}
+          </button>
         </div>
 
         <div className={styles.tableContainer}>
@@ -746,6 +1087,14 @@ const CampusAdminPage = () => {
             </div>
 
             <p className={styles.transferText}>{transferStatusDescription}</p>
+
+            <div className={styles.transferAccountBox}>
+              <span>서울지구 송금 계좌번호</span>
+              <strong>
+                {districtTransferAccountNumber ||
+                  '전체 관리자가 계좌번호를 아직 설정하지 않았습니다.'}
+              </strong>
+            </div>
 
             <div className={styles.transferSummaryGrid}>
               <div>

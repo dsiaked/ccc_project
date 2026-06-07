@@ -1,4 +1,10 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { Bus, MapPin, Search, Coins } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
@@ -41,14 +47,109 @@ const reservationSteps = [
   '확인',
 ] as const;
 
+const KAKAO_MAP_SDK_ID = 'kakao-map-sdk';
+
+const normalizeEnvValue = (value: unknown) =>
+  String(value ?? '')
+    .trim()
+    .replace(/^['"]|['"]$/g, '');
+
+const getKakaoMapAppKey = () =>
+  normalizeEnvValue(import.meta.env.VITE_KAKAO_JAVASCRIPT_KEY) ||
+  normalizeEnvValue(import.meta.env.VITE_KAKAO_MAP_KEY);
+
+const getKakaoMapKeyMessage = () => {
+  const appKey = getKakaoMapAppKey();
+
+  if (!appKey) {
+    return '지도 검색 키가 설정되지 않았습니다. .env에 VITE_KAKAO_JAVASCRIPT_KEY를 설정해주세요.';
+  }
+
+  if (appKey.length !== 32) {
+    return 'Kakao JavaScript 키 형식이 올바르지 않습니다. 카카오 개발자 콘솔의 JavaScript 키 32자만 입력해주세요.';
+  }
+
+  return '';
+};
+
+const loadKakaoMapSdk = () =>
+  new Promise<void>((resolve, reject) => {
+    if (window.kakao?.maps) {
+      window.kakao.maps.load(resolve);
+      return;
+    }
+
+    const appKey = getKakaoMapAppKey();
+    const keyMessage = getKakaoMapKeyMessage();
+
+    if (keyMessage) {
+      reject(new Error(keyMessage));
+      return;
+    }
+
+    const existingScript = document.getElementById(
+      KAKAO_MAP_SDK_ID
+    ) as HTMLScriptElement | null;
+    const scriptSrc = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(
+      appKey
+    )}&libraries=services&autoload=false`;
+
+    if (existingScript && existingScript.src !== scriptSrc) {
+      existingScript.remove();
+    }
+
+    const currentScript = document.getElementById(
+      KAKAO_MAP_SDK_ID
+    ) as HTMLScriptElement | null;
+    const script = currentScript ?? document.createElement('script');
+    const timeoutId = window.setTimeout(() => {
+      reject(new Error('Kakao map SDK loading timed out.'));
+    }, 10000);
+
+    script.id = KAKAO_MAP_SDK_ID;
+    script.src = scriptSrc;
+    script.async = true;
+
+    script.onload = () => {
+      window.clearTimeout(timeoutId);
+
+      if (!window.kakao?.maps) {
+        reject(new Error('Kakao map SDK loaded without maps object.'));
+        return;
+      }
+
+      window.kakao.maps.load(resolve);
+    };
+
+    script.onerror = () => {
+      window.clearTimeout(timeoutId);
+      script.remove();
+      reject(
+        new Error(
+          `Kakao 지도 SDK를 불러오지 못했습니다. 카카오 개발자 콘솔에서 현재 접속 주소(${window.location.origin})가 이 JavaScript 키의 Web 플랫폼 도메인에 등록되어 있는지 확인해주세요.`
+        )
+      );
+    };
+
+    if (!currentScript) {
+      document.head.appendChild(script);
+    }
+  });
+
 const ReservationPage = () => {
   const navigate = useNavigate();
+  const placeSearchRequestIdRef = useRef(0);
 
   const [dbReservation, setDbReservation] = useState<ReturnBusReservation | null>(
     null
   );
   const [isLoading, setIsLoading] = useState(true);
   const [currentStep, setCurrentStep] = useState(0);
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const [formStatus, setFormStatus] = useState<{
+    type: 'error' | 'success';
+    message: string;
+  } | null>(null);
   const [reservationDeadline, setReservationDeadline] =
     useState<ReservationDeadlineSetting>({
       deadlineAt: null,
@@ -117,24 +218,50 @@ const [nearbyStations, setNearbyStations] = useState<
 >([]);
 const [isSearchingPlace, setIsSearchingPlace] = useState(false);
 const [isKakaoReady, setIsKakaoReady] = useState(false);
+const [kakaoLoadAttempt, setKakaoLoadAttempt] = useState(0);
+const [kakaoLoadError, setKakaoLoadError] = useState('');
 const [stationSelectMode, setStationSelectMode] = useState<
   'recommend' | 'direct'
 >('recommend');
 
 useEffect(() => {
-  if (!window.kakao?.maps) {
-    console.error('카카오 SDK가 로드되지 않았습니다.');
+  if (currentStep !== 2 || stationSelectMode !== 'recommend' || isKakaoReady) {
     return;
   }
 
-  window.kakao.maps.load(() => {
-    setIsKakaoReady(true);
-  });
-}, []);
+  let isMounted = true;
+
+  loadKakaoMapSdk()
+    .then(() => {
+      if (!isMounted) return;
+
+      setKakaoLoadError('');
+      setIsKakaoReady(true);
+    })
+    .catch((error) => {
+      if (!isMounted) return;
+
+      console.error('카카오 지도 SDK 로드 실패:', error);
+      setKakaoLoadError(
+        error instanceof Error && error.message
+          ? error.message
+          : '지도 검색을 불러오지 못했습니다. Kakao JavaScript 키와 허용 도메인을 확인해주세요.'
+      );
+      setIsKakaoReady(false);
+    });
+
+  return () => {
+    isMounted = false;
+  };
+}, [currentStep, isKakaoReady, kakaoLoadAttempt, stationSelectMode]);
   useEffect(() => {
+    let isMounted = true;
+
     const checkLoginAndLoadData = async () => {
       try {
         const { data } = await supabase.auth.getSession();
+
+        if (!isMounted) return;
 
         if (!data.session) {
           navigate('/login', { state: { from: '/reservation' } });
@@ -145,6 +272,8 @@ useEffect(() => {
           getReservation(),
           getReservationDeadline(),
         ]);
+
+        if (!isMounted) return;
 
         setReservationDeadline(deadline);
         setDbReservation(reservation);
@@ -181,6 +310,8 @@ useEffect(() => {
           .eq('id', data.session.user.id)
           .maybeSingle();
 
+        if (!isMounted) return;
+
         if (profileError) {
           console.error('Failed to load profile:', profileError);
           return;
@@ -206,28 +337,44 @@ useEffect(() => {
       } catch (error) {
         console.error('Failed to load reservation:', error);
       } finally {
-        setIsLoading(false);
+        if (isMounted) setIsLoading(false);
       }
     };
 
     checkLoginAndLoadData();
+
+    return () => {
+      isMounted = false;
+    };
   }, [navigate]);
 
   useEffect(() => {
+    let isMounted = true;
+
     const loadOrganizations = async () => {
       try {
         const districts = await getDistrictOptions();
+        if (!isMounted) return;
+
         setDistrictOptions(districts);
       } catch (error) {
+        if (!isMounted) return;
+
         console.error('조직 정보 로드 실패:', error);
         alert('지구 정보를 불러오지 못했습니다.');
       }
     };
 
     loadOrganizations();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
 useEffect(() => {
+  let isMounted = true;
+
   const syncInitialOrganization = async () => {
     if (districtOptions.length === 0) return;
     if (!selectedDistrict) return;
@@ -244,6 +391,8 @@ useEffect(() => {
 
     try {
       const teams = await getTeamOptions(matchedDistrict.id);
+      if (!isMounted) return;
+
       setTeamOptions(teams);
 
       if (!selectedTeam) return;
@@ -257,6 +406,8 @@ useEffect(() => {
       setSelectedTeam(matchedTeam.name);
 
       const campuses = await getCampusOptions(matchedTeam.id);
+      if (!isMounted) return;
+
       setCampusOptions(campuses);
 
       if (!selectedCampus) return;
@@ -276,29 +427,44 @@ useEffect(() => {
   };
 
   syncInitialOrganization();
+
+  return () => {
+    isMounted = false;
+  };
 }, [districtOptions, selectedDistrict, selectedTeam, selectedCampus]);
 
 
 useEffect(() => {
+  let isMounted = true;
+
   const loadStations = async () => {
     try {
       const stations = await getStationOptions();
+      if (!isMounted) return;
+
       setStationOptions(stations);
     } catch (error) {
+      if (!isMounted) return;
+
       console.error('도착역 정보 로드 실패:', error);
       alert('도착역 정보를 불러오지 못했습니다.');
     } finally {
-      setIsStationLoading(false);
+      if (isMounted) setIsStationLoading(false);
     }
   };
 
   loadStations();
+
+  return () => {
+    isMounted = false;
+  };
 }, []);
 
-const searchPlaceCandidates = (keywordValue?: string) => {
+const searchPlaceCandidates = useCallback((keywordValue?: string) => {
   const keyword = (keywordValue ?? placeSearchInput).trim();
 
   if (!keyword) {
+    placeSearchRequestIdRef.current += 1;
     setPlaceCandidates([]);
     setNearbyStations([]);
     setSelectedPlace(null);
@@ -306,7 +472,13 @@ const searchPlaceCandidates = (keywordValue?: string) => {
     return;
   }
 
-  if (!isKakaoReady || !window.kakao?.maps?.services) {
+  const services = window.kakao?.maps?.services;
+
+  if (!isKakaoReady || !services) {
+    setHasSearchedPlace(true);
+    setKakaoLoadError(
+      '지도 검색을 준비 중입니다. 잠시 뒤 다시 입력해주세요.'
+    );
     return;
   }
 
@@ -315,12 +487,14 @@ const searchPlaceCandidates = (keywordValue?: string) => {
   setSelectedPlace(null);
   setNearbyStations([]);
 
-  const places = new window.kakao.maps.services.Places();
-  const geocoder = new window.kakao.maps.services.Geocoder();
+  const requestId = (placeSearchRequestIdRef.current += 1);
+  const places = new services.Places();
+  const geocoder = new services.Geocoder();
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  places.keywordSearch(keyword, (result: any[], status: string) => {
-    if (status === window.kakao.maps.services.Status.OK) {
+  places.keywordSearch(keyword, (result: KakaoPlaceSearchResult[], status: string) => {
+    if (placeSearchRequestIdRef.current !== requestId) return;
+
+    if (status === services.Status.OK) {
       const candidates: PlaceCandidate[] = result.slice(0, 7).map((place) => ({
         id: place.id,
         name: place.place_name,
@@ -334,9 +508,10 @@ const searchPlaceCandidates = (keywordValue?: string) => {
       return;
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    geocoder.addressSearch(keyword, (addressResult: any[], addressStatus: string) => {
-      if (addressStatus === window.kakao.maps.services.Status.OK) {
+    geocoder.addressSearch(keyword, (addressResult: KakaoAddressSearchResult[], addressStatus: string) => {
+      if (placeSearchRequestIdRef.current !== requestId) return;
+
+      if (addressStatus === services.Status.OK) {
         const candidates: PlaceCandidate[] = addressResult
           .slice(0, 7)
           .map((address, index) => ({
@@ -362,7 +537,7 @@ const searchPlaceCandidates = (keywordValue?: string) => {
       setIsSearchingPlace(false);
     });
   });
-};
+}, [isKakaoReady, placeSearchInput]);
 
 useEffect(() => {
   const keyword = placeSearchInput.trim();
@@ -393,7 +568,7 @@ useEffect(() => {
   return () => {
     window.clearTimeout(timer);
   };
-}, [placeSearchInput, isKakaoReady]);
+}, [placeSearchInput, isKakaoReady, searchPlaceCandidates, selectedPlace]);
 
 const handlePlaceConfirm = (place: PlaceCandidate) => {
   setSelectedPlace(place);
@@ -444,13 +619,12 @@ const handleApplyRecommendation = (
   handleStationSelect(rank, station);
 };
 
+const searchStations = useCallback((keyword: string, currentStationId?: string) => {
+  const normalizedKeyword = keyword.trim().toLowerCase();
   const selectedStationIds = [
     firstStation?.id,
     secondStation?.id,
   ].filter(Boolean);
-
-const searchStations = (keyword: string, currentStationId?: string) => {
-  const normalizedKeyword = keyword.trim().toLowerCase();
 
   return stationOptions.filter((station) => {
     const isMatched =
@@ -464,16 +638,16 @@ const searchStations = (keyword: string, currentStationId?: string) => {
 
     return isMatched && !isAlreadySelected;
   });
-};
+}, [firstStation?.id, secondStation?.id, stationOptions]);
 
-  const firstStationResults = searchStations(
-    firstStationSearch,
-    firstStation?.id
+  const firstStationResults = useMemo(
+    () => searchStations(firstStationSearch, firstStation?.id),
+    [firstStation?.id, firstStationSearch, searchStations]
   );
 
-  const secondStationResults = searchStations(
-    secondStationSearch,
-    secondStation?.id
+  const secondStationResults = useMemo(
+    () => searchStations(secondStationSearch, secondStation?.id),
+    [secondStation?.id, secondStationSearch, searchStations]
   );
 
 
@@ -504,6 +678,9 @@ const stationCandidateResults = useMemo(() => {
     setSelectedCampus('');
     setCampusSearch('');
     setCampusOptions([]);
+    clearValidationFeedback('district');
+    clearValidationFeedback('team');
+    clearValidationFeedback('campus');
 
     try {
       const teams = await getTeamOptions(district.id);
@@ -523,6 +700,8 @@ const stationCandidateResults = useMemo(() => {
     setSelectedCampus('');
     setCampusSearch('');
     setCampusOptions([]);
+    clearValidationFeedback('team');
+    clearValidationFeedback('campus');
 
     try {
       const campuses = await getCampusOptions(team.id);
@@ -537,18 +716,23 @@ const stationCandidateResults = useMemo(() => {
     setSelectedCampusId(campus.id);
     setSelectedCampus(campus.name);
     setCampusSearch(campus.name);
+    clearValidationFeedback('campus');
   };
 
   const handleStationSelect = (rank: 1 | 2, station: StationOption) => {
     if (rank === 1) {
       setFirstStation(station);
       setFirstStationSearch(station.name);
+      clearValidationFeedback('firstStation');
     }
 
     if (rank === 2) {
       setSecondStation(station);
       setSecondStationSearch(station.name);
+      clearValidationFeedback('secondStation');
     }
+
+    clearValidationFeedback('stationPreference');
   };
 
 
@@ -583,64 +767,150 @@ const handleCandidateStationSelect = (
       navigate('/');
     } catch (error) {
       console.error('예약 삭제 실패:', error);
-      alert('예약 삭제에 실패했습니다. 다시 시도해주세요.');
+      alert('신청 삭제에 실패했습니다. 다시 시도해주세요.');
     }
   };
 
-  const validateStationPreferences = () => {
-    if (!firstStation) {
-      alert('1지망 도착역을 선택해주세요.');
-      return false;
+  const clearValidationFeedback = (fieldName?: string) => {
+    setFormStatus(null);
+
+    if (!fieldName) {
+      setFormErrors({});
+      return;
     }
 
-    if (!secondStation) {
-      alert('2지망 도착역을 선택해주세요.');
-      return false;
-    }
+    setFormErrors((prev) => {
+      if (!prev[fieldName]) return prev;
 
-    if (firstStation.id === secondStation.id) {
-      alert('1지망과 2지망은 서로 다른 도착역으로 선택해주세요.');
-      return false;
-    }
-
-    return true;
+      const next = { ...prev };
+      delete next[fieldName];
+      return next;
+    });
   };
 
-  const validateCurrentStep = () => {
-    if (currentStep === 0) {
+  const getStepValidationErrors = (step: number) => {
+    const errors: Record<string, string> = {};
+
+    if (step === 0) {
       if (!name.trim()) {
-        alert('이름을 입력해주세요.');
-        return false;
+        errors.name = '이름을 입력해주세요.';
       }
 
       if (!phone.trim()) {
-        alert('연락처를 입력해주세요.');
-        return false;
+        errors.phone = '연락처를 입력해주세요.';
       }
     }
 
-    if (currentStep === 1) {
+    if (step === 1) {
       if (!selectedDistrict) {
-        alert('지구를 선택해주세요.');
-        return false;
+        errors.district = '지구를 선택해주세요.';
       }
 
       if (!selectedTeam) {
-        alert('팀을 선택해주세요.');
-        return false;
+        errors.team = '팀을 선택해주세요.';
       }
 
       if (!selectedCampus || !selectedCampusId) {
-        alert('캠퍼스를 선택해주세요.');
-        return false;
+        errors.campus = '캠퍼스를 선택해주세요.';
       }
     }
 
-    if (currentStep === 2 && !validateStationPreferences()) {
-      return false;
+    if (step === 2) {
+      if (!firstStation) {
+        errors.firstStation = '1지망 도착역을 선택해주세요.';
+      }
+
+      if (!secondStation) {
+        errors.secondStation = '2지망 도착역을 선택해주세요.';
+      }
+
+      if (firstStation && secondStation && firstStation.id === secondStation.id) {
+        errors.stationPreference =
+          '1지망과 2지망은 서로 다른 도착역으로 선택해주세요.';
+      }
     }
 
+    return errors;
+  };
+
+  const showValidationErrors = (
+    errors: Record<string, string>,
+    message = '입력하지 않은 항목을 확인해주세요.'
+  ) => {
+    setFormErrors(errors);
+    setFormStatus({ type: 'error', message });
+
+    return Object.keys(errors).length === 0;
+  };
+
+  const validateCurrentStepInline = () => {
+    const errors = getStepValidationErrors(currentStep);
+
+    if (Object.keys(errors).length > 0) {
+      return showValidationErrors(errors);
+    }
+
+    clearValidationFeedback();
     return true;
+  };
+
+  const validateAllStepsInline = () => {
+    const errors = {
+      ...getStepValidationErrors(0),
+      ...getStepValidationErrors(1),
+      ...getStepValidationErrors(2),
+    };
+
+    if (Object.keys(errors).length > 0) {
+      const firstInvalidStep = [0, 1, 2].find(
+        (step) => Object.keys(getStepValidationErrors(step)).length > 0
+      );
+
+      if (firstInvalidStep !== undefined) {
+        setCurrentStep(firstInvalidStep);
+      }
+
+      return showValidationErrors(
+        errors,
+        '신청 완료 전에 누락된 항목을 확인해주세요.'
+      );
+    }
+
+    clearValidationFeedback();
+    return true;
+  };
+
+  const getVisibleStepErrors = () => {
+    const fieldsByStep = [
+      ['name', 'phone'],
+      ['district', 'team', 'campus'],
+      ['firstStation', 'secondStation', 'stationPreference'],
+      [],
+    ];
+    const visibleFields = fieldsByStep[currentStep] ?? [];
+
+    return visibleFields
+      .map((field) => formErrors[field])
+      .filter((message): message is string => Boolean(message));
+  };
+
+  const handleStepClick = (targetStep: number) => {
+    if (targetStep <= currentStep || isReservationLocked) {
+      setCurrentStep(targetStep);
+      clearValidationFeedback();
+      return;
+    }
+
+    if (!validateCurrentStepInline()) return;
+
+    if (currentStep === 2 && targetStep === 3) {
+      setIsDepositConfirmModalOpen(true);
+      return;
+    }
+
+    setCurrentStep((prev) =>
+      Math.min(prev + 1, reservationSteps.length - 1)
+    );
   };
 
   const handleNextStep = () => {
@@ -649,7 +919,7 @@ const handleCandidateStationSelect = (
       return;
     }
 
-    if (!validateCurrentStep()) return;
+    if (!validateCurrentStepInline()) return;
 
     if (currentStep === 2) {
       setIsDepositConfirmModalOpen(true);
@@ -663,51 +933,31 @@ const handleCandidateStationSelect = (
     setCurrentStep((prev) => Math.max(prev - 1, 0));
   };
 
-  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const handleSubmit = async () => {
+    if (currentStep < reservationSteps.length - 1) {
+      handleNextStep();
+      return;
+    }
 
     if (savedReservation?.status === 'confirmed') {
-      alert('이미 버스표가 확정되어 수정할 수 없습니다. 관리자에게 문의해주세요.');
+      setFormStatus({
+        type: 'error',
+        message: '이미 버스표가 확정되어 수정할 수 없습니다. 관리자에게 문의해주세요.',
+      });
       return;
     }
 
     if (reservationDeadline.isClosed) {
-      alert(
-        `신청이 마감되어 예매를 저장할 수 없습니다. 마감 시간: ${formatReservationDeadline(
+      setFormStatus({
+        type: 'error',
+        message: `신청이 마감되어 신청 정보를 저장할 수 없습니다. 마감 시간: ${formatReservationDeadline(
           reservationDeadline.deadlineAt
-        )}`
-      );
+        )}`,
+      });
       return;
     }
 
-    if (!name.trim()) {
-      alert('이름을 입력해주세요.');
-      return;
-    }
-
-    if (!phone.trim()) {
-      alert('연락처를 입력해주세요.');
-      return;
-    }
-
-    if (!selectedDistrict) {
-      alert('지구를 선택해주세요.');
-      return;
-    }
-
-    if (!selectedTeam) {
-      alert('팀을 선택해주세요.');
-      return;
-    }
-
-    if (!selectedCampus || !selectedCampusId) {
-      alert('캠퍼스를 선택해주세요.');
-      return;
-    }
-
-    if (!validateStationPreferences()) {
-      return;
-    }
+    if (!validateAllStepsInline()) return;
 
     try {
       const {
@@ -760,18 +1010,17 @@ const handleCandidateStationSelect = (
 
       await saveReservation(reservation);
 
-      alert(
-        isEditMode
-          ? '신청 정보가 수정되었습니다!'
-          : '귀가 버스 신청이 완료되었습니다!'
-      );
-
       navigate('/ticket');
     } catch (error) {
       console.error('예약 저장 실패:', error);
-      alert('예약 저장에 실패했습니다. 다시 시도해주세요.');
+      setFormStatus({
+        type: 'error',
+        message: '신청 저장에 실패했습니다. 다시 시도해주세요.',
+      });
     }
   };
+
+  const visibleStepErrors = getVisibleStepErrors();
 
   const renderStationSelector = (
     rank: 1 | 2,
@@ -780,6 +1029,9 @@ const handleCandidateStationSelect = (
     results: StationOption[],
     onChange: (value: string) => void
   ) => {
+    const fieldName = rank === 1 ? 'firstStation' : 'secondStation';
+    const errorMessage = formErrors[fieldName];
+
     return (
       
       <div className={styles.stationSelectCard}>
@@ -796,14 +1048,26 @@ const handleCandidateStationSelect = (
             placeholder={`예: ${rank === 1 ? '청량리역' : '건대입구역'}`}
             value={value}
             disabled={isReservationLocked}
+            aria-invalid={Boolean(errorMessage)}
+            aria-describedby={
+              errorMessage ? `station-${rank}-error` : undefined
+            }
             onChange={(e) => {
               onChange(e.target.value);
+              clearValidationFeedback(fieldName);
+              clearValidationFeedback('stationPreference');
 
               if (rank === 1) setFirstStation(null);
               if (rank === 2) setSecondStation(null);
             }}
           />
         </div>
+
+        {errorMessage && (
+          <p id={`station-${rank}-error`} className={styles.fieldError}>
+            {errorMessage}
+          </p>
+        )}
 
         {value && !selectedStation && !isReservationLocked && (
           <div className={styles.searchResultBox}>
@@ -843,7 +1107,7 @@ const handleCandidateStationSelect = (
       <main className={styles.main}>
 {isLoading || isStationLoading ? (
   <section className={styles.loadingContainer}>
-    <p>예약 정보를 불러오는 중...</p>
+    <p>신청 정보를 불러오는 중...</p>
   </section>
 ) : (
           <>
@@ -877,13 +1141,13 @@ const handleCandidateStationSelect = (
 
             {reservationDeadline.isClosed && !isConfirmed && (
               <div className={styles.closedNoticeBox}>
-                신청이 마감되어 예매를 새로 신청하거나 수정할 수 없습니다.
+                신청이 마감되어 새로 신청하거나 수정할 수 없습니다.
                 마감 시간: {formatReservationDeadline(reservationDeadline.deadlineAt)}
               </div>
             )}
 
             <div className={styles.formCard}>
-              <div className={styles.stepper} aria-label="예약 단계">
+              <div className={styles.stepper} aria-label="신청 단계">
                 {reservationSteps.map((step, index) => (
                   <button
                     key={step}
@@ -891,35 +1155,8 @@ const handleCandidateStationSelect = (
                     className={`${styles.stepItem} ${
                       index === currentStep ? styles.stepItemActive : ''
                     } ${index < currentStep ? styles.stepItemDone : ''}`}
-                    onClick={() => {
-                      if (isReservationLocked) {
-                        setCurrentStep(index);
-                        return;
-                      }
-
-                      // 이전 단계로 돌아가는 것은 상시 허용
-                      if (index < currentStep) {
-                        setCurrentStep(index);
-                        return;
-                      }
-
-                      // 다음 단계로 갈 때는 유효성 검사 및 입금 확인 팝업 적용
-                      if (index > currentStep) {
-                        if (index > currentStep + 1) {
-                          alert('이전 단계를 먼저 완료해주세요.');
-                          return;
-                        }
-
-                        if (!validateCurrentStep()) return;
-
-                        if (currentStep === 2 && index === 3) {
-                          setIsDepositConfirmModalOpen(true);
-                          return;
-                        }
-
-                        setCurrentStep(index);
-                      }
-                    }}
+                    onClick={() => handleStepClick(index)}
+                    aria-current={index === currentStep ? 'step' : undefined}
                   >
                     <span>{index + 1}</span>
                     <strong>{step}</strong>
@@ -927,7 +1164,33 @@ const handleCandidateStationSelect = (
                 ))}
               </div>
 
-              <form className={styles.form} onSubmit={handleSubmit}>
+              {(formStatus || visibleStepErrors.length > 0) && (
+                <div
+                  className={
+                    formStatus?.type === 'success'
+                      ? styles.successSummary
+                      : styles.errorSummary
+                  }
+                  role={formStatus?.type === 'success' ? 'status' : 'alert'}
+                  aria-live="polite"
+                >
+                  {formStatus && <strong>{formStatus.message}</strong>}
+                  {visibleStepErrors.length > 0 && (
+                    <ul>
+                      {visibleStepErrors.map((message) => (
+                        <li key={message}>{message}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+
+              <form
+                className={styles.form}
+                onSubmit={(event) => {
+                  event.preventDefault();
+                }}
+              >
                 {currentStep === 0 && (
                   <>
                 <div className={styles.inputGroup}>
@@ -940,10 +1203,25 @@ const handleCandidateStationSelect = (
                     className={styles.input}
                     placeholder="홍길동"
                     value={name}
-                    onChange={(e) => setName(e.target.value)}
+                    onChange={(e) => {
+                      setName(e.target.value);
+                      clearValidationFeedback('name');
+                    }}
                     disabled={isReservationLocked}
+                    aria-invalid={Boolean(formErrors.name)}
+                    aria-describedby={
+                      formErrors.name ? 'reservation-name-error' : undefined
+                    }
                     required
                   />
+                  {formErrors.name && (
+                    <p
+                      id="reservation-name-error"
+                      className={styles.fieldError}
+                    >
+                      {formErrors.name}
+                    </p>
+                  )}
                 </div>
 
                 <div className={styles.inputGroup}>
@@ -956,10 +1234,25 @@ const handleCandidateStationSelect = (
                     className={styles.input}
                     placeholder="010-1234-5678"
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
+                    onChange={(e) => {
+                      setPhone(e.target.value);
+                      clearValidationFeedback('phone');
+                    }}
                     disabled={isReservationLocked}
+                    aria-invalid={Boolean(formErrors.phone)}
+                    aria-describedby={
+                      formErrors.phone ? 'reservation-phone-error' : undefined
+                    }
                     required
                   />
+                  {formErrors.phone && (
+                    <p
+                      id="reservation-phone-error"
+                      className={styles.fieldError}
+                    >
+                      {formErrors.phone}
+                    </p>
+                  )}
                 </div>
                   </>
                 )}
@@ -984,6 +1277,7 @@ const handleCandidateStationSelect = (
                           }`}
                           onClick={() => handleDistrictSelect(district)}
                           disabled={isReservationLocked}
+                          aria-pressed={selectedDistrictId === district.id}
                         >
                           {district.name}
                         </button>
@@ -992,6 +1286,9 @@ const handleCandidateStationSelect = (
                       <p className={styles.emptyResult}>선택 가능한 지구가 없습니다.</p>
                     )}
                   </div>
+                  {formErrors.district && (
+                    <p className={styles.fieldError}>{formErrors.district}</p>
+                  )}
 
                 </div>
 
@@ -1014,6 +1311,7 @@ const handleCandidateStationSelect = (
                             }`}
                             onClick={() => handleTeamSelect(team)}
                             disabled={isReservationLocked}
+                            aria-pressed={selectedTeamId === team.id}
                           >
                             {team.name}
                           </button>
@@ -1024,6 +1322,9 @@ const handleCandidateStationSelect = (
                     </div>
                   ) : (
                     <p className={styles.optionHint}>먼저 지구를 선택해주세요.</p>
+                  )}
+                  {formErrors.team && (
+                    <p className={styles.fieldError}>{formErrors.team}</p>
                   )}
 
                 </div>
@@ -1047,6 +1348,7 @@ const handleCandidateStationSelect = (
                             }`}
                             onClick={() => handleCampusSelect(campus)}
                             disabled={isReservationLocked}
+                            aria-pressed={selectedCampusId === campus.id}
                           >
                             {campus.name}
                           </button>
@@ -1059,6 +1361,9 @@ const handleCandidateStationSelect = (
                     </div>
                   ) : (
                     <p className={styles.optionHint}>먼저 팀을 선택해주세요.</p>
+                  )}
+                  {formErrors.campus && (
+                    <p className={styles.fieldError}>{formErrors.campus}</p>
                   )}
 
                 </div>
@@ -1106,6 +1411,18 @@ const handleCandidateStationSelect = (
                   </div>
                 </div>
 
+                {(formErrors.firstStation ||
+                  formErrors.secondStation ||
+                  formErrors.stationPreference) && (
+                  <div className={styles.inlineErrorGroup}>
+                    {formErrors.firstStation && <p>{formErrors.firstStation}</p>}
+                    {formErrors.secondStation && <p>{formErrors.secondStation}</p>}
+                    {formErrors.stationPreference && (
+                      <p>{formErrors.stationPreference}</p>
+                    )}
+                  </div>
+                )}
+
                 <div className={styles.stationModeTabs}>
                   <button
                     type="button"
@@ -1138,7 +1455,7 @@ const handleCandidateStationSelect = (
     <div>
       <h3>주변 도착역 추천</h3>
       <p>
-        주소나 장소명을 입력한 뒤 실제 도착 장소를 확정하면,
+        주소나 장소명을 입력한 뒤 실제 도착역을 확정하면,
         그 장소에서 가까운 도착역 3곳을 추천합니다.
       </p>
     </div>
@@ -1154,14 +1471,35 @@ const handleCandidateStationSelect = (
         value={placeSearchInput}
         onChange={(e) => {
           setPlaceSearchInput(e.target.value);
+          setPlaceCandidates([]);
           setSelectedPlace(null);
           setNearbyStations([]);
           setHasSearchedPlace(false);
         }}
-                      disabled={isReservationLocked}
+        disabled={isReservationLocked || !isKakaoReady}
       />
     </div>
   </div>
+
+  {!isKakaoReady && !kakaoLoadError && (
+    <p className={styles.emptyResult}>지도 검색을 준비하는 중입니다...</p>
+  )}
+
+  {kakaoLoadError && (
+    <div className={styles.mapErrorBox}>
+      <p>{kakaoLoadError}</p>
+      <button
+        type="button"
+        onClick={() => {
+          setKakaoLoadError('');
+          setKakaoLoadAttempt((attempt) => attempt + 1);
+        }}
+        disabled={isReservationLocked}
+      >
+        다시 시도
+      </button>
+    </div>
+  )}
 
   {isSearchingPlace && (
     <p className={styles.emptyResult}>장소를 검색하는 중입니다...</p>
@@ -1195,42 +1533,55 @@ const handleCandidateStationSelect = (
 
   {selectedPlace && (
     <div className={styles.selectedBox}>
-      <strong>확정된 도착 장소: {selectedPlace.name}</strong>
+      <strong>확정된 도착역: {selectedPlace.name}</strong>
       {selectedPlace.address && <p>{selectedPlace.address}</p>}
     </div>
   )}
 
   {selectedPlace && nearbyStations.length > 0 && (
     <div className={styles.nearbyStationList}>
-      {nearbyStations.map(({ station, distanceKm }, index) => (
-        <div key={station.id} className={styles.recommendationItem}>
-          <div>
-            <strong>
-              {index + 1}. {station.name}
-            </strong>
-            <p>{station.line || '노선 정보 없음'}</p>
-            {station.address && <p>{station.address}</p>}
-            <small>직선거리 약 {formatDistance(distanceKm)}</small>
-          </div>
+      {nearbyStations.map(({ station, distanceKm }, index) => {
+        const isFirstSelected = firstStation?.id === station.id;
+        const isSecondSelected = secondStation?.id === station.id;
 
-          <div className={styles.recommendationButtons}>
-            <button
-              type="button"
-              onClick={() => handleApplyRecommendation(station, 1)}
-              disabled={secondStation?.id === station.id || isReservationLocked}
-            >
-              1지망
-            </button>
-            <button
-              type="button"
-              onClick={() => handleApplyRecommendation(station, 2)}
-              disabled={firstStation?.id === station.id || isReservationLocked}
-            >
-              2지망
-            </button>
+        return (
+          <div key={station.id} className={styles.recommendationItem}>
+            <div>
+              <strong>
+                {index + 1}. {station.name}
+              </strong>
+              <p>{station.line || '노선 정보 없음'}</p>
+              {station.address && <p>{station.address}</p>}
+              <small>직선거리 약 {formatDistance(distanceKm)}</small>
+            </div>
+
+            <div className={styles.recommendationButtons}>
+              <button
+                type="button"
+                className={`${styles.recommendationButton} ${
+                  isFirstSelected ? styles.recommendationButtonActive : ''
+                }`}
+                aria-pressed={isFirstSelected}
+                onClick={() => handleApplyRecommendation(station, 1)}
+                disabled={isSecondSelected || isReservationLocked}
+              >
+                {isFirstSelected ? '1지망 선택됨' : '1지망 선택'}
+              </button>
+              <button
+                type="button"
+                className={`${styles.recommendationButton} ${
+                  isSecondSelected ? styles.recommendationButtonActive : ''
+                }`}
+                aria-pressed={isSecondSelected}
+                onClick={() => handleApplyRecommendation(station, 2)}
+                disabled={isFirstSelected || isReservationLocked}
+              >
+                {isSecondSelected ? '2지망 선택됨' : '2지망 선택'}
+              </button>
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   )}
 
@@ -1349,7 +1700,7 @@ const handleCandidateStationSelect = (
                       className={styles.submitButton}
                       onClick={() => navigate('/ticket')}
                     >
-                      확정표 확인하기
+                      버스표 확인하기
                     </button>
                   ) : reservationDeadline.isClosed ? (
                     <button
@@ -1368,7 +1719,11 @@ const handleCandidateStationSelect = (
                       다음
                     </button>
                   ) : (
-                    <button type="submit" className={styles.submitButton}>
+                    <button
+                      type="button"
+                      className={styles.submitButton}
+                      onClick={() => void handleSubmit()}
+                    >
                       {isEditMode ? '신청 수정하기' : '신청 완료하기'}
                     </button>
                   )}

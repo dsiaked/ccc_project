@@ -140,6 +140,27 @@
   transition: background-color 0.2s;
 }
 
+.navLabel {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.navBadge {
+  flex: 0 0 auto;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: #2563eb;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 22px;
+}
+
 .navItem:hover {
   background-color: #f9fafb;
 }

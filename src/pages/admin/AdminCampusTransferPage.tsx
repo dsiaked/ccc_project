@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, MessageSquare, RotateCcw, Search, Send } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import Header from '../../components/Header';
+import AdminHeader from './AdminHeader';
 import { supabase } from '../../lib/supabase';
 import {
   confirmCampusTransferById,
+  getBusTicketPrice,
   getCampusTransferStats,
   revertCampusTransferConfirmationById,
   type CampusTransferStat,
@@ -20,11 +21,9 @@ type StatusFilter =
 const AdminCampusTransferPage = () => {
   const navigate = useNavigate();
   const [transfers, setTransfers] = useState<CampusTransferStat[]>([]);
+  const [ticketPrice, setTicketPrice] = useState(0);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
-  const [actualAmountInputs, setActualAmountInputs] = useState<
-    Record<string, string>
-  >({});
 
   const [searchKeyword, setSearchKeyword] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
@@ -34,16 +33,13 @@ const AdminCampusTransferPage = () => {
     try {
       setLoading(true);
 
-      const data = await getCampusTransferStats();
+      const [data, price] = await Promise.all([
+        getCampusTransferStats(),
+        getBusTicketPrice(),
+      ]);
+
       setTransfers(data);
-      setActualAmountInputs(
-        Object.fromEntries(
-          data.map((transfer) => [
-            transfer.id,
-            String(transfer.actualConfirmedAmount ?? transfer.totalAmount),
-          ])
-        )
-      );
+      setTicketPrice(price);
     } catch (error) {
       console.error('캠퍼스 송금 현황 조회 실패:', error);
       alert(
@@ -160,16 +156,6 @@ const AdminCampusTransferPage = () => {
     );
   };
 
-  const handleActualAmountInputChange = (
-    transferId: string,
-    value: string
-  ) => {
-    setActualAmountInputs((prev) => ({
-      ...prev,
-      [transferId]: value.replace(/[^0-9]/g, ''),
-    }));
-  };
-
   const handleSaveActualAmount = async (transfer: CampusTransferStat) => {
     if (processingId) return;
 
@@ -178,17 +164,7 @@ const AdminCampusTransferPage = () => {
       return;
     }
 
-    const actualAmountInput =
-      actualAmountInputs[transfer.id] ?? String(transfer.totalAmount);
-
-    const actualConfirmedAmount = Number(
-      actualAmountInput.replace(/[^0-9]/g, '')
-    );
-
-    if (!Number.isFinite(actualConfirmedAmount) || actualConfirmedAmount < 0) {
-      alert('실제 입금액은 0원 이상 숫자로 입력해주세요.');
-      return;
-    }
+    const actualConfirmedAmount = transfer.paidPeople * ticketPrice;
 
     try {
       setProcessingId(transfer.id);
@@ -205,10 +181,6 @@ const AdminCampusTransferPage = () => {
         ...item,
         status: 'confirmed',
         actualConfirmedAmount: confirmedTransfer.actualConfirmedAmount,
-      }));
-      setActualAmountInputs((prev) => ({
-        ...prev,
-        [transfer.id]: String(confirmedTransfer.actualConfirmedAmount),
       }));
 
     } catch (error) {
@@ -248,10 +220,6 @@ const AdminCampusTransferPage = () => {
         ...item,
         status: 'sent',
         actualConfirmedAmount: null,
-      }));
-      setActualAmountInputs((prev) => ({
-        ...prev,
-        [transfer.id]: String(transfer.totalAmount),
       }));
 
       alert('본부 입금 확인을 취소했습니다.');
@@ -298,7 +266,7 @@ const AdminCampusTransferPage = () => {
         const confirmedTransfer = await confirmCampusTransferById({
           transferId: transfer.id,
           confirmedBy: userId,
-          actualConfirmedAmount: transfer.totalAmount,
+          actualConfirmedAmount: transfer.paidPeople * ticketPrice,
         });
 
         confirmedAmountById.set(
@@ -321,18 +289,6 @@ const AdminCampusTransferPage = () => {
             : item
         )
       );
-      setActualAmountInputs((prev) => {
-        const next = { ...prev };
-
-        targets.forEach((transfer) => {
-          next[transfer.id] = String(
-            confirmedAmountById.get(transfer.id) ?? transfer.totalAmount
-          );
-        });
-
-        return next;
-      });
-
       alert('본부 입금 전체 확인 처리가 완료되었습니다.');
     } catch (error) {
       console.error('본부 입금 전체 확인 처리 중 오류:', error);
@@ -364,6 +320,25 @@ const AdminCampusTransferPage = () => {
     return '입금 확인 중';
   };
 
+  const getStatusDescription = (transfer: CampusTransferStat) => {
+    if (transfer.status === 'confirmed') {
+      return '본부가 실제 입금액을 확인했습니다.';
+    }
+
+    if (transfer.status === 'sent') {
+      return '캠퍼스가 송금 완료를 보고했습니다.';
+    }
+
+    if (
+      transfer.totalPeople > 0 &&
+      transfer.paidPeople === transfer.totalPeople
+    ) {
+      return '전원 입금 확인 후 송금 보고를 기다립니다.';
+    }
+
+    return '캠퍼스에서 개인별 입금을 확인 중입니다.';
+  };
+
   const getStatusClassName = (transfer: CampusTransferStat) => {
     if (transfer.status === 'confirmed') return styles.statusConfirmed;
     if (transfer.status === 'sent') return styles.statusSent;
@@ -380,7 +355,7 @@ const AdminCampusTransferPage = () => {
 
   return (
     <div className={styles.page}>
-      <Header />
+      <AdminHeader />
 
       <main className={styles.main}>
         <section className={styles.headerSection}>
@@ -506,7 +481,7 @@ const AdminCampusTransferPage = () => {
                     <th>팀</th>
                     <th>캠퍼스</th>
                     <th>캠퍼스 관리자</th>
-                    <th>실제 입금액 / 송금 예정액</th>
+                    <th>입금 확인액 / 송금 예정액</th>
                     <th>상태</th>
                     <th>처리</th>
                   </tr>
@@ -518,13 +493,10 @@ const AdminCampusTransferPage = () => {
                       processingId === transfer.id || processingId === 'all';
 
                     const isEmptyTransfer = transfer.id.startsWith('empty-');
-                    const canEditActualAmount =
-                      !isEmptyTransfer &&
-                      (transfer.status === 'sent' ||
-                        transfer.status === 'confirmed');
-                    const actualAmountValue =
-                      actualAmountInputs[transfer.id] ??
-                      String(transfer.actualConfirmedAmount ?? transfer.totalAmount);
+                    const canConfirmTransfer =
+                      !isEmptyTransfer && transfer.status === 'sent';
+                    const checkedPaymentAmount =
+                      transfer.paidPeople * ticketPrice;
 
                     return (
                       <tr
@@ -557,21 +529,12 @@ const AdminCampusTransferPage = () => {
                         <td className={styles.amountCell}>
                           <div className={styles.amountStack}>
                             <div className={styles.amountInputRow}>
-                              <input
-                                value={actualAmountValue}
-                                onChange={(event) =>
-                                  handleActualAmountInputChange(
-                                    transfer.id,
-                                    event.target.value
-                                  )
-                                }
-                                inputMode="numeric"
-                                disabled={!canEditActualAmount || isProcessing}
-                                className={styles.amountInput}
-                                aria-label={`${transfer.campus} 실제 입금액`}
-                              />
+                              <strong>{formatCurrency(checkedPaymentAmount)}</strong>
                               <span>/ {formatCurrency(transfer.totalAmount)}</span>
                             </div>
+                            <small>
+                              {transfer.paidPeople} / {transfer.totalPeople}명 입금 확인
+                            </small>
                             {transfer.reportedTotalAmount > 0 && (
                               <small>
                                 보고 {formatCurrency(transfer.reportedTotalAmount)}
@@ -580,26 +543,29 @@ const AdminCampusTransferPage = () => {
                           </div>
                         </td>
                         <td>
-                          <span
-                            className={`${styles.statusBadge} ${getStatusClassName(
-                              transfer
-                            )}`}
-                          >
-                            {getStatusLabel(transfer)}
-                          </span>
+                          <div className={styles.statusStack}>
+                            <span
+                              className={`${styles.statusBadge} ${getStatusClassName(
+                                transfer
+                              )}`}
+                            >
+                              {getStatusLabel(transfer)}
+                            </span>
+                            <span className={styles.statusDescription}>
+                              {getStatusDescription(transfer)}
+                            </span>
+                          </div>
                         </td>
                         <td>
                           <div className={styles.actionGroup}>
-                            {canEditActualAmount && (
+                            {canConfirmTransfer && (
                               <button
                                 type="button"
                                 className={styles.confirmButton}
                                 onClick={() => handleSaveActualAmount(transfer)}
                                 disabled={isProcessing}
                               >
-                                {transfer.status === 'confirmed'
-                                  ? '금액 저장'
-                                  : '입금 확인'}
+                                입금 확인
                               </button>
                             )}
 

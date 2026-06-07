@@ -3,36 +3,41 @@ import { useNavigate } from 'react-router-dom';
 import {
   AlertTriangle,
   BookOpen,
+  Bus,
   ChevronDown,
   ChevronUp,
   CheckCircle2,
   Download,
+  FileEdit,
   Plus,
   Trash2,
+  Users,
   Zap,
 } from 'lucide-react';
-import Header from '../../components/Header';
+import AdminHeader from './AdminHeader';
+import { useAllocationSelection } from './hooks/useAllocationSelection';
 import { supabase } from '../../lib/supabase';
+import { getAdminRole } from '../../lib/admin/adminRolesService';
 import {
   addBusOption,
   calculateOptimalBusAllocation,
   deleteBusOption,
-  getAdminRole,
   getBusOptions,
   getDestinationStats,
   saveBusAllocation,
-} from '../../lib/adminService';
-import type {
-  ConfirmedTicket,
-  ReturnBusReservation,
-  StationPreference,
-} from '../../types/reservation';
+} from '../../lib/admin/busAllocationService';
+import {
+  createAllocationWorkspace,
+  getDraftAllocationWorkspaceSummaries,
+} from '../../lib/admin/allocationWorkspaceService';
+import type { AllocationWorkspaceSummary } from '../../lib/admin/allocationWorkspaceService';
 import styles from './AdminAllocationPage.module.css';
 
 interface BusOption {
   id: string;
   capacity: number;
   estimated_price: number;
+  max_count?: number;
   notes?: string;
 }
 
@@ -58,7 +63,6 @@ interface AllocationResult {
       name: string;
       passengerCount: number;
       rank2Demand: number;
-      rank3Demand: number;
     }>;
   }>;
 }
@@ -66,65 +70,18 @@ interface AllocationResult {
 type DestinationStat = {
   rank1: number;
   rank2: number;
-  rank3: number;
   total: number;
 };
 
-interface ReservationRow {
-  id: string;
-  user_id: string;
-  name: string | null;
-  phone: string | null;
-  district: string | null;
-  team: string | null;
-  campus: string | null;
-  station_preferences: StationPreference[] | null;
-  status: ReturnBusReservation['status'] | null;
-  confirmed_ticket: ConfirmedTicket | null;
-  data: Partial<ReturnBusReservation> | null;
-  created_at: string | null;
-  updated_at: string | null;
-}
-
-interface ReservationItem {
-  id: string;
-  dbId: string;
-  userId: string;
-  name: string;
-  phone: string;
-  district: string;
-  team: string;
-  campus: string;
-  stationPreferences: StationPreference[];
-  status: ReturnBusReservation['status'];
-  confirmedTicket?: ConfirmedTicket;
-  requestedAt: string;
-  updatedAt?: string;
-  rawData: Partial<ReturnBusReservation> | null;
-}
-
-type AutoAssignment = {
-  reservation: ReservationItem;
-  route: AllocationResult['routePlan'][number];
-  destinationName: string;
-  seatNumber: number;
-};
-
 type OptimizationMode =
-  | 'balanced'
-  | 'firstChoice'
+  | 'custom'
   | 'weightedPreference'
-  | 'cost'
-  | 'emptySeats'
-  | 'busCount';
+  | 'cost';
 
 const optimizationModeLabels: Record<OptimizationMode, string> = {
-  balanced: '균형 추천',
-  firstChoice: '1지망 최대 반영',
+  custom: '사용자 설정',
   weightedPreference: '1·2지망 가중치',
   cost: '최소 비용',
-  emptySeats: '빈 좌석 최소',
-  busCount: '차량 수 최소',
 };
 
 const optimizationModes = Object.keys(
@@ -134,13 +91,6 @@ const optimizationModes = Object.keys(
 type ModeBestAllocation = {
   mode: OptimizationMode;
   allocation: AllocationResult;
-};
-
-type AllocationMetrics = {
-  demand: number;
-  splitCount: number;
-  mixedRouteCount: number;
-  weightedPreferencePenalty: number;
 };
 
 const getAllocationDemand = (allocation: AllocationResult) =>
@@ -164,148 +114,35 @@ const getFirstChoiceCoverageRate = (allocation: AllocationResult) => {
     100;
 };
 
-const getDestinationSplitCount = (allocation: AllocationResult) => {
-  const destinationBusCounts = new Map<string, number>();
-
-  allocation.routePlan.forEach((route) => {
-    route.destinations.forEach((destination) => {
-      destinationBusCounts.set(
-        destination.name,
-        (destinationBusCounts.get(destination.name) ?? 0) + 1
-      );
-    });
-  });
-
-  return Array.from(destinationBusCounts.values()).reduce(
-    (sum, busCount) => sum + Math.max(0, busCount - 1),
-    0
-  );
-};
-
-const getMixedRouteCount = (allocation: AllocationResult) =>
-  allocation.routePlan.filter((route) => route.destinations.length > 1).length;
-
-const getWeightedPreferencePenalty = (
-  allocation: AllocationResult,
-  firstChoiceWeight: number,
-  secondChoiceWeight: number
-) => {
-  const destinationBusCounts = new Map<string, number>();
-  const destinationWeights = new Map<string, number>();
-
-  allocation.routePlan.forEach((route) => {
-    route.destinations.forEach((destination) => {
-      destinationBusCounts.set(
-        destination.name,
-        (destinationBusCounts.get(destination.name) ?? 0) + 1
-      );
-      destinationWeights.set(
-        destination.name,
-        destination.passengerCount * firstChoiceWeight +
-          destination.rank2Demand * secondChoiceWeight
-      );
-    });
-  });
-
-  const splitPenalty = Array.from(destinationBusCounts.entries()).reduce(
-    (sum, [destinationName, busCount]) =>
-      sum +
-      Math.max(0, busCount - 1) *
-        (destinationWeights.get(destinationName) ?? 0),
-    0
-  );
-  const mixedPenalty = allocation.routePlan.reduce((sum, route) => {
-    if (route.destinations.length <= 1) return sum;
-
-    return (
-      sum +
-      route.destinations.reduce(
-        (routeSum, destination) =>
-          routeSum +
-          destination.passengerCount * firstChoiceWeight +
-          destination.rank2Demand * secondChoiceWeight,
-        0
-      ) *
-        0.15
-    );
-  }, 0);
-
-  return splitPenalty + mixedPenalty;
-};
-
-const buildAllocationMetrics = (
-  allocation: AllocationResult,
-  firstChoiceWeight: number,
-  secondChoiceWeight: number
-): AllocationMetrics => ({
-  demand: getAllocationDemand(allocation),
-  splitCount: getDestinationSplitCount(allocation),
-  mixedRouteCount: getMixedRouteCount(allocation),
-  weightedPreferencePenalty: getWeightedPreferencePenalty(
-    allocation,
-    firstChoiceWeight,
-    secondChoiceWeight
-  ),
-});
-
 const sortAllocations = (
   results: AllocationResult[],
   mode: OptimizationMode,
-  firstChoiceWeight = 1,
-  secondChoiceWeight = 0.5
+  firstChoicePercent = 70
 ) => {
   const nextResults = [...results];
-  const metricsByAllocation = new WeakMap<AllocationResult, AllocationMetrics>();
-  const getMetrics = (allocation: AllocationResult) => {
-    const cachedMetrics = metricsByAllocation.get(allocation);
 
-    if (cachedMetrics) return cachedMetrics;
+  if (mode === 'custom') {
+    const maximumCost = Math.max(...nextResults.map((result) => result.totalCost), 1);
+    const preferenceWeight = Math.min(100, Math.max(0, firstChoicePercent)) / 100;
+    const costWeight = 1 - preferenceWeight;
 
-    const metrics = buildAllocationMetrics(
-      allocation,
-      firstChoiceWeight,
-      secondChoiceWeight
-    );
+    return nextResults.sort((a, b) => {
+      const score = (result: AllocationResult) =>
+        getFirstChoiceCoverageRate(result) * preferenceWeight +
+        (1 - result.totalCost / maximumCost) * 100 * costWeight;
 
-    metricsByAllocation.set(allocation, metrics);
-    return metrics;
-  };
-
-  if (mode === 'firstChoice') {
-    return nextResults.sort(
-      (a, b) => {
-        const aMetrics = getMetrics(a);
-        const bMetrics = getMetrics(b);
-
-        return (
-          aMetrics.splitCount - bMetrics.splitCount ||
-          aMetrics.mixedRouteCount - bMetrics.mixedRouteCount ||
-        b.efficiency - a.efficiency ||
-        a.emptySeats - b.emptySeats ||
-        a.totalCost - b.totalCost
-        );
-      }
-    );
+      return score(b) - score(a) || a.emptySeats - b.emptySeats;
+    });
   }
 
   if (mode === 'weightedPreference') {
     return nextResults.sort(
-      (a, b) => {
-        const aMetrics = getMetrics(a);
-        const bMetrics = getMetrics(b);
-
-        return (
-          (b.netValue ?? Number.NEGATIVE_INFINITY) -
-            (a.netValue ?? Number.NEGATIVE_INFINITY) ||
-          (a.unservedPeople ?? 0) - (b.unservedPeople ?? 0) ||
-          aMetrics.weightedPreferencePenalty -
-            bMetrics.weightedPreferencePenalty ||
-          aMetrics.splitCount - bMetrics.splitCount ||
-          aMetrics.mixedRouteCount - bMetrics.mixedRouteCount ||
-          a.emptySeats - b.emptySeats ||
-          a.totalCost - b.totalCost
-        );
-      }
+      (a, b) =>
+        (b.netValue ?? Number.NEGATIVE_INFINITY) -
+          (a.netValue ?? Number.NEGATIVE_INFINITY) ||
+        (a.unservedPeople ?? 0) - (b.unservedPeople ?? 0) ||
+        a.emptySeats - b.emptySeats ||
+        a.totalCost - b.totalCost
     );
   }
 
@@ -315,24 +152,6 @@ const sortAllocations = (
         a.totalCost - b.totalCost ||
         a.emptySeats - b.emptySeats ||
         a.totalBuses - b.totalBuses
-    );
-  }
-
-  if (mode === 'emptySeats') {
-    return nextResults.sort(
-      (a, b) =>
-        a.emptySeats - b.emptySeats ||
-        a.totalCost - b.totalCost ||
-        a.totalBuses - b.totalBuses
-    );
-  }
-
-  if (mode === 'busCount') {
-    return nextResults.sort(
-      (a, b) =>
-        a.totalBuses - b.totalBuses ||
-        a.totalCost - b.totalCost ||
-        a.emptySeats - b.emptySeats
     );
   }
 
@@ -348,7 +167,8 @@ const buildModeBestAllocations = (
   destStats: Record<string, DestinationStat>,
   busOptions: BusOption[],
   firstChoiceWeight: number,
-  secondChoiceWeight: number
+  secondChoiceWeight: number,
+  customFirstChoicePercent: number
 ): ModeBestAllocation[] => {
   const standardResults = calculateOptimalBusAllocation(destStats, busOptions, {
     firstChoiceWeight,
@@ -368,8 +188,7 @@ const buildModeBestAllocations = (
       const bestAllocation = sortAllocations(
         sourceResults,
         mode,
-        firstChoiceWeight,
-        secondChoiceWeight
+        customFirstChoicePercent
       )[0];
 
       return bestAllocation
@@ -411,24 +230,21 @@ const buildAllocationWarnings = (
     warnings.push('만석 차량이 있습니다. 현장 예비 좌석이 필요하면 여유 좌석 기준을 확인하세요.');
   }
 
-  if (getDestinationSplitCount(allocation) > 0) {
-    warnings.push('일부 1지망 행선지가 여러 차량으로 나뉩니다. 같은 행선지 탑승자 안내를 확인하세요.');
-  }
-
-  if (getMixedRouteCount(allocation) > 0) {
-    warnings.push('여러 행선지가 함께 배정된 차량이 있습니다. 하차 순서와 안내 문구가 필요합니다.');
-  }
-
   if (
     allocation.routePlan.some((route) =>
       route.destinations.some(
         (destination) =>
-          destination.rank2Demand + destination.rank3Demand >
-          destination.passengerCount
+          destination.rank2Demand > destination.passengerCount
       )
     )
   ) {
-    warnings.push('일부 행선지는 2·3지망 수요가 1지망보다 큽니다. 추가 배정 가능성을 확인하세요.');
+    warnings.push('일부 도착역은 2지망 수요가 1지망보다 큽니다. 추가 배정 가능성을 확인하세요.');
+  }
+
+  if (allocation.routePlan.some((route) => route.passengerCount < 36)) {
+    warnings.push(
+      '최소 탑승 인원 36명 미만인 차량이 있습니다. 최종 확정 전에 관리자 예외 승인이 필요합니다.'
+    );
   }
 
   return warnings;
@@ -436,156 +252,6 @@ const buildAllocationWarnings = (
 
 const escapeCsvValue = (value: string | number) =>
   `"${String(value).replace(/"/g, '""')}"`;
-
-const removeUndefinedValues = <T,>(value: T): T =>
-  JSON.parse(JSON.stringify(value)) as T;
-
-const toReservationItem = (row: ReservationRow): ReservationItem => {
-  const savedData = row.data ?? {};
-  const confirmedTicket =
-    savedData.confirmedTicket ?? row.confirmed_ticket ?? undefined;
-
-  return {
-    id: savedData.id ?? row.id,
-    dbId: row.id,
-    userId: row.user_id,
-    name: savedData.name ?? row.name ?? '',
-    phone: savedData.phone ?? row.phone ?? '',
-    district: savedData.district ?? row.district ?? '',
-    team: savedData.team ?? row.team ?? '',
-    campus: savedData.campus ?? row.campus ?? '',
-    stationPreferences:
-      savedData.stationPreferences ?? row.station_preferences ?? [],
-    status: savedData.status ?? row.status ?? 'requested',
-    confirmedTicket,
-    requestedAt: savedData.requestedAt ?? row.created_at ?? '',
-    updatedAt: savedData.updatedAt ?? row.updated_at ?? undefined,
-    rawData: row.data,
-  };
-};
-
-const getPreferenceRankForDestination = (
-  reservation: ReservationItem,
-  destinationName: string
-) =>
-  reservation.stationPreferences.find(
-    (preference) => preference.station.name === destinationName
-  )?.rank ?? null;
-
-const buildReservationData = (
-  reservation: ReservationItem,
-  confirmedTicket: ConfirmedTicket
-): ReturnBusReservation => {
-  const updatedAt = new Date().toISOString();
-
-  return {
-    ...(reservation.rawData ?? {}),
-    id: reservation.id,
-    name: reservation.name,
-    phone: reservation.phone,
-    district: reservation.district,
-    team: reservation.team,
-    campus: reservation.campus,
-    stationPreferences: reservation.stationPreferences,
-    status: 'confirmed',
-    confirmedTicket,
-    requestedAt: reservation.requestedAt || updatedAt,
-    updatedAt,
-  };
-};
-
-const buildAutoAssignments = (
-  allocation: AllocationResult,
-  reservations: ReservationItem[]
-) => {
-  const usedReservationIds = new Set<string>();
-  const assignments: AutoAssignment[] = [];
-  const eligibleReservations = reservations.filter(
-    (reservation) =>
-      reservation.status !== 'cancelled' && !reservation.confirmedTicket
-  );
-  const confirmedSeatNumbersByBus = new Map<string, Set<number>>();
-  const candidatesByDestination = new Map<string, ReservationItem[]>();
-
-  reservations.forEach((reservation) => {
-    const busNumber = reservation.confirmedTicket?.busNumber;
-    const seatNumber = Number(reservation.confirmedTicket?.seatNumber);
-
-    if (
-      !busNumber ||
-      !Number.isInteger(seatNumber) ||
-      seatNumber < 1
-    ) {
-      return;
-    }
-
-    const seatNumbers =
-      confirmedSeatNumbersByBus.get(busNumber) ?? new Set<number>();
-
-    seatNumbers.add(seatNumber);
-    confirmedSeatNumbersByBus.set(busNumber, seatNumbers);
-  });
-
-  eligibleReservations.forEach((reservation) => {
-    reservation.stationPreferences.forEach((preference) => {
-      const destinationName = preference.station.name;
-      const candidates = candidatesByDestination.get(destinationName) ?? [];
-
-      candidates.push(reservation);
-      candidatesByDestination.set(destinationName, candidates);
-    });
-  });
-
-  candidatesByDestination.forEach((candidates, destinationName) => {
-    candidates.sort((a, b) => {
-      const aRank = getPreferenceRankForDestination(a, destinationName) ?? 99;
-      const bRank = getPreferenceRankForDestination(b, destinationName) ?? 99;
-
-      return (
-        aRank - bRank ||
-        a.requestedAt.localeCompare(b.requestedAt) ||
-        a.name.localeCompare(b.name, 'ko')
-      );
-    });
-  });
-
-  allocation.routePlan.forEach((route) => {
-    const alreadyAssignedSeatNumbers = new Set(
-      Array.from(confirmedSeatNumbersByBus.get(route.busLabel) ?? []).filter(
-        (seatNumber) => seatNumber <= route.capacity
-      )
-    );
-    const availableSeatNumbers = Array.from(
-      { length: route.capacity },
-      (_, index) => index + 1
-    ).filter((seatNumber) => !alreadyAssignedSeatNumbers.has(seatNumber));
-    let nextSeatIndex = 0;
-
-    route.destinations.forEach((destination) => {
-      const targetCount = Math.min(
-        destination.passengerCount,
-        availableSeatNumbers.length - nextSeatIndex
-      );
-      const candidates =
-        candidatesByDestination.get(destination.name)?.filter(
-          (reservation) => !usedReservationIds.has(reservation.id)
-        ) ?? [];
-
-      candidates.slice(0, targetCount).forEach((reservation) => {
-        usedReservationIds.add(reservation.id);
-        assignments.push({
-          reservation,
-          route,
-          destinationName: destination.name,
-          seatNumber: availableSeatNumbers[nextSeatIndex],
-        });
-        nextSeatIndex += 1;
-      });
-    });
-  });
-
-  return assignments;
-};
 
 const getErrorMessage = (error: unknown) => {
   if (error instanceof Error) return error.message;
@@ -615,11 +281,20 @@ const BusAllocationPage = () => {
   const [loading, setLoading] = useState(true);
   const [newBusCapacity, setNewBusCapacity] = useState('');
   const [newBusPrice, setNewBusPrice] = useState('');
+  const [newBusMaxCount, setNewBusMaxCount] = useState('999');
   const [allocationName, setAllocationName] = useState('');
-  const [selectedAllocation, setSelectedAllocation] =
-    useState<AllocationResult | null>(null);
+  const {
+    selectedAllocation,
+    selectedAllocationLabel,
+    selectionFeedback,
+    setSelectedAllocation,
+    setSelectedAllocationLabel,
+    setSelectionFeedback,
+    resetSelection,
+    selectAllocation,
+  } = useAllocationSelection<AllocationResult>();
   const [optimizationMode, setOptimizationMode] =
-    useState<OptimizationMode>('balanced');
+    useState<OptimizationMode>('custom');
   const [loadError, setLoadError] = useState<string | null>(null);
   const [compareAllocationIndexes, setCompareAllocationIndexes] = useState<
     number[]
@@ -628,19 +303,19 @@ const BusAllocationPage = () => {
     ModeBestAllocation[]
   >([]);
   const [showDetailedComparison, setShowDetailedComparison] = useState(false);
+  const [showSelectedRoutePlan, setShowSelectedRoutePlan] = useState(false);
   const [showBusOptionsPanel, setShowBusOptionsPanel] = useState(false);
   const [hasSavedAllocation, setHasSavedAllocation] = useState(false);
   const [firstChoiceWeight, setFirstChoiceWeight] = useState('10000');
   const [secondChoiceWeight, setSecondChoiceWeight] = useState('5000');
+  const [customFirstChoicePercent, setCustomFirstChoicePercent] = useState(70);
   const [autoAssignDepartureTime, setAutoAssignDepartureTime] = useState('');
   const [autoAssignBoardingPlace, setAutoAssignBoardingPlace] = useState('');
-  const [autoAssignManagerNote, setAutoAssignManagerNote] = useState('');
   const [autoAssigning, setAutoAssigning] = useState(false);
-  const [lastAutoAssignSummary, setLastAutoAssignSummary] = useState<
-    string | null
-  >(null);
-  const [selectionFeedback, setSelectionFeedback] = useState<string | null>(
-    null
+  const [showDraftCreator, setShowDraftCreator] = useState(false);
+  const [isCalculationStale, setIsCalculationStale] = useState(false);
+  const [draftWorkspaces, setDraftWorkspaces] = useState<AllocationWorkspaceSummary[]>(
+    []
   );
 
   const loadData = async () => {
@@ -665,9 +340,10 @@ const BusAllocationPage = () => {
         return;
       }
 
-      const [optionsResult, statsResult] = await Promise.allSettled([
+      const [optionsResult, statsResult, workspacesResult] = await Promise.allSettled([
         getBusOptions(),
         getDestinationStats(),
+        getDraftAllocationWorkspaceSummaries(),
       ]);
 
       if (optionsResult.status === 'fulfilled') {
@@ -686,12 +362,22 @@ const BusAllocationPage = () => {
         setDestStats({});
       }
 
+      if (workspacesResult.status === 'fulfilled') {
+        setDraftWorkspaces(workspacesResult.value);
+      } else {
+        console.error('임시 배차안 조회 실패:', workspacesResult.reason);
+        setDraftWorkspaces([]);
+      }
+
       const errors = [
         optionsResult.status === 'rejected'
           ? `버스 옵션: ${getErrorMessage(optionsResult.reason)}`
           : '',
         statsResult.status === 'rejected'
           ? `신청 통계: ${getErrorMessage(statsResult.reason)}`
+          : '',
+        workspacesResult.status === 'rejected'
+          ? `임시 배차안: ${getErrorMessage(workspacesResult.reason)}`
           : '',
       ].filter(Boolean);
 
@@ -716,6 +402,7 @@ const BusAllocationPage = () => {
   const handleAddBusOption = async () => {
     const capacity = Number(newBusCapacity);
     const price = Number(newBusPrice);
+    const maxCount = Number(newBusMaxCount);
 
     if (!capacity || capacity < 1 || Number.isNaN(capacity)) {
       alert('탑승 인원을 1명 이상으로 입력해주세요.');
@@ -726,17 +413,28 @@ const BusAllocationPage = () => {
       alert('예상 가격을 0원 이상으로 입력해주세요.');
       return;
     }
+    if (!Number.isInteger(maxCount) || maxCount < 1) {
+      alert('사용 가능 최대 대수는 1대 이상으로 입력해주세요.');
+      return;
+    }
 
     try {
-      await addBusOption(Math.floor(capacity), Math.floor(price));
+      await addBusOption(
+        Math.floor(capacity),
+        Math.floor(price),
+        undefined,
+        maxCount
+      );
       const options = await getBusOptions();
 
       setBusOptions(options);
       setNewBusCapacity('');
       setNewBusPrice('');
+      setNewBusMaxCount('999');
       setAllocations([]);
       setModeBestAllocations([]);
-      setSelectedAllocation(null);
+      setIsCalculationStale(false);
+      resetSelection();
 
       alert('버스 옵션을 추가했습니다.');
     } catch (error) {
@@ -755,7 +453,8 @@ const BusAllocationPage = () => {
       setBusOptions(options);
       setAllocations([]);
       setModeBestAllocations([]);
-      setSelectedAllocation(null);
+      setIsCalculationStale(false);
+      resetSelection();
 
       alert('버스 옵션을 삭제했습니다.');
     } catch (error) {
@@ -792,21 +491,28 @@ const BusAllocationPage = () => {
       const results = sortAllocations(
         calculatedResults,
         optimizationMode,
-        normalizedFirstChoiceWeight,
-        normalizedSecondChoiceWeight
+        customFirstChoicePercent
       );
       const bestAllocations = buildModeBestAllocations(
         destStats,
         busOptions,
         normalizedFirstChoiceWeight,
-        normalizedSecondChoiceWeight
+        normalizedSecondChoiceWeight,
+        customFirstChoicePercent
       );
 
       setAllocations(results);
       setModeBestAllocations(bestAllocations);
       setSelectedAllocation(results[0] ?? null);
+      setSelectedAllocationLabel(
+        results[0]
+          ? `${optimizationModeLabels[optimizationMode]} 추천 1안`
+          : null
+      );
       setShowDetailedComparison(false);
+      setShowSelectedRoutePlan(false);
       setHasSavedAllocation(false);
+      setIsCalculationStale(false);
       setSelectionFeedback(
         results[0]
           ? `${optimizationModeLabels[optimizationMode]} 추천 1안이 선택되었습니다.`
@@ -818,7 +524,7 @@ const BusAllocationPage = () => {
 
       if (results.length === 0) {
         alert(
-          '추천 가능한 버스 조합을 찾을 수 없습니다. 각 버스는 하나의 행선지만 담당해야 하므로 버스 옵션이나 대수를 추가해보세요.'
+          '추천 가능한 버스 조합을 찾을 수 없습니다. 전체 인원을 수용할 버스 옵션과 종류별 최대 사용 대수를 확인해보세요.'
         );
       }
     } catch (error) {
@@ -831,26 +537,14 @@ const BusAllocationPage = () => {
     setOptimizationMode(mode);
 
     if (allocations.length === 0) return;
+    setIsCalculationStale(true);
+    resetSelection();
+  };
 
-    const sortedResults = sortAllocations(
-      allocations,
-      mode,
-      Math.max(0, Number(firstChoiceWeight) || 0),
-      Math.max(0, Number(secondChoiceWeight) || 0)
-    );
-
-    setAllocations(sortedResults);
-    setSelectedAllocation(sortedResults[0] ?? null);
-    setSelectionFeedback(
-      sortedResults[0]
-        ? `${optimizationModeLabels[mode]} 추천 1안이 선택되었습니다.`
-        : null
-    );
-    setCompareAllocationIndexes(
-      sortedResults
-        .slice(0, Math.min(3, sortedResults.length))
-        .map((_, index) => index)
-    );
+  const markCalculationStale = () => {
+    if (allocations.length === 0) return;
+    setIsCalculationStale(true);
+    resetSelection();
   };
 
   const handleToggleCompareAllocation = (index: number) => {
@@ -884,7 +578,7 @@ const BusAllocationPage = () => {
         session.user.id
       );
 
-      alert('버스 배분안을 저장했습니다.');
+      alert('추천안을 보관했습니다.');
       setAllocationName('');
       setHasSavedAllocation(true);
     } catch (error) {
@@ -900,7 +594,7 @@ const BusAllocationPage = () => {
     }
 
     const rows = [
-      ['버스', '좌석', '탑승 인원', '빈 좌석', '행선지', '행선지별 인원'],
+      ['버스', '좌석', '탑승 인원', '빈 좌석', '도착역', '도착역별 인원'],
       ...selectedAllocation.routePlan.map((route) => [
         route.busLabel,
         route.capacity,
@@ -921,7 +615,6 @@ const BusAllocationPage = () => {
       ['빈 좌석', selectedAllocation.emptySeats],
       ['총 버스', selectedAllocation.totalBuses],
       ['예상 비용', selectedAllocation.totalCost],
-      ['1인 비용', Math.round(selectedAllocation.costPerPerson)],
       ['효율률', `${selectedAllocation.efficiency.toFixed(1)}%`],
     ];
     const csv = rows
@@ -940,8 +633,8 @@ const BusAllocationPage = () => {
   };
 
   const handleSelectAllocation = (allocation: AllocationResult, label: string) => {
-    setSelectedAllocation(allocation);
-    setSelectionFeedback(`${label}을 선택했습니다. 저장과 자동 배차는 이 안으로 진행됩니다.`);
+    selectAllocation(allocation, label);
+    setShowSelectedRoutePlan(false);
   };
 
   const handleAutoAssignSelectedAllocation = async () => {
@@ -959,77 +652,34 @@ const BusAllocationPage = () => {
     }
 
     setAutoAssigning(true);
-    setLastAutoAssignSummary(null);
 
     try {
-      const { data, error } = await supabase
-        .from('reservations')
-        .select(
-          'id, user_id, name, phone, district, team, campus, station_preferences, status, confirmed_ticket, data, created_at, updated_at'
-        )
-        .order('created_at', { ascending: true });
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) throw new Error('로그인이 필요합니다.');
 
-      if (error) throw error;
+      const draft = await createAllocationWorkspace({
+        name:
+          allocationName.trim() ||
+          `임시 배차안 ${new Date().toLocaleString('ko-KR')}`,
+        allocation: selectedAllocation,
+        departureTime,
+        boardingPlace,
+        actorId: session.user.id,
+        optimizationMode: optimizationModeLabels[optimizationMode],
+        firstChoiceWeight:
+          optimizationMode === 'custom'
+            ? customFirstChoicePercent
+            : Math.max(0, Number(firstChoiceWeight) || 0),
+        costWeight:
+          optimizationMode === 'custom'
+            ? 100 - customFirstChoicePercent
+            : Math.max(0, Number(secondChoiceWeight) || 0),
+      });
 
-      const reservations = ((data ?? []) as ReservationRow[]).map(
-        toReservationItem
-      );
-      const assignments = buildAutoAssignments(selectedAllocation, reservations);
-      const plannedPassengerCount = getAllocationDemand(selectedAllocation);
-
-      if (assignments.length === 0) {
-        alert('자동 배차할 미확정 신청자를 찾을 수 없습니다.');
-        return;
-      }
-
-      const ok = window.confirm(
-        `${optimizationModeLabels[optimizationMode]} 기준 선택안으로 ${assignments.length}명을 자동 배차할까요?\n이미 확정된 버스표는 변경하지 않습니다.`
-      );
-
-      if (!ok) return;
-
-      await Promise.all(
-        assignments.map(async (assignment) => {
-          const noteParts = [
-            `자동 배차 · ${optimizationModeLabels[optimizationMode]}`,
-            autoAssignManagerNote.trim(),
-          ].filter(Boolean);
-          const confirmedTicket: ConfirmedTicket = {
-            busNumber: assignment.route.busLabel,
-            seatNumber: String(assignment.seatNumber),
-            departureTime,
-            boardingPlace,
-            dropoffStation: assignment.destinationName,
-            managerNote: noteParts.join(' / '),
-            confirmedAt: new Date().toISOString(),
-          };
-          const nextData = buildReservationData(
-            assignment.reservation,
-            confirmedTicket
-          );
-          const cleanTicket = removeUndefinedValues(confirmedTicket);
-          const cleanData = removeUndefinedValues(nextData);
-          const { error: updateError } = await supabase
-            .from('reservations')
-            .update({
-              status: 'confirmed',
-              confirmed_ticket: cleanTicket,
-              data: cleanData,
-              updated_at: cleanData.updatedAt,
-            })
-            .eq('id', assignment.reservation.dbId);
-
-          if (updateError) throw updateError;
-        })
-      );
-
-      const summaryText =
-        assignments.length === plannedPassengerCount
-          ? `${assignments.length}명 자동 배차를 완료했습니다.`
-          : `${assignments.length}명 자동 배차 완료, ${plannedPassengerCount - assignments.length}명은 매칭 가능한 미확정 신청자가 부족해 남았습니다.`;
-
-      setLastAutoAssignSummary(summaryText);
-      alert(summaryText);
+      setShowDraftCreator(false);
+      navigate(`/admin/allocation/workspace?id=${draft.id}`);
     } catch (error) {
       console.error('자동 배차 실패:', error);
       alert(`자동 배차 중 오류가 발생했습니다: ${getErrorMessage(error)}`);
@@ -1042,24 +692,12 @@ const BusAllocationPage = () => {
     (sum, stat) => sum + stat.rank1,
     0
   );
-  const totalPreferenceCount = Object.values(destStats).reduce(
-    (sum, stat) => sum + stat.total,
-    0
-  );
   const selectedWarnings = selectedAllocation
     ? buildAllocationWarnings(selectedAllocation, totalPeople)
     : [];
   const selectedRemainingSeats = selectedAllocation
     ? buildRemainingSeatSummary(selectedAllocation)
     : [];
-  const normalizedFirstChoiceWeight = Math.max(
-    0,
-    Number(firstChoiceWeight) || 0
-  );
-  const normalizedSecondChoiceWeight = Math.max(
-    0,
-    Number(secondChoiceWeight) || 0
-  );
   const comparedAllocations = compareAllocationIndexes
     .map((index) => ({
       index,
@@ -1099,8 +737,8 @@ const BusAllocationPage = () => {
       label: '1지망 수요',
       value:
         Object.keys(destStats).length > 0
-          ? `${Object.keys(destStats).length.toLocaleString()}개 목적지`
-          : '목적지 없음',
+          ? `${Object.keys(destStats).length.toLocaleString()}개 도착역`
+          : '도착역 없음',
       ready: Object.keys(destStats).length > 0,
     },
   ];
@@ -1113,7 +751,7 @@ const BusAllocationPage = () => {
   if (loading) {
     return (
       <div className={styles.pageContainer}>
-        <Header />
+        <AdminHeader />
         <main className={styles.main}>
           <p>로딩 중...</p>
         </main>
@@ -1123,7 +761,7 @@ const BusAllocationPage = () => {
 
   return (
     <div className={styles.pageContainer}>
-      <Header />
+      <AdminHeader />
 
       <main className={styles.main}>
         <div className={styles.header}>
@@ -1146,24 +784,59 @@ const BusAllocationPage = () => {
           </div>
         )}
 
-        <div className={styles.summaryBox}>
-          <div className={styles.summaryItem}>
-            <span className={styles.label}>1지망 기준 인원</span>
-            <span className={styles.value}>{totalPeople}명</span>
+        <section className={styles.section}>
+          <div className={styles.sectionHeader}>
+            <div>
+              <h2>저장된 임시 배차안</h2>
+              <p className={styles.sectionDescription}>
+                생성한 임시 배차안을 열어 승객 배차와 버스 정보를 계속 편집할 수 있습니다.
+              </p>
+            </div>
+            <span className={styles.draftCount}>
+              {draftWorkspaces.length.toLocaleString()}개
+            </span>
           </div>
-          <div className={styles.summaryItem}>
-            <span className={styles.label}>행선지</span>
-            <span className={styles.value}>{Object.keys(destStats).length}개</span>
-          </div>
-          <div className={styles.summaryItem}>
-            <span className={styles.label}>버스 옵션</span>
-            <span className={styles.value}>{busOptions.length}개</span>
-          </div>
-          <div className={styles.summaryItem}>
-            <span className={styles.label}>전체 지망 수</span>
-            <span className={styles.value}>{totalPreferenceCount}건</span>
-          </div>
-        </div>
+
+          {draftWorkspaces.length === 0 ? (
+            <div className={styles.draftEmpty}>
+              아직 생성된 임시 배차안이 없습니다.
+            </div>
+          ) : (
+            <div className={styles.draftWorkspaceList}>
+              {draftWorkspaces.map((draft) => (
+                <button
+                  type="button"
+                  className={styles.draftWorkspaceItem}
+                  key={draft.id}
+                  onClick={() =>
+                    navigate(`/admin/allocation/workspace?id=${draft.id}`)
+                  }
+                >
+                  <div className={styles.draftWorkspaceName}>
+                    <FileEdit size={18} />
+                    <div>
+                      <strong>{draft.allocation_name}</strong>
+                      <span>
+                        {new Date(draft.created_at).toLocaleString('ko-KR')}
+                      </span>
+                    </div>
+                  </div>
+                  <div className={styles.draftWorkspaceMetrics}>
+                    <span>
+                      <Bus size={15} />
+                      {draft.bus_count}대
+                    </span>
+                    <span>
+                      <Users size={15} />
+                      {draft.passenger_count}명
+                    </span>
+                    <strong>{draft.total_cost.toLocaleString()}원</strong>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </section>
 
         <div className={styles.section}>
           <div className={styles.collapsibleHeader}>
@@ -1190,6 +863,7 @@ const BusAllocationPage = () => {
                       .map(
                         (option) =>
                           `${option.capacity}인승 ${option.estimated_price.toLocaleString()}원`
+                          + ` 최대 ${option.max_count ?? 999}대`
                       )
                       .join(' / ')
                   : '계산을 시작하려면 버스 옵션을 먼저 추가해주세요.'}
@@ -1214,6 +888,13 @@ const BusAllocationPage = () => {
                   onChange={(event) => setNewBusPrice(event.target.value)}
                   min="0"
                 />
+                <input
+                  type="number"
+                  placeholder="사용 가능 최대 대수"
+                  value={newBusMaxCount}
+                  onChange={(event) => setNewBusMaxCount(event.target.value)}
+                  min="1"
+                />
                 <button className={styles.addButton} onClick={handleAddBusOption}>
                   <Plus size={18} /> 추가
                 </button>
@@ -1229,6 +910,9 @@ const BusAllocationPage = () => {
                         </p>
                         <p className={styles.optionPrice}>
                           {option.estimated_price.toLocaleString()}원
+                        </p>
+                        <p className={styles.optionPrice}>
+                          최대 {option.max_count ?? 999}대
                         </p>
                       </div>
                       <button
@@ -1252,10 +936,10 @@ const BusAllocationPage = () => {
             <div>
               <h2>최적 배분 계산</h2>
               <p className={styles.sectionDescription}>
-                추천 점수는 좌석 효율 보상에서 비용, 빈 좌석, 차량 수 페널티를
-                뺀 값입니다. 점수가 높을수록 좋은 안이며, 각 버스는 하나의
-                행선지만 담당합니다. 1·2지망 효용 금액 모드에서는 총 효용에서
-                버스 대여비를 뺀 순효용이 큰 안을 우선합니다.
+                선택한 로직에 따라 순효용 또는 비용을 우선 기준으로 비교합니다.
+                35명 이하 차량은 좌석 여유가 있는 다른 차량으로 통합합니다. 1·2지망 효용 금액
+                모드에서는 총 효용에서 버스 대여비를 뺀 순효용이 큰 안을
+                우선합니다.
               </p>
             </div>
             <div className={styles.calculateActions}>
@@ -1287,10 +971,22 @@ const BusAllocationPage = () => {
                 onClick={handleCalculateAllocation}
                 disabled={busOptions.length === 0 || totalPeople === 0}
               >
-                <Zap size={18} /> 계산하기
+                <Zap size={18} /> {isCalculationStale ? '다시 계산하기' : '계산하기'}
               </button>
             </div>
           </div>
+
+          {isCalculationStale && (
+            <div className={styles.staleCalculationNotice}>
+              <AlertTriangle size={18} />
+              <div>
+                <strong>계산 조건이 변경되었습니다.</strong>
+                <span>
+                  새 조건으로 다시 계산해야 추천안을 선택하고 임시 배차안을 만들 수 있습니다.
+                </span>
+              </div>
+            </div>
+          )}
 
           <div className={styles.calculationCheckGrid}>
             {calculationChecks.map((check) => (
@@ -1308,6 +1004,36 @@ const BusAllocationPage = () => {
               </div>
             ))}
           </div>
+
+          {optimizationMode === 'custom' && (
+            <div className={styles.weightControlGroup}>
+              <div className={styles.weightHeader}>
+                <div>
+                  <h3>사용자 설정 가중치</h3>
+                  <p>
+                    1지망 도착역 반영과 총비용 절감의 중요도를 합계 100%로
+                    설정합니다.
+                  </p>
+                </div>
+                <span>
+                  1지망 반영 {customFirstChoicePercent}% · 비용 절감{' '}
+                  {100 - customFirstChoicePercent}%
+                </span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                step="5"
+                value={customFirstChoicePercent}
+                onChange={(event) => {
+                  setCustomFirstChoicePercent(Number(event.target.value));
+                  markCalculationStale();
+                }}
+                aria-label="1지망 도착역 반영 가중치"
+              />
+            </div>
+          )}
 
           {optimizationMode === 'weightedPreference' && (
             <div className={styles.weightControlGroup}>
@@ -1329,9 +1055,10 @@ const BusAllocationPage = () => {
                     min="0"
                     step="1000"
                     value={firstChoiceWeight}
-                    onChange={(event) =>
-                      setFirstChoiceWeight(event.target.value)
-                    }
+                    onChange={(event) => {
+                      setFirstChoiceWeight(event.target.value);
+                      markCalculationStale();
+                    }}
                   />
                   <b>원</b>
                 </label>
@@ -1342,9 +1069,10 @@ const BusAllocationPage = () => {
                     min="0"
                     step="1000"
                     value={secondChoiceWeight}
-                    onChange={(event) =>
-                      setSecondChoiceWeight(event.target.value)
-                    }
+                    onChange={(event) => {
+                      setSecondChoiceWeight(event.target.value);
+                      markCalculationStale();
+                    }}
                   />
                   <b>원</b>
                 </label>
@@ -1353,62 +1081,30 @@ const BusAllocationPage = () => {
               <p className={styles.weightHelpText}>
                 예를 들어 1지망 10,000원, 2지망 5,000원이면 1지망 배정 1명은
                 10,000원, 2지망 수요 1명은 5,000원의 효용으로 계산합니다. 총
-                효용보다 버스 대여비가 큰 행선지는 배차하지 않는 추천안이 더
+                효용보다 버스 대여비가 큰 도착역은 배차하지 않는 추천안이 더
                 좋게 평가될 수 있습니다.
               </p>
             </div>
           )}
 
-          <div className={styles.logicGuide}>
-            <h3>계산 로직 설명</h3>
-            <div className={styles.logicGrid}>
-              <div className={styles.logicItem}>
-                <strong>1. 수요 기준</strong>
-                <p>
-                  신청자의 1지망 도착역 인원을 기본 탑승 수요로 계산합니다.
-                  2·3지망은 경고와 운영 참고 지표로 함께 확인합니다.
-                </p>
-              </div>
-
-              <div className={styles.logicItem}>
-                <strong>2. 후보 조합 생성</strong>
-                <p>
-                  등록된 버스 옵션을 조합해 전체 1지망 인원을 태울 수 있는
-                  후보안을 만들고, 중복되는 차량 구성은 하나로 정리합니다.
-                </p>
-              </div>
-
-              <div className={styles.logicItem}>
-                <strong>3. 버스별 배정</strong>
-                <p>
-                  수요가 큰 도착역부터 빈 버스를 배정합니다. 한 버스는 하나의
-                  행선지만 담당하고, 한 도착역 인원이 차량 정원을 넘으면 여러
-                  차량으로 나뉠 수 있습니다.
-                </p>
-              </div>
-
-              <div className={styles.logicItem}>
-                <strong>4. 추천 점수</strong>
-                <p>
-                  기본 점수는 좌석 효율 보상 - 비용 페널티 - 빈 좌석 페널티 -
-                  차량 대수 페널티입니다. 점수가 높을수록 좋은 추천안입니다.
-                  1·2지망 효용 금액 모드에서는 총 효용 - 버스 대여비가 큰
-                  추천안을 우선합니다.
-                </p>
-              </div>
+          <div className={styles.logicSummary}>
+            <div>
+              <strong>{optimizationModeLabels[optimizationMode]} 기준</strong>
+              <span>
+                1지망 수요를 기준으로 차량 조합을 만들고, 36명 미만 차량은 확정 전 운영 체크로 표시합니다.
+              </span>
             </div>
-
-            <div className={styles.modeGuide}>
-              <span>균형 추천: 비용, 빈 좌석, 차량 수를 함께 고려</span>
-              <span>1지망 최대 반영: 1지망 행선지가 덜 쪼개지고 덜 섞이는 안 우선</span>
-              <span>1·2지망 가중치: 입력한 1지망/2지망 효용 금액과 버스 대여비를 함께 비교</span>
-              <span>최소 비용: 총 대여 비용이 낮은 안 우선</span>
-              <span>빈 좌석 최소: 남는 좌석이 적은 안 우선</span>
-              <span>차량 수 최소: 운영할 버스 대수가 적은 안 우선</span>
-            </div>
+            <button
+              type="button"
+              className={styles.logicLinkButton}
+              onClick={() => navigate('/admin/allocation/logic')}
+            >
+              <BookOpen size={16} />
+              전체 로직 보기
+            </button>
           </div>
 
-          {allocations.length > 0 && (
+          {allocations.length > 0 && !isCalculationStale && (
             <div className={styles.allocationResults}>
               <div className={styles.resultsHeader}>
                 <div>
@@ -1418,6 +1114,15 @@ const BusAllocationPage = () => {
                     기준의 결과를 비교합니다.
                   </p>
                 </div>
+                <button
+                  type="button"
+                  className={styles.createDraftShortcut}
+                  disabled={!selectedAllocation}
+                  onClick={() => setShowDraftCreator(true)}
+                >
+                  <CheckCircle2 size={16} />
+                  선택안으로 임시 배차안 만들기
+                </button>
               </div>
 
               {primaryRecommendation && (
@@ -1430,23 +1135,13 @@ const BusAllocationPage = () => {
                 >
                   <div className={styles.primaryRecommendationHeader}>
                     <div>
-                      <span>현재 기준 추천 1안</span>
-                      <h3>{optimizationModeLabels[optimizationMode]}</h3>
+                      <span>현재 선택안</span>
+                      <h3>
+                        {selectedAllocationLabel ??
+                          `${optimizationModeLabels[optimizationMode]} 추천 1안`}
+                      </h3>
                     </div>
-                    <button
-                      type="button"
-                      className={styles.primarySelectButton}
-                      onClick={() =>
-                        handleSelectAllocation(
-                          primaryRecommendation,
-                          `${optimizationModeLabels[optimizationMode]} 추천 1안`
-                        )
-                      }
-                    >
-                      {selectedAllocation === primaryRecommendation
-                        ? '선택됨'
-                        : '이 안 선택'}
-                    </button>
+                    <span className={styles.selectedBadge}>선택됨</span>
                   </div>
 
                   {selectionFeedback && (
@@ -1471,12 +1166,6 @@ const BusAllocationPage = () => {
                     <div>
                       <span>예상 비용</span>
                       <strong>{primaryRecommendation.totalCost.toLocaleString()}원</strong>
-                    </div>
-                    <div>
-                      <span>1인 비용</span>
-                      <strong>
-                        {Math.round(primaryRecommendation.costPerPerson).toLocaleString()}원
-                      </strong>
                     </div>
                     <div>
                       <span>좌석 효율</span>
@@ -1539,13 +1228,10 @@ const BusAllocationPage = () => {
                           <th>빈 좌석</th>
                           <th>버스</th>
                           <th>예상 비용</th>
-                          <th>1인 비용</th>
                           <th>총 효용</th>
                           <th>순효용</th>
                           <th>미배차</th>
-                          <th>1지망</th>
-                          <th>추천 점수</th>
-                          <th>분산</th>
+                          <th>실제 1지망</th>
                           <th>효율률</th>
                           <th>운영 체크</th>
                         </tr>
@@ -1584,12 +1270,6 @@ const BusAllocationPage = () => {
                             <td>{allocation.totalBuses}대</td>
                             <td>{allocation.totalCost.toLocaleString()}원</td>
                             <td>
-                              {Math.round(
-                                allocation.costPerPerson
-                              ).toLocaleString()}
-                              원
-                            </td>
-                            <td>
                               {typeof allocation.totalUtility === 'number'
                                 ? `${Math.round(
                                     allocation.totalUtility
@@ -1609,13 +1289,7 @@ const BusAllocationPage = () => {
                                 : '-'}
                             </td>
                             <td>
-                              {getFirstChoiceCoverageRate(allocation).toFixed(0)}
-                              %
-                            </td>
-                            <td>{allocation.qualityScore.toFixed(1)}</td>
-                            <td>
-                              {getDestinationSplitCount(allocation)}건 / 혼합{' '}
-                              {getMixedRouteCount(allocation)}대
+                              임시안 생성 후 계산
                             </td>
                             <td>{allocation.efficiency.toFixed(1)}%</td>
                             <td>
@@ -1654,13 +1328,10 @@ const BusAllocationPage = () => {
                           <th>빈 좌석</th>
                           <th>버스</th>
                           <th>예상 비용</th>
-                          <th>1인 비용</th>
                           <th>총 효용</th>
                           <th>순효용</th>
                           <th>미배차</th>
-                          <th>1지망</th>
-                          <th>가중 페널티</th>
-                          <th>분산</th>
+                          <th>실제 1지망</th>
                           <th>효율률</th>
                           <th>운영 체크</th>
                         </tr>
@@ -1702,12 +1373,6 @@ const BusAllocationPage = () => {
                               <td>{allocation.totalBuses}대</td>
                               <td>{allocation.totalCost.toLocaleString()}원</td>
                               <td>
-                                {Math.round(
-                                  allocation.costPerPerson
-                                ).toLocaleString()}
-                                원
-                              </td>
-                              <td>
                                 {typeof allocation.totalUtility === 'number'
                                   ? `${Math.round(
                                       allocation.totalUtility
@@ -1727,21 +1392,7 @@ const BusAllocationPage = () => {
                                   : '-'}
                               </td>
                               <td>
-                                {getFirstChoiceCoverageRate(allocation).toFixed(
-                                  0
-                                )}
-                                %
-                              </td>
-                              <td>
-                                {getWeightedPreferencePenalty(
-                                  allocation,
-                                  normalizedFirstChoiceWeight,
-                                  normalizedSecondChoiceWeight
-                                ).toFixed(1)}
-                              </td>
-                              <td>
-                                {getDestinationSplitCount(allocation)}건 / 혼합{' '}
-                                {getMixedRouteCount(allocation)}대
+                                임시안 생성 후 계산
                               </td>
                               <td>{allocation.efficiency.toFixed(1)}%</td>
                               <td>
@@ -1780,12 +1431,34 @@ const BusAllocationPage = () => {
                   }
                 >
                   <div className={styles.allocationHeader}>
-                    <h4>
-                      추천안 {index + 1}
-                      {index === 0
-                        ? ` · ${optimizationModeLabels[optimizationMode]}`
-                        : ''}
-                    </h4>
+                    <div className={styles.allocationTitleGroup}>
+                      <div className={styles.allocationTitleRow}>
+                        <span className={styles.recommendationRank}>
+                          추천 {index + 1}
+                        </span>
+                        {index === 0 && (
+                          <span className={styles.recommendedBadge}>
+                            현재 기준 추천
+                          </span>
+                        )}
+                        {buildAllocationWarnings(allocation, totalPeople).length >
+                          0 && (
+                          <span className={styles.cardWarningBadge}>
+                            운영 체크{' '}
+                            {
+                              buildAllocationWarnings(allocation, totalPeople)
+                                .length
+                            }
+                            건
+                          </span>
+                        )}
+                      </div>
+                      <h4>
+                        {allocation.combination
+                          .map((bus) => `${bus.count}대 ${bus.capacity}인승`)
+                          .join(' + ')}
+                      </h4>
+                    </div>
                     <div className={styles.allocationHeaderActions}>
                       <label
                         className={styles.compareToggle}
@@ -1798,165 +1471,132 @@ const BusAllocationPage = () => {
                         />
                         비교
                       </label>
-                      <input
-                        type="radio"
-                        name="allocation"
-                        checked={selectedAllocation === allocation}
-                        onChange={() =>
-                          handleSelectAllocation(
-                            allocation,
-                            `추천안 ${index + 1}`
-                          )
-                        }
+                      <label
+                        className={`${styles.selectControl} ${
+                          selectedAllocation === allocation
+                            ? styles.selectControlActive
+                            : ''
+                        }`}
                         onClick={(event) => event.stopPropagation()}
-                      />
+                      >
+                        <input
+                          type="radio"
+                          name="allocation"
+                          checked={selectedAllocation === allocation}
+                          onChange={() =>
+                            handleSelectAllocation(
+                              allocation,
+                              `추천안 ${index + 1}`
+                            )
+                          }
+                        />
+                        {selectedAllocation === allocation
+                          ? '선택됨'
+                          : '선택'}
+                      </label>
                     </div>
                   </div>
 
-                  <div className={styles.allocationDetails}>
-                    <div className={styles.detail}>
-                      <span className={styles.detailLabel}>구성</span>
-                      <span className={styles.detailValue}>
-                        {allocation.combination
-                          .map((bus) => `${bus.count}대 ${bus.capacity}인`)
-                          .join(' + ')}
-                      </span>
+                  <div className={styles.allocationKeyMetrics}>
+                    <div className={styles.keyMetric}>
+                      <span>예상 비용</span>
+                      <strong>{allocation.totalCost.toLocaleString()}원</strong>
                     </div>
-
-                    <div className={styles.detail}>
-                      <span className={styles.detailLabel}>총 좌석</span>
-                      <span className={styles.detailValue}>
-                        {allocation.totalCapacity}석
-                      </span>
+                    <div className={`${styles.keyMetric} ${styles.keyMetricAccent}`}>
+                      <span>예상 1지망 반영률</span>
+                      <strong>
+                        {getFirstChoiceCoverageRate(allocation).toFixed(1)}%
+                      </strong>
                     </div>
-
-                    <div className={styles.detail}>
-                      <span className={styles.detailLabel}>빈 좌석</span>
-                      <span className={styles.detailValue}>
-                        {allocation.emptySeats}석
-                      </span>
+                    <div className={styles.keyMetric}>
+                      <span>빈 좌석</span>
+                      <strong>{allocation.emptySeats}석</strong>
                     </div>
+                  </div>
 
-                    <div className={styles.detail}>
-                      <span className={styles.detailLabel}>총 버스</span>
-                      <span className={styles.detailValue}>
-                        {allocation.totalBuses}대
-                      </span>
-                    </div>
-
-                    <div className={styles.detail}>
-                      <span className={styles.detailLabel}>예상 비용</span>
-                      <span className={styles.detailValue}>
-                        {allocation.totalCost.toLocaleString()}원
-                      </span>
-                    </div>
-
-                    <div className={styles.detail}>
-                      <span className={styles.detailLabel}>1인 비용</span>
-                      <span className={styles.detailValue}>
-                        {Math.round(allocation.costPerPerson).toLocaleString()}원
-                      </span>
-                    </div>
-
-                    <div className={styles.detail}>
-                      <span className={styles.detailLabel}>효율률</span>
-                      <span className={styles.detailValue}>
-                        {allocation.efficiency.toFixed(1)}%
-                      </span>
-                    </div>
-
-                    {typeof allocation.totalUtility === 'number' && (
-                      <div className={styles.detail}>
-                        <span className={styles.detailLabel}>총 효용</span>
-                        <span className={styles.detailValue}>
-                          {Math.round(allocation.totalUtility).toLocaleString()}원
-                        </span>
-                      </div>
-                    )}
-
-                    {typeof allocation.netValue === 'number' && (
-                      <div className={styles.detail}>
-                        <span className={styles.detailLabel}>순효용</span>
-                        <span className={styles.detailValue}>
-                          {Math.round(allocation.netValue).toLocaleString()}원
-                        </span>
-                      </div>
-                    )}
-
+                  <div className={styles.allocationMetaRow}>
+                    <span>버스 {allocation.totalBuses}대</span>
+                    <span>총 {allocation.totalCapacity}석</span>
+                    <span>좌석 효율 {allocation.efficiency.toFixed(1)}%</span>
                     {typeof allocation.unservedPeople === 'number' && (
-                      <div className={styles.detail}>
-                        <span className={styles.detailLabel}>미배차</span>
-                        <span className={styles.detailValue}>
-                          {allocation.unservedPeople}명
-                        </span>
-                      </div>
+                      <span
+                        className={
+                          allocation.unservedPeople > 0
+                            ? styles.metaWarning
+                            : undefined
+                        }
+                      >
+                        미배차 {allocation.unservedPeople}명
+                      </span>
                     )}
-
-                    <div className={styles.detail}>
-                      <span className={styles.detailLabel}>1지망 반영</span>
-                      <span className={styles.detailValue}>
-                        {getFirstChoiceCoverageRate(allocation).toFixed(0)}%
+                    {typeof allocation.netValue === 'number' && (
+                      <span>
+                        순효용{' '}
+                        {Math.round(allocation.netValue).toLocaleString()}원
                       </span>
-                    </div>
-
-                    <div className={styles.detail}>
-                      <span className={styles.detailLabel}>행선지 분산</span>
-                      <span className={styles.detailValue}>
-                        {getDestinationSplitCount(allocation)}건
-                      </span>
-                    </div>
-
-                    <div className={styles.detail}>
-                      <span className={styles.detailLabel}>가중 페널티</span>
-                      <span className={styles.detailValue}>
-                        {getWeightedPreferencePenalty(
-                          allocation,
-                          normalizedFirstChoiceWeight,
-                          normalizedSecondChoiceWeight
-                        ).toFixed(1)}
-                      </span>
-                    </div>
-
-                    <div className={styles.detail}>
-                      <span className={styles.detailLabel}>혼합 차량</span>
-                      <span className={styles.detailValue}>
-                        {getMixedRouteCount(allocation)}대
-                      </span>
-                    </div>
-
-                    <div className={styles.detail}>
-                      <span className={styles.detailLabel}>추천 점수</span>
-                      <span className={styles.detailValue}>
-                        {Math.round(allocation.qualityScore).toLocaleString()}
-                      </span>
-                    </div>
+                    )}
                   </div>
 
-                  <div className={styles.routePlan}>
-                    <strong>버스별 행선지 초안</strong>
-                    {allocation.routePlan.map((route) => (
-                      <div key={route.busLabel} className={styles.routeItem}>
-                        <div className={styles.routeHeader}>
+                  {selectedAllocation === allocation && (
+                    <div className={styles.routePlan}>
+                      <div className={styles.routePlanSummary}>
+                        <div>
+                          <strong>선택안 버스별 도착역 초안</strong>
                           <span>
-                            {route.busLabel} · {route.capacity}인승
-                          </span>
-                          <span>
-                            {route.passengerCount}명 / 빈 {route.emptySeats}석
+                            {allocation.routePlan.length}대 · 도착역{' '}
+                            {
+                              new Set(
+                                allocation.routePlan.flatMap((route) =>
+                                  route.destinations.map(
+                                    (destination) => destination.name
+                                  )
+                                )
+                              ).size
+                            }
+                            개
                           </span>
                         </div>
-                        <p>
-                          {route.destinations.length === 0
-                            ? '배정 없음'
-                            : route.destinations
-                                .map(
-                                  (destination) =>
-                                    `${destination.name} ${destination.passengerCount}명`
-                                )
-                                .join(' · ')}
-                        </p>
+                        <button
+                          type="button"
+                          className={styles.routePlanToggle}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setShowSelectedRoutePlan((prev) => !prev);
+                          }}
+                        >
+                          {showSelectedRoutePlan ? (
+                            <ChevronUp size={16} />
+                          ) : (
+                            <ChevronDown size={16} />
+                          )}
+                          {showSelectedRoutePlan ? '접기' : '상세 보기'}
+                        </button>
                       </div>
-                    ))}
-                  </div>
+                      {showSelectedRoutePlan &&
+                        allocation.routePlan.map((route) => (
+                          <div key={route.busLabel} className={styles.routeItem}>
+                            <div className={styles.routeHeader}>
+                              <span>
+                                {route.busLabel} · {route.capacity}인승
+                              </span>
+                              <span>
+                                {route.passengerCount}명 / 빈 {route.emptySeats}석
+                              </span>
+                            </div>
+                            <p>
+                              {route.destinations.length === 0
+                                ? '배정 없음'
+                                : route.destinations
+                                    .map(
+                                      (destination) =>
+                                        `${destination.name} ${destination.passengerCount}명`
+                                    )
+                                    .join(' · ')}
+                            </p>
+                          </div>
+                        ))}
+                    </div>
+                  )}
                 </div>
               ))}
 
@@ -1999,106 +1639,45 @@ const BusAllocationPage = () => {
                     </div>
                   </div>
 
-                  <div className={styles.autoAssignPanel}>
-                    <div className={styles.autoAssignHeader}>
-                      <div>
-                        <h4>선택 로직대로 인원 자동 배차</h4>
-                        <p>
-                          현재 선택한 추천안을 기준으로 미확정 신청자를 버스별
-                          행선지에 맞춰 자동 확정합니다. 기존 확정 버스표는
-                          변경하지 않습니다.
-                        </p>
-                      </div>
-                      <span>{optimizationModeLabels[optimizationMode]}</span>
+                  <div className={styles.archiveSection}>
+                    <div className={styles.archiveDescription}>
+                      <strong>추천 조합만 보관</strong>
+                      <span>
+                        승객 자동 배차 없이 선택한 차량 조합을 기록하거나 CSV로 내려받습니다.
+                      </span>
                     </div>
-
-                    <div className={styles.autoAssignFields}>
-                      <label>
-                        <span>출발 시간</span>
-                        <input
-                          value={autoAssignDepartureTime}
-                          onChange={(event) =>
-                            setAutoAssignDepartureTime(event.target.value)
-                          }
-                          placeholder="예: 2026. 8. 1. 14:00"
-                        />
-                      </label>
-                      <label>
-                        <span>탑승 장소</span>
-                        <input
-                          value={autoAssignBoardingPlace}
-                          onChange={(event) =>
-                            setAutoAssignBoardingPlace(event.target.value)
-                          }
-                          placeholder="예: 본부 앞 버스 승강장"
-                        />
-                      </label>
-                      <label>
-                        <span>관리 메모</span>
-                        <input
-                          value={autoAssignManagerNote}
-                          onChange={(event) =>
-                            setAutoAssignManagerNote(event.target.value)
-                          }
-                          placeholder="선택 입력"
-                        />
-                      </label>
-                    </div>
-
-                    <div className={styles.autoAssignFooter}>
-                      {lastAutoAssignSummary ? (
-                        <p>{lastAutoAssignSummary}</p>
-                      ) : (
-                        <p>
-                          좌석번호는 버스별 1번부터 자동 부여되며, 희망 순위가
-                          높은 신청자와 신청 시간이 빠른 신청자를 먼저 배치합니다.
-                        </p>
-                      )}
+                    <div className={styles.saveSection}>
+                      <input
+                        type="text"
+                        placeholder="추천안 이름 (예: 1차 귀가 버스 후보)"
+                        value={allocationName}
+                        onChange={(event) => setAllocationName(event.target.value)}
+                        className={styles.allocationNameInput}
+                      />
                       <button
-                        type="button"
-                        className={styles.saveButton}
-                        onClick={handleAutoAssignSelectedAllocation}
-                        disabled={
-                          autoAssigning ||
-                          !autoAssignDepartureTime.trim() ||
-                          !autoAssignBoardingPlace.trim()
-                        }
+                        className={styles.secondaryButton}
+                        onClick={handleDownloadSelectedAllocation}
                       >
-                        <CheckCircle2 size={16} />
-                        {autoAssigning ? '자동 배차 중...' : '선택 로직대로 배차'}
+                        <Download size={16} />
+                        CSV
+                      </button>
+                      <button
+                        className={styles.secondaryButton}
+                        onClick={handleSaveAllocation}
+                        disabled={!allocationName.trim()}
+                      >
+                        추천안 보관
                       </button>
                     </div>
-                  </div>
-
-                  <div className={styles.saveSection}>
-                    <input
-                      type="text"
-                      placeholder="배분 이름 (예: 1차 귀가 버스 배분안)"
-                      value={allocationName}
-                      onChange={(event) => setAllocationName(event.target.value)}
-                      className={styles.allocationNameInput}
-                    />
-                    <button
-                      className={styles.secondaryButton}
-                      onClick={handleDownloadSelectedAllocation}
-                    >
-                      <Download size={16} />
-                      CSV
-                    </button>
-                    <button
-                      className={styles.saveButton}
-                      onClick={handleSaveAllocation}
-                      disabled={!allocationName.trim()}
-                    >
-                      저장하기
-                    </button>
                   </div>
 
                   {hasSavedAllocation && (
                     <div className={styles.nextActionPanel}>
                       <div>
-                        <strong>배분안 저장 완료</strong>
-                        <p>이제 개인 버스표 관리에서 신청자별 배차를 확정할 수 있습니다.</p>
+                        <strong>추천안 보관 완료</strong>
+                        <p>
+                          승객 배차를 진행하려면 선택안으로 임시 배차안을 생성하세요.
+                        </p>
                       </div>
                       <div className={styles.nextActionButtons}>
                         <button
@@ -2111,10 +1690,10 @@ const BusAllocationPage = () => {
                         </button>
                         <button
                           type="button"
-                          className={styles.saveButton}
-                          onClick={() => navigate('/admin/personal-tickets')}
+                          className={styles.primaryActionButton}
+                          onClick={() => setShowDraftCreator(true)}
                         >
-                          개인 버스표 관리로 이동
+                          임시 배차안 만들기
                         </button>
                       </div>
                     </div>
@@ -2124,6 +1703,100 @@ const BusAllocationPage = () => {
             </div>
           )}
         </div>
+
+        {showDraftCreator && selectedAllocation && (
+          <div
+            className={styles.draftModalBackdrop}
+            role="presentation"
+            onClick={() => !autoAssigning && setShowDraftCreator(false)}
+          >
+            <section
+              className={styles.draftModal}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="draft-creator-title"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className={styles.draftModalHeader}>
+                <div>
+                  <span>{optimizationModeLabels[optimizationMode]}</span>
+                  <h2 id="draft-creator-title">임시 배차안 생성</h2>
+                  <p>
+                    취소되지 않은 모든 예매 승객을 자동 배차합니다. 전체 확정
+                    전까지 승객에게 공개되지 않습니다.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  disabled={autoAssigning}
+                  onClick={() => setShowDraftCreator(false)}
+                >
+                  닫기
+                </button>
+              </div>
+
+              <div className={styles.draftModalFields}>
+                <label>
+                  <span>배차안 이름</span>
+                  <input
+                    value={allocationName}
+                    onChange={(event) => setAllocationName(event.target.value)}
+                    placeholder="예: 1차 귀가 버스 임시 배차안"
+                  />
+                </label>
+                <label>
+                  <span>출발 시간</span>
+                  <input
+                    value={autoAssignDepartureTime}
+                    onChange={(event) =>
+                      setAutoAssignDepartureTime(event.target.value)
+                    }
+                    placeholder="예: 2026. 8. 1. 14:00"
+                  />
+                </label>
+                <label>
+                  <span>탑승 장소</span>
+                  <input
+                    value={autoAssignBoardingPlace}
+                    onChange={(event) =>
+                      setAutoAssignBoardingPlace(event.target.value)
+                    }
+                    placeholder="예: 본부 앞 버스 승강장"
+                  />
+                </label>
+              </div>
+
+              <p className={styles.draftModalNotice}>
+                생성 후 배차 편집 화면에서 버스·도착역·좌석·승객 배정을 수정할
+                수 있습니다.
+              </p>
+
+              <div className={styles.draftModalActions}>
+                <button
+                  type="button"
+                  className={styles.secondaryButton}
+                  disabled={autoAssigning}
+                  onClick={() => setShowDraftCreator(false)}
+                >
+                  취소
+                </button>
+                <button
+                  type="button"
+                  className={styles.primaryActionButton}
+                  onClick={handleAutoAssignSelectedAllocation}
+                  disabled={
+                    autoAssigning ||
+                    !autoAssignDepartureTime.trim() ||
+                    !autoAssignBoardingPlace.trim()
+                  }
+                >
+                  <CheckCircle2 size={16} />
+                  {autoAssigning ? '임시안 생성 중...' : '임시 배차안 생성'}
+                </button>
+              </div>
+            </section>
+          </div>
+        )}
       </main>
     </div>
   );

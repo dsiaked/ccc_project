@@ -214,6 +214,7 @@ create table if not exists bus_options (
   id uuid primary key default gen_random_uuid(),
   capacity integer not null,
   estimated_price integer not null default 0,
+  max_count integer not null default 999 check (max_count > 0),
   notes text,
   created_at timestamptz not null default now()
 );
@@ -518,6 +519,24 @@ with check (
 -- =========================================================
 
 -- 일반 사용자: 자기 관리자 권한 조회 가능
+create or replace function public.is_global_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.admin_roles
+    where admin_roles.user_id = auth.uid()
+      and admin_roles.role = 'global_admin'
+  );
+$$;
+
+revoke all on function public.is_global_admin() from public;
+grant execute on function public.is_global_admin() to authenticated;
+
 create policy "Users can view own admin role"
 on admin_roles
 for select
@@ -531,36 +550,15 @@ create policy "Global admins can view admin roles"
 on admin_roles
 for select
 to authenticated
-using (
-  exists (
-    select 1
-    from admin_roles ar
-    where ar.user_id = auth.uid()
-      and ar.role = 'global_admin'
-  )
-);
+using (public.is_global_admin());
 
 -- 전체 관리자: 관리자 권한 관리
 create policy "Global admins can manage admin roles"
 on admin_roles
 for all
 to authenticated
-using (
-  exists (
-    select 1
-    from admin_roles ar
-    where ar.user_id = auth.uid()
-      and ar.role = 'global_admin'
-  )
-)
-with check (
-  exists (
-    select 1
-    from admin_roles ar
-    where ar.user_id = auth.uid()
-      and ar.role = 'global_admin'
-  )
-);
+using (public.is_global_admin())
+with check (public.is_global_admin());
 
 
 -- =========================================================

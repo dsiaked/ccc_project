@@ -1,47 +1,172 @@
 .header {
-  height: 64px;
-  padding: 0 24px;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  min-height: 64px;
+  padding: 0 20px;
   background: #111827;
-  color: white;
-  display: flex;
+  color: #ffffff;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
+  gap: 16px;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.logo,
+.nav button,
+.logoutButton {
+  border: none;
+  font: inherit;
+  cursor: pointer;
 }
 
 .logo {
-  border: none;
+  min-width: max-content;
   background: transparent;
-  color: white;
-  font-size: 18px;
-  font-weight: 700;
-  cursor: pointer;
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.logoMark {
+  width: 36px;
+  height: 28px;
+  border-radius: 7px;
+  background: #2563eb;
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  letter-spacing: 0;
 }
 
 .nav {
+  min-width: 0;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
+  overflow: visible;
 }
 
-.nav button {
-  border: none;
+.nav button,
+.logoutButton {
+  min-height: 40px;
+  border-radius: 8px;
   background: transparent;
   color: #d1d5db;
-  display: flex;
+  display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  cursor: pointer;
+  padding: 0 10px;
   font-size: 14px;
+  white-space: nowrap;
 }
 
-.nav button:hover {
+.nav button:hover,
+.logoutButton:hover {
   background: #1f2937;
-  color: white;
+  color: #ffffff;
+}
+
+.nav .activeNavItem {
+  background: #ffffff;
+  color: #111827;
+  font-weight: 700;
+}
+
+.moreMenu {
+  position: relative;
+}
+
+.moreMenuChevronOpen {
+  transform: rotate(180deg);
+}
+
+.moreMenuPanel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 30;
+  display: grid;
+  width: 190px;
+  padding: 6px;
+  border: 1px solid #374151;
+  border-radius: 10px;
+  background: #111827;
+  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.28);
+}
+
+.nav .moreMenuPanel button {
+  justify-content: flex-start;
+  width: 100%;
+}
+
+.nav .moreMenuPanel .activeMoreMenuItem {
+  background: #ffffff;
+  color: #111827;
+  font-weight: 700;
+}
+
+.navBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #2563eb;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.nav .activeNavItem .navBadge {
+  background: #1d4ed8;
+  color: #ffffff;
 }
 
 .logoutButton {
-  margin-left: 8px;
-  color: #fecaca !important;
+  min-width: max-content;
+  color: #fecaca;
+}
+
+@media (max-width: 900px) {
+  .header {
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "logo logout"
+      "nav nav";
+    gap: 8px;
+    padding: 10px 14px;
+  }
+
+  .logo {
+    grid-area: logo;
+  }
+
+  .nav {
+    grid-area: nav;
+    padding-bottom: 2px;
+    overflow-x: auto;
+    overflow-y: visible;
+    scrollbar-width: thin;
+  }
+
+  .moreMenuPanel {
+    position: fixed;
+    top: 108px;
+    right: 14px;
+  }
+
+  .logoutButton {
+    grid-area: logout;
+  }
 }

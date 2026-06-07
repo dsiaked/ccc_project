@@ -85,6 +85,25 @@
   font-weight: 900;
 }
 
+.sectionHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.sectionHeader h2 {
+  margin-bottom: 6px;
+}
+
+.sectionHeader p {
+  margin: 0;
+  color: #667085;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
 .ruleGrid,
 .modeList {
   display: grid;
@@ -179,6 +198,116 @@
   color: #2563eb;
 }
 
+.optionGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.optionCard {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid #d0d5dd;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.optionCardHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.optionCardHeader span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 3px 8px;
+  margin-bottom: 8px;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.optionCardHeader strong {
+  display: block;
+  color: #101828;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.optionSummary {
+  margin: 0;
+  color: #344054;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.optionBlock,
+.optionFormula,
+.optionMetaGrid > div {
+  min-width: 0;
+  padding: 13px;
+  border-radius: 8px;
+  background: #f9fafb;
+}
+
+.optionBlock h3,
+.optionFormula h3,
+.optionMetaGrid h3 {
+  margin: 0 0 8px;
+  color: #111827;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.optionBlock ol {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding-left: 20px;
+  color: #344054;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.optionBlock li::marker {
+  color: #2563eb;
+  font-weight: 900;
+}
+
+.optionFormula code {
+  display: block;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #eef4ff;
+  color: #1f2937;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.optionMetaGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.optionMetaGrid p {
+  margin: 0;
+  color: #4b5563;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
 .formulaList {
   display: grid;
   gap: 12px;
@@ -241,6 +370,8 @@
 
   .ruleGrid,
   .modeList,
+  .optionGrid,
+  .optionMetaGrid,
   .reviewList,
   .decisionGrid {
     grid-template-columns: 1fr;

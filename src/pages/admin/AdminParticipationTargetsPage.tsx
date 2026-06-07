@@ -1,11 +1,27 @@
-import { useEffect, useMemo, useState, type ChangeEvent } from 'react';
+/* eslint-disable react-hooks/preserve-manual-memoization */
+import {
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type ClipboardEvent,
+  type KeyboardEvent,
+} from 'react';
 import { useNavigate } from 'react-router-dom';
-import Header from '../../components/Header';
+import AdminHeader from './AdminHeader';
 import { getAdminRole } from '../../lib/adminService';
 import { supabase } from '../../lib/supabase';
+import {
+  getParticipationTargetsSetting,
+  updateParticipationTargetsSetting,
+  type ParticipationTargetsSetting,
+} from '../../lib/participationTargetsService';
 import styles from './AdminParticipationTargetsPage.module.css';
 
 interface CampusTargetRow {
+  rowId?: string;
   key: string;
   district: string;
   team: string;
@@ -35,11 +51,62 @@ interface DistrictGroup {
   missingCount: number;
 }
 
-const PARTICIPATION_TARGETS_STORAGE_KEY =
-  'admin_ticket_participation_targets';
+type CampusTargetField = 'district' | 'team' | 'campus';
+type SpreadsheetColumn = CampusTargetField | 'target';
+
+type ColumnFilters = Record<SpreadsheetColumn, string[]>;
+
+interface CellSelection {
+  anchorRow: number;
+  anchorColumn: number;
+  focusRow: number;
+  focusColumn: number;
+}
+
+interface ParticipationSnapshot {
+  campuses: CampusTargetRow[];
+  participationTargets: Record<string, number>;
+}
+
+const SPREADSHEET_COLUMNS: SpreadsheetColumn[] = [
+  'district',
+  'team',
+  'campus',
+  'target',
+];
+const SPREADSHEET_COLUMN_LABELS: Record<SpreadsheetColumn, string> = {
+  district: '지구',
+  team: '팀',
+  campus: '캠퍼스',
+  target: '참여인원',
+};
 
 const getCampusKey = (district: string, team: string, campus: string) =>
   `campus|${district}|${team}|${campus}`;
+
+const normalizeCampusRows = (rows: CampusTargetRow[]) =>
+  rows.map((row, index, array) => {
+      const district = row.district.trim();
+      const team = row.team.trim();
+      const campus = row.campus.trim();
+      const baseKey = getCampusKey(district, team, campus);
+      const duplicateIndex = array
+        .slice(0, index)
+        .filter(
+          (target) =>
+            target.district.trim() === district &&
+            target.team.trim() === team &&
+            target.campus.trim() === campus
+        ).length;
+
+      return {
+        rowId: row.rowId || `${baseKey}|row|${index}`,
+        key: duplicateIndex > 0 ? `${baseKey}|${duplicateIndex}` : baseKey,
+        district,
+        team,
+        campus,
+      };
+    });
 
 const splitDelimitedLine = (line: string, delimiter: string) => {
   const cells: string[] = [];
@@ -105,10 +172,27 @@ const escapeDelimitedCell = (value: string | number, delimiter: string) => {
 
 const AdminParticipationTargetsPage = () => {
   const navigate = useNavigate();
+  const manualRowIdRef = useRef(0);
+  const saveTimerRef = useRef<number | null>(null);
+  const latestSettingRef = useRef<ParticipationTargetsSetting | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [campuses, setCampuses] = useState<CampusTargetRow[]>([]);
   const [searchText, setSearchText] = useState('');
+  const [columnFilters, setColumnFilters] = useState<ColumnFilters>({
+    district: [],
+    team: [],
+    campus: [],
+    target: [],
+  });
+  const [openFilterColumn, setOpenFilterColumn] =
+    useState<SpreadsheetColumn | null>(null);
+  const [filterSearchText, setFilterSearchText] = useState('');
+  const [cellSelection, setCellSelection] = useState<CellSelection | null>(
+    null
+  );
+  const [isSelectingCells, setIsSelectingCells] = useState(false);
+  const [, setUndoStack] = useState<ParticipationSnapshot[]>([]);
   const [showMissingOnly, setShowMissingOnly] = useState(false);
   const [expandedDistricts, setExpandedDistricts] = useState<
     Record<string, boolean>
@@ -116,23 +200,13 @@ const AdminParticipationTargetsPage = () => {
   const [expandedTeams, setExpandedTeams] = useState<Record<string, boolean>>(
     {}
   );
-  const [bulkText, setBulkText] = useState('');
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [targetsLoaded, setTargetsLoaded] = useState(false);
   const [participationTargets, setParticipationTargets] = useState<
     Record<string, number>
-  >(() => {
-    const saved = localStorage.getItem(PARTICIPATION_TARGETS_STORAGE_KEY);
-
-    if (!saved) return {};
-
-    try {
-      return JSON.parse(saved);
-    } catch {
-      return {};
-    }
-  });
+  >({});
 
   useEffect(() => {
     const checkAdminAndLoadCampuses = async () => {
@@ -156,16 +230,19 @@ const AdminParticipationTargetsPage = () => {
 
         setIsAdmin(true);
 
-        const { data, error: campusError } = await supabase
-          .from('campus_options')
-          .select('district, team, campus')
-          .order('district', { ascending: true })
-          .order('team', { ascending: true })
-          .order('campus', { ascending: true });
+        const [campusResult, participationSetting] = await Promise.all([
+          supabase
+            .from('campus_options')
+            .select('district, team, campus')
+            .order('district', { ascending: true })
+            .order('team', { ascending: true })
+            .order('campus', { ascending: true }),
+          getParticipationTargetsSetting(),
+        ]);
 
-        if (campusError) throw campusError;
+        if (campusResult.error) throw campusResult.error;
 
-        const formattedCampuses = (data || [])
+        const dbCampuses = (campusResult.data || [])
           .map((item: CampusOptionRow) => {
             const district = item.district || '미등록 지구';
             const team = item.team || '미등록 팀';
@@ -173,18 +250,26 @@ const AdminParticipationTargetsPage = () => {
             const key = getCampusKey(district, team, campus);
 
             return {
+              rowId: key,
               key,
               district,
               team,
               campus,
             };
-          })
-          .filter(
-            (item, index, array) =>
-              array.findIndex((target) => target.key === item.key) === index
-          );
+          });
+        const savedCampuses =
+          participationSetting.isStored
+            ? normalizeCampusRows(participationSetting.rows)
+            : null;
+        const formattedCampuses =
+          savedCampuses && savedCampuses.length > 0
+            ? savedCampuses
+            : normalizeCampusRows(dbCampuses);
+        const targets = participationSetting.targets;
 
         setCampuses(formattedCampuses);
+        setParticipationTargets(targets);
+        setTargetsLoaded(true);
       } catch (loadError) {
         console.error('Failed to load campuses:', loadError);
         alert('캠퍼스 정보를 로드할 수 없습니다.');
@@ -196,21 +281,420 @@ const AdminParticipationTargetsPage = () => {
     checkAdminAndLoadCampuses();
   }, [navigate]);
 
+  useEffect(() => {
+    if (!isSelectingCells) return undefined;
+
+    const stopSelecting = () => setIsSelectingCells(false);
+
+    window.addEventListener('mouseup', stopSelecting);
+
+    return () => window.removeEventListener('mouseup', stopSelecting);
+  }, [isSelectingCells]);
+
+  const persistParticipationTargets = useCallback(
+    async (setting: ParticipationTargetsSetting) => {
+      try {
+        await updateParticipationTargetsSetting(setting);
+      } catch (saveError) {
+        console.error('Failed to save participation targets:', saveError);
+        setError('예상 참여 인원을 DB에 저장하지 못했습니다.');
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (!targetsLoaded) return;
+
+    const setting = {
+      rows: campuses,
+      targets: participationTargets,
+    };
+    latestSettingRef.current = setting;
+
+    if (saveTimerRef.current !== null) {
+      window.clearTimeout(saveTimerRef.current);
+    }
+
+    saveTimerRef.current = window.setTimeout(() => {
+      saveTimerRef.current = null;
+      void persistParticipationTargets(setting);
+    }, 400);
+  }, [
+    campuses,
+    participationTargets,
+    persistParticipationTargets,
+    targetsLoaded,
+  ]);
+
+  useEffect(
+    () => () => {
+      if (saveTimerRef.current !== null) {
+        window.clearTimeout(saveTimerRef.current);
+      }
+
+      const setting = latestSettingRef.current;
+
+      if (setting) {
+        void updateParticipationTargetsSetting(setting)
+          .catch((saveError) => {
+            console.error('Failed to flush participation targets:', saveError);
+          });
+      }
+    },
+    []
+  );
+
   const saveParticipationTargets = (next: Record<string, number>) => {
-    localStorage.setItem(
-      PARTICIPATION_TARGETS_STORAGE_KEY,
-      JSON.stringify(next)
-    );
     setParticipationTargets(next);
+  };
+
+  const saveCampuses = (next: CampusTargetRow[]) => {
+    const normalizedRows = normalizeCampusRows(next);
+
+    setCampuses(normalizedRows);
+  };
+
+  const pushUndoSnapshot = () => {
+    setUndoStack((prev) =>
+      [
+        ...prev,
+        {
+          campuses,
+          participationTargets,
+        },
+      ].slice(-30)
+    );
+  };
+
+  const restoreSnapshot = (snapshot: ParticipationSnapshot) => {
+    setCampuses(snapshot.campuses);
+    setParticipationTargets(snapshot.participationTargets);
+    setMessage('마지막 작업을 되돌렸습니다.');
+    setError(null);
+  };
+
+  const handleUndo = () => {
+    setUndoStack((prev) => {
+      const snapshot = prev.at(-1);
+
+      if (!snapshot) return prev;
+
+      restoreSnapshot(snapshot);
+      return prev.slice(0, -1);
+    });
+  };
+
+  const handleCampusFieldChange = (
+    rowKey: string,
+    field: CampusTargetField,
+    value: string
+  ) => {
+    const sourceRow = campuses.find((row) => row.key === rowKey);
+
+    if (!sourceRow) return;
+
+    const nextRow = {
+      ...sourceRow,
+      [field]: value,
+    };
+    const normalizedRow = normalizeCampusRows([nextRow])[0];
+
+    const isDuplicate = campuses.some(
+      (row) =>
+        row.key !== rowKey &&
+        row.district.trim() === normalizedRow.district &&
+        row.team.trim() === normalizedRow.team &&
+        row.campus.trim() === normalizedRow.campus &&
+        normalizedRow.district &&
+        normalizedRow.team &&
+        normalizedRow.campus
+    );
+
+    if (isDuplicate) {
+      setError('같은 지구/팀/캠퍼스 조합이 이미 있습니다.');
+      setMessage(null);
+      return;
+    }
+
+    pushUndoSnapshot();
+
+    const nextCampuses = campuses.map((row) =>
+      row.key === rowKey ? normalizedRow : row
+    );
+    const nextTargets = { ...participationTargets };
+
+    if (rowKey !== normalizedRow.key) {
+      nextTargets[normalizedRow.key] = nextTargets[rowKey] || 0;
+      delete nextTargets[rowKey];
+      saveParticipationTargets(nextTargets);
+    }
+
+    saveCampuses(nextCampuses);
+    setError(null);
+  };
+
+  const handleAddCampusRow = (position: 'above' | 'below' = 'below') => {
+    const selectedRow =
+      cellSelection && filteredCampuses[cellSelection.focusRow]
+        ? filteredCampuses[cellSelection.focusRow]
+        : null;
+    const baseDistrict =
+      selectedRow?.district || campuses.at(-1)?.district || '새 지구';
+    const baseTeam = selectedRow?.team || campuses.at(-1)?.team || '새 팀';
+    let index = campuses.length + 1;
+    let campus = `새 캠퍼스 ${index}`;
+    let key = getCampusKey(baseDistrict, baseTeam, campus);
+
+    while (campuses.some((row) => row.key === key)) {
+      index += 1;
+      campus = `새 캠퍼스 ${index}`;
+      key = getCampusKey(baseDistrict, baseTeam, campus);
+    }
+
+    pushUndoSnapshot();
+    const newRow = {
+      rowId: `manual|${(manualRowIdRef.current += 1)}|${index}`,
+      key,
+      district: baseDistrict,
+      team: baseTeam,
+      campus,
+    };
+
+    if (!selectedRow) {
+      saveCampuses([...campuses, newRow]);
+      setCellSelection({
+        anchorRow: filteredCampuses.length,
+        anchorColumn: 0,
+        focusRow: filteredCampuses.length,
+        focusColumn: 0,
+      });
+      setMessage('행을 추가했습니다. 지구, 팀, 캠퍼스명을 수정해주세요.');
+      setError(null);
+      return;
+    }
+
+    const insertIndex = campuses.findIndex((row) => row.key === selectedRow.key);
+    const nextInsertIndex =
+      position === 'above' ? Math.max(insertIndex, 0) : insertIndex + 1;
+    const nextCampuses =
+      insertIndex >= 0
+        ? [
+            ...campuses.slice(0, nextInsertIndex),
+            newRow,
+            ...campuses.slice(nextInsertIndex),
+          ]
+        : [...campuses, newRow];
+    const nextSelectedRow = cellSelection
+      ? position === 'above'
+        ? cellSelection.focusRow
+        : cellSelection.focusRow + 1
+      : filteredCampuses.length;
+
+    saveCampuses(nextCampuses);
+    setCellSelection({
+      anchorRow: nextSelectedRow,
+      anchorColumn: 0,
+      focusRow: nextSelectedRow,
+      focusColumn: 0,
+    });
+    setMessage('행을 추가했습니다. 지구, 팀, 캠퍼스명을 수정해주세요.');
+    setError(null);
+  };
+
+  const handleDeleteSelectedCampusRows = () => {
+    const bounds = getSelectionBounds();
+
+    if (!bounds) {
+      setMessage('삭제할 행을 먼저 선택해주세요.');
+      setError(null);
+      return;
+    }
+
+    const targetRows = filteredCampuses.slice(bounds.minRow, bounds.maxRow + 1);
+
+    if (targetRows.length === 0) {
+      setMessage('삭제할 행이 없습니다.');
+      setError(null);
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `선택한 ${targetRows.length.toLocaleString()}개 행을 삭제할까요?`
+    );
+
+    if (!confirmed) return;
+
+    const targetKeys = new Set(targetRows.map((row) => row.key));
+    const nextTargets = { ...participationTargets };
+
+    targetKeys.forEach((key) => delete nextTargets[key]);
+    pushUndoSnapshot();
+    saveParticipationTargets(nextTargets);
+    saveCampuses(campuses.filter((row) => !targetKeys.has(row.key)));
+    setCellSelection(null);
+    setMessage(`${targetRows.length.toLocaleString()}개 행을 삭제했습니다.`);
+    setError(null);
+  };
+
+  const handleDeleteFilteredCampusRows = () => {
+    const targetRows = filteredCampuses;
+
+    if (targetRows.length === 0) {
+      setMessage('삭제할 행이 없습니다.');
+      setError(null);
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `현재 표시된 ${targetRows.length.toLocaleString()}개 행을 모두 삭제할까요?`
+    );
+
+    if (!confirmed) return;
+
+    const targetKeys = new Set(targetRows.map((row) => row.key));
+    const nextTargets = { ...participationTargets };
+
+    targetKeys.forEach((key) => delete nextTargets[key]);
+    pushUndoSnapshot();
+    saveParticipationTargets(nextTargets);
+    saveCampuses(campuses.filter((row) => !targetKeys.has(row.key)));
+    setMessage(`${targetRows.length.toLocaleString()}개 행을 삭제했습니다.`);
+    setError(null);
+  };
+
+  const handleReloadCampusRows = async () => {
+    try {
+      const { data, error: campusError } = await supabase
+        .from('campus_options')
+        .select('district, team, campus')
+        .order('district', { ascending: true })
+        .order('team', { ascending: true })
+        .order('campus', { ascending: true });
+
+      if (campusError) throw campusError;
+
+      const dbCampuses = ((data ?? []) as CampusOptionRow[]).map((item) => {
+        const district = item.district || '미등록 지구';
+        const team = item.team || '미등록 팀';
+        const campus = item.campus || '미등록 캠퍼스';
+        const key = getCampusKey(district, team, campus);
+
+        return { rowId: key, key, district, team, campus };
+      });
+
+      pushUndoSnapshot();
+      saveCampuses(dbCampuses);
+      setMessage('DB 조직 구조에서 캠퍼스 행을 다시 불러왔습니다.');
+      setError(null);
+    } catch (reloadError) {
+      console.error('Failed to reload campus rows:', reloadError);
+      setError('DB 조직 구조를 다시 불러오지 못했습니다.');
+    }
   };
 
   const handleTargetChange = (key: string, value: string) => {
     const nextValue = Math.max(0, Number(value) || 0);
 
+    if ((participationTargets[key] || 0) === nextValue) return;
+
+    pushUndoSnapshot();
     saveParticipationTargets({
       ...participationTargets,
       [key]: nextValue,
     });
+  };
+
+  const applySpreadsheetMatrix = (
+    startRowIndex: number,
+    startColumnIndex: number,
+    values: string[][],
+    rowsForPaste = filteredCampuses
+  ) => {
+    const rowUpdates = new Map<string, CampusTargetRow>();
+    const targetUpdates = new Map<string, number>();
+
+    values.forEach((rowValues, pastedRowIndex) => {
+      const sourceRow = rowsForPaste[startRowIndex + pastedRowIndex];
+
+      if (!sourceRow) return;
+
+      rowValues.forEach((value, pastedColumnIndex) => {
+        const column = SPREADSHEET_COLUMNS[startColumnIndex + pastedColumnIndex];
+
+        if (!column) return;
+
+        if (column === 'target') {
+          const target = Number(String(value).replace(/[^0-9.-]/g, ''));
+          targetUpdates.set(
+            sourceRow.key,
+            Number.isFinite(target) && target > 0 ? Math.round(target) : 0
+          );
+          return;
+        }
+
+        const currentRow = rowUpdates.get(sourceRow.key) || sourceRow;
+
+        rowUpdates.set(sourceRow.key, {
+          ...currentRow,
+          [column]: value,
+        });
+      });
+    });
+
+    if (rowUpdates.size > 0) {
+      const rowsWithUpdates = campuses.map((row) =>
+        rowUpdates.get(row.key) || row
+      );
+      const normalizedRows = normalizeCampusRows(rowsWithUpdates);
+
+      pushUndoSnapshot();
+
+      const nextTargets: Record<string, number> = {};
+
+      rowsWithUpdates.forEach((row) => {
+        const normalizedRow = normalizeCampusRows([row])[0];
+
+        if (!normalizedRow) return;
+
+        nextTargets[normalizedRow.key] = targetUpdates.has(row.key)
+          ? targetUpdates.get(row.key) || 0
+          : participationTargets[row.key] || 0;
+      });
+
+      saveParticipationTargets(nextTargets);
+      saveCampuses(normalizedRows);
+      setError(null);
+      return;
+    }
+
+    if (targetUpdates.size > 0) {
+      const nextTargets = { ...participationTargets };
+
+      pushUndoSnapshot();
+      targetUpdates.forEach((value, key) => {
+        nextTargets[key] = value;
+      });
+      saveParticipationTargets(nextTargets);
+      setError(null);
+    }
+  };
+
+  const handleSpreadsheetPaste = (
+    event: ClipboardEvent<HTMLInputElement>,
+    rowIndex: number,
+    columnIndex: number,
+    rowsForPaste = filteredCampuses
+  ) => {
+    const pastedText = event.clipboardData.getData('text');
+    const rows = parseDelimitedText(pastedText);
+
+    if (rows.length === 0) return;
+
+    event.preventDefault();
+    applySpreadsheetMatrix(rowIndex, columnIndex, rows, rowsForPaste);
+    setMessage(`${rows.length}개 행을 표에 붙여넣었습니다.`);
+    setError(null);
   };
 
   const findCampusRow = (row: string[]) => {
@@ -366,7 +850,6 @@ const AdminParticipationTargetsPage = () => {
 
     reader.onload = () => {
       const text = String(reader.result || '');
-      setBulkText(text);
       applyBulkText(text);
     };
     reader.onerror = () => setError('파일을 읽을 수 없습니다.');
@@ -404,6 +887,62 @@ const AdminParticipationTargetsPage = () => {
     URL.revokeObjectURL(url);
   };
 
+  const getColumnDisplayValue = useCallback((
+    row: CampusTargetRow,
+    column: SpreadsheetColumn
+  ) => {
+    if (column === 'target') return String(participationTargets[row.key] || 0);
+
+    return row[column];
+  }, [participationTargets]);
+
+  const columnFilterOptions = useMemo(() => {
+    const next = {} as Record<SpreadsheetColumn, string[]>;
+
+    SPREADSHEET_COLUMNS.forEach((column) => {
+      next[column] = Array.from(
+        new Set(campuses.map((row) => getColumnDisplayValue(row, column)))
+      ).sort((a, b) => a.localeCompare(b, 'ko', { numeric: true }));
+    });
+
+    return next;
+  }, [campuses, getColumnDisplayValue]);
+
+  const toggleFilterMenu = (column: SpreadsheetColumn) => {
+    setOpenFilterColumn((prev) => (prev === column ? null : column));
+    setFilterSearchText('');
+  };
+
+  const isFilterValueChecked = (column: SpreadsheetColumn, value: string) => {
+    const selectedValues = columnFilters[column];
+
+    return selectedValues.length === 0 || selectedValues.includes(value);
+  };
+
+  const toggleColumnFilterValue = (column: SpreadsheetColumn, value: string) => {
+    const options = columnFilterOptions[column];
+    const current =
+      columnFilters[column].length === 0 ? options : columnFilters[column];
+    const next = current.includes(value)
+      ? current.filter((item) => item !== value)
+      : [...current, value];
+
+    setColumnFilters((prev) => ({
+      ...prev,
+      [column]: next.length === options.length ? [] : next,
+    }));
+  };
+
+  const resetColumnFilter = (column: SpreadsheetColumn) => {
+    setColumnFilters((prev) => ({
+      ...prev,
+      [column]: [],
+    }));
+    setFilterSearchText('');
+  };
+
+  const filterOptionSearchValue = normalizeName(filterSearchText);
+
   const filteredCampuses = useMemo(() => {
     const searchValue = normalizeName(searchText);
 
@@ -415,10 +954,25 @@ const AdminParticipationTargetsPage = () => {
         [row.district, row.team, row.campus].some((value) =>
           normalizeName(value).includes(searchValue)
         );
+      const matchesColumns = SPREADSHEET_COLUMNS.every((column) => {
+        const selectedValues = columnFilters[column];
 
-      return matchesMissing && matchesSearch;
+        return (
+          selectedValues.length === 0 ||
+          selectedValues.includes(getColumnDisplayValue(row, column))
+        );
+      });
+
+      return matchesMissing && matchesSearch && matchesColumns;
     });
-  }, [campuses, participationTargets, searchText, showMissingOnly]);
+  }, [
+    campuses,
+    columnFilters,
+    getColumnDisplayValue,
+    participationTargets,
+    searchText,
+    showMissingOnly,
+  ]);
 
   const teamTotals = useMemo(() => {
     const map = new Map<string, number>();
@@ -444,13 +998,20 @@ const AdminParticipationTargetsPage = () => {
     return map;
   }, [campuses, participationTargets]);
 
-  const totalParticipants = campuses.reduce(
-    (sum, row) => sum + (participationTargets[row.key] || 0),
-    0
+  const totalParticipants = useMemo(
+    () =>
+      campuses.reduce(
+        (sum, row) => sum + (participationTargets[row.key] || 0),
+        0
+      ),
+    [campuses, participationTargets]
   );
-  const missingCampusCount = campuses.filter(
-    (row) => (participationTargets[row.key] || 0) === 0
-  ).length;
+  const missingCampusCount = useMemo(
+    () =>
+      campuses.filter((row) => (participationTargets[row.key] || 0) === 0)
+        .length,
+    [campuses, participationTargets]
+  );
 
   const districtGroups = useMemo<DistrictGroup[]>(() => {
     const districtMap = new Map<string, Map<string, CampusTargetRow[]>>();
@@ -461,8 +1022,7 @@ const AdminParticipationTargetsPage = () => {
         new Map<string, CampusTargetRow[]>();
       const teamCampuses = teamMap.get(campus.team) || [];
 
-      teamCampuses.push(campus);
-      teamMap.set(campus.team, teamCampuses);
+      teamMap.set(campus.team, [...teamCampuses, campus]);
       districtMap.set(campus.district, teamMap);
     });
 
@@ -518,10 +1078,168 @@ const AdminParticipationTargetsPage = () => {
     }));
   };
 
+  const getSelectionBounds = () => {
+    if (!cellSelection) return null;
+
+    return {
+      minRow: Math.min(cellSelection.anchorRow, cellSelection.focusRow),
+      maxRow: Math.max(cellSelection.anchorRow, cellSelection.focusRow),
+      minColumn: Math.min(
+        cellSelection.anchorColumn,
+        cellSelection.focusColumn
+      ),
+      maxColumn: Math.max(
+        cellSelection.anchorColumn,
+        cellSelection.focusColumn
+      ),
+    };
+  };
+
+  const isCellSelected = (rowIndex: number, columnIndex: number) => {
+    const bounds = getSelectionBounds();
+
+    if (!bounds) return false;
+
+    return (
+      rowIndex >= bounds.minRow &&
+      rowIndex <= bounds.maxRow &&
+      columnIndex >= bounds.minColumn &&
+      columnIndex <= bounds.maxColumn
+    );
+  };
+
+  const selectCell = (rowIndex: number, columnIndex: number) => {
+    setCellSelection({
+      anchorRow: rowIndex,
+      anchorColumn: columnIndex,
+      focusRow: rowIndex,
+      focusColumn: columnIndex,
+    });
+  };
+
+  const extendCellSelection = (rowIndex: number, columnIndex: number) => {
+    if (!isSelectingCells) return;
+
+    setCellSelection((prev) =>
+      prev
+        ? {
+            ...prev,
+            focusRow: rowIndex,
+            focusColumn: columnIndex,
+          }
+        : {
+            anchorRow: rowIndex,
+            anchorColumn: columnIndex,
+            focusRow: rowIndex,
+            focusColumn: columnIndex,
+          }
+    );
+  };
+
+  const getSpreadsheetCellValue = (
+    row: CampusTargetRow,
+    column: SpreadsheetColumn
+  ) => {
+    if (column === 'target') return String(participationTargets[row.key] || '');
+
+    return row[column];
+  };
+
+  const getSelectedSpreadsheetText = () => {
+    const bounds = getSelectionBounds();
+
+    if (!bounds) return '';
+
+    const rows: string[][] = [];
+
+    for (let rowIndex = bounds.minRow; rowIndex <= bounds.maxRow; rowIndex += 1) {
+      const row = filteredCampuses[rowIndex];
+
+      if (!row) continue;
+
+      const cells: string[] = [];
+
+      for (
+        let columnIndex = bounds.minColumn;
+        columnIndex <= bounds.maxColumn;
+        columnIndex += 1
+      ) {
+        const column = SPREADSHEET_COLUMNS[columnIndex];
+
+        if (!column) continue;
+
+        cells.push(getSpreadsheetCellValue(row, column));
+      }
+
+      rows.push(cells);
+    }
+
+    return rows.map((row) => row.join('\t')).join('\n');
+  };
+
+  const clearSelectedCells = () => {
+    const bounds = getSelectionBounds();
+
+    if (!bounds) return;
+
+    const values: string[][] = [];
+
+    for (let row = bounds.minRow; row <= bounds.maxRow; row += 1) {
+      const rowValues: string[] = [];
+
+      for (
+        let column = bounds.minColumn;
+        column <= bounds.maxColumn;
+        column += 1
+      ) {
+        rowValues.push('');
+      }
+
+      values.push(rowValues);
+    }
+
+    applySpreadsheetMatrix(bounds.minRow, bounds.minColumn, values);
+    setMessage('선택한 셀을 비웠습니다.');
+    setError(null);
+  };
+
+  const handleSpreadsheetKeyDown = (
+    event: KeyboardEvent<HTMLDivElement>
+  ) => {
+    if (!cellSelection) return;
+
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'c') {
+      event.preventDefault();
+      void navigator.clipboard.writeText(getSelectedSpreadsheetText());
+      return;
+    }
+
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
+      event.preventDefault();
+      handleUndo();
+      return;
+    }
+
+    if (event.key === 'Delete' || event.key === 'Backspace') {
+      const target = event.target as HTMLElement;
+      const isSingleCell =
+        cellSelection.anchorRow === cellSelection.focusRow &&
+        cellSelection.anchorColumn === cellSelection.focusColumn;
+
+      if (target.tagName === 'INPUT' && isSingleCell) return;
+
+      event.preventDefault();
+      clearSelectedCells();
+    }
+  };
+
+  const getCellClassName = (rowIndex: number, columnIndex: number) =>
+    isCellSelected(rowIndex, columnIndex) ? styles.selectedCell : undefined;
+
   if (loading) {
     return (
       <div className={styles.pageContainer}>
-        <Header />
+        <AdminHeader />
         <main className={styles.main}>로딩 중...</main>
       </div>
     );
@@ -530,7 +1248,7 @@ const AdminParticipationTargetsPage = () => {
   if (!isAdmin) {
     return (
       <div className={styles.pageContainer}>
-        <Header />
+        <AdminHeader />
         <main className={styles.main}>관리자만 접근할 수 있습니다.</main>
       </div>
     );
@@ -538,7 +1256,7 @@ const AdminParticipationTargetsPage = () => {
 
   return (
     <div className={styles.pageContainer}>
-      <Header />
+      <AdminHeader />
 
       <main className={styles.main}>
         <div className={styles.header}>
@@ -555,9 +1273,9 @@ const AdminParticipationTargetsPage = () => {
         <div className={styles.guidePanel}>
           <h2>처음 사용하는 경우</h2>
           <ol>
-            <li>CSV 또는 TSV 템플릿을 내려받습니다.</li>
-            <li>템플릿의 참여인원 열에 캠퍼스별 전체 참여 인원을 입력합니다.</li>
-            <li>엑셀 표를 복사해 붙여넣거나 CSV/TSV 파일을 불러옵니다.</li>
+            <li>일괄 입력 표에서 참여인원 칸만 채웁니다.</li>
+            <li>엑셀의 숫자 열을 복사해 첫 칸에 붙여넣을 수 있습니다.</li>
+            <li>기존 CSV/TSV 파일이 있으면 파일 불러오기로 반영합니다.</li>
             <li>아래 목록에서 누락된 캠퍼스가 없는지 확인합니다.</li>
           </ol>
           <p>
@@ -593,25 +1311,186 @@ const AdminParticipationTargetsPage = () => {
           <div className={styles.sectionTitleBlock}>
             <h2>일괄 입력</h2>
             <p>
-              많은 캠퍼스를 한 번에 입력할 때 사용합니다. 템플릿을 내려받아
-              참여인원만 채운 뒤, 표 범위를 복사해 붙여넣으면 됩니다.
+              지구, 팀, 캠퍼스를 표로 불러온 뒤 참여인원 칸만 채우면 됩니다.
+              엑셀에서 숫자 열을 복사해 첫 입력칸에 붙여넣어도 아래로 반영됩니다.
             </p>
           </div>
 
           <div className={styles.bulkPanel}>
-            <textarea
-              value={bulkText}
-              onChange={(event) => setBulkText(event.target.value)}
-              placeholder={`지구\t팀\t캠퍼스\t참여인원\n서울지구\t1팀\t연세대\t120\n서울지구\t2팀\t고려대\t95`}
-              rows={4}
-            />
+            <div className={styles.sheetToolbar}>
+              <button type="button" onClick={() => handleAddCampusRow('above')}>
+                위에 행 추가
+              </button>
+              <button type="button" onClick={() => handleAddCampusRow('below')}>
+                아래에 행 추가
+              </button>
+              <button type="button" onClick={handleDeleteSelectedCampusRows}>
+                선택 행 삭제
+              </button>
+              <button type="button" onClick={handleDeleteFilteredCampusRows}>
+                필터 결과 삭제
+              </button>
+            </div>
+
+            <div
+              className={styles.bulkSheetWrap}
+              tabIndex={0}
+              onKeyDownCapture={handleSpreadsheetKeyDown}
+            >
+              <table className={styles.bulkSheet}>
+                <thead>
+                  <tr>
+                    <th className={styles.rowNumberHeader}>#</th>
+                    {SPREADSHEET_COLUMNS.map((column) => {
+                      const options = columnFilterOptions[column];
+                      const visibleOptions = options.filter((option) =>
+                        normalizeName(option).includes(filterOptionSearchValue)
+                      );
+                      const isActive = columnFilters[column].length > 0;
+
+                      return (
+                        <th key={column}>
+                          <div className={styles.headerFilterCell}>
+                            <span>{SPREADSHEET_COLUMN_LABELS[column]}</span>
+                            <button
+                              type="button"
+                              className={`${styles.filterButton} ${
+                                isActive ? styles.filterButtonActive : ''
+                              }`}
+                              onClick={() => toggleFilterMenu(column)}
+                              aria-label={`${SPREADSHEET_COLUMN_LABELS[column]} 필터`}
+                            >
+                              ▼
+                            </button>
+                          </div>
+
+                          {openFilterColumn === column && (
+                            <div className={styles.filterMenu}>
+                              <input
+                                type="search"
+                                value={filterSearchText}
+                                onChange={(event) =>
+                                  setFilterSearchText(event.target.value)
+                                }
+                                placeholder="값 검색"
+                              />
+                              <div className={styles.filterMenuActions}>
+                                <button
+                                  type="button"
+                                  onClick={() => resetColumnFilter(column)}
+                                >
+                                  전체
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setOpenFilterColumn(null)}
+                                >
+                                  닫기
+                                </button>
+                              </div>
+                              <div className={styles.filterOptionList}>
+                                {visibleOptions.map((option) => (
+                                  <label key={option}>
+                                    <input
+                                      type="checkbox"
+                                      checked={isFilterValueChecked(
+                                        column,
+                                        option
+                                      )}
+                                      onChange={() =>
+                                        toggleColumnFilterValue(column, option)
+                                      }
+                                    />
+                                    <span>{option || '(빈 값)'}</span>
+                                  </label>
+                                ))}
+                                {visibleOptions.length === 0 && (
+                                  <p>값이 없습니다.</p>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </th>
+                      );
+                    })}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredCampuses.map((campus, index) => (
+                    <tr key={campus.rowId || campus.key}>
+                      <td className={styles.rowNumberCell}>
+                        <button
+                          type="button"
+                          className={styles.rowNumberButton}
+                          onClick={() =>
+                            setCellSelection({
+                              anchorRow: index,
+                              anchorColumn: 0,
+                              focusRow: index,
+                              focusColumn: SPREADSHEET_COLUMNS.length - 1,
+                            })
+                          }
+                        >
+                          {index + 1}
+                        </button>
+                      </td>
+                      {SPREADSHEET_COLUMNS.map((column, columnIndex) => (
+                        <td
+                          key={column}
+                          className={getCellClassName(index, columnIndex)}
+                          onMouseDown={() => {
+                            selectCell(index, columnIndex);
+                            setIsSelectingCells(true);
+                          }}
+                          onMouseEnter={() =>
+                            extendCellSelection(index, columnIndex)
+                          }
+                        >
+                          <input
+                            type={column === 'target' ? 'number' : 'text'}
+                            min={column === 'target' ? 0 : undefined}
+                            value={getSpreadsheetCellValue(campus, column)}
+                            onChange={(event) => {
+                              if (column === 'target') {
+                                handleTargetChange(
+                                  campus.key,
+                                  event.target.value
+                                );
+                                return;
+                              }
+
+                              handleCampusFieldChange(
+                                campus.key,
+                                column,
+                                event.target.value
+                              );
+                            }}
+                            onFocus={() => selectCell(index, columnIndex)}
+                            onPaste={(event) =>
+                              handleSpreadsheetPaste(
+                                event,
+                                index,
+                                columnIndex,
+                                filteredCampuses
+                              )
+                            }
+                            placeholder={column === 'target' ? '0' : ''}
+                            aria-label={`${campus.campus} ${column}`}
+                          />
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
 
             <div className={styles.actionRow}>
-              <button type="button" onClick={() => applyBulkText(bulkText)}>
-                붙여넣은 값 반영
-              </button>
               <button type="button" onClick={downloadCsvTemplate}>
                 CSV 템플릿 다운로드
+              </button>
+              <button type="button" onClick={handleReloadCampusRows}>
+                DB 목록 다시 불러오기
               </button>
               <label>
                 CSV/TSV 불러오기
@@ -625,12 +1504,12 @@ const AdminParticipationTargetsPage = () => {
 
             <div className={styles.helpGrid}>
               <div>
-                <strong>CSV 템플릿</strong>
-                <span>엑셀에서 바로 열기 좋습니다.</span>
+                <strong>표 입력</strong>
+                <span>참여인원 칸에 입력하면 바로 저장됩니다.</span>
               </div>
               <div>
-                <strong>TSV 템플릿</strong>
-                <span>엑셀 복사/붙여넣기와 가장 비슷한 형식입니다.</span>
+                <strong>엑셀 붙여넣기</strong>
+                <span>숫자 열을 복사해 첫 입력칸에 붙여넣으면 아래로 채워집니다.</span>
               </div>
               <div>
                 <strong>파일 불러오기</strong>

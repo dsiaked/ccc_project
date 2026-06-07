@@ -18,8 +18,8 @@ const steps = [
     icon: MapPin,
   },
   {
-    title: '확정표 확인',
-    description: '확정 후 홈 화면이나 확인표 페이지에서 탑승 정보를 확인합니다.',
+    title: '버스표 확인',
+    description: '확정 후 홈 화면이나 버스표 페이지에서 탑승 정보를 확인합니다.',
     icon: TicketCheck,
   },
 ];
