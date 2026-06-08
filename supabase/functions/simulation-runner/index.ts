@@ -1,4 +1,4 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.106.0';
 
 const SIMULATION_PROJECT_ID = 'pjbvxoesgwhbxfsfjliw';
 const RECOMMENDED_TRANSFER_ACCOUNT = '테스트은행 000-0000-0000';
@@ -390,7 +390,6 @@ Deno.serve(async (request) => {
 
   const body = await request.json().catch(() => ({}));
   const stage = typeof body?.stage === 'string' ? body.stage : '';
-  const requestedPaymentMode = body?.payment_mode === 'all' ? 'all' : 'random';
   const referenceConfig = getReferenceConfig();
 
   if (
@@ -587,7 +586,7 @@ Deno.serve(async (request) => {
             .delete()
             .eq('role', 'campus_admin')
             .select('id');
-        throwIfError(campusAdminRoleError, '캠퍼스 관리자 권한 초기화 실패');
+        throwIfError(campusAdminRoleError, '캠퍼스 회계 순장님 권한 초기화 실패');
 
         const clearedOrganization = {
           district_id: null,
@@ -762,7 +761,7 @@ Deno.serve(async (request) => {
 
       if (missingSetup.length > 0) {
         const message =
-          `회원 및 캠퍼스 관리자 생성 전에 실제 기초 세팅이 필요합니다: ${missingSetup.join(', ')}`;
+          `회원 및 캠퍼스 회계 순장님 생성 전에 실제 기초 세팅이 필요합니다: ${missingSetup.join(', ')}`;
         await serviceClient
           .from('simulation_stage_runs')
           .update({
@@ -874,7 +873,7 @@ Deno.serve(async (request) => {
         );
         if (conflictingRoles.length > 0) {
           throw new Error(
-            `실제 캠퍼스 관리자 권한 ${conflictingRoles.length}개가 있어 2단계를 실행할 수 없습니다.`,
+            `실제 캠퍼스 회계 순장님 권한 ${conflictingRoles.length}개가 있어 2단계를 실행할 수 없습니다.`,
           );
         }
       }
@@ -916,7 +915,7 @@ Deno.serve(async (request) => {
       const adminSpecs = [...multiCampusGroups, ...singleCampusGroups].map(
         (managedCampuses, index) => ({
           email: `sim-admin-campus-${pad(index + 1)}@ccc-bus.test`,
-          name: `시뮬레이션 캠퍼스 관리자 ${pad(index + 1)}`,
+          name: `시뮬레이션 캠퍼스 회계 순장님 ${pad(index + 1)}`,
           phone: `010-8${String(index + 1).padStart(7, '0').slice(-7)}`,
           sim_role: 'campus_admin',
           sim_seq: userCount + index + 1,
@@ -1050,7 +1049,7 @@ Deno.serve(async (request) => {
           verifiedAdminRoles !== allCampuses.length
         ) {
           throw new Error(
-            `2단계 검증 실패: 프로필 ${verifiedProfiles}/${specs.length}, 캠퍼스 관리자 권한 ${verifiedAdminRoles}/${allCampuses.length}`,
+            `2단계 검증 실패: 프로필 ${verifiedProfiles}/${specs.length}, 캠퍼스 회계 순장님 권한 ${verifiedAdminRoles}/${allCampuses.length}`,
           );
         }
         Object.assign(summary, {
@@ -1080,14 +1079,6 @@ Deno.serve(async (request) => {
     if (stage === 'reservations' || stage === 'payments') {
       const batchSize = Math.min(200, Math.max(1, Number(body?.batch_size) || 100));
       const previousSummary = (run.summary ?? {}) as Record<string, unknown>;
-      const previousPaymentMode =
-        previousSummary.payment_mode === 'all' || previousSummary.payment_mode === 'random'
-          ? previousSummary.payment_mode
-          : null;
-      const paymentMode =
-        stage === 'payments' && requestedRunId && previousPaymentMode
-          ? previousPaymentMode
-          : requestedPaymentMode;
       const offset = requestedRunId
         ? Math.max(0, Number(previousSummary.processed) || 0)
         : 0;
@@ -1095,11 +1086,30 @@ Deno.serve(async (request) => {
       if (users.length === 0) {
         throw new Error('시뮬레이션 계정이 없습니다. 2단계를 먼저 실행하세요.');
       }
+      if (stage === 'payments' && !requestedRunId) {
+        let activeReservationCount = 0;
+        for (let index = 0; index < users.length; index += 500) {
+          const userIds = users
+            .slice(index, index + 500)
+            .map((simulationUser) => simulationUser.userId);
+          const { count, error } = await serviceClient
+            .from('reservations')
+            .select('id', { count: 'exact', head: true })
+            .in('user_id', userIds)
+            .in('status', ['requested', 'confirmed']);
+          if (error) throw error;
+          activeReservationCount += count ?? 0;
+        }
+        if (activeReservationCount === 0) {
+          throw new Error('입금 생성 대상인 요청 또는 확정 상태의 활성 시뮬레이션 신청이 없습니다. 3단계 개별 신청을 먼저 실행하세요.');
+        }
+      }
       const batch = users.slice(offset, offset + batchSize);
       let createdInBatch = 0;
+      let updatedInBatch = 0;
       let completedInBatch = 0;
-      let pendingInBatch = 0;
       let verifiedInBatch = 0;
+      let skippedInBatch = 0;
 
       if (stage === 'reservations') {
         const { data: stations, error: stationError } = await serviceClient
@@ -1186,7 +1196,7 @@ Deno.serve(async (request) => {
               .from('reservations')
               .select('id,user_id,status,district_id,district,team_id,team,campus_id,campus')
               .in('user_id', userIds)
-              .eq('status', 'requested'),
+              .in('status', ['requested', 'confirmed']),
             serviceClient
               .from('app_settings')
               .select('value')
@@ -1204,6 +1214,9 @@ Deno.serve(async (request) => {
           0,
           Number(getSettingObject(priceSetting?.value).price) || 0,
         );
+        if (ticketPrice <= 0) {
+          throw new Error('유효한 버스표 가격이 없습니다. 1단계 운영 초기값 설정을 먼저 실행하세요.');
+        }
         const simulationUserIds = new Set(users.map((simulationUser) => simulationUser.userId));
         const adminByScope = new Map(
           (campusAdminRoles ?? [])
@@ -1211,66 +1224,102 @@ Deno.serve(async (request) => {
             .map((role) => [getCampusKey(role), role.user_id]),
         );
         const now = new Date().toISOString();
-        const rows = (reservations ?? []).map((reservation) => {
+        const reservationIds = (reservations ?? []).map((reservation) => reservation.id);
+        const { data: payments, error: paymentError } = reservationIds.length > 0
+          ? await serviceClient
+              .from('payments')
+              .select('id,reservation_id,status')
+              .in('reservation_id', reservationIds)
+          : { data: [], error: null };
+        if (paymentError) throw paymentError;
+        const paymentByReservationId = new Map(
+          (payments ?? []).map((payment) => [payment.reservation_id, payment]),
+        );
+        const missingRows = [];
+        const pendingPaymentIdsByAdmin = new Map<string, string[]>();
+
+        for (const reservation of reservations ?? []) {
           const scope = getCampusKey(reservation);
           const campusAdminId = adminByScope.get(scope);
           if (!campusAdminId) {
-            throw new Error(`${scope} 범위의 시뮬레이션 캠퍼스 관리자가 없습니다.`);
+            throw new Error(`${scope} 범위의 시뮬레이션 캠퍼스 회계 순장님이 없습니다.`);
           }
-          const completed =
-            paymentMode === 'all' ||
-            deterministicUnit(`${reservation.user_id}:individual-payment`) < 0.95;
-          return {
+          const payment = paymentByReservationId.get(reservation.id);
+          if (payment?.status === 'pending') {
+            pendingPaymentIdsByAdmin.set(campusAdminId, [
+              ...(pendingPaymentIdsByAdmin.get(campusAdminId) ?? []),
+              payment.id,
+            ]);
+            continue;
+          }
+          if (payment) {
+            skippedInBatch += 1;
+            continue;
+          }
+          missingRows.push({
             user_id: reservation.user_id,
             reservation_id: reservation.id,
             amount: ticketPrice,
-            status: completed ? 'completed' : 'pending',
-            paid_at: completed ? now : null,
-            verified_by: completed ? campusAdminId : null,
-            verified_at: completed ? now : null,
-            notes:
-              paymentMode === 'all'
-                ? '시뮬레이션 개별 입금 · 전체 입금 완료'
-                : `시뮬레이션 개별 입금 · ${completed ? '입금 완료' : '미입금'}`,
+            status: 'completed',
+            paid_at: now,
+            verified_by: campusAdminId,
+            verified_at: now,
+            notes: '시뮬레이션 미입금 사용자 입금 완료',
             updated_at: now,
-          };
-        });
-        const { error: deleteError } = await serviceClient
-          .from('payments')
-          .delete()
-          .in('user_id', userIds);
-        if (deleteError) throw new Error(`기존 입금 데이터 정리 실패: ${deleteError.message}`);
-        if (rows.length > 0) {
-          const { error: insertError } = await serviceClient.from('payments').insert(rows);
+          });
+        }
+        for (const [campusAdminId, paymentIds] of pendingPaymentIdsByAdmin) {
+          const { error: updateError } = await serviceClient
+            .from('payments')
+            .update({
+              status: 'completed',
+              paid_at: now,
+              verified_by: campusAdminId,
+              verified_at: now,
+              notes: '시뮬레이션 미입금 사용자 입금 완료',
+              updated_at: now,
+            })
+            .in('id', paymentIds);
+          if (updateError) throw new Error(`미입금 상태 변경 실패: ${updateError.message}`);
+          updatedInBatch += paymentIds.length;
+        }
+        if (missingRows.length > 0) {
+          const { error: insertError } = await serviceClient.from('payments').insert(missingRows);
           if (insertError) throw new Error(`입금 데이터 생성 실패: ${insertError.message}`);
         }
-        createdInBatch = rows.length;
-        completedInBatch = rows.filter((row) => row.status === 'completed').length;
-        pendingInBatch = rows.filter((row) => row.status === 'pending').length;
-        verifiedInBatch = rows.filter((row) => row.verified_at !== null).length;
+        createdInBatch = missingRows.length;
+        completedInBatch = createdInBatch + updatedInBatch;
+        verifiedInBatch = completedInBatch;
       }
 
       const processed = Math.min(offset + batch.length, users.length);
       const done = processed >= users.length;
       const previousCreated = Number(previousSummary.created_total) || 0;
+      const previousUpdated = Number(previousSummary.updated_total) || 0;
       const previousCompleted = Number(previousSummary.completed_total) || 0;
-      const previousPending = Number(previousSummary.pending_total) || 0;
       const previousVerified = Number(previousSummary.verified_total) || 0;
+      const previousSkipped = Number(previousSummary.skipped_total) || 0;
+      const createdTotal = previousCreated + createdInBatch;
+      const completedTotal = previousCompleted + completedInBatch;
+      if (stage === 'payments' && done && completedTotal === 0) {
+        throw new Error('입금 완료로 변경할 미입금 시뮬레이션 사용자가 없습니다.');
+      }
       const summary = {
         total_accounts: users.length,
         processed,
         created_in_batch: createdInBatch,
-        created_total: previousCreated + createdInBatch,
-        not_applied_total: processed - (previousCreated + createdInBatch),
+        created_total: createdTotal,
+        not_applied_total: processed - createdTotal,
         ...(stage === 'payments'
           ? {
               completed_in_batch: completedInBatch,
-              pending_in_batch: pendingInBatch,
+              updated_in_batch: updatedInBatch,
+              skipped_in_batch: skippedInBatch,
               verified_in_batch: verifiedInBatch,
-              completed_total: previousCompleted + completedInBatch,
-              pending_total: previousPending + pendingInBatch,
+              updated_total: previousUpdated + updatedInBatch,
+              completed_total: completedTotal,
+              skipped_total: previousSkipped + skippedInBatch,
               verified_total: previousVerified + verifiedInBatch,
-              payment_mode: paymentMode,
             }
           : {}),
       };
@@ -1342,7 +1391,7 @@ Deno.serve(async (request) => {
       for (const reservation of reservations) {
         const scope = getCampusKey(reservation);
         if (!adminByScope.has(scope)) {
-          throw new Error(`${scope} 범위의 시뮬레이션 캠퍼스 관리자가 없습니다.`);
+          throw new Error(`${scope} 범위의 시뮬레이션 캠퍼스 회계 순장님이 없습니다.`);
         }
         reservationIdsByScope.set(scope, [
           ...(reservationIdsByScope.get(scope) ?? []),
@@ -1379,7 +1428,7 @@ Deno.serve(async (request) => {
               !payment.verified_at,
           )
         ) {
-          throw new Error(`${scope} 범위에 캠퍼스 관리자가 확인하지 않은 입금이 있습니다. 4단계를 먼저 실행하세요.`);
+          throw new Error(`${scope} 범위에 캠퍼스 회계 순장님이 확인하지 않은 입금이 있습니다. 4단계를 먼저 실행하세요.`);
         }
         return {
           district_id: reservation.district_id,

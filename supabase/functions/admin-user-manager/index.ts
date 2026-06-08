@@ -1,4 +1,4 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.106.0';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -19,7 +19,6 @@ Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
-
   if (request.method !== 'POST') {
     return json({ error: 'POST 요청만 지원합니다.' }, 405);
   }
@@ -60,7 +59,6 @@ Deno.serve(async (request) => {
   }
 
   const body = await request.json().catch(() => ({}));
-
   if (body?.action !== 'create') {
     return json({ error: '지원하지 않는 작업입니다.' }, 400);
   }
@@ -70,13 +68,16 @@ Deno.serve(async (request) => {
   const name = asText(body.name);
   const phone = asText(body.phone);
   const organizationMode =
-    body?.organizationMode === 'manual' ? 'manual' : 'registered';
+    body?.organizationMode === 'external' || body?.organizationMode === 'manual'
+      ? 'external'
+      : 'registered';
   const districtId = asText(body.districtId);
   const teamId = asText(body.teamId);
   const campusId = asText(body.campusId);
   const district = asText(body.district);
-  const team = asText(body.team);
   const campusName = asText(body.campus);
+  const coordinatorName = asText(body.coordinatorName);
+  const coordinatorPhone = asText(body.coordinatorPhone);
 
   if (!/^\S+@\S+\.\S+$/.test(email)) {
     return json({ error: '유효한 이메일을 입력해주세요.' }, 400);
@@ -93,9 +94,17 @@ Deno.serve(async (request) => {
 
   let metadata: Record<string, string | null>;
 
-  if (organizationMode === 'manual') {
-    if (!district || !team || !campusName) {
-      return json({ error: '지구, 팀, 캠퍼스를 모두 입력해주세요.' }, 400);
+  if (organizationMode === 'external') {
+    if (
+      !district ||
+      !campusName ||
+      !coordinatorName ||
+      !/^010-\d{4}-\d{4}$/.test(coordinatorPhone)
+    ) {
+      return json(
+        { error: '타지구의 지구명, 캠퍼스명, 담당 간사 정보가 필요합니다.' },
+        400,
+      );
     }
 
     metadata = {
@@ -105,9 +114,12 @@ Deno.serve(async (request) => {
       district_id: null,
       district,
       team_id: null,
-      team,
+      team: '',
       campus_id: null,
       campus: campusName,
+      affiliation_type: 'external',
+      coordinator_name: coordinatorName,
+      coordinator_phone: coordinatorPhone,
     };
   } else {
     if (!districtId || !teamId || !campusId) {
@@ -136,6 +148,9 @@ Deno.serve(async (request) => {
       team: campus.team,
       campus_id: campus.campus_id,
       campus: campus.campus,
+      affiliation_type: 'seoul',
+      coordinator_name: null,
+      coordinator_phone: null,
     };
   }
 

@@ -1,4 +1,4 @@
-﻿-- ===== sql/setup/10_payment_and_price_functions.sql =====
+-- ===== sql/setup/10_payment_and_price_functions.sql =====
 
 -- =========================================================
 -- Payment upsert and bus ticket price functions

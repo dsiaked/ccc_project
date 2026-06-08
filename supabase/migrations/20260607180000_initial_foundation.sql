@@ -1,4 +1,4 @@
-﻿-- ===== sql/setup/00_base_schema_and_rls.sql =====
+-- ===== sql/setup/00_base_schema_and_rls.sql =====
 
 -- =========================================================
 -- CCC Return Bus Reservation Database Update
@@ -327,7 +327,7 @@ using (
   auth.uid() = user_id
 );
 
--- 캠퍼스 관리자: 자기 캠퍼스 예약 전체 조회
+-- 캠퍼스 회계 순장님: 자기 캠퍼스 예약 전체 조회
 create policy "Campus admins can view campus reservations"
 on reservations
 for select
@@ -374,7 +374,7 @@ using (
   auth.uid() = user_id
 );
 
--- 캠퍼스 관리자: 자기 캠퍼스 예약에 연결된 payment 조회
+-- 캠퍼스 회계 순장님: 자기 캠퍼스 예약에 연결된 payment 조회
 create policy "Campus admins can view campus payments"
 on payments
 for select
@@ -391,7 +391,7 @@ using (
   )
 );
 
--- 캠퍼스 관리자: 자기 캠퍼스 payment 입금 확인 가능
+-- 캠퍼스 회계 순장님: 자기 캠퍼스 payment 입금 확인 가능
 -- 전체 관리자: 모든 payment 조회
 create policy "Global admins can view all payments"
 on payments

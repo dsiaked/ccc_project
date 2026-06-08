@@ -29,7 +29,7 @@ are intentionally patching an older DB.
 2. `01_profiles_organization_stations.sql`
    - 회원 프로필, 서울지구/팀/캠퍼스, 도착역 테이블
    - `campus_options` view
-   - 캠퍼스 관리자 권한 범위 정책 보강
+   - 캠퍼스 회계 순장님 권한 범위 정책 보강
    - `district_id/team_id/campus_id` 기준 컬럼과 기존 text 값의 backfill
    - 관리자 권한을 사용자 1개 고정이 아니라 역할/범위 기준으로 관리할 수 있게 인덱스 보강
    - 관리자 권한 저장 시 text 범위에서 id 범위를 자동 보정하는 트리거
@@ -93,7 +93,7 @@ are intentionally patching an older DB.
 
 10. `60_reset_reservation_data.sql`
    - Step 0 세팅 확인 화면의 선택형 DB 정보 초기화 RPC
-   - 운영 데이터와 행선지/버스 옵션/앱 설정/홈 공지/캠퍼스 관리자/조직 구조/유저 계정을 선택적으로 초기화
+   - 운영 데이터와 행선지/버스 옵션/앱 설정/홈 공지/캠퍼스 회계 순장님/조직 구조/유저 계정을 선택적으로 초기화
    - 유저 계정 삭제 시 현재 로그인한 전체 관리자 계정과 프로필은 항상 보호
 
 10a. `63_admin_delete_user_account.sql`
@@ -209,6 +209,10 @@ are intentionally patching an older DB.
 - `59_fix_bus_allocations_rls_recursion.sql`
   - Fixes authenticated `bus_allocations` requests returning HTTP 500 when allocation policies evaluate `admin_roles` RLS directly.
 
+- `111_classify_automatic_boarding_events.sql`
+  - 최신 canonical bus ID 패치 이후 출발 시 자동 미탑승 이벤트가 선탑자 수동 처리로 잘못 표시되는 문제를 보정
+  - 탑승 관리 스냅샷의 승객 범위도 canonical bus ID 권한 함수로 다시 제한
+
 - `53_bus_option_max_count.sql`
   - 기존 DB의 버스 옵션에 종류별 사용 가능 최대 대수 컬럼 추가
 
@@ -222,5 +226,5 @@ are intentionally patching an older DB.
 - 운영 중 발견된 오류 대응은 `patch/fix` 성격의 파일로 남기되, 안정화되면 기준 SQL에도 흡수합니다.
 - `district/team/campus` 텍스트 컬럼은 현재 프론트 호환과 표시용으로 유지합니다.
 - 새 SQL은 `district_id/team_id/campus_id`를 함께 채우도록 구성되어 있습니다. 장기적으로 RLS와 집계는 ID 기준으로 더 옮겨가는 것이 좋습니다.
-- `admin_roles`는 더 이상 사용자당 1개 권한으로 고정하지 않습니다. 전체 관리자와 캠퍼스 관리자, 또는 여러 캠퍼스 권한을 함께 둘 수 있도록 역할/범위 기준 인덱스를 사용합니다.
+- `admin_roles`는 더 이상 사용자당 1개 권한으로 고정하지 않습니다. 전체 관리자와 캠퍼스 회계 순장님, 또는 여러 캠퍼스 권한을 함께 둘 수 있도록 역할/범위 기준 인덱스를 사용합니다.
 - SQL Editor에서 실행 후 PostgREST 스키마 캐시 문제가 의심되면 관련 패치 파일처럼 `notify pgrst, 'reload schema';`를 사용할 수 있습니다.

@@ -197,6 +197,9 @@ begin
       count(*) filter (
         where status not in ('cancelled', 'not_applied') and confirmed_ticket is null
       )::integer as pending,
+      count(*) filter (
+        where status not in ('cancelled', 'not_applied') and payment_status = 'completed'
+      )::integer as paid,
       count(*) filter (where status = 'cancelled')::integer as cancelled,
       count(*) filter (where status = 'not_applied')::integer as not_applied
     from people_with_roles
