@@ -316,6 +316,14 @@ const throwIfError = (error: QueryError | null, context: string) => {
   if (error) throw new Error(`${context}: ${error.message}`);
 };
 
+const getErrorMessage = (error: unknown) => {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === 'object' && 'message' in error) {
+    return String((error as { message: unknown }).message);
+  }
+  return String(error);
+};
+
 const throwUnlessMissingTable = (
   error: QueryError | null,
   context: string,
@@ -398,7 +406,8 @@ Deno.serve(async (request) => {
     stage !== 'accounts' &&
     stage !== 'reservations' &&
     stage !== 'payments' &&
-    stage !== 'transfers'
+    stage !== 'transfers' &&
+    stage !== 'boarding'
   ) {
     return json({ error: '아직 서버 실행이 연결되지 않은 단계입니다.' }, 501);
   }
@@ -1086,25 +1095,19 @@ Deno.serve(async (request) => {
       if (users.length === 0) {
         throw new Error('시뮬레이션 계정이 없습니다. 2단계를 먼저 실행하세요.');
       }
-      if (stage === 'payments' && !requestedRunId) {
-        let activeReservationCount = 0;
-        for (let index = 0; index < users.length; index += 500) {
-          const userIds = users
-            .slice(index, index + 500)
-            .map((simulationUser) => simulationUser.userId);
-          const { count, error } = await serviceClient
-            .from('reservations')
-            .select('id', { count: 'exact', head: true })
-            .in('user_id', userIds)
-            .in('status', ['requested', 'confirmed']);
-          if (error) throw error;
-          activeReservationCount += count ?? 0;
-        }
+      let activeReservationCount = 0;
+      if (stage === 'payments') {
+        const { count, error } = await serviceClient
+          .from('reservations')
+          .select('id', { count: 'exact', head: true })
+          .in('status', ['requested', 'confirmed']);
+        if (error) throw error;
+        activeReservationCount = count ?? 0;
         if (activeReservationCount === 0) {
           throw new Error('입금 생성 대상인 요청 또는 확정 상태의 활성 시뮬레이션 신청이 없습니다. 3단계 개별 신청을 먼저 실행하세요.');
         }
       }
-      const batch = users.slice(offset, offset + batchSize);
+      const batch = stage === 'reservations' ? users.slice(offset, offset + batchSize) : [];
       let createdInBatch = 0;
       let updatedInBatch = 0;
       let completedInBatch = 0;
@@ -1185,7 +1188,6 @@ Deno.serve(async (request) => {
         }
         createdInBatch = rows.length;
       } else {
-        const userIds = batch.map((simulationUser) => simulationUser.userId);
         const [
           { data: reservations, error: reservationError },
           { data: priceSetting, error: priceError },
@@ -1194,9 +1196,10 @@ Deno.serve(async (request) => {
           await Promise.all([
             serviceClient
               .from('reservations')
-              .select('id,user_id,status,district_id,district,team_id,team,campus_id,campus')
-              .in('user_id', userIds)
-              .in('status', ['requested', 'confirmed']),
+              .select('id,user_id,status,district_id,district,team_id,team,campus_id,campus,affiliation_type')
+              .in('status', ['requested', 'confirmed'])
+              .order('id')
+              .range(offset, offset + batchSize - 1),
             serviceClient
               .from('app_settings')
               .select('value')
@@ -1228,20 +1231,34 @@ Deno.serve(async (request) => {
         const { data: payments, error: paymentError } = reservationIds.length > 0
           ? await serviceClient
               .from('payments')
-              .select('reservation_id')
+              .select('id,reservation_id')
               .in('reservation_id', reservationIds)
           : { data: [], error: null };
         if (paymentError) throw paymentError;
+        const paymentByReservationId = new Map(
+          (payments ?? []).map((payment) => [payment.reservation_id, payment]),
+        );
         const existingReservationIds = new Set(
           (payments ?? []).map((payment) => payment.reservation_id),
         );
-        const paymentRows = (reservations ?? []).map((reservation) => {
-          const scope = getCampusKey(reservation);
-          const campusAdminId = adminByScope.get(scope);
-          if (!campusAdminId) {
-            throw new Error(`${scope} 범위의 시뮬레이션 캠퍼스 회계 순장님이 없습니다.`);
+        const missingRows = [];
+        const existingReservationIdsByAdmin = new Map<string, string[]>();
+        const externalReservations = [];
+        for (const reservation of reservations ?? []) {
+          if (reservation.affiliation_type === 'external') {
+            externalReservations.push(reservation);
+            continue;
           }
-          return {
+          const scope = getCampusKey(reservation);
+          const campusAdminId = adminByScope.get(scope) ?? user.id;
+          if (existingReservationIds.has(reservation.id)) {
+            existingReservationIdsByAdmin.set(campusAdminId, [
+              ...(existingReservationIdsByAdmin.get(campusAdminId) ?? []),
+              reservation.id,
+            ]);
+            continue;
+          }
+          missingRows.push({
             user_id: reservation.user_id,
             reservation_id: reservation.id,
             amount: ticketPrice,
@@ -1251,24 +1268,52 @@ Deno.serve(async (request) => {
             verified_at: now,
             notes: '시뮬레이션 전체 활성 신청 입금 완료',
             updated_at: now,
-          };
-        });
-        if (paymentRows.length > 0) {
-          const { error: upsertError } = await serviceClient
-            .from('payments')
-            .upsert(paymentRows, { onConflict: 'reservation_id' });
-          if (upsertError) throw new Error(`전체 입금 완료 처리 실패: ${upsertError.message}`);
+          });
         }
-        createdInBatch = paymentRows.filter(
-          (payment) => !existingReservationIds.has(payment.reservation_id),
-        ).length;
-        updatedInBatch = paymentRows.length - createdInBatch;
-        completedInBatch = paymentRows.length;
+        for (const [campusAdminId, existingReservationIds] of existingReservationIdsByAdmin) {
+          const { error: updateError } = await serviceClient
+            .from('payments')
+            .update({
+              amount: ticketPrice,
+              status: 'completed',
+              paid_at: now,
+              verified_by: campusAdminId,
+              verified_at: now,
+              notes: '시뮬레이션 전체 활성 신청 입금 완료',
+              updated_at: now,
+            })
+            .in('reservation_id', existingReservationIds);
+          if (updateError) throw new Error(`기존 입금 완료 처리 실패: ${updateError.message}`);
+        }
+        if (missingRows.length > 0) {
+          const { error: insertError } = await serviceClient.from('payments').insert(missingRows);
+          if (insertError) throw new Error(`신규 입금 완료 처리 실패: ${insertError.message}`);
+        }
+        for (const reservation of externalReservations) {
+          const { error: externalPaymentError } = await userClient.rpc(
+            'upsert_reservation_payment',
+            {
+              p_payment_id: paymentByReservationId.get(reservation.id)?.id ?? null,
+              p_reservation_id: reservation.id,
+              p_user_id: reservation.user_id,
+              p_amount: ticketPrice,
+              p_status: 'completed',
+            },
+          );
+          if (externalPaymentError) {
+            throw new Error(`외부 참가자 입금 완료 처리 실패: ${externalPaymentError.message}`);
+          }
+        }
+        createdInBatch = missingRows.length;
+        updatedInBatch = existingReservationIds.size;
+        completedInBatch = (reservations ?? []).length;
         verifiedInBatch = completedInBatch;
       }
 
-      const processed = Math.min(offset + batch.length, users.length);
-      const done = processed >= users.length;
+      const totalWorkItems = stage === 'payments' ? activeReservationCount : users.length;
+      const processedInBatch = stage === 'payments' ? completedInBatch : batch.length;
+      const processed = Math.min(offset + processedInBatch, totalWorkItems);
+      const done = processed >= totalWorkItems;
       const previousCreated = Number(previousSummary.created_total) || 0;
       const previousUpdated = Number(previousSummary.updated_total) || 0;
       const previousCompleted = Number(previousSummary.completed_total) || 0;
@@ -1277,7 +1322,7 @@ Deno.serve(async (request) => {
       const createdTotal = previousCreated + createdInBatch;
       const completedTotal = previousCompleted + completedInBatch;
       const summary = {
-        total_accounts: users.length,
+        total_accounts: totalWorkItems,
         processed,
         created_in_batch: createdInBatch,
         created_total: createdTotal,
@@ -1415,12 +1460,15 @@ Deno.serve(async (request) => {
             (sum, payment) => sum + Number(payment?.amount ?? 0),
             0,
           ),
-          status: 'sent',
+          status: 'confirmed',
           sent_by: sentBy,
           sent_at: now,
-          confirmed_by: null,
-          confirmed_at: null,
-          actual_confirmed_amount: null,
+          confirmed_by: user.id,
+          confirmed_at: now,
+          actual_confirmed_amount: scopePayments.reduce(
+            (sum, payment) => sum + Number(payment?.amount ?? 0),
+            0,
+          ),
           updated_at: now,
         };
       });
@@ -1450,10 +1498,235 @@ Deno.serve(async (request) => {
         completed_payments: payments.length,
         verified_payments: payments.length,
         sent_transfers: transferRows.length,
+        confirmed_transfers: transferRows.length,
         sent_total_amount: transferRows.reduce(
           (sum, transfer) => sum + transfer.total_amount,
           0,
         ),
+      };
+      await serviceClient
+        .from('simulation_stage_runs')
+        .update({
+          status: 'completed',
+          summary,
+          completed_at: now,
+        })
+        .eq('id', run.id);
+
+      return json({
+        run_id: run.id,
+        stage,
+        status: 'completed',
+        summary,
+        next_offset: null,
+        done: true,
+      });
+    }
+
+    if (stage === 'boarding') {
+      const users = await getSimulationUsers(serviceClient);
+      const simulationUserIds = new Set(users.map((simulationUser) => simulationUser.userId));
+      const [
+        { data: allocation, error: allocationError },
+        { data: ticketedReservations, error: reservationError },
+      ] = await Promise.all([
+        serviceClient
+          .from('bus_allocations')
+          .select('id,allocation_data')
+          .filter('allocation_data->>status', 'eq', 'confirmed')
+          .maybeSingle(),
+        serviceClient
+          .from('reservations')
+          .select('id,user_id,boarding_status,confirmed_ticket')
+          .eq('status', 'confirmed')
+          .not('confirmed_ticket', 'is', null)
+          .order('id'),
+      ]);
+      if (allocationError) throw allocationError;
+      if (reservationError) throw reservationError;
+      if (!allocation) {
+        throw new Error('확정된 배차안이 없습니다. 배차 단계에서 전체 배차를 먼저 확정하세요.');
+      }
+
+      const reservations = (ticketedReservations ?? []).filter((reservation) =>
+        simulationUserIds.has(reservation.user_id)
+      );
+      const nonSimulationReservations = (ticketedReservations ?? []).filter(
+        (reservation) => !simulationUserIds.has(reservation.user_id),
+      );
+      if (nonSimulationReservations.length > 0) {
+        throw new Error(
+          `확정 버스표가 있는 실제 사용자 ${nonSimulationReservations.length}명이 있어 탑승 리허설을 실행할 수 없습니다.`,
+        );
+      }
+      if (reservations.length === 0) {
+        throw new Error('탑승 리허설 대상 확정 버스표가 없습니다.');
+      }
+
+      const allocationData = getSettingObject(allocation.allocation_data);
+      const buses = Array.isArray(allocationData.buses)
+        ? allocationData.buses.filter(
+            (bus): bus is Record<string, unknown> =>
+              Boolean(bus && typeof bus === 'object' && !Array.isArray(bus)),
+          )
+        : [];
+      if (buses.length === 0) {
+        throw new Error('확정 배차안에 호차 정보가 없습니다.');
+      }
+
+      const now = new Date().toISOString();
+      const reservationIds = reservations.map((reservation) => reservation.id);
+      for (const reservationIdChunk of chunks(reservationIds)) {
+        throwIfError(
+          (
+            await serviceClient
+              .from('reservations')
+              .update({
+                boarding_status: 'unchecked',
+                boarding_confirmed_at: null,
+                boarding_status_updated_at: null,
+                boarding_status_updated_by: null,
+                boarding_no_show_departure_id: null,
+              })
+              .in('id', reservationIdChunk)
+          ).error,
+          '기존 탑승 상태 초기화 실패',
+        );
+        throwIfError(
+          (
+            await serviceClient
+              .from('boarding_status_events')
+              .delete()
+              .in('reservation_id', reservationIdChunk)
+          ).error,
+          '기존 탑승 이벤트 정리 실패',
+        );
+      }
+      throwIfError(
+        (
+          await serviceClient
+            .from('boarding_bus_departures')
+            .delete()
+            .eq('allocation_id', allocation.id)
+        ).error,
+        '기존 호차 출발 기록 정리 실패',
+      );
+
+      const departureRows = buses.map((bus, index) => ({
+        allocation_id: allocation.id,
+        bus_id: String(bus.id ?? `simulation-bus-${index + 1}`),
+        bus_label: String(bus.label ?? bus.busNumber ?? `${index + 1}호차`),
+        departed_at: now,
+        departed_by: user.id,
+      }));
+      const { data: departures, error: departureError } = await serviceClient
+        .from('boarding_bus_departures')
+        .insert(departureRows)
+        .select('id,bus_id,bus_label');
+      if (departureError) throw new Error(`호차 출발 기록 생성 실패: ${departureError.message}`);
+
+      const departureByBusKey = new Map<string, string>();
+      for (const departure of departures ?? []) {
+        departureByBusKey.set(String(departure.bus_id), departure.id);
+        departureByBusKey.set(String(departure.bus_label), departure.id);
+      }
+
+      const boardedIds: string[] = [];
+      const uncheckedIds: string[] = [];
+      const noShowIdsByDeparture = new Map<string, string[]>();
+      for (const reservation of reservations) {
+        const outcome = deterministicUnit(`${reservation.user_id}:boarding-outcome`);
+        if (outcome < 0.82) {
+          boardedIds.push(reservation.id);
+          continue;
+        }
+        if (outcome >= 0.94) {
+          uncheckedIds.push(reservation.id);
+          continue;
+        }
+        const ticket = getSettingObject(reservation.confirmed_ticket);
+        const departureId = departureByBusKey.get(
+          String(ticket.busId ?? ticket.busNumber ?? ''),
+        );
+        if (!departureId) {
+          throw new Error('확정 버스표와 일치하는 호차 출발 기록을 찾지 못했습니다.');
+        }
+        noShowIdsByDeparture.set(departureId, [
+          ...(noShowIdsByDeparture.get(departureId) ?? []),
+          reservation.id,
+        ]);
+      }
+
+      for (const boardedIdChunk of chunks(boardedIds)) {
+        throwIfError(
+          (
+            await serviceClient
+              .from('reservations')
+              .update({
+                boarding_status: 'boarded',
+                boarding_confirmed_at: now,
+                boarding_status_updated_at: now,
+                boarding_status_updated_by: user.id,
+                boarding_no_show_departure_id: null,
+              })
+              .in('id', boardedIdChunk)
+          ).error,
+          '탑승 완료 상태 반영 실패',
+        );
+      }
+      for (const [departureId, noShowIds] of noShowIdsByDeparture) {
+        for (const noShowIdChunk of chunks(noShowIds)) {
+          throwIfError(
+            (
+              await serviceClient
+                .from('reservations')
+                .update({
+                  boarding_status: 'no_show',
+                  boarding_confirmed_at: null,
+                  boarding_status_updated_at: now,
+                  boarding_status_updated_by: user.id,
+                  boarding_no_show_departure_id: departureId,
+                })
+                .in('id', noShowIdChunk)
+            ).error,
+            '노쇼 상태 반영 실패',
+          );
+        }
+      }
+
+      const noShowIds = [...noShowIdsByDeparture.values()].flat();
+      const eventRows = [
+        ...boardedIds.map((reservationId) => ({
+          reservation_id: reservationId,
+          from_status: 'unchecked',
+          to_status: 'boarded',
+          actor_id: user.id,
+          note: '시뮬레이션 탑승 완료',
+          created_at: now,
+        })),
+        ...noShowIds.map((reservationId) => ({
+          reservation_id: reservationId,
+          from_status: 'unchecked',
+          to_status: 'no_show',
+          actor_id: user.id,
+          note: '시뮬레이션 호차 출발 후 노쇼',
+          created_at: now,
+        })),
+      ];
+      for (const eventRowChunk of chunks(eventRows)) {
+        throwIfError(
+          (await serviceClient.from('boarding_status_events').insert(eventRowChunk)).error,
+          '탑승 이벤트 생성 실패',
+        );
+      }
+
+      const summary = {
+        confirmed_ticket_count: reservations.length,
+        departed_buses: departureRows.length,
+        boarded: boardedIds.length,
+        no_show: noShowIds.length,
+        unchecked: uncheckedIds.length,
+        boarding_events: eventRows.length,
       };
       await serviceClient
         .from('simulation_stage_runs')
@@ -1690,7 +1963,7 @@ Deno.serve(async (request) => {
 
     return json({ run_id: run.id, stage, status: 'completed', summary });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = getErrorMessage(error);
     await serviceClient
       .from('simulation_stage_runs')
       .update({

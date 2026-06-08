@@ -92,6 +92,12 @@ export interface SimulationPreview {
       confirmedPassengers: number;
       remainingSeats: number;
     };
+    boarding: {
+      unchecked: number;
+      boarded: number;
+      noShow: number;
+      events: number;
+    };
   };
 }
 
@@ -235,6 +241,10 @@ export async function getSimulationPreview(): Promise<SimulationPreview> {
     allocationResult,
     draftAllocationResult,
     confirmedAllocationResult,
+    uncheckedBoardingResult,
+    boardedBoardingResult,
+    noShowBoardingResult,
+    boardingEventResult,
   ] = await Promise.all([
     supabase
       .from('campus_options')
@@ -288,6 +298,10 @@ export async function getSimulationPreview(): Promise<SimulationPreview> {
     supabase.from('bus_allocations').select('id', { count: 'exact', head: true }),
     supabase.from('bus_allocations').select('id', { count: 'exact', head: true }).filter('allocation_data->>status', 'eq', 'draft'),
     supabase.from('bus_allocations').select('allocation_data').filter('allocation_data->>status', 'eq', 'confirmed'),
+    supabase.from('reservations').select('id', { count: 'exact', head: true }).eq('boarding_status', 'unchecked').not('confirmed_ticket', 'is', null),
+    supabase.from('reservations').select('id', { count: 'exact', head: true }).eq('boarding_status', 'boarded').not('confirmed_ticket', 'is', null),
+    supabase.from('reservations').select('id', { count: 'exact', head: true }).eq('boarding_status', 'no_show').not('confirmed_ticket', 'is', null),
+    supabase.from('boarding_status_events').select('id', { count: 'exact', head: true }),
   ]);
 
   if (campusResult.error) throw campusResult.error;
@@ -315,6 +329,10 @@ export async function getSimulationPreview(): Promise<SimulationPreview> {
     allocationResult.error,
     draftAllocationResult.error,
     confirmedAllocationResult.error,
+    uncheckedBoardingResult.error,
+    boardedBoardingResult.error,
+    noShowBoardingResult.error,
+    boardingEventResult.error,
   ].filter(Boolean);
   if (operationErrors.length > 0) throw operationErrors[0];
 
@@ -496,6 +514,12 @@ export async function getSimulationPreview(): Promise<SimulationPreview> {
           confirmedAllocationTotals.capacity - confirmedAllocationTotals.passengers
         ),
       },
+      boarding: {
+        unchecked: getCount(uncheckedBoardingResult),
+        boarded: getCount(boardedBoardingResult),
+        noShow: getCount(noShowBoardingResult),
+        events: getCount(boardingEventResult),
+      },
     },
   };
 }
@@ -530,7 +554,7 @@ export interface SimulationStageResponse extends SimulationStageRun {
 }
 
 export async function runSimulationStage(
-  stage: 'cleanup' | 'reference' | 'accounts' | 'reservations' | 'payments' | 'transfers',
+  stage: 'cleanup' | 'reference' | 'accounts' | 'reservations' | 'payments' | 'transfers' | 'boarding',
   options: {
     runId?: string;
     offset?: number;

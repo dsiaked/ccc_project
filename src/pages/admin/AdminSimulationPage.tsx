@@ -30,10 +30,10 @@ const simulationStages = [
   ['사용자 및 캠퍼스 회계 순장님 생성', '소형·중형·대형·거점형 캠퍼스가 섞인 비균등 분포로 일반 회원과 모든 캠퍼스 회계 순장님을 생성합니다.', ['다양한 캠퍼스 규모별 실제 로그인 계정 생성', '프로필 생성', '관리자 5명은 캠퍼스 2개씩 담당']],
   ['개별 신청', '사용자별 1·2지망 신청을 생성하고 실제 신청 건수를 확인합니다.', ['개별 신청', '행선지 수요 분산', '신청 상태 확인']],
   ['개별 입금', '모든 활성 신청의 입금 상태를 완료로 통일합니다.', ['입금 행이 없는 활성 신청의 완료 입금 생성', '기존 입금 상태를 완료로 변경', '캠퍼스 회계 순장님 확인 기록 반영']],
-  ['임시 배차안 생성', '전체 입금 완료 여부와 관계없이 활성 신청 수요를 기준으로 임시 배차안을 생성합니다.', ['활성 신청 기준 배차 추천 계산', '임시 배차안 생성 및 편집', '전체 입금 전에도 실행 가능']],
-  ['잔여 좌석 판매 및 추가 버스표', '기존 미탑승 사용자과 신규 사용자을 섞어 잔여 좌석을 판매합니다.', ['추가 구매자 선정·생성', '잔여 좌석 판매', '추가 버스표 발급']],
-  ['모두 송금 완료', '캠퍼스 회계 순장님이 확인한 개인 입금을 기준으로 캠퍼스별 송금 보고를 생성합니다.', ['신청 마감', '개인 입금 확인 상태 검증', '모든 캠퍼스 송금 보고 생성']],
-  ['행사 종료 및 전체 정산 보고서', '현재 저장 가능한 정산 자료를 확인하고, 아직 필요한 탑승·노쇼 기록 기능을 구분합니다.', ['현재 정산 자료 확인', '탑승·노쇼 기록 모델 설계', '최종 보고서 기능 구현']],
+  ['신청 마감·송금·본부 확인', '개인 입금을 검증하고 신청을 마감한 뒤 캠퍼스 송금 보고와 본부 확인까지 완료합니다.', ['신청 마감', '캠퍼스별 송금 보고 생성', '본부 실제 입금액 확인 완료']],
+  ['배차 계획 산출 및 확정', '마감과 정산 확인이 끝난 활성 신청을 기준으로 배차안을 계산하고 검토 후 확정합니다.', ['배차 추천 계산', '임시 배차안 편집', '전체 배차 확정 및 버스표 발급']],
+  ['잔여 좌석 판매 및 추가 버스표', '확정 배차의 남은 좌석을 판매하고 추가 버스표를 발급합니다.', ['잔여 좌석 공개', '추가 구매자 입금 확인', '추가 버스표 발급']],
+  ['출발·탑승 리허설', '확정 버스표를 기준으로 호차 출발과 탑승 완료·노쇼·미확인 상태를 재현합니다.', ['모든 호차 출발 기록 생성', '탑승 완료·노쇼 상태 반영', '탑승 이벤트 기록 생성']],
 ] as const;
 
 interface StagePreviewRow {
@@ -53,13 +53,15 @@ const getStageRunName = (index: number) =>
           ? 'reservations'
           : index === 4
             ? 'payments'
-            : index === 7
+            : index === 5
               ? 'transfers'
+              : index === 8
+                ? 'boarding'
               : '';
 
 const stageActions: Record<number, { label: string; path: string } | undefined> = {
-  5: { label: '배차 화면 열기', path: '/admin/allocations' },
-  6: { label: '잔여 좌석 판매 열기', path: '/admin/payments/remaining-seats' },
+  6: { label: '배차 화면 열기', path: '/admin/allocations' },
+  7: { label: '잔여 좌석 판매 열기', path: '/admin/payments/remaining-seats' },
 };
 
 const stageSummaryLabels: Record<string, string> = {
@@ -97,7 +99,14 @@ const stageSummaryLabels: Record<string, string> = {
   verified_in_batch: '이번 배치 캠퍼스 확인',
   verified_total: '누적 캠퍼스 확인',
   sent_transfers: '송금 보고 처리',
+  confirmed_transfers: '본부 확인 완료',
   sent_total_amount: '총 송금액',
+  confirmed_ticket_count: '확정 버스표',
+  departed_buses: '출발 처리 호차',
+  boarded: '탑승 완료',
+  no_show: '노쇼',
+  unchecked: '탑승 미확인',
+  boarding_events: '탑승 이벤트',
   skipped_total: '누적 기존 계정',
   verified_profiles: '최종 프로필 검증',
   verified_campus_admin_roles: '최종 관리자 권한 검증',
@@ -427,22 +436,27 @@ const buildStagePreview = (
       ],
     },
     {
-      status: '기능 설계 필요',
+      status:
+        (operation?.boarding.boarded ?? 0) + (operation?.boarding.noShow ?? 0) > 0
+          ? '탑승 리허설 완료'
+          : (operation?.reservations.ticketed ?? 0) > 0
+            ? '탑승 리허설 준비'
+            : '확정 버스표 필요',
       metrics: [
         ['발급 버스표', `${(operation?.reservations.ticketed ?? 0).toLocaleString()}건`],
-        ['환불 입금', `${(operation?.payments.refunded ?? 0).toLocaleString()}건`],
-        ['탑승·노쇼', '기록 기능 없음'],
-        ['최종 보고서', '미구현'],
+        ['탑승 완료', `${(operation?.boarding.boarded ?? 0).toLocaleString()}명`],
+        ['노쇼', `${(operation?.boarding.noShow ?? 0).toLocaleString()}명`],
+        ['탑승 미확인', `${(operation?.boarding.unchecked ?? 0).toLocaleString()}명`],
       ],
       rows: [
-        { label: '현재 가능한 집계', value: '신청·취소·입금·환불·송금·버스표', note: '현재 DB에 저장되는 운영 자료' },
-        { label: '추가로 필요한 자료', value: '실제 탑승·노쇼·버스 운행 결과', note: '행사 종료 기록 모델이 아직 없음' },
-        { label: '판정', value: '완료 단계 아님', note: '탑승 기록과 최종 정산 기능 구현 후 실행 단계로 전환' },
+        { label: '탑승 상태', value: `완료 ${(operation?.boarding.boarded ?? 0).toLocaleString()} / 노쇼 ${(operation?.boarding.noShow ?? 0).toLocaleString()} / 미확인 ${(operation?.boarding.unchecked ?? 0).toLocaleString()}`, note: '확정 버스표가 있는 신청 기준' },
+        { label: '탑승 이벤트', value: `${(operation?.boarding.events ?? 0).toLocaleString()}건`, note: '탑승 완료와 노쇼 상태 변경 이력' },
+        { label: '운영 확인 화면', value: '탑승 관리', note: '호차별 탑승 명단과 출발 상태를 최종 확인' },
       ],
     },
   ];
 
-  const laterStagePreviewIndex = [0, 1, 3, 4, 2, 5][index - 3];
+  const laterStagePreviewIndex = [0, 1, 2, 3, 4, 5][index - 3];
   return { ...common, ...laterStages[laterStagePreviewIndex] };
 };
 
@@ -635,10 +649,16 @@ const AdminSimulationPage = () => {
     preview?.operation.payments.total === activeReservationCount &&
     preview?.operation.payments.completed === activeReservationCount &&
     preview?.operation.payments.verified === activeReservationCount;
-  const allocationStageUnlocked = activeReservationCount > 0;
   const transfersStageUnlocked = allPaymentsCompleted;
+  const allocationStageUnlocked =
+    (preview?.operation.deadlineClosed ?? false) &&
+    (preview?.operation.transfers.confirmed ?? 0) > 0;
+  const remainingSeatStageUnlocked =
+    (preview?.operation.allocations.confirmed ?? 0) > 0;
+  const boardingStageUnlocked =
+    (preview?.operation.reservations.ticketed ?? 0) > 0;
   const getStageDisabledReason = (index: number) => {
-    if (index > 7) return stageActions[index] ? null : '아직 실행 기능이 구현되지 않은 단계입니다.';
+    if (index > 8) return stageActions[index] ? null : '아직 실행 기능이 구현되지 않은 단계입니다.';
     if (!preview) return '시뮬레이션 상태를 불러온 뒤 실행할 수 있습니다.';
     if (!preview.safety.projectIdMatches) {
       return '허용된 테스트 Supabase 프로젝트에서만 실행할 수 있습니다.';
@@ -663,23 +683,26 @@ const AdminSimulationPage = () => {
     if (index === 4 && unpaidIndividualCount === 0) {
       return '입금 완료로 변경할 미입금 개별 사용자가 없습니다.';
     }
-    if (index === 5 && !allocationStageUnlocked) {
-      return '임시 배차안을 만들 활성 신청이 없습니다. 3단계를 먼저 실행하세요.';
-    }
-    if (index === 6 && !allPaymentsCompleted) {
+    if (index === 5 && !transfersStageUnlocked) {
       return `활성 신청 ${activeReservationCount.toLocaleString()}건 중 입금 완료·확인은 ${(preview.operation.payments.verified ?? 0).toLocaleString()}건입니다. 4단계에서 미입금 사용자 입금 완료 처리를 실행하세요.`;
     }
-    if (index === 6 && (preview.operation.allocations.confirmed ?? 0) === 0) {
-      return '확정된 배차안이 없습니다. 5단계 배차 화면에서 배차안을 확정하세요.';
+    if (index === 5 && (preview.operation.transfers.confirmed ?? 0) > 0) {
+      return '신청 마감과 모든 캠퍼스 송금·본부 확인이 이미 완료되었습니다.';
     }
-    if (index === 7 && !transfersStageUnlocked) {
-      return `활성 신청 ${activeReservationCount.toLocaleString()}건 중 입금 완료·확인은 ${(preview.operation.payments.verified ?? 0).toLocaleString()}건입니다. 4단계에서 미입금 사용자 입금 완료 처리를 실행하세요.`;
+    if (index === 6 && !allocationStageUnlocked) {
+      return '신청 마감과 캠퍼스 송금·본부 확인이 필요합니다. 5단계를 먼저 실행하세요.';
+    }
+    if (index === 7 && !remainingSeatStageUnlocked) {
+      return '확정된 배차안이 없습니다. 6단계 배차 화면에서 배차안을 확정하세요.';
+    }
+    if (index === 8 && !boardingStageUnlocked) {
+      return '확정 버스표가 없습니다. 6단계 배차 화면에서 전체 배차를 확정하세요.';
     }
     return null;
   };
 
   const handleRunStage = async (index: number) => {
-    if (index > 7 || index === 5 || index === 6) return;
+    if (index > 8 || index === 6 || index === 7) return;
 
     if (index === 0) {
       const confirmation = window.prompt(
@@ -767,10 +790,14 @@ const AdminSimulationPage = () => {
             ? '3단계 개별 신청을 완료했습니다. 매 10번째 계정은 미신청자로 유지됩니다.'
             : '4단계 미입금 개별 사용자 입금 완료 처리를 마쳤습니다.'
         );
-      } else if (index === 7) {
+      } else if (index === 5) {
         const run = await runSimulationStage('transfers');
         setStageRuns((current) => [run, ...current]);
-        setRunMessage('7단계 모두 송금 완료 처리를 마쳤습니다.');
+        setRunMessage('5단계 신청 마감과 캠퍼스 송금·본부 확인을 마쳤습니다.');
+      } else if (index === 8) {
+        const run = await runSimulationStage('boarding');
+        setStageRuns((current) => [run, ...current]);
+        setRunMessage('8단계 출발·탑승 리허설을 마쳤습니다.');
       }
       setPreview(await getSimulationPreview());
       setPreviewMode('after');
@@ -894,7 +921,7 @@ const AdminSimulationPage = () => {
         </section>
 
         <section className={styles.workflowSection}>
-          <div className={styles.sectionTitle}><Play size={21} /><div><h2>단계별 실행</h2><p>0~4단계와 7단계는 서버에서 실행하고, 5~6단계와 이후 운영 단계는 연결된 관리자 화면에서 진행합니다.</p></div></div>
+          <div className={styles.sectionTitle}><Play size={21} /><div><h2>단계별 실행</h2><p>0~5단계와 8단계는 서버에서 데이터를 변경하고, 6~7단계는 검토가 필요한 관리자 화면에서 진행합니다.</p></div></div>
           <div className={styles.stageList}>
             {simulationStages.map(([title, description, changes], index) => {
               const expanded = expandedStageIndex === index;
@@ -904,8 +931,6 @@ const AdminSimulationPage = () => {
                   ? buildStagePreview(index, preview, stageRuns, referenceConfig)
                   : buildStageResultPreview(index, preview, stageRuns);
               const stageDisabledReason = getStageDisabledReason(index);
-              const transferReportDisabledReason =
-                index === 4 ? getStageDisabledReason(7) : null;
               return <article key={title} className={expanded ? styles.stageExpanded : undefined}>
                 <button
                   type="button"
@@ -943,11 +968,13 @@ const AdminSimulationPage = () => {
                               ? '시뮬레이션 초기화'
                               : index === 3
                                 ? '개별 신청'
-                                : index === 7
-                                  ? '모두 송금 완료'
+                                : index === 5
+                                  ? '마감·송금·본부 확인'
+                                  : index === 8
+                                    ? '출발·탑승 리허설'
                                   : index <= 2
                                     ? '이 단계 실행'
-                                    : stageAction?.label ?? '기능 설계 필요'}
+                                    : stageAction?.label ?? '이 단계 실행'}
                         </button>}
                         {index === 4 && <div className={styles.paymentActions}>
                           <button
@@ -961,17 +988,6 @@ const AdminSimulationPage = () => {
                               ? '입금 상태 변경 중...'
                               : `모두 입금 완료로 만들기 · ${activeReservationCount.toLocaleString()}명`}
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => void handleRunStage(7)}
-                            disabled={transferReportDisabledReason !== null}
-                            title={transferReportDisabledReason ?? undefined}
-                          >
-                            <Play size={15} />
-                            {runningStageIndex === 7
-                              ? '송금 완료 보고 중...'
-                              : '캠퍼스 송금 완료 보고'}
-                          </button>
                         </div>}
                         {index === 4 ? (
                           <div className={styles.actionReasons}>
@@ -979,12 +995,6 @@ const AdminSimulationPage = () => {
                               <p className={styles.disabledReason}>
                                 <AlertTriangle size={15} />
                                 <span><strong>입금 상태로 만들기</strong>{stageDisabledReason}</span>
-                              </p>
-                            )}
-                            {transferReportDisabledReason && (
-                              <p className={styles.disabledReason}>
-                                <AlertTriangle size={15} />
-                                <span><strong>캠퍼스 송금 완료 보고</strong>{transferReportDisabledReason}</span>
                               </p>
                             )}
                           </div>
@@ -997,7 +1007,7 @@ const AdminSimulationPage = () => {
                       </div>}
                     </div>
 
-                    {index <= 7 && <div className={styles.previewTabs} role="tablist" aria-label={`${title} 미리보기 전환`}>
+                    {index <= 8 && <div className={styles.previewTabs} role="tablist" aria-label={`${title} 미리보기 전환`}>
                       <button
                         type="button"
                         role="tab"
@@ -1231,7 +1241,7 @@ const AdminSimulationPage = () => {
           <div className={styles.sectionTitle}><Database size={21} /><div><h2>최근 실행 기록</h2><p>서버가 기록한 단계별 실행 결과입니다.</p></div></div>
           <div className={styles.historyList}>
             {stageRuns.length > 0 ? stageRuns.map((run) => <article key={run.id}>
-              <div><strong>{run.stage === 'cleanup' ? '0단계 시뮬레이션 정보 초기화' : run.stage === 'reference' ? '1단계 운영 초기값 설정' : run.stage === 'accounts' ? '2단계 사용자 및 캠퍼스 회계 순장님 생성' : run.stage === 'reservations' ? '3단계 개별 신청' : run.stage === 'payments' ? '4단계 개별 입금' : run.stage === 'transfers' ? '7단계 모두 송금 완료' : run.stage}</strong><span>{new Date(run.started_at).toLocaleString()}</span></div>
+              <div><strong>{run.stage === 'cleanup' ? '0단계 시뮬레이션 정보 초기화' : run.stage === 'reference' ? '1단계 운영 초기값 설정' : run.stage === 'accounts' ? '2단계 사용자 및 캠퍼스 회계 순장님 생성' : run.stage === 'reservations' ? '3단계 개별 신청' : run.stage === 'payments' ? '4단계 개별 입금' : run.stage === 'transfers' ? '5단계 신청 마감·송금·본부 확인' : run.stage === 'boarding' ? '8단계 출발·탑승 리허설' : run.stage}</strong><span>{new Date(run.started_at).toLocaleString()}</span></div>
               <span className={run.status === 'completed' ? styles.completedBadge : run.status === 'failed' ? styles.failedBadge : styles.runningBadge}>{run.status}</span>
             </article>) : <p className={styles.emptyHistory}>아직 실행 기록이 없습니다.</p>}
           </div>
