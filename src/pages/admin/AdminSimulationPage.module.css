@@ -46,6 +46,7 @@
 .stageDetail ul { margin: 9px 0 0; padding-left: 18px; color: #475467; font-size: 13px; line-height: 1.8; }
 .stageDetail button { min-width: 126px; height: 40px; padding: 0 14px; border: 0; background: #2563eb; color: #fff; }
 .stageDetail .cleanupButton { background: #b42318; }
+.stageDetail .reviewButton { border: 1px solid #b2ccff; background: #fff; color: #175cd3; }
 .stageActionArea { display: grid; justify-items: end; gap: 8px; max-width: 480px; }
 .paymentActions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 .paymentActions button:last-child { background: #027a48; }

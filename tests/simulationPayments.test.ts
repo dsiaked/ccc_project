@@ -108,3 +108,10 @@ test('simulation settlement confirms headquarters transfers before allocation', 
   );
   assert.match(simulationPage, /신청 마감과 캠퍼스 송금·본부 확인이 필요합니다/);
 });
+
+test('simulation stages link to the operational review screens', () => {
+  assert.match(simulationPage, /신청 현황 확인/);
+  assert.match(simulationPage, /최종 입금 검토/);
+  assert.match(simulationPage, /캠퍼스 송금 확인/);
+  assert.match(simulationPage, /탑승 관리 열기/);
+});
