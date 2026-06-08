@@ -22,18 +22,18 @@ test('simulation payment stage accepts requested and confirmed active reservatio
   );
 });
 
-test('simulation payment stage preserves completed payments and only completes unpaid users', () => {
+test('simulation payment stage forces every active reservation to completed', () => {
   assert.match(
     simulationRunner,
-    /payment\?\.status === 'pending'/
+    /\.upsert\(paymentRows, \{ onConflict: 'reservation_id' \}\)/
   );
   assert.match(
     simulationRunner,
-    /if \(payment\)[\s\S]*skippedInBatch \+= 1/
+    /status: 'completed'[\s\S]*verified_by: campusAdminId[\s\S]*verified_at: now/
   );
   assert.doesNotMatch(
     simulationRunner,
-    /기존 입금 데이터 정리 실패/
+    /payment\?\.status === 'pending'/
   );
 });
 
@@ -51,7 +51,7 @@ test('disabled simulation stage actions explain why they cannot run', () => {
 });
 
 test('simulation page separates individual payment completion and campus transfer reporting', () => {
-  assert.match(simulationPage, /입금 상태로 만들기 · 미입금/);
+  assert.match(simulationPage, /모두 입금 완료로 만들기/);
   assert.match(simulationPage, /캠퍼스 송금 완료 보고/);
   assert.match(simulationPage, /onClick=\{\(\) => void handleRunStage\(7\)\}/);
   assert.doesNotMatch(simulationPage, /랜덤 입금 상태 설정/);

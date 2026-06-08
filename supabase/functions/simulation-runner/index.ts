@@ -1228,35 +1228,20 @@ Deno.serve(async (request) => {
         const { data: payments, error: paymentError } = reservationIds.length > 0
           ? await serviceClient
               .from('payments')
-              .select('id,reservation_id,status')
+              .select('reservation_id')
               .in('reservation_id', reservationIds)
           : { data: [], error: null };
         if (paymentError) throw paymentError;
-        const paymentByReservationId = new Map(
-          (payments ?? []).map((payment) => [payment.reservation_id, payment]),
+        const existingReservationIds = new Set(
+          (payments ?? []).map((payment) => payment.reservation_id),
         );
-        const missingRows = [];
-        const pendingPaymentIdsByAdmin = new Map<string, string[]>();
-
-        for (const reservation of reservations ?? []) {
+        const paymentRows = (reservations ?? []).map((reservation) => {
           const scope = getCampusKey(reservation);
           const campusAdminId = adminByScope.get(scope);
           if (!campusAdminId) {
             throw new Error(`${scope} 범위의 시뮬레이션 캠퍼스 회계 순장님이 없습니다.`);
           }
-          const payment = paymentByReservationId.get(reservation.id);
-          if (payment?.status === 'pending') {
-            pendingPaymentIdsByAdmin.set(campusAdminId, [
-              ...(pendingPaymentIdsByAdmin.get(campusAdminId) ?? []),
-              payment.id,
-            ]);
-            continue;
-          }
-          if (payment) {
-            skippedInBatch += 1;
-            continue;
-          }
-          missingRows.push({
+          return {
             user_id: reservation.user_id,
             reservation_id: reservation.id,
             amount: ticketPrice,
@@ -1264,31 +1249,21 @@ Deno.serve(async (request) => {
             paid_at: now,
             verified_by: campusAdminId,
             verified_at: now,
-            notes: '시뮬레이션 미입금 사용자 입금 완료',
+            notes: '시뮬레이션 전체 활성 신청 입금 완료',
             updated_at: now,
-          });
-        }
-        for (const [campusAdminId, paymentIds] of pendingPaymentIdsByAdmin) {
-          const { error: updateError } = await serviceClient
+          };
+        });
+        if (paymentRows.length > 0) {
+          const { error: upsertError } = await serviceClient
             .from('payments')
-            .update({
-              status: 'completed',
-              paid_at: now,
-              verified_by: campusAdminId,
-              verified_at: now,
-              notes: '시뮬레이션 미입금 사용자 입금 완료',
-              updated_at: now,
-            })
-            .in('id', paymentIds);
-          if (updateError) throw new Error(`미입금 상태 변경 실패: ${updateError.message}`);
-          updatedInBatch += paymentIds.length;
+            .upsert(paymentRows, { onConflict: 'reservation_id' });
+          if (upsertError) throw new Error(`전체 입금 완료 처리 실패: ${upsertError.message}`);
         }
-        if (missingRows.length > 0) {
-          const { error: insertError } = await serviceClient.from('payments').insert(missingRows);
-          if (insertError) throw new Error(`입금 데이터 생성 실패: ${insertError.message}`);
-        }
-        createdInBatch = missingRows.length;
-        completedInBatch = createdInBatch + updatedInBatch;
+        createdInBatch = paymentRows.filter(
+          (payment) => !existingReservationIds.has(payment.reservation_id),
+        ).length;
+        updatedInBatch = paymentRows.length - createdInBatch;
+        completedInBatch = paymentRows.length;
         verifiedInBatch = completedInBatch;
       }
 
@@ -1301,9 +1276,6 @@ Deno.serve(async (request) => {
       const previousSkipped = Number(previousSummary.skipped_total) || 0;
       const createdTotal = previousCreated + createdInBatch;
       const completedTotal = previousCompleted + completedInBatch;
-      if (stage === 'payments' && done && completedTotal === 0) {
-        throw new Error('입금 완료로 변경할 미입금 시뮬레이션 사용자가 없습니다.');
-      }
       const summary = {
         total_accounts: users.length,
         processed,

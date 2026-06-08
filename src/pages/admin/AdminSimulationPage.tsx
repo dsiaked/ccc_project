@@ -29,7 +29,7 @@ const simulationStages = [
   ['운영 초기값 설정', '서울지구 조직도와 기본 행선지를 등록하고 권장 시뮬레이션 운영 초기값을 생성합니다.', ['서울지구 조직도·기본 행선지 등록', '예상 참여 인원 2,500명 설정', '44인승 SIM 버스 옵션·요금 설정']],
   ['사용자 및 캠퍼스 회계 순장님 생성', '소형·중형·대형·거점형 캠퍼스가 섞인 비균등 분포로 일반 회원과 모든 캠퍼스 회계 순장님을 생성합니다.', ['다양한 캠퍼스 규모별 실제 로그인 계정 생성', '프로필 생성', '관리자 5명은 캠퍼스 2개씩 담당']],
   ['개별 신청', '사용자별 1·2지망 신청을 생성하고 실제 신청 건수를 확인합니다.', ['개별 신청', '행선지 수요 분산', '신청 상태 확인']],
-  ['개별 입금', '입금되지 않은 개별 사용자의 입금 상태를 완료로 변경합니다.', ['입금 행이 없는 활성 신청의 완료 입금 생성', '입금 대기 상태를 완료로 변경', '기존 완료·환불 입금 보존']],
+  ['개별 입금', '모든 활성 신청의 입금 상태를 완료로 통일합니다.', ['입금 행이 없는 활성 신청의 완료 입금 생성', '기존 입금 상태를 완료로 변경', '캠퍼스 회계 순장님 확인 기록 반영']],
   ['임시 배차안 생성', '전체 입금 완료 여부와 관계없이 활성 신청 수요를 기준으로 임시 배차안을 생성합니다.', ['활성 신청 기준 배차 추천 계산', '임시 배차안 생성 및 편집', '전체 입금 전에도 실행 가능']],
   ['잔여 좌석 판매 및 추가 버스표', '기존 미탑승 사용자과 신규 사용자을 섞어 잔여 좌석을 판매합니다.', ['추가 구매자 선정·생성', '잔여 좌석 판매', '추가 버스표 발급']],
   ['모두 송금 완료', '캠퍼스 회계 순장님이 확인한 개인 입금을 기준으로 캠퍼스별 송금 보고를 생성합니다.', ['신청 마감', '개인 입금 확인 상태 검증', '모든 캠퍼스 송금 보고 생성']],
@@ -361,9 +361,9 @@ const buildStagePreview = (
         ['미입금 추정', `${Math.max(0, (operation?.reservations.requested ?? 0) + (operation?.reservations.confirmed ?? 0) - (operation?.payments.completed ?? 0)).toLocaleString()}건`],
       ],
       rows: [
-        { label: '개별 입금 상태', value: `완료 ${(operation?.payments.completed ?? 0).toLocaleString()} / 대기 ${(operation?.payments.pending ?? 0).toLocaleString()}`, note: '완료된 입금과 환불 입금은 그대로 보존' },
-        { label: '처리 대상', value: `${Math.max(0, (operation?.reservations.requested ?? 0) + (operation?.reservations.confirmed ?? 0) - (operation?.payments.completed ?? 0)).toLocaleString()}건`, note: '입금 행이 없거나 입금 대기 상태인 활성 신청' },
-        { label: '처리 결과', value: '미입금 → 입금 완료', note: '소속 캠퍼스 회계 순장님 확인 기록도 함께 반영' },
+        { label: '개별 입금 상태', value: `완료 ${(operation?.payments.completed ?? 0).toLocaleString()} / 대기 ${(operation?.payments.pending ?? 0).toLocaleString()}`, note: '모든 활성 신청을 입금 완료 상태로 통일' },
+        { label: '처리 대상', value: `${((operation?.reservations.requested ?? 0) + (operation?.reservations.confirmed ?? 0)).toLocaleString()}건`, note: '요청 또는 확정 상태인 모든 활성 신청' },
+        { label: '처리 결과', value: '전체 활성 신청 → 입금 완료', note: '소속 캠퍼스 회계 순장님 확인 기록도 함께 반영' },
       ],
     },
     {
@@ -959,7 +959,7 @@ const AdminSimulationPage = () => {
                             <Play size={15} />
                             {runningStageIndex === index
                               ? '입금 상태 변경 중...'
-                              : `입금 상태로 만들기 · 미입금 ${unpaidIndividualCount.toLocaleString()}명`}
+                              : `모두 입금 완료로 만들기 · ${activeReservationCount.toLocaleString()}명`}
                           </button>
                           <button
                             type="button"
