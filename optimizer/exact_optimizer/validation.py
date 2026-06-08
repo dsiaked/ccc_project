@@ -108,6 +108,10 @@ def validate_result(data: OptimizationInput, result: AllocationResult) -> list[s
 
     for bus in result.buses:
         assigned = assignments_by_bus.get(bus.bus_id, [])
+        if bus.capacity != data.bus.capacity:
+            errors.append(f"{bus.bus_id}: bus capacity does not match the input.")
+        if bus.price != data.bus.price:
+            errors.append(f"{bus.bus_id}: bus price does not match the input.")
         if len(assigned) == 0:
             errors.append(f"{bus.bus_id}: empty buses are not allowed.")
         if len(assigned) > data.bus.capacity:

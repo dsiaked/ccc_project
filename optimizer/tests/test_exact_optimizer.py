@@ -4,6 +4,7 @@ import itertools
 import random
 import unittest
 from collections import Counter
+from dataclasses import replace
 from math import ceil
 from unittest.mock import patch
 
@@ -411,6 +412,20 @@ class ExactOptimizerTests(unittest.TestCase):
             )
         )
         self.assertEqual(result.status, "FAILED")
+
+    def test_rejects_result_with_mismatched_bus_configuration(self) -> None:
+        data = OptimizationInput(
+            passengers=(passenger("p1", "A", "B"),),
+            bus=BusConfiguration(capacity=3, price=100),
+        )
+        result = optimize(data)
+        mismatched_bus = replace(result.buses[0], capacity=4, price=200)
+        mismatched_result = replace(result, buses=(mismatched_bus,))
+
+        errors = validate_result(data, mismatched_result)
+
+        self.assertIn("bus-001: bus capacity does not match the input.", errors)
+        self.assertIn("bus-001: bus price does not match the input.", errors)
 
     def test_reports_low_occupancy_as_warning(self) -> None:
         result = optimize(

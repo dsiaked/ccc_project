@@ -199,8 +199,32 @@ class WorkerTests(unittest.TestCase):
                 "total_buses": 1,
                 "total_cost": 100,
                 "second_choice_count": 0,
-                "buses": [],
-                "assignments": [],
+                "buses": [
+                    {
+                        "bus_id": "bus-001",
+                        "label": "1호차",
+                        "destination": "A",
+                        "capacity": 3,
+                        "price": 100,
+                        "passenger_ids": ["p1", "p2"],
+                    }
+                ],
+                "assignments": [
+                    {
+                        "reservation_id": "p1",
+                        "bus_id": "bus-001",
+                        "destination": "A",
+                        "preference_rank": 1,
+                        "seat_number": 1,
+                    },
+                    {
+                        "reservation_id": "p2",
+                        "bus_id": "bus-001",
+                        "destination": "A",
+                        "preference_rank": 1,
+                        "seat_number": 2,
+                    },
+                ],
                 "warnings": [],
                 "objectives": [],
             },
@@ -230,6 +254,30 @@ class WorkerTests(unittest.TestCase):
         exit_code = run_job(repository, "job-1", "worker-1")  # type: ignore[arg-type]
 
         self.assertEqual(exit_code, 0)
+        self.assertIn("JOB_OPTIMAL", repository.events)
+        self.assertNotIn("JOB_RESULT_REUSED", repository.events)
+
+    def test_recalculates_when_reusable_result_is_invalid(self) -> None:
+        repository = FakeRepository()
+        repository.reusable_job = {
+            "id": "job-previous",
+            "input_snapshot": repository.job["input_snapshot"],
+            "result": {
+                "status": "OPTIMAL",
+                "total_buses": 1,
+                "total_cost": 100,
+                "second_choice_count": 0,
+                "buses": [],
+                "assignments": [],
+                "warnings": [],
+                "objectives": [],
+            },
+        }
+
+        exit_code = run_job(repository, "job-1", "worker-1")  # type: ignore[arg-type]
+
+        self.assertEqual(exit_code, 0)
+        self.assertIn("JOB_RESULT_REUSE_REJECTED", repository.events)
         self.assertIn("JOB_OPTIMAL", repository.events)
         self.assertNotIn("JOB_RESULT_REUSED", repository.events)
 

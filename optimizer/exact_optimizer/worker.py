@@ -15,6 +15,8 @@ from typing import Any
 
 from .codec import input_from_snapshot, result_from_dict, result_to_dict
 from .model import OptimizationCancelled, optimize
+from .schema import AllocationResult
+from .validation import validate_result
 
 
 class JobCancelled(Exception):
@@ -256,6 +258,22 @@ PHASE_PROGRESS = {
 }
 
 
+def _validated_reusable_result(
+    input_snapshot: dict[str, Any],
+    result_payload: dict[str, Any] | None,
+) -> AllocationResult | None:
+    try:
+        optimization_input = input_from_snapshot(input_snapshot)
+        result = result_from_dict(result_payload)
+    except (KeyError, TypeError, ValueError):
+        return None
+
+    if result is None or validate_result(optimization_input, result):
+        return None
+
+    return result
+
+
 def run_job(
     repository: SupabaseRepository,
     job_id: str,
@@ -285,33 +303,44 @@ def run_job(
         job.get("detailed_settings") or {},
     )
     if reusable_job is not None:
-        completed = repository.update_job(
-            job_id,
-            {
-                "status": "OPTIMAL",
-                "progress": 100,
-                "current_phase": "completed",
-                "elapsed_seconds": 0,
-                "best_known_bus_count": reusable_job.get("best_known_bus_count"),
-                "proven_bus_count": reusable_job.get("proven_bus_count"),
-                "result": reusable_job["result"],
-                "diagnostics": reusable_job.get("diagnostics"),
-                "completed_at": now_iso(),
-            },
-            expected_status="RUNNING",
+        reusable_result = _validated_reusable_result(
+            job["input_snapshot"],
+            reusable_job.get("result"),
         )
-        if completed:
+        if reusable_result is None:
             repository.add_event(
                 job_id,
-                "JOB_RESULT_REUSED",
+                "JOB_RESULT_REUSE_REJECTED",
                 {"source_job_id": reusable_job["id"]},
             )
-            return 0
+        else:
+            completed = repository.update_job(
+                job_id,
+                {
+                    "status": "OPTIMAL",
+                    "progress": 100,
+                    "current_phase": "completed",
+                    "elapsed_seconds": 0,
+                    "best_known_bus_count": reusable_result.total_buses,
+                    "proven_bus_count": reusable_result.total_buses,
+                    "result": reusable_job["result"],
+                    "diagnostics": reusable_job.get("diagnostics"),
+                    "completed_at": now_iso(),
+                },
+                expected_status="RUNNING",
+            )
+            if completed:
+                repository.add_event(
+                    job_id,
+                    "JOB_RESULT_REUSED",
+                    {"source_job_id": reusable_job["id"]},
+                )
+                return 0
 
-        status = repository.get_job_status(job_id)
-        if status in ("CANCEL_REQUESTED", "CANCELLED"):
-            return 0
-        raise RuntimeError(f"Optimization job entered unexpected status: {status}")
+            status = repository.get_job_status(job_id)
+            if status in ("CANCEL_REQUESTED", "CANCELLED"):
+                return 0
+            raise RuntimeError(f"Optimization job entered unexpected status: {status}")
 
     def check_cancellation() -> bool:
         nonlocal last_heartbeat
