@@ -1,23 +1,29 @@
 .pageContainer {
   min-height: 100vh;
+  min-height: 100dvh;
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
   background: #f8fafc;
+  box-shadow: 0 0 24px rgba(15, 23, 42, 0.08);
+  container-type: inline-size;
 }
 
 .main {
-  max-width: 760px;
+  max-width: 480px;
   margin: 0 auto;
-  padding: 48px 20px 80px;
+  padding: 24px 10px calc(52px + env(safe-area-inset-bottom));
 }
 
 .headerContent {
   text-align: center;
-  margin-bottom: 32px;
+  margin-bottom: 16px;
 }
 
 .iconCircle {
-  width: 72px;
-  height: 72px;
-  margin: 0 auto 20px;
+  width: 44px;
+  height: 44px;
+  margin: 0 auto 10px;
   border-radius: 50%;
   background: #2563eb;
   display: flex;
@@ -27,14 +33,14 @@
 
 .title {
   margin: 0;
-  font-size: 32px;
+  font-size: 21px;
   font-weight: 800;
   color: #101828;
 }
 
 .subtitle {
-  margin: 12px 0 0;
-  font-size: 16px;
+  margin: 6px 0 0;
+  font-size: 13px;
   color: #667085;
   line-height: 1.6;
 }
@@ -42,10 +48,10 @@
 .ticketCard,
 .emptyCard {
   background: #ffffff;
-  border-radius: 24px;
-  padding: 32px;
-  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.08);
-  border: 1px solid #e4e7ec;
+  border-radius: 18px;
+  padding: 20px 14px;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.045);
+  border: 1px solid #eef1f5;
 }
 
 .ticketHeader {
@@ -85,9 +91,119 @@
 }
 
 .paymentPendingStatusBox {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
   border-color: #fde68a;
   background: #fffbeb;
   color: #a16207;
+}
+
+.paymentPendingStatusBox svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.paymentPendingStatusBox div {
+  display: grid;
+  gap: 3px;
+}
+
+.paymentPendingStatusBox strong {
+  color: #854d0e;
+  font-size: 15px;
+}
+
+.paymentPendingStatusBox span {
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.closedStatusBox {
+  border-color: #ddd6fe;
+  background: #f5f3ff;
+  color: #6d28d9;
+}
+
+.claimSummary {
+  margin-top: 18px;
+  overflow: hidden;
+  border: 1px solid #bfdbfe;
+  border-radius: 18px;
+  background: linear-gradient(145deg, #eff6ff 0%, #ffffff 62%);
+}
+
+.claimSummaryHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px;
+}
+
+.claimSummaryHeader div {
+  display: grid;
+  gap: 4px;
+}
+
+.claimSummaryHeader span {
+  color: #2563eb;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.claimSummaryHeader h3 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 22px;
+  font-weight: 900;
+}
+
+.pendingBadge {
+  flex-shrink: 0;
+  padding: 6px 9px;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #92400e !important;
+  white-space: nowrap;
+}
+
+.claimSummaryGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  border-top: 1px solid #dbeafe;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.claimSummaryGrid div {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 3px 9px;
+  min-width: 0;
+  padding: 16px 20px;
+}
+
+.claimSummaryGrid div + div {
+  border-top: 1px solid #dbeafe;
+  border-left: 0;
+}
+
+.claimSummaryGrid svg {
+  grid-row: 1 / 3;
+  margin-top: 2px;
+  color: #2563eb;
+}
+
+.claimSummaryGrid span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.claimSummaryGrid strong {
+  color: #0f172a;
+  font-size: 15px;
+  overflow-wrap: anywhere;
 }
 
 .divider {
@@ -200,24 +316,27 @@
 
 .paymentDetails {
   display: grid;
-  gap: 4px;
+  gap: 8px;
+}
+
+.paymentDetails div {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  gap: 10px;
+  align-items: baseline;
+}
+
+.paymentDetails span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .paymentDetails strong {
   color: #0f172a;
-  font-size: 18px;
-}
-
-.paymentDetails span {
-  color: #1d4ed8;
   font-size: 14px;
   font-weight: 800;
-}
-
-.paymentDetails small {
-  color: #64748b;
-  font-size: 13px;
-  font-weight: 700;
+  overflow-wrap: anywhere;
 }
 
 .noticeBox {
@@ -235,8 +354,9 @@
 }
 
 .buttonGroup {
-  display: flex;
-  gap: 12px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
   margin-top: 28px;
 }
 
@@ -246,7 +366,8 @@
   flex: 1;
   border: none;
   border-radius: 14px;
-  padding: 14px 18px;
+  min-height: 48px;
+  padding: 12px 16px;
   font-size: 15px;
   font-weight: 800;
   cursor: pointer;
@@ -274,6 +395,15 @@
 
 .emptyCard {
   text-align: center;
+}
+
+.closedEmptyCard {
+  border-color: #ddd6fe;
+  background: linear-gradient(180deg, #ffffff 0%, #faf8ff 100%);
+}
+
+.closedEmptyCard > svg {
+  color: #7c3aed;
 }
 
 .emptyTitle {
@@ -306,4 +436,72 @@
     flex-direction: column;
   }
 
+  .claimSummaryGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .claimSummaryGrid div + div {
+    border-top: 1px solid #dbeafe;
+    border-left: 0;
+  }
+
+}
+
+@media (max-width: 420px) {
+  .main {
+    padding: 24px 10px calc(52px + env(safe-area-inset-bottom));
+  }
+
+  .headerContent {
+    margin-bottom: 24px;
+  }
+
+  .ticketCard,
+  .emptyCard {
+    padding: 20px 14px;
+    border-radius: 18px;
+  }
+
+  .ticketHeader {
+    gap: 12px;
+  }
+
+  .ticketTitle,
+  .emptyTitle {
+    font-size: 21px;
+  }
+
+  .claimSummaryHeader {
+    display: grid;
+    padding: 16px;
+  }
+
+  .claimSummaryHeader h3 {
+    font-size: 19px;
+  }
+
+  .pendingBadge {
+    width: fit-content;
+  }
+
+  .claimSummaryGrid div {
+    padding: 14px 16px;
+  }
+
+  .infoItem {
+    align-items: flex-start;
+    padding: 14px 12px;
+  }
+
+  .horizontalRow,
+  .preferenceItem {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .paymentDetails div {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
 }

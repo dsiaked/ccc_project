@@ -2,6 +2,10 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AlertCircle, CheckCircle2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import {
+  decodeUrlComponentSafely,
+  normalizeAppRedirect,
+} from '../utils/redirect';
 import styles from './AuthCallbackPage.module.css';
 
 const AuthCallbackPage = () => {
@@ -46,10 +50,7 @@ const AuthCallbackPage = () => {
       }
 
       const savedRedirect = sessionStorage.getItem('ccc_bus_oauth_redirect');
-      const redirectTo =
-        savedRedirect?.startsWith('/') && !savedRedirect.startsWith('//')
-          ? savedRedirect
-          : '/';
+      const redirectTo = normalizeAppRedirect(savedRedirect);
 
       clearOAuthState();
       navigate(redirectTo, { replace: true });
@@ -89,7 +90,7 @@ const AuthCallbackPage = () => {
         <>
           <AlertCircle className={styles.errorIcon} size={56} />
           <h1>{isOAuthCallback ? '카카오 로그인에 실패했습니다.' : '이메일 인증에 실패했습니다.'}</h1>
-          <p>{decodeURIComponent(visibleError)}</p>
+          <p>{decodeUrlComponentSafely(visibleError)}</p>
         </>
       ) : (
         <>

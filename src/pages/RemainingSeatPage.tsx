@@ -19,6 +19,7 @@ import {
   type RemainingSeatOption,
 } from '../lib/remainingSeatService';
 import { supabase } from '../lib/supabase';
+import { formatBusLabel } from '../utils/busLabel';
 
 import styles from './RemainingSeatPage.module.css';
 
@@ -36,6 +37,7 @@ const RemainingSeatPage = () => {
   const [errorMessage, setErrorMessage] = useState('');
   const [depositorName, setDepositorName] = useState('');
   const [hasActiveReservation, setHasActiveReservation] = useState(false);
+  const [isPaymentConfirmOpen, setIsPaymentConfirmOpen] = useState(false);
 
   const loadOptions = async () => {
     setLoading(true);
@@ -96,18 +98,21 @@ const RemainingSeatPage = () => {
     options.find(
       (option) => `${option.allocationId}:${option.busId}` === selectedKey
     ) ?? null;
+  const commonSeatDetails = selectedOption ?? options[0] ?? null;
 
-  const handleClaim = async () => {
+  const handleClaim = () => {
     if (!selectedOption) return;
     if (!depositorName.trim()) {
       setErrorMessage('입금자명을 입력해주세요.');
       return;
     }
 
-    const confirmed = window.confirm(
-      `${selectedOption.destination}행 ${selectedOption.busLabel} 좌석을 임시 확보할까요?\n전체 관리자가 입금을 확인하면 버스표가 확정됩니다.`
-    );
-    if (!confirmed) return;
+    setErrorMessage('');
+    setIsPaymentConfirmOpen(true);
+  };
+
+  const handleConfirmPaid = async () => {
+    if (!selectedOption) return;
 
     setSaving(true);
     setErrorMessage('');
@@ -118,9 +123,11 @@ const RemainingSeatPage = () => {
         selectedOption.busId,
         depositorName
       );
+      setIsPaymentConfirmOpen(false);
       navigate('/ticket');
     } catch (error) {
       console.error('잔여 좌석 신청 실패:', error);
+      setIsPaymentConfirmOpen(false);
       setErrorMessage(getErrorMessage(error));
       await loadOptions();
     } finally {
@@ -148,7 +155,7 @@ const RemainingSeatPage = () => {
           </div>
           <div>
             <span>POST-DEADLINE SEATS</span>
-            <h1>잔여 좌석 선택</h1>
+            <h1>잔여 좌석 신청</h1>
             <p>
               신청 마감 후 남은 좌석을 임시 확보합니다. 서울지구 계좌 입금 후
               전체 관리자가 확인하면 버스표가 확정됩니다.
@@ -205,33 +212,11 @@ const RemainingSeatPage = () => {
                     <div className={styles.optionTop}>
                       <div>
                         <span>{option.destination}행</span>
-                        <strong>{option.busLabel}</strong>
+                        <strong>{formatBusLabel(option.busLabel)}</strong>
                       </div>
                       <b>{option.remainingSeats}석 남음</b>
                     </div>
 
-                    <div className={styles.optionDetails}>
-                      <div>
-                        <Clock3 size={17} />
-                        <span>출발시간</span>
-                        <strong>{option.departureTime}</strong>
-                      </div>
-                      <div>
-                        <MapPin size={17} />
-                        <span>탑승장소</span>
-                        <strong>{option.boardingPlace}</strong>
-                      </div>
-                      <div>
-                        <Banknote size={17} />
-                        <span>입금 금액</span>
-                        <strong>{option.price.toLocaleString()}원</strong>
-                      </div>
-                      <div>
-                        <Banknote size={17} />
-                        <span>서울지구 입금 계좌</span>
-                        <strong>{option.transferAccount || '관리자 확인 필요'}</strong>
-                      </div>
-                    </div>
                   </button>
                 );
               })}
@@ -242,21 +227,50 @@ const RemainingSeatPage = () => {
                 <span>선택한 좌석</span>
                 <strong>
                   {selectedOption
-                    ? `${selectedOption.destination}행 ${selectedOption.busLabel}`
+                    ? `${selectedOption.destination}행 ${formatBusLabel(selectedOption.busLabel)}`
                     : '버스를 선택해주세요'}
                 </strong>
+                {commonSeatDetails && (
+                  <div className={styles.selectedDetails}>
+                    <div>
+                      <Clock3 size={16} />
+                      <span>출발시간</span>
+                      <strong>{commonSeatDetails.departureTime}</strong>
+                    </div>
+                    <div>
+                      <MapPin size={16} />
+                      <span>탑승장소</span>
+                      <strong>{commonSeatDetails.boardingPlace}</strong>
+                    </div>
+                    <div>
+                      <Banknote size={16} />
+                      <span>입금금액</span>
+                      <strong>{commonSeatDetails.price.toLocaleString()}원</strong>
+                    </div>
+                    <div>
+                      <Banknote size={16} />
+                      <span>입금계좌</span>
+                      <strong>
+                        {commonSeatDetails.transferAccount || '관리자 확인 필요'}
+                      </strong>
+                    </div>
+                  </div>
+                )}
                 <label className={styles.depositorField}>
                   <span>입금자명</span>
                   <input
                     value={depositorName}
                     onChange={(event) => setDepositorName(event.target.value)}
-                    placeholder="실제 입금자명 입력"
+                    placeholder="예: 홍길동1234"
                   />
+                  <small>
+                    공백 없이 이름 뒤에 휴대폰 뒷4자리를 입력해주세요.
+                  </small>
                 </label>
               </div>
               <button
                 type="button"
-                onClick={() => void handleClaim()}
+                onClick={handleClaim}
                 disabled={!selectedOption || !depositorName.trim() || saving}
               >
                 <CheckCircle2 size={18} />
@@ -266,6 +280,83 @@ const RemainingSeatPage = () => {
           </>
         )}
       </main>
+
+      {isPaymentConfirmOpen && selectedOption && (
+        <div
+          className={styles.modalBackdrop}
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !saving) {
+              setIsPaymentConfirmOpen(false);
+            }
+          }}
+        >
+          <section
+            className={styles.paymentModal}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="payment-confirm-title"
+            aria-describedby="payment-confirm-description"
+          >
+            <div className={styles.modalIcon}>
+              <Banknote size={26} />
+            </div>
+            <div className={styles.modalHeading}>
+              <span>입금 확인</span>
+              <h2 id="payment-confirm-title">서울지구 계좌로 입금하셨나요?</h2>
+              <p id="payment-confirm-description">
+                입금을 완료한 경우에만 좌석을 임시 확보해주세요. 전체 관리자가
+                입금을 확인하면 버스표가 확정됩니다.
+              </p>
+            </div>
+
+            <dl className={styles.modalDetails}>
+              <div>
+                <dt>선택 좌석</dt>
+                <dd>
+                  {selectedOption.destination}행{' '}
+                  {formatBusLabel(selectedOption.busLabel)}
+                </dd>
+              </div>
+              <div>
+                <dt>입금 금액</dt>
+                <dd>{selectedOption.price.toLocaleString()}원</dd>
+              </div>
+              <div>
+                <dt>입금 계좌</dt>
+                <dd>
+                  {selectedOption.transferAccount || '관리자 확인 필요'}
+                </dd>
+              </div>
+              <div>
+                <dt>입금자명</dt>
+                <dd>{depositorName.trim()}</dd>
+              </div>
+            </dl>
+
+            <div className={styles.modalActions}>
+              <button
+                type="button"
+                className={styles.modalCancelButton}
+                onClick={() => setIsPaymentConfirmOpen(false)}
+                disabled={saving}
+              >
+                아직 입금 전이에요
+              </button>
+              <button
+                type="button"
+                className={styles.modalConfirmButton}
+                onClick={() => void handleConfirmPaid()}
+                disabled={saving}
+                autoFocus
+              >
+                <CheckCircle2 size={18} />
+                {saving ? '좌석 확보 중...' : '입금 완료했어요'}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
     </div>
   );
 };

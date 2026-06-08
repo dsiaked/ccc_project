@@ -4,9 +4,10 @@
   align-items: center;
   justify-content: center;
   min-height: 100vh;
+  min-height: 100dvh;
   max-width: 480px;
   margin: 0 auto;
-  padding: 32px 24px;
+  padding: 24px 16px calc(40px + env(safe-area-inset-bottom));
   background: linear-gradient(to bottom, #f8fafc, #ffffff);
   text-align: center;
 }

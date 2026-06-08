@@ -1,8 +1,16 @@
 import type { FormEvent } from 'react';
 import { useState } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
-import { AlertCircle, ChevronLeft, Eye, EyeOff, LogIn } from 'lucide-react';
+import {
+  AlertCircle,
+  ChevronLeft,
+  Eye,
+  EyeOff,
+  LogIn,
+  ShieldCheck,
+} from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { normalizeAppRedirect } from '../utils/redirect';
 import styles from './LoginPage.module.css';
 
 const validateEmail = (value: string) => /^\S+@\S+\.\S+$/.test(value);
@@ -28,8 +36,7 @@ const LoginPage = () => {
 
   const initialEmail =
     typeof location.state?.email === 'string' ? location.state.email : '';
-  const redirectTo =
-    typeof location.state?.from === 'string' ? location.state.from : '/';
+  const redirectTo = normalizeAppRedirect(location.state?.from);
 
   const [email, setEmail] = useState(initialEmail);
   const [password, setPassword] = useState('');
@@ -215,6 +222,14 @@ const LoginPage = () => {
           <span>아직 회원이 아니신가요?</span>
           <Link to="/signup" className={styles.signupLink}>
             회원가입
+          </Link>
+        </div>
+
+        <div className={styles.adminLoginSection}>
+          <p>캠퍼스 회계 순장님 또는 선탑자로 지정된 계정인가요?</p>
+          <Link to="/admin/login" className={styles.adminLoginLink}>
+            <ShieldCheck size={18} />
+            관리자·선탑자 로그인
           </Link>
         </div>
       </main>

@@ -1,23 +1,30 @@
 .pageContainer {
   min-height: 100vh;
+  min-height: 100dvh;
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
   background: #f8fafc;
+  box-shadow: 0 0 24px rgba(15, 23, 42, 0.08);
+  container-type: inline-size;
 }
 
 .main {
-  max-width: 760px;
+  max-width: 480px;
   margin: 0 auto;
-  padding: 48px 20px 80px;
+  padding: 24px 10px calc(52px + env(safe-area-inset-bottom));
 }
 
 .headerContent {
+  margin-bottom: 16px;
+  padding: 0 6px;
   text-align: center;
-  margin-bottom: 32px;
 }
 
 .iconCircle {
-  width: 72px;
-  height: 72px;
-  margin: 0 auto 20px;
+  width: 44px;
+  height: 44px;
+  margin: 0 auto 10px;
   border-radius: 50%;
   background: #2563eb;
   display: flex;
@@ -27,35 +34,35 @@
 
 .title {
   margin: 0;
-  font-size: 32px;
+  font-size: 21px;
   font-weight: 800;
   color: #101828;
 }
 
 .subtitle {
-  margin: 12px 0 0;
-  font-size: 16px;
+  margin: 6px auto 0;
+  max-width: 320px;
+  font-size: 13px;
   color: #667085;
-  line-height: 1.6;
+  line-height: 1.45;
 }
 
 .formCard {
   background: #ffffff;
-  border-radius: 24px;
-  padding: 32px;
-  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.08);
-  border: 1px solid #e4e7ec;
+  border-radius: 18px;
+  padding: 18px 14px;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.045);
+  border: 1px solid #eef1f5;
 }
 
 .stepper {
   position: sticky;
-  top: 76px;
+  top: 64px;
   z-index: 20;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  margin: -12px -12px 26px;
-  padding: 12px;
+  grid-template-columns: 1fr;
+  margin: -8px -4px 20px;
+  padding: 6px;
   border: 1px solid rgba(228, 231, 236, 0.9);
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.96);
@@ -63,12 +70,16 @@
   backdrop-filter: blur(12px);
 }
 
+.stepItem:not(.stepItemActive) {
+  display: none;
+}
+
 .stepItem {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 48px;
-  padding: 8px 10px;
+  min-height: 44px;
+  padding: 7px 10px;
   border: 1px solid #e4e7ec;
   border-radius: 12px;
   background: #ffffff;
@@ -117,7 +128,7 @@
 
 .form {
   display: grid;
-  gap: 22px;
+  gap: 16px;
 }
 
 .errorSummary,
@@ -497,23 +508,6 @@
   font-weight: 900;
 }
 
-.inlineErrorGroup {
-  display: grid;
-  gap: 4px;
-  padding: 12px 14px;
-  border: 1px solid #fecaca;
-  border-radius: 12px;
-  background: #fef2f2;
-  color: #b42318;
-}
-
-.inlineErrorGroup p {
-  margin: 0;
-  font-size: 13px;
-  font-weight: 800;
-  line-height: 1.45;
-}
-
 .preferenceSummaryDone {
   border-color: #bfdbfe !important;
   background: #eff6ff !important;
@@ -797,13 +791,14 @@
   border-radius: 9px;
   background: #ea580c;
   color: #ffffff;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 900;
 }
 
 .buttonGroup {
-  display: flex;
-  gap: 12px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
 }
 
 .submitButton,
@@ -811,7 +806,8 @@
   flex: 1;
   border: none;
   border-radius: 14px;
-  padding: 15px 18px;
+  min-height: 52px;
+  padding: 12px 16px;
   font-size: 16px;
   font-weight: 800;
   cursor: pointer;
@@ -904,29 +900,32 @@
 
   .stepper {
     top: 72px;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 6px;
+    grid-template-columns: 1fr;
     margin: -12px -12px 24px;
     padding: 8px;
     border-radius: 14px;
   }
 
+  .stepItem:not(.stepItemActive) {
+    display: none;
+  }
+
   .stepItem {
-    justify-content: center;
-    gap: 5px;
-    min-height: 42px;
-    padding: 6px;
-    text-align: center;
+    justify-content: flex-start;
+    gap: 8px;
+    min-height: 44px;
+    padding: 7px 10px;
+    text-align: left;
   }
 
   .stepItem span {
-    width: 22px;
-    height: 22px;
-    font-size: 11px;
+    width: 26px;
+    height: 26px;
+    font-size: 12px;
   }
 
   .stepItem strong {
-    font-size: 11px;
+    font-size: 13px;
   }
 
   .title {
@@ -985,6 +984,57 @@
   .organizationSummary strong {
     text-align: left;
   }
+}
+
+@media (max-width: 420px) {
+  .main {
+    padding: 24px 10px calc(52px + env(safe-area-inset-bottom));
+  }
+
+  .headerContent {
+    margin-bottom: 16px;
+    padding: 0 6px;
+  }
+
+  .iconCircle {
+    width: 44px;
+    height: 44px;
+    margin-bottom: 10px;
+  }
+
+  .title {
+    font-size: 21px;
+  }
+
+  .subtitle {
+    font-size: 13px;
+  }
+
+  .formCard {
+    padding: 18px 14px;
+    border-radius: 18px;
+  }
+
+  .stepper {
+    top: 64px;
+    margin: -8px -4px 20px;
+    padding: 6px;
+  }
+
+  .stepItem {
+    min-height: 44px;
+    padding: 7px 10px;
+  }
+
+  .stepItem strong {
+    font-size: 12px;
+  }
+
+  .recommendationBox,
+  .infoBox {
+    padding: 14px;
+  }
+
 }
 .candidateOpenButton {
   width: 100%;
@@ -1379,6 +1429,74 @@
   text-align: left;
 }
 
+.paymentInfoState {
+  width: 100%;
+  margin: -8px 0 20px;
+  padding: 18px 14px;
+  border-radius: 12px;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.paymentInfoList {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+  margin: -8px 0 20px;
+  padding: 14px;
+  border: 1px solid #d1fae5;
+  border-radius: 14px;
+  background: #f0fdf4;
+  text-align: left;
+}
+
+.paymentInfoList div {
+  display: grid;
+  grid-template-columns: 82px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+
+.paymentInfoList dt {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.paymentInfoList dd {
+  min-width: 0;
+  margin: 0;
+  color: #14532d;
+  font-size: 14px;
+  font-weight: 900;
+  overflow-wrap: anywhere;
+}
+
+.paymentInfoList dd:has(.copyPaymentButton) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.copyPaymentButton {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 32px;
+  padding: 0 9px;
+  border: 1px solid #86efac;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #166534;
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .confirmModalButtons {
   display: flex;
   gap: 12px;
@@ -1418,4 +1536,32 @@
   background: #166534;
   transform: translateY(-1px);
   box-shadow: 0 6px 16px rgba(21, 128, 61, 0.3);
+}
+
+.confirmModalYesBtn:disabled {
+  cursor: not-allowed;
+  background: #cbd5e1;
+  box-shadow: none;
+  transform: none;
+}
+
+@media (max-width: 420px) {
+  .modalOverlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .stationModal {
+    max-height: 92dvh;
+    border-radius: 22px 22px 0 0;
+  }
+
+  .confirmModal {
+    border-radius: 22px 22px 0 0;
+    padding: 26px 18px calc(22px + env(safe-area-inset-bottom));
+  }
+
+  .confirmModalButtons {
+    flex-direction: column-reverse;
+  }
 }

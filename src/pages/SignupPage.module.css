@@ -2,6 +2,7 @@
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  min-height: 100dvh;
   width: 100%;
   max-width: 480px;
   margin: 0 auto;
@@ -42,7 +43,7 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding: 32px 24px 64px;
+  padding: 28px 16px calc(40px + env(safe-area-inset-bottom));
   background: linear-gradient(to bottom, #f9fafb, #ffffff);
 }
 
@@ -51,7 +52,7 @@
   flex-direction: column;
   align-items: center;
   text-align: center;
-  margin-bottom: 32px;
+  margin-bottom: 24px;
 }
 
 .iconCircle {
@@ -82,6 +83,18 @@
   display: flex;
   flex-direction: column;
   gap: 20px;
+}
+
+.draftNotice {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  background: #eff6ff;
+  color: #1e40af;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.5;
 }
 
 .stepper {
@@ -144,6 +157,60 @@
   gap: 8px;
 }
 
+.emailRow {
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+}
+
+.emailRow .input {
+  flex: 1;
+  min-width: 0;
+}
+
+.errorMessage,
+.successMessage,
+.formError,
+.formSuccess {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.errorMessage,
+.formError {
+  color: #b42318;
+}
+
+.successMessage,
+.formSuccess {
+  color: #067647;
+}
+
+.formError,
+.formSuccess {
+  margin-top: 8px;
+}
+
+.campusSignupGuide {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.phoneGuide {
+  margin: 0;
+  color: #475467;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
 .label {
   font-size: 14px;
   font-weight: 600;
@@ -183,6 +250,10 @@
 
 .submitButton:active {
   transform: scale(0.98);
+}
+
+.input[aria-invalid='true'] {
+  border-color: #d92d20;
 }
 
 .buttonGroup {
@@ -271,4 +342,34 @@
 .secondaryButton:disabled {
   cursor: not-allowed;
   opacity: 0.6;
+}
+
+@media (max-width: 420px) {
+  .backButton {
+    width: 44px;
+    height: 44px;
+  }
+
+  .main {
+    padding: 28px 16px calc(40px + env(safe-area-inset-bottom));
+  }
+
+  .logoSection {
+    margin-bottom: 24px;
+  }
+
+  .stepItem {
+    justify-content: center;
+    padding: 7px 6px;
+    text-align: center;
+  }
+
+  .stepItem strong {
+    font-size: 11px;
+    line-height: 1.25;
+  }
+
+  .buttonGroup {
+    grid-template-columns: 1fr;
+  }
 }

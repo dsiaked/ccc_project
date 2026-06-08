@@ -15,20 +15,53 @@ import styles from './SignupPage.module.css';
 
 const validateEmail = (value: string) => /^\S+@\S+\.\S+$/.test(value);
 const validatePhone = (value: string) => /^010-\d{4}-\d{4}$/.test(value);
+const EXTERNAL_DISTRICT_ID = 'external';
+const SIGNUP_DRAFT_STORAGE_KEY = 'ccc-bus-signup-draft';
 
-const getDuplicateCheckErrorMessage = (error: {
-  code?: string;
-  message?: string;
-}) => {
-  if (
-    error.code === 'PGRST202' ||
-    error.message?.includes('email_exists') ||
-    error.message?.includes('schema cache')
-  ) {
-    return '이메일 중복확인 기능이 아직 서버에 설치되지 않았습니다. 관리자에게 문의해주세요.';
+interface SignupDraft {
+  email: string;
+  name: string;
+  phone: string;
+  districtId: string;
+  teamId: string;
+  campusId: string;
+  externalDistrict: string;
+  externalCampus: string;
+  coordinatorName: string;
+  coordinatorPhone: string;
+}
+
+const emptySignupDraft: SignupDraft = {
+  email: '',
+  name: '',
+  phone: '',
+  districtId: '',
+  teamId: '',
+  campusId: '',
+  externalDistrict: '',
+  externalCampus: '',
+  coordinatorName: '',
+  coordinatorPhone: '',
+};
+
+const loadSignupDraft = (): SignupDraft => {
+  try {
+    const savedDraft = window.localStorage.getItem(SIGNUP_DRAFT_STORAGE_KEY);
+
+    if (!savedDraft) return emptySignupDraft;
+
+    return { ...emptySignupDraft, ...JSON.parse(savedDraft) };
+  } catch {
+    return emptySignupDraft;
   }
+};
 
-  return '이메일 중복확인 중 오류가 발생했습니다.';
+const clearSignupDraft = () => {
+  try {
+    window.localStorage.removeItem(SIGNUP_DRAFT_STORAGE_KEY);
+  } catch {
+    // 회원가입 완료 처리는 브라우저 저장소 상태와 관계없이 계속됩니다.
+  }
 };
 
 const formatPhoneNumber = (value: string) => {
@@ -47,29 +80,37 @@ const formatPhoneNumber = (value: string) => {
 
 const SignupPage = () => {
   const navigate = useNavigate();
+  const [initialDraft] = useState(loadSignupDraft);
   const [currentStep, setCurrentStep] = useState(0);
 
-  const [email, setEmail] = useState('');
-  const [emailChecked, setEmailChecked] = useState(false);
-  const [emailAvailable, setEmailAvailable] = useState(false);
-  const [checkingEmail, setCheckingEmail] = useState(false);
+  const [email, setEmail] = useState(initialDraft.email);
   const [emailMessage, setEmailMessage] = useState<string | null>(null);
-  const [emailMessageType, setEmailMessageType] = useState<
-    'success' | 'error' | null
-  >(null);
 
   const [password, setPassword] = useState('');
   const [passwordConfirm, setPasswordConfirm] = useState('');
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
+  const [name, setName] = useState(initialDraft.name);
+  const [phone, setPhone] = useState(initialDraft.phone);
 
   const [districtOptions, setDistrictOptions] = useState<DistrictOption[]>([]);
   const [teamOptions, setTeamOptions] = useState<TeamOption[]>([]);
   const [campusOptions, setCampusOptions] = useState<CampusOption[]>([]);
 
-  const [districtId, setDistrictId] = useState('');
-  const [teamId, setTeamId] = useState('');
-  const [campusId, setCampusId] = useState('');
+  const [districtId, setDistrictId] = useState(initialDraft.districtId);
+  const [teamId, setTeamId] = useState(initialDraft.teamId);
+  const [campusId, setCampusId] = useState(initialDraft.campusId);
+  const [externalDistrict, setExternalDistrict] = useState(
+    initialDraft.externalDistrict
+  );
+  const [externalCampus, setExternalCampus] = useState(
+    initialDraft.externalCampus
+  );
+  const [coordinatorName, setCoordinatorName] = useState(
+    initialDraft.coordinatorName
+  );
+  const [coordinatorPhone, setCoordinatorPhone] = useState(
+    initialDraft.coordinatorPhone
+  );
+  const isExternal = districtId === EXTERNAL_DISTRICT_ID;
 
   const [loadingOptions, setLoadingOptions] = useState(false);
   const [loadingTeams, setLoadingTeams] = useState(false);
@@ -88,9 +129,45 @@ const SignupPage = () => {
   const passwordMatched =
     passwordConfirm.length > 0 && password === passwordConfirm;
 
+  const hasRestoredDraft = Object.values(initialDraft).some(Boolean);
 
+  useEffect(() => {
+    if (signupResult) return;
 
+    const draft: SignupDraft = {
+      email,
+      name,
+      phone,
+      districtId,
+      teamId,
+      campusId,
+      externalDistrict,
+      externalCampus,
+      coordinatorName,
+      coordinatorPhone,
+    };
 
+    try {
+      window.localStorage.setItem(
+        SIGNUP_DRAFT_STORAGE_KEY,
+        JSON.stringify(draft)
+      );
+    } catch {
+      // 회원가입은 브라우저 저장소를 사용할 수 없어도 계속 진행할 수 있습니다.
+    }
+  }, [
+    campusId,
+    coordinatorName,
+    coordinatorPhone,
+    districtId,
+    email,
+    externalCampus,
+    externalDistrict,
+    name,
+    phone,
+    signupResult,
+    teamId,
+  ]);
 
   useEffect(() => {
     const loadDistricts = async () => {
@@ -111,12 +188,15 @@ const SignupPage = () => {
   }, []);
 
   useEffect(() => {
+    let active = true;
+
     const loadTeams = async () => {
-      if (!districtId) {
+      if (!districtId || districtId === EXTERNAL_DISTRICT_ID) {
         setTeamOptions([]);
         setCampusOptions([]);
         setTeamId('');
         setCampusId('');
+        setLoadingTeams(false);
         return;
       }
 
@@ -124,26 +204,34 @@ const SignupPage = () => {
 
       try {
         const teams = await getTeamOptions(districtId);
+        if (!active) return;
+
         setTeamOptions(teams);
-        setTeamId('');
-        setCampusId('');
-        setCampusOptions([]);
       } catch (error) {
+        if (!active) return;
+
         console.error('팀 목록 로드 실패:', error);
         setError('팀 정보를 불러오지 못했습니다.');
       } finally {
-        setLoadingTeams(false);
+        if (active) setLoadingTeams(false);
       }
     };
 
     loadTeams();
+
+    return () => {
+      active = false;
+    };
   }, [districtId]);
 
   useEffect(() => {
+    let active = true;
+
     const loadCampuses = async () => {
       if (!teamId) {
         setCampusOptions([]);
         setCampusId('');
+        setLoadingCampuses(false);
         return;
       }
 
@@ -151,24 +239,28 @@ const SignupPage = () => {
 
       try {
         const campuses = await getCampusOptions(teamId);
+        if (!active) return;
+
         setCampusOptions(campuses);
-        setCampusId('');
       } catch (error) {
+        if (!active) return;
+
         console.error('캠퍼스 목록 로드 실패:', error);
         setError('캠퍼스 정보를 불러오지 못했습니다.');
       } finally {
-        setLoadingCampuses(false);
+        if (active) setLoadingCampuses(false);
       }
     };
 
     loadCampuses();
+
+    return () => {
+      active = false;
+    };
   }, [teamId]);
 
   const resetEmailCheck = () => {
-    setEmailChecked(false);
-    setEmailAvailable(false);
     setEmailMessage(null);
-    setEmailMessageType(null);
   };
 
   const handleNextStep = () => {
@@ -176,12 +268,6 @@ const SignupPage = () => {
 
     if (!validateEmail(email.trim().toLowerCase())) {
       setEmailMessage('유효한 이메일을 입력해주세요.');
-      setEmailMessageType('error');
-      return;
-    }
-
-    if (!emailChecked || !emailAvailable) {
-      setError('이메일 중복확인을 해주세요.');
       return;
     }
 
@@ -198,61 +284,6 @@ const SignupPage = () => {
     setCurrentStep(1);
   };
 
-  const handleCheckEmail = async () => {
-    setError(null);
-    setSuccess(null);
-    setEmailMessage(null);
-    setEmailMessageType(null);
-
-    const normalizedEmail = email.trim().toLowerCase();
-
-    if (!validateEmail(normalizedEmail)) {
-      setEmailMessage('유효한 이메일을 입력해주세요.');
-      setEmailMessageType('error');
-      setEmailChecked(false);
-      setEmailAvailable(false);
-      return;
-    }
-
-    setCheckingEmail(true);
-
-    try {
-      const { data, error } = await supabase.rpc('email_exists', {
-        p_email: normalizedEmail,
-      });
-
-      if (error) {
-        console.error('이메일 중복확인 실패:', error);
-        setEmailMessage(getDuplicateCheckErrorMessage(error));
-        setEmailMessageType('error');
-        setEmailChecked(false);
-        setEmailAvailable(false);
-        return;
-      }
-
-      if (data) {
-        setEmailMessage('이미 사용 중인 이메일입니다.');
-        setEmailMessageType('error');
-        setEmailChecked(true);
-        setEmailAvailable(false);
-        return;
-      }
-
-      setEmailMessage('사용 가능한 이메일입니다.');
-      setEmailMessageType('success');
-      setEmailChecked(true);
-      setEmailAvailable(true);
-    } catch (error) {
-      console.error('이메일 중복확인 예외:', error);
-      setEmailMessage('이메일 중복확인 중 오류가 발생했습니다.');
-      setEmailMessageType('error');
-      setEmailChecked(false);
-      setEmailAvailable(false);
-    } finally {
-      setCheckingEmail(false);
-    }
-  };
-
   const handleSignup = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
@@ -262,12 +293,6 @@ const SignupPage = () => {
 
     if (!validateEmail(normalizedEmail)) {
       setEmailMessage('유효한 이메일을 입력해주세요.');
-      setEmailMessageType('error');
-      return;
-    }
-
-    if (!emailChecked || !emailAvailable) {
-      setError('이메일 중복확인을 해주세요.');
       return;
     }
 
@@ -301,50 +326,62 @@ const SignupPage = () => {
       return;
     }
 
-    if (!teamId) {
+    if (!isExternal && !teamId) {
       setError('팀을 선택해주세요.');
       return;
     }
 
-    if (!campusId) {
+    if (!isExternal && !campusId) {
       setError('캠퍼스를 선택해주세요.');
       return;
     }
 
-    const selectedDistrict = districtOptions.find(
-      (item) => item.id === districtId
-    );
-    const selectedTeam = teamOptions.find((item) => item.id === teamId);
-    const selectedCampus = campusOptions.find((item) => item.id === campusId);
+    if (
+      isExternal &&
+      (!externalDistrict.trim() ||
+        !externalCampus.trim() ||
+        !coordinatorName.trim() ||
+        !coordinatorPhone.trim())
+    ) {
+      setError('기타 지구 소속과 담당 간사 정보를 모두 입력해주세요.');
+      return;
+    }
 
-    if (!selectedDistrict || !selectedTeam || !selectedCampus) {
+    if (isExternal && !validatePhone(coordinatorPhone)) {
+      setError('담당 간사 연락처는 010-1234-5678 형식으로 입력해주세요.');
+      return;
+    }
+
+    const selectedDistrict = isExternal
+      ? null
+      : districtOptions.find((item) => item.id === districtId);
+    const selectedTeam = isExternal
+      ? null
+      : teamOptions.find((item) => item.id === teamId);
+    const selectedCampus = isExternal
+      ? null
+      : campusOptions.find((item) => item.id === campusId);
+
+    if (
+      !isExternal &&
+      (!selectedDistrict ||
+        !selectedTeam ||
+        selectedTeam.district_id !== selectedDistrict.id ||
+        !selectedCampus ||
+        selectedCampus.team_id !== selectedTeam.id)
+    ) {
       setError('지구, 팀, 캠퍼스 선택 정보를 확인해주세요.');
+      return;
+    }
+
+    if (loadingOptions || loadingTeams || loadingCampuses) {
+      setError('소속 정보를 불러오는 중입니다. 잠시 후 다시 시도해주세요.');
       return;
     }
 
     setLoading(true);
 
     try {
-      const { data: existingProfile, error: duplicateCheckError } =
-        await supabase.rpc('email_exists', {
-          p_email: normalizedEmail,
-        });
-
-      if (duplicateCheckError) {
-        console.error('이메일 중복 재확인 실패:', duplicateCheckError);
-        setEmailMessage(getDuplicateCheckErrorMessage(duplicateCheckError));
-        setEmailMessageType('error');
-        return;
-      }
-
-      if (existingProfile) {
-        setEmailMessage('이미 사용 중인 이메일입니다.');
-        setEmailMessageType('error');
-        setEmailChecked(true);
-        setEmailAvailable(false);
-        return;
-      }
-
       const { data, error: signUpError } = await supabase.auth.signUp({
         email: normalizedEmail,
         password,
@@ -353,66 +390,39 @@ const SignupPage = () => {
             name: name.trim(),
             phone: phone.trim(),
 
-            district_id: selectedDistrict.id,
-            district: selectedDistrict.name,
+            district_id: selectedDistrict?.id ?? '',
+            district: isExternal
+              ? externalDistrict.trim()
+              : selectedDistrict?.name,
 
-            team_id: selectedTeam.id,
-            team: selectedTeam.name,
+            team_id: selectedTeam?.id ?? '',
+            team: selectedTeam?.name ?? '',
 
-            campus_id: selectedCampus.id,
-            campus: selectedCampus.name,
+            campus_id: selectedCampus?.id ?? '',
+            campus: isExternal ? externalCampus.trim() : selectedCampus?.name,
+            affiliation_type: isExternal ? 'external' : 'seoul',
+            coordinator_name: isExternal ? coordinatorName.trim() : '',
+            coordinator_phone: isExternal ? coordinatorPhone.trim() : '',
           },
           emailRedirectTo: `${window.location.origin}/auth/callback`,
         },
       });
 
       if (signUpError) {
-        setError(signUpError.message);
+        console.error('회원가입 요청 실패:', signUpError);
+        setError('회원가입을 완료할 수 없습니다. 입력 정보를 확인하고 다시 시도해주세요.');
         return;
       }
 
-      if (data.user && data.session) {
-        const { error: profileError } = await supabase.from('profiles').upsert({
-          id: data.user.id,
-          email: normalizedEmail,
-          name: name.trim(),
-          phone: phone.trim(),
-
-          district_id: selectedDistrict.id,
-          district: selectedDistrict.name,
-
-          team_id: selectedTeam.id,
-          team: selectedTeam.name,
-
-          campus_id: selectedCampus.id,
-          campus: selectedCampus.name,
-
-          updated_at: new Date().toISOString(),
-        });
-
-        if (profileError) {
-          console.error('프로필 저장 실패:', profileError);
-
-          if (profileError.code === '23505') {
-            setEmailMessage('이미 사용 중인 이메일입니다.');
-            setEmailMessageType('error');
-            setEmailChecked(true);
-            setEmailAvailable(false);
-            return;
-          }
-
-          setError('사용자 정보 저장 중 오류가 발생했습니다.');
-          return;
-        }
-      }
-
       if (!data.session) {
+        clearSignupDraft();
         setSignupResult('verification-required');
         return;
       }
 
+      clearSignupDraft();
       setSignupResult('complete');
-} catch (error) {
+    } catch (error) {
       console.error('회원가입 실패:', error);
       setError('회원가입 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
     } finally {
@@ -427,6 +437,7 @@ const SignupPage = () => {
           type="button"
           className={styles.backButton}
           onClick={() => navigate(-1)}
+          aria-label="이전 페이지로 이동"
         >
           <ChevronLeft size={24} color="#101828" />
         </button>
@@ -492,12 +503,19 @@ const SignupPage = () => {
         </div>
 
         <form className={styles.form} onSubmit={handleSignup}>
+          <p className={styles.draftNotice}>
+            {hasRestoredDraft
+              ? '이전에 입력한 회원가입 정보를 불러왔습니다. 비밀번호만 다시 입력해주세요.'
+              : '입력 내용은 자동 저장됩니다. 비밀번호는 저장하지 않습니다.'}
+          </p>
+
           <div className={styles.stepper} aria-label="회원가입 단계">
             <button
               type="button"
               className={`${styles.stepItem} ${
                 currentStep === 0 ? styles.stepItemActive : styles.stepItemDone
               }`}
+              aria-current={currentStep === 0 ? 'step' : undefined}
               onClick={() => {
                 setCurrentStep(0);
                 setError(null);
@@ -511,6 +529,7 @@ const SignupPage = () => {
               className={`${styles.stepItem} ${
                 currentStep === 1 ? styles.stepItemActive : ''
               }`}
+              aria-current={currentStep === 1 ? 'step' : undefined}
               onClick={() => {
                 if (currentStep === 1) return;
                 handleNextStep();
@@ -524,10 +543,11 @@ const SignupPage = () => {
           {currentStep === 0 && (
             <>
           <div className={styles.inputGroup}>
-            <label className={styles.label}>이메일</label>
+            <label className={styles.label} htmlFor="signup-email">이메일</label>
 
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div className={styles.emailRow}>
               <input
+                id="signup-email"
                 type="email"
                 className={styles.input}
                 placeholder="사용할 이메일을 입력하세요"
@@ -538,48 +558,24 @@ const SignupPage = () => {
                   setSuccess(null);
                   resetEmailCheck();
                 }}
+                autoComplete="email"
+                aria-describedby={emailMessage ? 'signup-email-message' : undefined}
+                aria-invalid={Boolean(emailMessage)}
                 required
               />
-
-              <button
-                type="button"
-                onClick={handleCheckEmail}
-                disabled={checkingEmail || !validateEmail(email.trim())}
-                style={{
-                  minWidth: 100,
-                  border: 'none',
-                  borderRadius: 12,
-                  backgroundColor: '#101828',
-                  color: '#ffffff',
-                  fontWeight: 700,
-                  cursor:
-                    checkingEmail || !validateEmail(email.trim())
-                      ? 'not-allowed'
-                      : 'pointer',
-                  opacity:
-                    checkingEmail || !validateEmail(email.trim()) ? 0.5 : 1,
-                }}
-              >
-                {checkingEmail ? '확인 중' : '중복확인'}
-              </button>
             </div>
 
             {emailMessage && (
-              <p
-                style={{
-                  color: emailMessageType === 'success' ? 'green' : 'red',
-                  marginTop: 6,
-                  fontSize: 14,
-                }}
-              >
+              <p id="signup-email-message" className={styles.errorMessage} role="alert">
                 {emailMessage}
               </p>
             )}
           </div>
 
           <div className={styles.inputGroup}>
-            <label className={styles.label}>비밀번호</label>
+            <label className={styles.label} htmlFor="signup-password">비밀번호</label>
             <input
+              id="signup-password"
               type="password"
               className={styles.input}
               placeholder="비밀번호를 입력하세요"
@@ -589,19 +585,23 @@ const SignupPage = () => {
                 setError(null);
                 setSuccess(null);
               }}
+              autoComplete="new-password"
+              aria-describedby={password.length > 0 && password.length < 6 ? 'signup-password-message' : undefined}
+              aria-invalid={password.length > 0 && password.length < 6}
               required
             />
 
             {password.length > 0 && password.length < 6 && (
-              <p style={{ color: 'red', marginTop: 6, fontSize: 14 }}>
+              <p id="signup-password-message" className={styles.errorMessage}>
                 비밀번호는 최소 6자 이상이어야 합니다.
               </p>
             )}
           </div>
 
           <div className={styles.inputGroup}>
-            <label className={styles.label}>비밀번호 확인</label>
+            <label className={styles.label} htmlFor="signup-password-confirm">비밀번호 확인</label>
             <input
+              id="signup-password-confirm"
               type="password"
               className={styles.input}
               placeholder="비밀번호를 다시 입력하세요"
@@ -611,17 +611,20 @@ const SignupPage = () => {
                 setError(null);
                 setSuccess(null);
               }}
+              autoComplete="new-password"
+              aria-describedby={passwordConfirm.length > 0 ? 'signup-password-confirm-message' : undefined}
+              aria-invalid={passwordMismatch}
               required
             />
 
             {passwordMismatch && (
-              <p style={{ color: 'red', marginTop: 6, fontSize: 14 }}>
+              <p id="signup-password-confirm-message" className={styles.errorMessage}>
                 비밀번호가 일치하지 않습니다.
               </p>
             )}
 
             {passwordMatched && (
-              <p style={{ color: 'green', marginTop: 6, fontSize: 14 }}>
+              <p id="signup-password-confirm-message" className={styles.successMessage}>
                 비밀번호가 일치합니다.
               </p>
             )}
@@ -632,8 +635,9 @@ const SignupPage = () => {
           {currentStep === 1 && (
             <>
           <div className={styles.inputGroup}>
-            <label className={styles.label}>이름</label>
+            <label className={styles.label} htmlFor="signup-name">이름</label>
             <input
+              id="signup-name"
               type="text"
               className={styles.input}
               placeholder="이름을 입력하세요"
@@ -643,13 +647,15 @@ const SignupPage = () => {
                 setError(null);
                 setSuccess(null);
               }}
+              autoComplete="name"
               required
             />
           </div>
 
           <div className={styles.inputGroup}>
-            <label className={styles.label}>연락처</label>
+            <label className={styles.label} htmlFor="signup-phone">연락처</label>
             <input
+              id="signup-phone"
               type="tel"
               name="phone"
               className={styles.input}
@@ -665,14 +671,23 @@ const SignupPage = () => {
               maxLength={13}
               required
             />
+            <p className={styles.phoneGuide}>
+              원활한 배차 소통을 위해 반드시 본인의 정확한 전화번호를
+              입력해주세요.
+            </p>
           </div>
 
           <div className={styles.inputGroup}>
-            <label className={styles.label}>지구</label>
+            <label className={styles.label} htmlFor="signup-district">지구</label>
             <select
+              id="signup-district"
               className={styles.input}
               value={districtId}
               onChange={(e) => {
+                setTeamId('');
+                setCampusId('');
+                setTeamOptions([]);
+                setCampusOptions([]);
                 setDistrictId(e.target.value);
                 setError(null);
                 setSuccess(null);
@@ -688,15 +703,83 @@ const SignupPage = () => {
                   {option.name}
                 </option>
               ))}
+              <option value={EXTERNAL_DISTRICT_ID}>기타 지구</option>
             </select>
           </div>
 
+          {isExternal ? (
+            <>
           <div className={styles.inputGroup}>
-            <label className={styles.label}>팀</label>
+            <label className={styles.label} htmlFor="signup-external-district">소속 지구명</label>
+            <input
+              id="signup-external-district"
+              className={styles.input}
+              value={externalDistrict}
+              onChange={(e) => {
+                setExternalDistrict(e.target.value);
+                setError(null);
+              }}
+              placeholder="예: 부산지구"
+              required
+            />
+          </div>
+          <div className={styles.inputGroup}>
+            <label className={styles.label} htmlFor="signup-external-campus">소속 캠퍼스명</label>
+            <input
+              id="signup-external-campus"
+              className={styles.input}
+              value={externalCampus}
+              onChange={(e) => {
+                setExternalCampus(e.target.value);
+                setError(null);
+              }}
+              placeholder="예: 부산대학교"
+              required
+            />
+          </div>
+          <div className={styles.inputGroup}>
+            <label className={styles.label} htmlFor="signup-coordinator-name">담당 간사 이름</label>
+            <input
+              id="signup-coordinator-name"
+              className={styles.input}
+              value={coordinatorName}
+              onChange={(e) => {
+                setCoordinatorName(e.target.value);
+                setError(null);
+              }}
+              required
+            />
+          </div>
+          <div className={styles.inputGroup}>
+            <label className={styles.label} htmlFor="signup-coordinator-phone">담당 간사 연락처</label>
+            <input
+              id="signup-coordinator-phone"
+              type="tel"
+              className={styles.input}
+              value={coordinatorPhone}
+              onChange={(e) => {
+                setCoordinatorPhone(formatPhoneNumber(e.target.value));
+                setError(null);
+              }}
+              placeholder="010-1234-5678"
+              inputMode="numeric"
+              autoComplete="tel"
+              maxLength={13}
+              required
+            />
+          </div>
+            </>
+          ) : (
+            <>
+          <div className={styles.inputGroup}>
+            <label className={styles.label} htmlFor="signup-team">팀</label>
             <select
+              id="signup-team"
               className={styles.input}
               value={teamId}
               onChange={(e) => {
+                setCampusId('');
+                setCampusOptions([]);
                 setTeamId(e.target.value);
                 setError(null);
                 setSuccess(null);
@@ -720,8 +803,9 @@ const SignupPage = () => {
           </div>
 
           <div className={styles.inputGroup}>
-            <label className={styles.label}>캠퍼스</label>
+            <label className={styles.label} htmlFor="signup-campus">캠퍼스</label>
             <select
+              id="signup-campus"
               className={styles.input}
               value={campusId}
               onChange={(e) => {
@@ -745,14 +829,21 @@ const SignupPage = () => {
                 </option>
               ))}
             </select>
+            <p className={styles.campusSignupGuide}>
+              서울지구 소속이 아니더라도 서울지구에 속한 캠퍼스와 함께 온 경우,
+              함께 온 본인 캠퍼스로 회원가입 후 해당 캠퍼스 회계 순장님께 입금
+              부탁드립니다.
+            </p>
           </div>
             </>
           )}
+            </>
+          )}
 
-          {error && <p style={{ color: 'red', marginTop: 8 }}>{error}</p>}
+          {error && <p className={styles.formError} role="alert">{error}</p>}
 
           {success && (
-            <p style={{ color: 'green', marginTop: 8 }}>{success}</p>
+            <p className={styles.formSuccess} role="status">{success}</p>
           )}
 
           {currentStep === 0 ? (
@@ -779,7 +870,7 @@ const SignupPage = () => {
               <button
                 type="submit"
                 className={styles.submitButton}
-                disabled={loading}
+                disabled={loading || loadingOptions || loadingTeams || loadingCampuses}
               >
                 {loading ? '회원가입 중...' : '회원가입'}
               </button>

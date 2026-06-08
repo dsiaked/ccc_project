@@ -42,7 +42,7 @@ export async function getReservation(): Promise<ReturnBusReservation | null> {
     const { data, error } = await supabase
       .from('reservations')
       .select(
-        'data, status, confirmed_ticket, boarding_confirmed_at, created_at, updated_at'
+        'id, name, phone, district, team, campus, affiliation_type, coordinator_name, coordinator_phone, station_preferences, data, status, confirmed_ticket, boarding_confirmed_at, created_at, updated_at'
       )
       .eq('user_id', session.user.id)
       .maybeSingle();
@@ -51,16 +51,26 @@ export async function getReservation(): Promise<ReturnBusReservation | null> {
       throw error;
     }
 
-    if (data && data.data) {
-      const savedData = data.data as ReturnBusReservation;
+    if (data) {
+      const savedData = (data.data || {}) as Partial<ReturnBusReservation>;
 
       return {
         ...savedData,
+        id: data.id,
+        name: data.name,
+        phone: data.phone,
+        district: data.district,
+        team: data.team,
+        campus: data.campus,
+        affiliationType: data.affiliation_type,
+        coordinatorName: data.coordinator_name ?? undefined,
+        coordinatorPhone: data.coordinator_phone ?? undefined,
+        stationPreferences: data.station_preferences,
         status: data.status,
         confirmedTicket: data.confirmed_ticket ?? undefined,
         boardingConfirmedAt: data.boarding_confirmed_at ?? undefined,
-        requestedAt: savedData.requestedAt || data.created_at || '',
-        updatedAt: savedData.updatedAt || data.updated_at || undefined,
+        requestedAt: data.created_at || savedData.requestedAt || '',
+        updatedAt: data.updated_at || savedData.updatedAt || undefined,
       };
     }
 
@@ -71,11 +81,13 @@ export async function getReservation(): Promise<ReturnBusReservation | null> {
   }
 }
 
-export async function confirmBoarding(): Promise<string> {
-  const { data, error } = await supabase.rpc('confirm_my_boarding');
+export async function submitBoardingCheckInCode(code: string): Promise<string> {
+  const { data, error } = await supabase.rpc('submit_boarding_check_in_code', {
+    p_code: code,
+  });
 
   if (error) throw error;
-  if (!data) throw new Error('탑승 확인 시각을 저장하지 못했습니다.');
+  if (!data) throw new Error('탑승 체크인 시간을 저장하지 못했습니다.');
 
   return data as string;
 }

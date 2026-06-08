@@ -7,7 +7,6 @@ const LoginPage = lazy(() => import('../pages/LoginPage'));
 const SignupPage = lazy(() => import('../pages/SignupPage'));
 const ReservationPage = lazy(() => import('../pages/ReservationPage'));
 const TicketPage = lazy(() => import('../pages/TicketPage'));
-const ConfirmedTicketPage = lazy(() => import('../pages/ConfirmedTicketPage'));
 const RemainingSeatPage = lazy(() => import('../pages/RemainingSeatPage'));
 const AuthCallbackPage = lazy(() => import('../pages/AuthCallbackPage'));
 const ForgotPasswordPage = lazy(() => import('../pages/ForgotPasswordPage'));
@@ -22,7 +21,7 @@ export const publicRoutes = [
   { path: '/reset-password', element: <ResetPasswordPage /> },
   { path: '/reservation', element: <ReservationPage /> },
   { path: '/ticket', element: <TicketPage /> },
-  { path: '/confirmed-ticket', element: <ConfirmedTicketPage /> },
+  { path: '/confirmed-ticket', element: <Navigate to="/ticket" replace /> },
   { path: '/remaining-seats', element: <RemainingSeatPage /> },
   { path: '*', element: <Navigate to="/" replace /> },
 ];

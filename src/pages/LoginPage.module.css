@@ -2,6 +2,7 @@
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  min-height: 100dvh;
   width: 100%;
   max-width: 480px;
   margin: 0 auto;
@@ -42,7 +43,7 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding: 48px 24px;
+  padding: 28px 16px calc(40px + env(safe-area-inset-bottom));
   background: linear-gradient(to bottom, #f9fafb, #ffffff);
 }
 
@@ -51,7 +52,7 @@
   flex-direction: column;
   align-items: center;
   text-align: center;
-  margin-bottom: 32px;
+  margin-bottom: 24px;
 }
 
 .iconCircle {
@@ -81,8 +82,8 @@
 .form {
   display: flex;
   flex-direction: column;
-  gap: 24px;
-  margin-bottom: 32px;
+  gap: 18px;
+  margin-bottom: 24px;
 }
 
 .kakaoButton {
@@ -268,4 +269,73 @@
 
 .signupLink:hover {
   text-decoration: underline;
+}
+
+.adminLoginSection {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-top: 28px;
+  padding-top: 24px;
+  border-top: 1px solid #eaecf0;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  text-align: center;
+}
+
+.adminLoginLink {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  background: #eff6ff;
+  color: var(--color-primary);
+  font-size: 15px;
+  font-weight: 700;
+  text-decoration: none;
+  transition: background-color 0.2s, border-color 0.2s, transform 0.1s;
+}
+
+.adminLoginLink:hover {
+  border-color: #93c5fd;
+  background: #dbeafe;
+}
+
+.adminLoginLink:active {
+  transform: scale(0.98);
+}
+
+.adminLoginLink:focus-visible {
+  outline: 2px solid #93c5fd;
+  outline-offset: 2px;
+}
+
+@media (max-width: 420px) {
+  .backButton {
+    width: 44px;
+    height: 44px;
+  }
+
+  .main {
+    padding: 28px 16px calc(40px + env(safe-area-inset-bottom));
+  }
+
+  .logoSection {
+    margin-bottom: 24px;
+  }
+
+  .form {
+    gap: 18px;
+    margin-bottom: 24px;
+  }
+
+  .adminLoginSection {
+    margin-top: 22px;
+    padding-top: 20px;
+  }
 }

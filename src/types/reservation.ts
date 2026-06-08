@@ -8,6 +8,7 @@ export interface StationPreference {
 }
 
 export interface ConfirmedTicket {
+  busId?: string;
   busNumber: string;
   seatNumber?: string;
   departureTime: string;
@@ -44,6 +45,9 @@ export interface ReturnBusReservation {
   district: string;
   team: string;
   campus: string;
+  affiliationType?: 'seoul' | 'external';
+  coordinatorName?: string;
+  coordinatorPhone?: string;
 
   stationPreferences: StationPreference[];
 

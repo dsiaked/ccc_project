@@ -5,7 +5,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import { Bus, MapPin, Search, Coins } from 'lucide-react';
+import { Bus, MapPin, Search, Coins, Copy, Check } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
 import {
@@ -33,8 +33,15 @@ import {
   getReservationDeadline,
   type ReservationDeadlineSetting,
 } from '../lib/reservationDeadlineService';
+import { getBusTicketPrice } from '../lib/adminService';
+import {
+  getCampusPaymentAccount,
+  type CampusPaymentAccount,
+} from '../lib/campusPaymentAccountService';
+import { getDistrictTransferAccountNumber } from '../lib/districtTransferAccountService';
 
 import { calculateDistanceKm, formatDistance } from '../utils/distance';
+import { loadKakaoMapSdk } from '../utils/kakaoMapSdk';
 
 const createReservationId = () => {
   return `reservation-${Date.now()}`;
@@ -46,94 +53,15 @@ const reservationSteps = [
   '확인',
 ] as const;
 
-const KAKAO_MAP_SDK_ID = 'kakao-map-sdk';
+const EXTERNAL_DISTRICT_ID = 'external';
 
-const normalizeEnvValue = (value: unknown) =>
-  String(value ?? '')
-    .trim()
-    .replace(/^['"]|['"]$/g, '');
+const formatPhoneNumber = (value: string) => {
+  const numbers = value.replace(/\D/g, '').slice(0, 11);
 
-const getKakaoMapAppKey = () =>
-  normalizeEnvValue(import.meta.env.VITE_KAKAO_JAVASCRIPT_KEY) ||
-  normalizeEnvValue(import.meta.env.VITE_KAKAO_MAP_KEY);
-
-const getKakaoMapKeyMessage = () => {
-  const appKey = getKakaoMapAppKey();
-
-  if (!appKey) {
-    return '지도 검색 키가 설정되지 않았습니다. .env에 VITE_KAKAO_JAVASCRIPT_KEY를 설정해주세요.';
-  }
-
-  if (appKey.length !== 32) {
-    return 'Kakao JavaScript 키 형식이 올바르지 않습니다. 카카오 개발자 콘솔의 JavaScript 키 32자만 입력해주세요.';
-  }
-
-  return '';
+  if (numbers.length <= 3) return numbers;
+  if (numbers.length <= 7) return `${numbers.slice(0, 3)}-${numbers.slice(3)}`;
+  return `${numbers.slice(0, 3)}-${numbers.slice(3, 7)}-${numbers.slice(7)}`;
 };
-
-const loadKakaoMapSdk = () =>
-  new Promise<void>((resolve, reject) => {
-    if (window.kakao?.maps) {
-      window.kakao.maps.load(resolve);
-      return;
-    }
-
-    const appKey = getKakaoMapAppKey();
-    const keyMessage = getKakaoMapKeyMessage();
-
-    if (keyMessage) {
-      reject(new Error(keyMessage));
-      return;
-    }
-
-    const existingScript = document.getElementById(
-      KAKAO_MAP_SDK_ID
-    ) as HTMLScriptElement | null;
-    const scriptSrc = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(
-      appKey
-    )}&libraries=services&autoload=false`;
-
-    if (existingScript && existingScript.src !== scriptSrc) {
-      existingScript.remove();
-    }
-
-    const currentScript = document.getElementById(
-      KAKAO_MAP_SDK_ID
-    ) as HTMLScriptElement | null;
-    const script = currentScript ?? document.createElement('script');
-    const timeoutId = window.setTimeout(() => {
-      reject(new Error('Kakao map SDK loading timed out.'));
-    }, 10000);
-
-    script.id = KAKAO_MAP_SDK_ID;
-    script.src = scriptSrc;
-    script.async = true;
-
-    script.onload = () => {
-      window.clearTimeout(timeoutId);
-
-      if (!window.kakao?.maps) {
-        reject(new Error('Kakao map SDK loaded without maps object.'));
-        return;
-      }
-
-      window.kakao.maps.load(resolve);
-    };
-
-    script.onerror = () => {
-      window.clearTimeout(timeoutId);
-      script.remove();
-      reject(
-        new Error(
-          `Kakao 지도 SDK를 불러오지 못했습니다. 카카오 개발자 콘솔에서 현재 접속 주소(${window.location.origin})가 이 JavaScript 키의 Web 플랫폼 도메인에 등록되어 있는지 확인해주세요.`
-        )
-      );
-    };
-
-    if (!currentScript) {
-      document.head.appendChild(script);
-    }
-  });
 
 const ReservationPage = () => {
   const navigate = useNavigate();
@@ -174,6 +102,12 @@ const ReservationPage = () => {
   const [, setCampusSearch] = useState('');
   const [selectedCampusId, setSelectedCampusId] = useState('');
   const [selectedCampus, setSelectedCampus] = useState('');
+  const [affiliationType, setAffiliationType] = useState<'seoul' | 'external'>(
+    'seoul'
+  );
+  const [coordinatorName, setCoordinatorName] = useState('');
+  const [coordinatorPhone, setCoordinatorPhone] = useState('');
+  const isExternal = affiliationType === 'external';
 
   const [firstStationSearch, setFirstStationSearch] = useState('');
   const [secondStationSearch, setSecondStationSearch] = useState('');
@@ -193,6 +127,18 @@ const [isDepositConfirmModalOpen, setIsDepositConfirmModalOpen] =
   useState(false);
 const [showDepositRequiredMessage, setShowDepositRequiredMessage] =
   useState(false);
+const [busTicketPrice, setBusTicketPrice] = useState(0);
+const [campusPaymentAccount, setCampusPaymentAccount] =
+  useState<CampusPaymentAccount | null>(null);
+const [isPaymentInfoLoading, setIsPaymentInfoLoading] = useState(false);
+const [paymentInfoError, setPaymentInfoError] = useState('');
+const [
+  canConfirmWithAnnouncedPaymentInfo,
+  setCanConfirmWithAnnouncedPaymentInfo,
+] = useState(false);
+const [copiedPaymentField, setCopiedPaymentField] = useState<
+  'account' | null
+>(null);
 
 const [stationOptions, setStationOptions] = useState<StationOption[]>([]);
 const [isStationLoading, setIsStationLoading] = useState(true);
@@ -296,6 +242,12 @@ useEffect(() => {
 
           setCampusSearch(reservation.campus || '');
           setSelectedCampus(reservation.campus || '');
+          setAffiliationType(reservation.affiliationType ?? 'seoul');
+          setCoordinatorName(reservation.coordinatorName ?? '');
+          setCoordinatorPhone(reservation.coordinatorPhone ?? '');
+          if (reservation.affiliationType === 'external') {
+            setSelectedDistrictId(EXTERNAL_DISTRICT_ID);
+          }
 
           setFirstStationSearch(
             reservation.stationPreferences?.[0]?.station.name || ''
@@ -312,7 +264,9 @@ useEffect(() => {
 
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
-          .select('name, phone, district, team, campus')
+          .select(
+            'name, phone, district, team, campus, affiliation_type, coordinator_name, coordinator_phone'
+          )
           .eq('id', data.session.user.id)
           .maybeSingle();
 
@@ -339,6 +293,14 @@ useEffect(() => {
         if (profile?.campus) {
           setCampusSearch(profile.campus);
           setSelectedCampus(profile.campus);
+        }
+        setAffiliationType(
+          profile?.affiliation_type === 'external' ? 'external' : 'seoul'
+        );
+        setCoordinatorName(profile?.coordinator_name || '');
+        setCoordinatorPhone(profile?.coordinator_phone || '');
+        if (profile?.affiliation_type === 'external') {
+          setSelectedDistrictId(EXTERNAL_DISTRICT_ID);
         }
       } catch (error) {
         console.error('Failed to load reservation:', error);
@@ -438,6 +400,80 @@ useEffect(() => {
     isMounted = false;
   };
 }, [districtOptions, selectedDistrict, selectedTeam, selectedCampus]);
+
+useEffect(() => {
+  if (!isDepositConfirmModalOpen || (!isExternal && !selectedCampusId)) return;
+
+  let isMounted = true;
+
+  const loadPaymentInfo = async () => {
+    setIsPaymentInfoLoading(true);
+    setPaymentInfoError('');
+    setCanConfirmWithAnnouncedPaymentInfo(false);
+    setBusTicketPrice(0);
+    setCampusPaymentAccount(null);
+
+    try {
+      const [price, account] = await Promise.all([
+        getBusTicketPrice(),
+        isExternal
+          ? getDistrictTransferAccountNumber().then(
+              (accountNumber): CampusPaymentAccount | null =>
+                accountNumber
+                  ? {
+                      campusId: EXTERNAL_DISTRICT_ID,
+                      bankName: '서울지구',
+                      accountNumber,
+                      accountHolder: '서울지구',
+                    }
+                  : null
+            )
+          : getCampusPaymentAccount(selectedCampusId),
+      ]);
+
+      if (!isMounted) return;
+
+      setBusTicketPrice(price);
+      setCampusPaymentAccount(account);
+
+      if (price <= 0 || !account) {
+        setCanConfirmWithAnnouncedPaymentInfo(true);
+        setPaymentInfoError(
+          isExternal
+            ? '서울지구 입금 정보가 아직 등록되지 않았습니다. 카카오톡 등으로 안내받은 계좌에 입금했다면 신청을 계속할 수 있습니다.'
+            : '이 캠퍼스의 버스표 가격 또는 입금 계좌가 아직 등록되지 않았습니다. 카카오톡 등으로 안내받은 계좌에 입금했다면 신청을 계속할 수 있습니다.'
+        );
+      }
+    } catch (error) {
+      if (!isMounted) return;
+
+      console.error('입금 정보 로드 실패:', error);
+      setPaymentInfoError(
+        '입금 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.'
+      );
+    } finally {
+      if (isMounted) setIsPaymentInfoLoading(false);
+    }
+  };
+
+  void loadPaymentInfo();
+
+  return () => {
+    isMounted = false;
+  };
+}, [isDepositConfirmModalOpen, isExternal, selectedCampusId]);
+
+const handleCopyAccountNumber = async () => {
+  if (!campusPaymentAccount?.accountNumber) return;
+
+  try {
+    await navigator.clipboard.writeText(campusPaymentAccount.accountNumber);
+    setCopiedPaymentField('account');
+    window.setTimeout(() => setCopiedPaymentField(null), 1600);
+  } catch (error) {
+    console.error('계좌번호 복사 실패:', error);
+  }
+};
 
 
 useEffect(() => {
@@ -671,6 +707,7 @@ const stationCandidateResults = useMemo(() => {
 }, [stationOptions, stationCandidateSearch]);
 
   const handleDistrictSelect = async (district: DistrictOption) => {
+    setAffiliationType('seoul');
     setSelectedDistrictId(district.id);
     setSelectedDistrict(district.name);
     setDistrictSearch(district.name);
@@ -820,12 +857,22 @@ const handleConfirmCandidateStations = () => {
         errors.district = '지구를 선택해주세요.';
       }
 
-      if (!selectedTeam) {
+      if (!isExternal && !selectedTeam) {
         errors.team = '팀을 선택해주세요.';
       }
 
-      if (!selectedCampus || !selectedCampusId) {
+      if (!selectedCampus || (!isExternal && !selectedCampusId)) {
         errors.campus = '캠퍼스를 선택해주세요.';
+      }
+      if (isExternal && !coordinatorName.trim()) {
+        errors.coordinatorName = '담당 간사 이름을 입력해주세요.';
+      }
+      if (
+        isExternal &&
+        !/^010-\d{4}-\d{4}$/.test(coordinatorPhone.trim())
+      ) {
+        errors.coordinatorPhone =
+          '담당 간사 연락처를 010-1234-5678 형식으로 입력해주세요.';
       }
     }
 
@@ -853,6 +900,49 @@ const handleConfirmCandidateStations = () => {
   ) => {
     setFormErrors(errors);
     setFormStatus({ type: 'error', message });
+
+    const fieldOrder = [
+      'name',
+      'phone',
+      'district',
+      'team',
+      'campus',
+      'coordinatorName',
+      'coordinatorPhone',
+      'firstStation',
+      'secondStation',
+      'stationPreference',
+    ];
+    const firstInvalidField = fieldOrder.find((field) => errors[field]);
+
+    if (firstInvalidField) {
+      window.setTimeout(() => {
+        const field =
+          document.querySelector<HTMLElement>(
+          `[data-validation-field="${firstInvalidField}"]`
+          ) ??
+          (firstInvalidField === 'firstStation' ||
+          firstInvalidField === 'secondStation'
+            ? document.querySelector<HTMLElement>(
+                '[data-validation-field="stationPreference"]'
+              )
+            : null);
+
+        if (!field) return;
+
+        field.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+        const focusTarget = field.matches(
+          'input, button, select, textarea, [tabindex]'
+        )
+          ? field
+          : field.querySelector<HTMLElement>(
+              'input, button, select, textarea, [tabindex]'
+            );
+
+        focusTarget?.focus({ preventScroll: true });
+      }, 0);
+    }
 
     return Object.keys(errors).length === 0;
   };
@@ -895,7 +985,15 @@ const handleConfirmCandidateStations = () => {
 
   const getVisibleStepErrors = () => {
     const fieldsByStep = [
-      ['name', 'phone', 'district', 'team', 'campus'],
+      [
+        'name',
+        'phone',
+        'district',
+        'team',
+        'campus',
+        'coordinatorName',
+        'coordinatorPhone',
+      ],
       ['firstStation', 'secondStation', 'stationPreference'],
       [],
     ];
@@ -1007,8 +1105,11 @@ const handleConfirmCandidateStations = () => {
         phone: phone.trim(),
 
         district: selectedDistrict,
-        team: selectedTeam,
+        team: isExternal ? '' : selectedTeam,
         campus: selectedCampus,
+        affiliationType,
+        coordinatorName: isExternal ? coordinatorName.trim() : undefined,
+        coordinatorPhone: isExternal ? coordinatorPhone.trim() : undefined,
 
         stationPreferences,
 
@@ -1036,6 +1137,19 @@ const handleConfirmCandidateStations = () => {
     }
   };
 
+  const handleExternalDistrictSelect = () => {
+    setAffiliationType('external');
+    setSelectedDistrictId(EXTERNAL_DISTRICT_ID);
+    setSelectedDistrict('');
+    setSelectedTeamId('');
+    setSelectedTeam('');
+    setSelectedCampusId('');
+    setSelectedCampus('');
+    setTeamOptions([]);
+    setCampusOptions([]);
+    clearValidationFeedback();
+  };
+
   const visibleStepErrors = getVisibleStepErrors();
 
   const renderStationSelector = (
@@ -1060,6 +1174,7 @@ const handleConfirmCandidateStations = () => {
           <Search size={18} color="#667085" />
           <input
             type="text"
+            data-validation-field={fieldName}
             className={styles.searchInput}
             placeholder={`예: ${rank === 1 ? '청량리역' : '건대입구역'}`}
             value={value}
@@ -1225,6 +1340,7 @@ const handleConfirmCandidateStations = () => {
                   </label>
                   <input
                     name="name"
+                    data-validation-field="name"
                     type="text"
                     className={styles.input}
                     placeholder="홍길동"
@@ -1256,6 +1372,7 @@ const handleConfirmCandidateStations = () => {
                   </label>
                   <input
                     name="phone"
+                    data-validation-field="phone"
                     type="tel"
                     className={styles.input}
                     placeholder="010-1234-5678"
@@ -1292,7 +1409,10 @@ const handleConfirmCandidateStations = () => {
                   <p>지구, 팀, 캠퍼스를 순서대로 선택해주세요.</p>
                 </div>
 
-                <div className={styles.inputGroup}>
+                <div
+                  className={styles.inputGroup}
+                  data-validation-field="district"
+                >
                   <label className={styles.label}>
                     지구 선택 <span className={styles.required}>*</span>
                   </label>
@@ -1318,6 +1438,17 @@ const handleConfirmCandidateStations = () => {
                     ) : (
                       <p className={styles.emptyResult}>선택 가능한 지구가 없습니다.</p>
                     )}
+                    <button
+                      type="button"
+                      className={`${styles.optionButton} ${
+                        isExternal ? styles.optionButtonActive : ''
+                      }`}
+                      onClick={handleExternalDistrictSelect}
+                      disabled={isReservationLocked}
+                      aria-pressed={isExternal}
+                    >
+                      기타 지구
+                    </button>
                   </div>
                   {formErrors.district && (
                     <p className={styles.fieldError}>{formErrors.district}</p>
@@ -1325,7 +1456,94 @@ const handleConfirmCandidateStations = () => {
 
                 </div>
 
-                <div className={styles.inputGroup}>
+                {isExternal && (
+                  <>
+                    <div className={styles.inputGroup}>
+                      <label className={styles.label}>
+                        소속 지구명 <span className={styles.required}>*</span>
+                      </label>
+                      <input
+                        data-validation-field="campus"
+                        className={styles.input}
+                        value={selectedDistrict}
+                        onChange={(event) => {
+                          setSelectedDistrict(event.target.value);
+                          clearValidationFeedback('district');
+                        }}
+                        disabled={isReservationLocked}
+                      />
+                    </div>
+                    <div className={styles.inputGroup}>
+                      <label className={styles.label}>
+                        소속 캠퍼스명 <span className={styles.required}>*</span>
+                      </label>
+                      <input
+                        data-validation-field="coordinatorName"
+                        className={styles.input}
+                        value={selectedCampus}
+                        onChange={(event) => {
+                          setSelectedCampus(event.target.value);
+                          clearValidationFeedback('campus');
+                        }}
+                        disabled={isReservationLocked}
+                      />
+                      {formErrors.campus && (
+                        <p className={styles.fieldError}>{formErrors.campus}</p>
+                      )}
+                    </div>
+                    <div className={styles.inputGroup}>
+                      <label className={styles.label}>
+                        담당 간사 이름 <span className={styles.required}>*</span>
+                      </label>
+                      <input
+                        data-validation-field="coordinatorPhone"
+                        className={styles.input}
+                        value={coordinatorName}
+                        onChange={(event) => {
+                          setCoordinatorName(event.target.value);
+                          clearValidationFeedback('coordinatorName');
+                        }}
+                        disabled={isReservationLocked}
+                      />
+                      {formErrors.coordinatorName && (
+                        <p className={styles.fieldError}>
+                          {formErrors.coordinatorName}
+                        </p>
+                      )}
+                    </div>
+                    <div className={styles.inputGroup}>
+                      <label className={styles.label}>
+                        담당 간사 연락처 <span className={styles.required}>*</span>
+                      </label>
+                      <input
+                        className={styles.input}
+                        value={coordinatorPhone}
+                        onChange={(event) => {
+                          setCoordinatorPhone(
+                            formatPhoneNumber(event.target.value)
+                          );
+                          clearValidationFeedback('coordinatorPhone');
+                        }}
+                        placeholder="010-1234-5678"
+                        inputMode="numeric"
+                        maxLength={13}
+                        disabled={isReservationLocked}
+                      />
+                      {formErrors.coordinatorPhone && (
+                        <p className={styles.fieldError}>
+                          {formErrors.coordinatorPhone}
+                        </p>
+                      )}
+                    </div>
+                  </>
+                )}
+
+                {!isExternal && (
+                  <>
+                <div
+                  className={styles.inputGroup}
+                  data-validation-field="team"
+                >
                   <label className={styles.label}>
                     팀 선택 <span className={styles.required}>*</span>
                   </label>
@@ -1362,7 +1580,10 @@ const handleConfirmCandidateStations = () => {
 
                 </div>
 
-                <div className={styles.inputGroup}>
+                <div
+                  className={styles.inputGroup}
+                  data-validation-field="campus"
+                >
                   <label className={styles.label}>
                     캠퍼스 선택 <span className={styles.required}>*</span>
                   </label>
@@ -1400,11 +1621,13 @@ const handleConfirmCandidateStations = () => {
                   )}
 
                 </div>
+                  </>
+                )}
 
                 <div className={styles.organizationSummary}>
                   <span>현재 선택</span>
                   <strong>
-                    {[selectedDistrict, selectedTeam, selectedCampus]
+                    {[selectedDistrict, isExternal ? '' : selectedTeam, selectedCampus]
                       .filter(Boolean)
                       .join(' / ') || '소속을 선택해주세요'}
                   </strong>
@@ -1423,7 +1646,11 @@ const handleConfirmCandidateStations = () => {
                   </p>
                 </div>
 
-                <div className={styles.preferenceSummaryGrid}>
+                <div
+                  className={styles.preferenceSummaryGrid}
+                  data-validation-field="stationPreference"
+                  tabIndex={-1}
+                >
                   <div className={firstStation ? styles.preferenceSummaryDone : ''}>
                     <span>1지망</span>
                     <strong>{firstStation?.name || '아직 선택 전'}</strong>
@@ -1433,18 +1660,6 @@ const handleConfirmCandidateStations = () => {
                     <strong>{secondStation?.name || '아직 선택 전'}</strong>
                   </div>
                 </div>
-
-                {(formErrors.firstStation ||
-                  formErrors.secondStation ||
-                  formErrors.stationPreference) && (
-                  <div className={styles.inlineErrorGroup}>
-                    {formErrors.firstStation && <p>{formErrors.firstStation}</p>}
-                    {formErrors.secondStation && <p>{formErrors.secondStation}</p>}
-                    {formErrors.stationPreference && (
-                      <p>{formErrors.stationPreference}</p>
-                    )}
-                  </div>
-                )}
 
                 <div className={styles.stationModeTabs}>
                   <button
@@ -1712,20 +1927,8 @@ const handleConfirmCandidateStations = () => {
                     >
                       버스표 확인하기
                     </button>
-                  ) : reservationDeadline.isClosed ? (
-                    <button
-                      type="button"
-                      className={styles.submitButton}
-                      onClick={() =>
-                        savedReservation
-                          ? undefined
-                          : navigate('/remaining-seats')
-                      }
-                      disabled={Boolean(savedReservation)}
-                    >
-                      {savedReservation ? '신청 마감' : '잔여 좌석 선택하기'}
-                    </button>
-                  ) : currentStep < reservationSteps.length - 1 ? (
+                  ) : reservationDeadline.isClosed ? null : currentStep <
+                    reservationSteps.length - 1 ? (
                     <button
                       type="button"
                       className={styles.submitButton}
@@ -1881,16 +2084,72 @@ const handleConfirmCandidateStations = () => {
     <div
       className={styles.confirmModal}
       onClick={(e) => e.stopPropagation()}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="deposit-confirm-title"
+      aria-describedby="deposit-confirm-description"
     >
       <div className={styles.confirmModalIcon}>
         <Coins size={28} />
       </div>
-      <h3>입금 상태 확인</h3>
-      <p>
-        캠퍼스 회계순장 계좌로
-        <br />
-        <strong>20,000원</strong> 입금 하셨나요?
+      <h3 id="deposit-confirm-title">입금 완료 여부 확인</h3>
+      <p id="deposit-confirm-description">
+        <strong>{isExternal ? '서울지구' : selectedCampus}</strong> 입금 계좌로 입금한 경우에만
+        신청을 계속해주세요.
       </p>
+      {isPaymentInfoLoading ? (
+        <div className={styles.paymentInfoState}>입금 정보를 확인하는 중...</div>
+      ) : paymentInfoError ? (
+        <div className={styles.confirmModalNotice} role="alert">
+          {paymentInfoError}
+        </div>
+      ) : campusPaymentAccount ? (
+        <dl className={styles.paymentInfoList}>
+          <div>
+            <dt>입금 금액</dt>
+            <dd>{busTicketPrice.toLocaleString()}원</dd>
+          </div>
+          <div>
+            <dt>입금 계좌</dt>
+            <dd>
+              <span>
+                {campusPaymentAccount.bankName}{' '}
+                {campusPaymentAccount.accountNumber}
+              </span>
+              <button
+                type="button"
+                className={styles.copyPaymentButton}
+                onClick={() => void handleCopyAccountNumber()}
+                aria-label="계좌번호 복사"
+              >
+                {copiedPaymentField === 'account' ? (
+                  <>
+                    <Check size={14} />
+                    복사됨
+                  </>
+                ) : (
+                  <>
+                    <Copy size={14} />
+                    복사
+                  </>
+                )}
+              </button>
+            </dd>
+          </div>
+          <div>
+            <dt>예금주</dt>
+            <dd>{campusPaymentAccount.accountHolder}</dd>
+          </div>
+          <div>
+            <dt>입금자명</dt>
+            <dd>
+              공백 없이 이름 뒤에 휴대폰 뒷4자리 (예:{' '}
+              {name.trim() || '홍길동'}
+              {phone.replace(/\D/g, '').slice(-4) || '1234'})
+            </dd>
+          </div>
+        </dl>
+      ) : null}
       {showDepositRequiredMessage && (
         <div className={styles.confirmModalNotice} role="status">
           신청을 완료하려면 먼저 입금이 필요합니다. 입금 후 다시 진행해
@@ -1908,6 +2167,13 @@ const handleConfirmCandidateStations = () => {
         <button
           type="button"
           className={styles.confirmModalYesBtn}
+          disabled={
+            isPaymentInfoLoading ||
+            (!canConfirmWithAnnouncedPaymentInfo &&
+              (Boolean(paymentInfoError) ||
+                busTicketPrice <= 0 ||
+                !campusPaymentAccount))
+          }
           onClick={() => {
             setIsDepositConfirmModalOpen(false);
             setShowDepositRequiredMessage(false);

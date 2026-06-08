@@ -5,30 +5,41 @@ import {
   Bus,
   MapPin,
   Clock,
-  Users,
-  Smartphone,
   AlertCircle,
   CircleCheckBig,
+  ClipboardCheck,
 } from 'lucide-react';
 import Header from '../components/Header';
 import type { ReturnBusReservation } from '../types/reservation';
 import styles from './ConfirmedTicketPage.module.css';
 import { supabase } from '../lib/supabase';
-import { confirmBoarding, getReservation } from '../lib/reservationService';
+import {
+  getReservation,
+  submitBoardingCheckInCode,
+} from '../lib/reservationService';
 import { formatKoreanDateTime } from '../utils/dateTime';
+import { formatBusLabel } from '../utils/busLabel';
 
-const ConfirmedTicketPage = () => {
+interface ConfirmedTicketPageProps {
+  initialReservation?: ReturnBusReservation;
+}
+
+const ConfirmedTicketPage = ({
+  initialReservation,
+}: ConfirmedTicketPageProps = {}) => {
   const navigate = useNavigate();
   const [reservation, setReservation] = useState<ReturnBusReservation | null>(
-    null
+    initialReservation ?? null
   );
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!initialReservation);
   const [confirmingBoarding, setConfirmingBoarding] = useState(false);
-  const [showBoardingConfirmation, setShowBoardingConfirmation] =
-    useState(false);
+  const [boardingCode, setBoardingCode] = useState('');
   const [boardingError, setBoardingError] = useState('');
+  const [liveTime, setLiveTime] = useState(() => new Date());
 
   useEffect(() => {
+    if (initialReservation) return;
+
     let isMounted = true;
 
     const loadReservation = async () => {
@@ -65,7 +76,16 @@ const ConfirmedTicketPage = () => {
     return () => {
       isMounted = false;
     };
-  }, [navigate]);
+  }, [initialReservation, navigate]);
+
+  useEffect(() => {
+    const updateLiveTime = () => setLiveTime(new Date());
+    const timer = window.setInterval(updateLiveTime, 1000);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, []);
 
   if (loading) {
     return (
@@ -139,25 +159,47 @@ const ConfirmedTicketPage = () => {
   }
 
   const ticket = reservation.confirmedTicket;
+  const preferredStations = reservation.stationPreferences
+    .filter((preference) => preference.rank === 1 || preference.rank === 2)
+    .sort((a, b) => a.rank - b.rank);
+  const normalizedDropoffStation = ticket.dropoffStation.trim().toLocaleLowerCase();
+  const isOutsidePreferredStations =
+    preferredStations.length > 0 &&
+    !preferredStations.some(
+      (preference) =>
+        preference.station.name.trim().toLocaleLowerCase() ===
+        normalizedDropoffStation
+    );
   const activityDateLabel = reservation.updatedAt ? '최종 수정일' : '신청일';
   const activityDate = reservation.updatedAt || reservation.requestedAt;
   const boardingConfirmedAt = reservation.boardingConfirmedAt;
 
   const handleConfirmBoarding = async () => {
     if (boardingConfirmedAt || confirmingBoarding) return;
+    if (!/^\d{4}$/.test(boardingCode)) {
+      setBoardingError('버스에서 안내받은 4자리 탑승 코드를 입력해주세요.');
+      return;
+    }
 
     setConfirmingBoarding(true);
     setBoardingError('');
 
     try {
-      const confirmedAt = await confirmBoarding();
+      const confirmedAt = await submitBoardingCheckInCode(boardingCode);
       setReservation((current) =>
         current ? { ...current, boardingConfirmedAt: confirmedAt } : current
       );
-      setShowBoardingConfirmation(false);
+      setBoardingCode('');
     } catch (error) {
       console.error('탑승 확인 실패:', error);
-      setBoardingError('탑승 확인을 저장하지 못했습니다. 다시 눌러주세요.');
+      const message = error instanceof Error ? error.message : '';
+      setBoardingError(
+        message.includes('incorrect or expired')
+          ? '탑승 코드가 올바르지 않거나 만료되었습니다. 선탑자에게 코드를 다시 확인해주세요.'
+          : message.includes('already departed')
+            ? '이미 출발 완료된 버스입니다. 선탑자에게 탑승 상태 확인을 요청해주세요.'
+            : '탑승 코드를 확인하지 못했습니다. 잠시 후 다시 시도해주세요.'
+      );
     } finally {
       setConfirmingBoarding(false);
     }
@@ -185,17 +227,29 @@ const ConfirmedTicketPage = () => {
         </div>
 
         {/* 메인 버스표 카드 */}
+        <div className={styles.movingVerificationBar} aria-live="off">
+          <div className={styles.verificationBarContent}>
+            <span className={styles.liveDot} aria-hidden="true" />
+            <strong>LIVE TICKET</strong>
+            <span>실시간 유효 티켓</span>
+            <time dateTime={liveTime.toISOString()}>
+              {liveTime.toLocaleTimeString('ko-KR', {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: false,
+              })}
+            </time>
+          </div>
+        </div>
+
         <div className={styles.ticketContainer}>
           {/* 위쪽 - 호차 정보 */}
           <div className={styles.ticketTop}>
             <div className={styles.busNumberSection}>
               <p className={styles.label}>호차</p>
-              <p className={styles.busNumber}>{ticket.busNumber}</p>
-            </div>
-
-            <div className={styles.seatSection}>
-              <p className={styles.label}>좌석</p>
-              <p className={styles.seatNumber}>{ticket.seatNumber || '현장 안내'}</p>
+              <p className={styles.busNumber}>{formatBusLabel(ticket.busNumber)}</p>
+              <p className={styles.freeSeatingNotice}>해당 호차 내 자유석입니다</p>
             </div>
           </div>
 
@@ -208,7 +262,7 @@ const ConfirmedTicketPage = () => {
               <div className={styles.infoBlock}>
                 <Clock size={20} color="#2563eb" className={styles.infoIcon} />
                 <div className={styles.infoBlockContent}>
-                  <span className={styles.infoLabel}>출발 시간</span>
+                  <span className={styles.infoLabel}>출발 일시</span>
                   <span className={styles.infoValue}>{ticket.departureTime}</span>
                 </div>
               </div>
@@ -238,25 +292,55 @@ const ConfirmedTicketPage = () => {
             </div>
           </div>
 
-          {/* 아래쪽 - 승객 정보 */}
-          <div className={styles.ticketBottom}>
-            <div className={styles.passengerInfo}>
-              <Users size={18} color="#666666" className={styles.infoIcon} />
-              <div className={styles.passengerTextWrapper}>
-                <span className={styles.passengerLabel}>탑승자</span>
-                <span className={styles.passengerName}>{reservation.name}</span>
+          <div className={styles.ticketDetails}>
+            <h3>탑승자 및 신청 정보</h3>
+            <div className={styles.infoGrid}>
+              <div className={styles.infoItem}>
+                <span className={styles.itemLabel}>탑승자</span>
+                <span className={styles.itemValue}>{reservation.name}</span>
               </div>
-            </div>
-
-            <div className={styles.passengerInfo}>
-              <Smartphone size={18} color="#666666" className={styles.infoIcon} />
-              <div className={styles.passengerTextWrapper}>
-                <span className={styles.passengerLabel}>연락처</span>
-                <span className={styles.passengerPhone}>{reservation.phone}</span>
+              <div className={styles.infoItem}>
+                <span className={styles.itemLabel}>연락처</span>
+                <span className={styles.itemValue}>{reservation.phone}</span>
+              </div>
+              <div className={styles.infoItem}>
+                <span className={styles.itemLabel}>소속 및 캠퍼스</span>
+                <span className={styles.itemValue}>
+                  {reservation.district} {reservation.team} · {reservation.campus}
+                </span>
+              </div>
+              <div className={styles.infoItem}>
+                <span className={styles.itemLabel}>{activityDateLabel}</span>
+                <span className={styles.itemValue}>
+                  {formatKoreanDateTime(activityDate)}
+                </span>
               </div>
             </div>
           </div>
         </div>
+
+        {isOutsidePreferredStations && (
+          <section className={styles.outOfPreferenceNotice} role="alert">
+            <AlertCircle size={26} aria-hidden="true" />
+            <div>
+              <strong>신청한 1·2지망 외 행선지로 배정되었습니다.</strong>
+              <p>
+                관리자와 사전에 소통된 배정이 아니라면 반드시 관리자에게
+                문의해주세요.
+              </p>
+              <div className={styles.preferenceSummary}>
+                {preferredStations.map((preference) => (
+                  <span key={preference.rank}>
+                    {preference.rank}지망 {preference.station.name}
+                  </span>
+                ))}
+                <span className={styles.assignedStation}>
+                  확정 행선지 {ticket.dropoffStation}
+                </span>
+              </div>
+            </div>
+          </section>
+        )}
 
         <section
           className={`${styles.boardingCheckCard} ${
@@ -268,12 +352,12 @@ const ConfirmedTicketPage = () => {
             <CircleCheckBig size={32} aria-hidden="true" />
             <div>
               <h2>
-                {boardingConfirmedAt ? '탑승 확인 완료' : '선탑자 탑승 확인'}
+                {boardingConfirmedAt ? '탑승 체크인 완료' : '버스 탑승 체크인'}
               </h2>
               <p>
                 {boardingConfirmedAt
                   ? `${formatKoreanDateTime(boardingConfirmedAt)}에 확인했습니다.`
-                  : '승객이 버스에 타고 있는지 확인한 뒤 선탑자가 눌러주세요.'}
+                  : '버스에 탑승한 뒤 선탑자가 안내하는 4자리 코드를 입력하세요.'}
               </p>
             </div>
           </div>
@@ -285,48 +369,39 @@ const ConfirmedTicketPage = () => {
             >
               탑승 확인됨
             </button>
-          ) : showBoardingConfirmation ? (
-            <div className={styles.boardingConfirmation}>
-              <div className={styles.boardingConfirmationDetails}>
-                <strong>{reservation.name}</strong>
-                <span>
-                  {ticket.busNumber} · {ticket.seatNumber || '현장 안내 좌석'}
-                </span>
-              </div>
-              <p>실제로 버스에 탑승한 승객이 맞나요?</p>
-              <div className={styles.boardingConfirmationActions}>
-                <button
-                  type="button"
-                  className={styles.boardingCancelButton}
-                  disabled={confirmingBoarding}
-                  onClick={() => {
-                    setShowBoardingConfirmation(false);
-                    setBoardingError('');
-                  }}
-                >
-                  취소
-                </button>
-                <button
-                  type="button"
-                  className={styles.boardingFinalConfirmButton}
-                  disabled={confirmingBoarding}
-                  onClick={handleConfirmBoarding}
-                >
-                  {confirmingBoarding ? '저장 중...' : '네, 탑승 확인합니다'}
-                </button>
-              </div>
-            </div>
           ) : (
-            <button
-              type="button"
-              className={styles.boardingConfirmButton}
-              onClick={() => {
-                setShowBoardingConfirmation(true);
-                setBoardingError('');
+            <form
+              className={styles.boardingConfirmation}
+              onSubmit={(event) => {
+                event.preventDefault();
+                void handleConfirmBoarding();
               }}
             >
-              탑승 확인하기
-            </button>
+              <label className={styles.boardingCodeField}>
+                <span>4자리 탑승 코드</span>
+                <input
+                  value={boardingCode}
+                  onChange={(event) => {
+                    setBoardingCode(event.target.value.replace(/\D/g, '').slice(0, 4));
+                    setBoardingError('');
+                  }}
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={4}
+                  placeholder="0000"
+                  aria-label="4자리 탑승 코드"
+                />
+              </label>
+              <div className={styles.boardingConfirmationActions}>
+                <button
+                  type="submit"
+                  className={styles.boardingFinalConfirmButton}
+                  disabled={confirmingBoarding || boardingCode.length !== 4}
+                >
+                  {confirmingBoarding ? '확인 중...' : '탑승 체크인'}
+                </button>
+              </div>
+            </form>
           )}
           {boardingError && (
             <p className={styles.boardingError} role="alert">
@@ -335,37 +410,14 @@ const ConfirmedTicketPage = () => {
           )}
         </section>
 
-        {/* 추가 정보 섹션 */}
-        <div className={styles.additionalInfo}>
-          <h3>신청 정보</h3>
-          <div className={styles.infoGrid}>
-            <div className={styles.infoItem}>
-              <span className={styles.itemLabel}>소속</span>
-              <span className={styles.itemValue}>
-                {reservation.district} {reservation.team}
-              </span>
-            </div>
-            <div className={styles.infoItem}>
-              <span className={styles.itemLabel}>캠퍼스</span>
-              <span className={styles.itemValue}>{reservation.campus}</span>
-            </div>
-            <div className={styles.infoItem}>
-              <span className={styles.itemLabel}>{activityDateLabel}</span>
-              <span className={styles.itemValue}>
-                {formatKoreanDateTime(activityDate)}
-              </span>
-            </div>
-          </div>
-        </div>
-
         {/* 주의사항 */}
         <div className={styles.notice}>
-          <AlertCircle size={20} color="#ea580c" />
+          <ClipboardCheck size={20} aria-hidden="true" />
           <div>
-            <p className={styles.noticeTitle}>출발 전 꼭 확인해주세요!</p>
+            <p className={styles.noticeTitle}>출발 전 체크리스트</p>
             <ul className={styles.noticeList}>
               <li>출발 30분 전에 탑승 장소에 도착해주세요</li>
-              <li>신분증을 꼭 지참해주세요</li>
+              <li>확정된 호차를 확인하고 해당 호차의 빈 좌석에 탑승해주세요</li>
               {ticket.managerNote && (
                 <li>{ticket.managerNote}</li>
               )}
@@ -373,21 +425,6 @@ const ConfirmedTicketPage = () => {
           </div>
         </div>
 
-        {/* 하단 버튼 */}
-        <div className={styles.buttonGroup}>
-          <button
-            className={styles.primaryButton}
-            onClick={() => window.print()}
-          >
-            출력하기
-          </button>
-          <button
-            className={styles.secondaryButton}
-            onClick={() => navigate('/')}
-          >
-            홈으로
-          </button>
-        </div>
       </main>
     </div>
   );
