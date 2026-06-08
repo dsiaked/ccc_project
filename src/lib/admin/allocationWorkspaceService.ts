@@ -4,6 +4,14 @@ import type {
   StationPreference,
 } from '../../types/reservation';
 import { describeAllocationWorkspaceChanges } from './allocationWorkspaceHistory';
+import {
+  getBelowMinimumBusIds as getBelowMinimumBusIdsModel,
+  getFirstChoiceCoverage as getFirstChoiceCoverageModel,
+  getOutOfPreferencePassengerIds as getOutOfPreferencePassengerIdsModel,
+  getWorkspaceTotals as getWorkspaceTotalsModel,
+  isRemainingSeatPassenger as isRemainingSeatPassengerModel,
+  mergeActivePassengersIntoDraft as mergeActivePassengersIntoDraftModel,
+} from './allocationWorkspaceModel';
 
 export type AllocationWorkspaceStatus = 'draft' | 'confirmed' | 'archived';
 
@@ -174,8 +182,7 @@ const ACTIVE_RESERVATION_PAGE_SIZE = 1000;
 export const isRemainingSeatPassenger = (
   passenger: AllocationWorkspacePassenger
 ) =>
-  passenger.source === 'remaining_seat' ||
-  passenger.remainingSeatStatus !== undefined;
+  isRemainingSeatPassengerModel(passenger);
 
 const getPreferences = (row: ReservationRow) => {
   const saved = row.data?.stationPreferences ?? row.station_preferences ?? [];
@@ -482,7 +489,10 @@ export const refreshDraftWorkspacePassengers = async (
   const activePassengers = reservationRows.map((row) =>
     reservationRowToWorkspacePassenger(row, existingById.get(row.id))
   );
-  const refreshed = mergeActivePassengersIntoDraft(workspace, activePassengers);
+  const refreshed = mergeActivePassengersIntoDraftModel(
+    workspace,
+    activePassengers
+  );
   const changed = refreshed !== workspace;
 
   return {
@@ -491,54 +501,18 @@ export const refreshDraftWorkspacePassengers = async (
   };
 };
 
-export const getWorkspaceTotals = (workspace: AllocationWorkspaceData) => ({
-  totalCost: workspace.buses.reduce((sum, bus) => sum + bus.price, 0),
-  totalCapacity: workspace.buses.reduce((sum, bus) => sum + bus.capacity, 0),
-});
+export const getWorkspaceTotals = (workspace: AllocationWorkspaceData) =>
+  getWorkspaceTotalsModel(workspace);
 
-export const getFirstChoiceCoverage = (workspace: AllocationWorkspaceData) => {
-  const regularPassengers = workspace.passengers.filter(
-    (passenger) => !isRemainingSeatPassenger(passenger)
-  );
-  if (regularPassengers.length === 0) return 0;
-  const busById = new Map(workspace.buses.map((bus) => [bus.id, bus]));
-
-  const firstChoiceCount = regularPassengers.filter((passenger) => {
-    const bus = passenger.busId ? busById.get(passenger.busId) : undefined;
-    return bus?.destination === passenger.preferences[0];
-  }).length;
-
-  return (firstChoiceCount / regularPassengers.length) * 100;
-};
+export const getFirstChoiceCoverage = (workspace: AllocationWorkspaceData) =>
+  getFirstChoiceCoverageModel(workspace);
 
 export const getOutOfPreferencePassengerIds = (
   workspace: AllocationWorkspaceData
-) => {
-  const busById = new Map(workspace.buses.map((bus) => [bus.id, bus]));
-  return workspace.passengers
-    .filter((passenger) => {
-      if (isRemainingSeatPassenger(passenger)) return false;
-      const bus = passenger.busId ? busById.get(passenger.busId) : undefined;
-      return Boolean(bus && !passenger.preferences.includes(bus.destination));
-    })
-    .map((passenger) => passenger.reservationId);
-};
+) => getOutOfPreferencePassengerIdsModel(workspace);
 
-export const getBelowMinimumBusIds = (workspace: AllocationWorkspaceData) => {
-  const passengerCountByBus = new Map<string, number>();
-  workspace.passengers.forEach((passenger) => {
-    if (!passenger.busId) return;
-    passengerCountByBus.set(
-      passenger.busId,
-      (passengerCountByBus.get(passenger.busId) ?? 0) + 1
-    );
-  });
-  return workspace.buses
-    .filter(
-      (bus) => (passengerCountByBus.get(bus.id) ?? 0) < bus.minimumPassengers
-    )
-    .map((bus) => bus.id);
-};
+export const getBelowMinimumBusIds = (workspace: AllocationWorkspaceData) =>
+  getBelowMinimumBusIdsModel(workspace);
 
 export const validateWorkspace = (
   workspace: AllocationWorkspaceData
