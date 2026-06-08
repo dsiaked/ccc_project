@@ -123,7 +123,7 @@
   opacity: 0.75;
 }
 
-@media (max-width: 640px) {
+@container (max-width: 640px) {
   .card {
     min-height: 240px;
   }

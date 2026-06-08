@@ -293,7 +293,7 @@
   background: rgba(255, 255, 255, 0.24);
 }
 
-@media (max-width: 640px) {
+@container (max-width: 640px) {
   .section {
     padding: 16px 12px 28px;
   }

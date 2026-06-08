@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import type { ReturnBusReservation } from '../types/reservation';
 import { supabase } from '../lib/supabase';
 import { getReservation } from '../lib/reservationService';
+import { formatBusLabel } from '../utils/busLabel';
 import styles from './FeatureSection.module.css';
 
 const FeatureSection = () => {
@@ -86,7 +87,7 @@ const FeatureSection = () => {
           className={styles.card}
           type="button"
           onClick={handleClick}
-          aria-label={`${statusLabel} 귀가 버스표 확인`}
+          aria-label={`${statusLabel} 귀가 버스 신청 현황 확인`}
         >
           <div className={styles.topArea}>
             <div className={styles.iconContainer}>
@@ -116,8 +117,8 @@ const FeatureSection = () => {
           </div>
 
           <div className={styles.content}>
-            <p className={styles.eyebrow}>RETURN BUS TICKET</p>
-            <h3 className={styles.title}>귀가 버스표</h3>
+            <p className={styles.eyebrow}>귀가 버스 신청</p>
+            <h3 className={styles.title}>귀가 버스 신청 현황</h3>
             <p className={styles.description}>
               {isLoading ? '신청 정보를 불러오는 중...' : statusDescription}
             </p>
@@ -156,17 +157,13 @@ const FeatureSection = () => {
                   <div className={styles.confirmedBox}>
                     <span>확정 탑승 정보</span>
                     <strong>
-                      {[confirmedTicket.dropoffStation, confirmedTicket.busNumber]
+                      {[confirmedTicket.dropoffStation, formatBusLabel(confirmedTicket.busNumber)]
                         .filter(Boolean)
                         .join(' ')}
                     </strong>
                   </div>
 
                   <dl className={styles.confirmedSummaryList}>
-                    <div>
-                      <dt>좌석 번호</dt>
-                      <dd>{confirmedTicket.seatNumber || '현장 안내'}</dd>
-                    </div>
                     <div>
                       <dt>출발시간</dt>
                       <dd>{confirmedTicket.departureTime}</dd>

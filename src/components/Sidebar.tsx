@@ -1,10 +1,21 @@
 import { useEffect, useRef, useState } from 'react';
-import { X, LogIn, Bus, Ticket, LogOut, ShieldCheck } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import {
+  X,
+  LogIn,
+  Bus,
+  Ticket,
+  LogOut,
+  ShieldCheck,
+  Home,
+  UserPlus,
+} from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import {
   getAdminRole,
+  getAdminRoles,
   getGlobalCampusNotices,
+  setActiveAdminRole,
   type AdminRole,
 } from '../lib/adminService';
 import {
@@ -12,6 +23,7 @@ import {
   getUnreadCampusNotices,
 } from '../lib/adminNoticeReadState';
 import { getReservationDeadline } from '../lib/reservationDeadlineService';
+import LogoutModal from './LogoutModal';
 import styles from './Sidebar.module.css';
 
 interface SidebarProps {
@@ -25,13 +37,18 @@ interface Profile {
 }
 
 const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
+  const location = useLocation();
   const navigate = useNavigate();
   const isMountedRef = useRef(false);
   const loadUserRequestIdRef = useRef(0);
+  const sidebarRef = useRef<HTMLElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
 
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [adminRole, setAdminRole] = useState<AdminRole | null>(null);
+  const [adminRoles, setAdminRoles] = useState<AdminRole[]>([]);
   const [campusNoticeCount, setCampusNoticeCount] = useState(0);
   const [isReservationClosed, setIsReservationClosed] = useState(false);
   const [hasConfirmedTicket, setHasConfirmedTicket] = useState<boolean | null>(
@@ -55,6 +72,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
       setIsLoggedIn(false);
       setProfile(null);
       setAdminRole(null);
+      setAdminRoles([]);
       setCampusNoticeCount(0);
       setHasConfirmedTicket(false);
       return;
@@ -62,13 +80,17 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
 
     setIsLoggedIn(true);
     setHasConfirmedTicket(null);
-    const role = await getAdminRole(data.session.user.id);
+    const [role, roles] = await Promise.all([
+      getAdminRole(data.session.user.id),
+      getAdminRoles(data.session.user.id),
+    ]);
 
     if (!isActiveRequest()) return;
 
     setAdminRole(role);
+    setAdminRoles(roles);
 
-    if (role?.role === 'campus_admin') {
+    if (roles.some((item) => item.role === 'campus_admin')) {
       const noticesResult = await getGlobalCampusNotices();
 
       if (!isActiveRequest()) return;
@@ -172,26 +194,69 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
     };
   }, [isOpen]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const previousOverflow = document.body.style.overflow;
+    const sidebarElement = sidebarRef.current;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', handleKeyDown);
+    closeButtonRef.current?.focus();
+
+    return () => {
+      const shouldRestoreFocus = sidebarElement?.contains(document.activeElement);
+
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+
+      if (shouldRestoreFocus) {
+        document
+          .querySelector<HTMLButtonElement>(
+            'button[aria-controls="main-sidebar"]'
+          )
+          ?.focus();
+      }
+    };
+  }, [isOpen, onClose]);
+
   const handleLogout = async () => {
     const { error } = await supabase.auth.signOut();
 
-    if (error) {
-      alert('로그아웃 중 오류가 발생했습니다.');
-      return;
-    }
+    if (error) throw error;
 
+    setIsLogoutModalOpen(false);
     setIsLoggedIn(false);
     setProfile(null);
     setAdminRole(null);
+    setAdminRoles([]);
     setHasConfirmedTicket(false);
     onClose();
     navigate('/login');
   };
 
-  const adminPath =
-    adminRole?.role === 'global_admin' ? '/admin/global' : '/admin/campus';
-  const adminLabel =
-    adminRole?.role === 'global_admin' ? '전체 관리자 페이지' : '캠퍼스 관리자 페이지';
+  const globalAdminRole = adminRoles.find((role) => role.role === 'global_admin');
+  const campusAdminRole =
+    adminRole?.role === 'campus_admin'
+      ? adminRole
+      : adminRoles.find((role) => role.role === 'campus_admin');
+  const boardingManagerRole = adminRoles.find(
+    (role) => role.role === 'boarding_manager'
+  );
+
+  const handleAdminMenuClick = async (role: AdminRole, path: string) => {
+    if (role.id !== adminRole?.id) {
+      await setActiveAdminRole(role.user_id, role.id);
+    }
+
+    handleMenuClick(path);
+  };
+
+  const navItemClassName = (path: string) =>
+    `${styles.navItem} ${location.pathname === path ? styles.activeNavItem : ''}`;
 
   return (
     <>
@@ -202,13 +267,19 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
       />
 
       <aside
+        ref={sidebarRef}
+        id="main-sidebar"
         className={`${styles.sidebar} ${isOpen ? styles.open : ''}`}
         aria-label="주 메뉴"
         aria-hidden={!isOpen}
+        aria-modal="true"
+        inert={!isOpen}
+        role="dialog"
       >
         <div className={styles.header}>
           <h2 className={styles.title}>메뉴</h2>
           <button
+            ref={closeButtonRef}
             type="button"
             className={styles.closeButton}
             onClick={onClose}
@@ -235,7 +306,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
                 <button
                   type="button"
                   className={styles.loginButton}
-                  onClick={handleLogout}
+                  onClick={() => setIsLogoutModalOpen(true)}
                 >
                   <LogOut size={20} className={styles.buttonIcon} />
                   로그아웃
@@ -255,76 +326,161 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
                   <LogIn size={20} className={styles.buttonIcon} />
                   로그인
                 </button>
+                <button
+                  type="button"
+                  className={styles.signupButton}
+                  onClick={() => handleMenuClick('/signup')}
+                >
+                  <UserPlus size={20} className={styles.buttonIcon} />
+                  회원가입
+                </button>
+                <button
+                  type="button"
+                  className={styles.recoveryButton}
+                  onClick={() => handleMenuClick('/forgot-password')}
+                >
+                  비밀번호 찾기
+                </button>
               </div>
             </>
           )}
         </div>
 
-        <nav className={styles.nav}>
-          <ul className={styles.navList}>
-            <li>
-              <button
-                type="button"
-                className={styles.navItem}
-                onClick={() => handleMenuClick('/reservation')}
-              >
-                <Bus size={20} color="#364153" className={styles.navIcon} />
-                버스 신청
-              </button>
-            </li>
-
-            <li>
-              <button
-                type="button"
-                className={styles.navItem}
-                onClick={() => handleMenuClick('/ticket')}
-              >
-                <Ticket size={20} color="#364153" className={styles.navIcon} />
-                버스표
-              </button>
-            </li>
-
-            {isReservationClosed && hasConfirmedTicket === false && (
+        <nav className={styles.nav} aria-label="주요 메뉴">
+          <section className={styles.navSection} aria-labelledby="service-menu">
+            <h3 className={styles.navSectionLabel} id="service-menu">
+              서비스
+            </h3>
+            <ul className={styles.navList}>
               <li>
                 <button
                   type="button"
-                  className={styles.navItem}
-                  onClick={() => handleMenuClick('/remaining-seats')}
+                  className={navItemClassName('/')}
+                  onClick={() => handleMenuClick('/')}
+                  aria-current={
+                    location.pathname === '/' ? 'page' : undefined
+                  }
                 >
-                  <Ticket size={20} color="#15803d" className={styles.navIcon} />
-                  마감 후 잔여좌석
+                  <Home size={20} className={styles.navIcon} />
+                  홈
                 </button>
               </li>
-            )}
-
-            {adminRole && (
               <li>
                 <button
                   type="button"
-                  className={`${styles.navItem} ${styles.adminNavItem}`}
-                  onClick={() => handleMenuClick(adminPath)}
+                  className={navItemClassName('/reservation')}
+                  onClick={() => handleMenuClick('/reservation')}
+                  aria-current={
+                    location.pathname === '/reservation' ? 'page' : undefined
+                  }
                 >
-                  <ShieldCheck
-                    size={20}
-                    color="#1d4ed8"
-                    className={styles.navIcon}
-                  />
-                  <span className={styles.navLabel}>{adminLabel}</span>
-                  {adminRole.role === 'campus_admin' && campusNoticeCount > 0 && (
-                    <span className={styles.navBadge}>
-                      공지 {campusNoticeCount}
-                    </span>
-                  )}
+                  <Bus size={20} className={styles.navIcon} />
+                  버스 신청
                 </button>
               </li>
-            )}
-          </ul>
+              <li>
+                <button
+                  type="button"
+                  className={navItemClassName('/ticket')}
+                  onClick={() => handleMenuClick('/ticket')}
+                  aria-current={
+                    location.pathname === '/ticket' ? 'page' : undefined
+                  }
+                >
+                  <Ticket size={20} className={styles.navIcon} />
+                  신청 내역
+                </button>
+              </li>
+              {isReservationClosed && hasConfirmedTicket === false && (
+                <li>
+                  <button
+                    type="button"
+                    className={navItemClassName('/remaining-seats')}
+                    onClick={() => handleMenuClick('/remaining-seats')}
+                    aria-current={
+                      location.pathname === '/remaining-seats'
+                        ? 'page'
+                        : undefined
+                    }
+                  >
+                    <Ticket size={20} className={styles.navIcon} />
+                    마감 후 잔여좌석
+                  </button>
+                </li>
+              )}
+            </ul>
+          </section>
+
+          {(globalAdminRole || campusAdminRole || boardingManagerRole) && (
+            <section className={styles.navSection} aria-labelledby="admin-menu">
+              <h3 className={styles.navSectionLabel} id="admin-menu">
+                관리자 메뉴
+              </h3>
+              <ul className={styles.navList}>
+                {globalAdminRole && (
+                  <li>
+                    <button
+                      type="button"
+                      className={`${navItemClassName('/admin/dashboard')} ${styles.adminNavItem}`}
+                      onClick={() => handleMenuClick('/admin/dashboard')}
+                    >
+                      <ShieldCheck size={20} className={styles.navIcon} />
+                      <span className={styles.navLabel}>전체 관리자</span>
+                    </button>
+                  </li>
+                )}
+                {!globalAdminRole && campusAdminRole && (
+                  <li>
+                    <button
+                      type="button"
+                      className={`${navItemClassName('/admin/campus-dashboard')} ${styles.adminNavItem}`}
+                      onClick={() =>
+                        void handleAdminMenuClick(campusAdminRole, '/admin/campus-dashboard')
+                      }
+                    >
+                      <ShieldCheck size={20} className={styles.navIcon} />
+                      <span className={styles.navLabel}>캠퍼스 회계 관리</span>
+                      {campusNoticeCount > 0 && (
+                        <span className={styles.navBadge}>
+                          공지 {campusNoticeCount}
+                        </span>
+                      )}
+                    </button>
+                  </li>
+                )}
+                {!globalAdminRole && boardingManagerRole && (
+                  <li>
+                    <button
+                      type="button"
+                      className={`${navItemClassName('/admin/boarding')} ${styles.adminNavItem}`}
+                      onClick={() =>
+                        void handleAdminMenuClick(
+                          boardingManagerRole,
+                          '/admin/boarding'
+                        )
+                      }
+                    >
+                      <ShieldCheck size={20} className={styles.navIcon} />
+                      <span className={styles.navLabel}>탑승 확인 관리</span>
+                    </button>
+                  </li>
+                )}
+              </ul>
+            </section>
+          )}
         </nav>
 
         <div className={styles.footer}>
           <p className={styles.footerText}>문의: info@ccc-bus.org</p>
         </div>
       </aside>
+
+      {isLogoutModalOpen && (
+        <LogoutModal
+          onClose={() => setIsLogoutModalOpen(false)}
+          onConfirm={handleLogout}
+        />
+      )}
     </>
   );
 };

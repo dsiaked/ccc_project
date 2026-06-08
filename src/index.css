@@ -19,11 +19,21 @@
 }
 
 body {
+  min-width: 320px;
+  min-height: 100vh;
+  min-height: 100dvh;
   font-family: var(--font-family);
   background-color: var(--color-bg-white);
   color: var(--color-text-main);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+  text-size-adjust: 100%;
+}
+
+#root {
+  min-height: 100vh;
+  min-height: 100dvh;
 }
 
 a {
@@ -40,4 +50,19 @@ button {
   border: none;
   background: none;
   font-family: inherit;
+  touch-action: manipulation;
+}
+
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+@media (max-width: 640px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
 }

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { ArrowRight, CheckCircle2, Clock3, Ticket } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { getReservationDeadline } from '../lib/reservationDeadlineService';
 import { getReservation } from '../lib/reservationService';
 import type { ReturnBusReservation } from '../types/reservation';
 import styles from './HeroSection.module.css';
@@ -11,6 +12,8 @@ const HeroSection = () => {
   const [reservation, setReservation] = useState<ReturnBusReservation | null>(
     null
   );
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isDeadlineClosed, setIsDeadlineClosed] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -24,8 +27,17 @@ const HeroSection = () => {
 
         if (!isMounted || !session) return;
 
-        const savedReservation = await getReservation();
-        if (isMounted) setReservation(savedReservation);
+        setIsLoggedIn(true);
+
+        const [savedReservation, deadline] = await Promise.all([
+          getReservation(),
+          getReservationDeadline(),
+        ]);
+
+        if (isMounted) {
+          setReservation(savedReservation);
+          setIsDeadlineClosed(deadline.isClosed);
+        }
       } catch (error) {
         console.error('홈 신청 정보 로드 실패:', error);
       } finally {
@@ -41,6 +53,8 @@ const HeroSection = () => {
   }, []);
 
   const isConfirmed = reservation?.status === 'confirmed';
+  const canBookRemainingSeat =
+    isLoggedIn && isDeadlineClosed && !reservation;
   const content = isLoading
     ? {
         label: '2026 CCC 여름수련회',
@@ -68,15 +82,25 @@ const HeroSection = () => {
             icon: Clock3,
             path: '/ticket',
           }
-        : {
-            label: '2026 CCC 여름수련회',
-            title: '귀가 버스를 편하게 신청하세요',
-            description:
-              '희망 하차지를 선택하고 배차 결과를 한곳에서 확인할 수 있어요.',
-            buttonLabel: '버스 신청하기',
-            icon: Ticket,
-            path: '/reservation',
-          };
+        : canBookRemainingSeat
+          ? {
+              label: '신청 마감 이후',
+              title: '남은 버스 좌석을 예매하세요',
+              description:
+                '확정 배차 후 남은 좌석을 확인하고 원하는 버스를 선택할 수 있어요.',
+              buttonLabel: '잔여좌석 예매하기',
+              icon: Ticket,
+              path: '/remaining-seats',
+            }
+          : {
+              label: '2026 CCC 여름수련회',
+              title: '귀가 버스를 편하게 신청하세요',
+              description:
+                '희망 하차지를 선택하고 배차 결과를 한곳에서 확인할 수 있어요.',
+              buttonLabel: '버스 신청하기',
+              icon: Ticket,
+              path: '/reservation',
+            };
   const StatusIcon = content.icon;
 
   return (

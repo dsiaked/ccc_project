@@ -4,7 +4,9 @@
   left: 0;
   width: 100vw;
   height: 100vh;
+  height: 100dvh;
   background-color: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(2px);
   z-index: 1000;
   opacity: 0;
   visibility: hidden;
@@ -22,12 +24,14 @@
   right: -320px;
   width: 320px;
   height: 100vh;
+  height: 100dvh;
   background-color: #ffffff;
   z-index: 1001;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
   transition: right 0.3s ease;
-  box-shadow: -4px 0 15px rgba(0, 0, 0, 0.1);
+  box-shadow: -12px 0 32px rgba(15, 23, 42, 0.16);
 }
 
 .sidebar.open {
@@ -61,6 +65,15 @@
 
 .closeButton:hover {
   background-color: var(--color-bg-gray);
+}
+
+.closeButton:focus-visible,
+.loginButton:focus-visible,
+.signupButton:focus-visible,
+.recoveryButton:focus-visible,
+.navItem:focus-visible {
+  outline: 3px solid rgba(37, 99, 235, 0.3);
+  outline-offset: 2px;
 }
 
 .userSection {
@@ -111,6 +124,20 @@
   transition: background-color 0.2s;
 }
 
+.recoveryButton {
+  align-self: center;
+  padding: 4px 8px;
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.recoveryButton:hover {
+  color: #ffffff;
+}
+
 .loginButton:active {
   transform: scale(0.98);
 }
@@ -118,6 +145,26 @@
 .nav {
   flex: 1;
   padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+.navSection {
+  display: grid;
+  gap: 8px;
+}
+
+.navSectionLabel {
+  padding: 0 10px;
+  color: #667085;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
 }
 
 .navList {
@@ -138,6 +185,11 @@
   font-size: 16px;
   color: #364153;
   transition: background-color 0.2s;
+}
+
+.navIcon {
+  flex: 0 0 auto;
+  color: currentColor;
 }
 
 .navLabel {
@@ -165,8 +217,18 @@
   background-color: #f9fafb;
 }
 
+.activeNavItem {
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-weight: 800;
+  box-shadow: inset 3px 0 #2563eb;
+}
+
+.activeNavItem:hover {
+  background: #dbeafe;
+}
+
 .adminNavItem {
-  margin-top: 8px;
   border: 1px solid #bfdbfe;
   background: #eff6ff;
   color: #1d4ed8;
@@ -178,7 +240,7 @@
 }
 
 .footer {
-  padding: 24px;
+  padding: 24px 24px calc(24px + env(safe-area-inset-bottom));
   border-top: 1px solid rgba(0, 0, 0, 0.1);
   text-align: center;
 }
@@ -186,4 +248,41 @@
 .footerText {
   color: #4a5565;
   font-size: 14px;
+}
+
+.adminNavItem.activeNavItem {
+  border-color: #93c5fd;
+  background: #dbeafe;
+}
+
+@media (max-width: 380px) {
+  .sidebar {
+    right: -100vw;
+    width: min(100vw, 320px);
+  }
+
+  .header,
+  .userSection,
+  .nav {
+    padding-right: 18px;
+    padding-left: 18px;
+  }
+
+  .nav {
+    padding-top: 18px;
+    padding-bottom: 18px;
+  }
+
+  .footer {
+    padding-right: 18px;
+    padding-bottom: calc(18px + env(safe-area-inset-bottom));
+    padding-left: 18px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .backdrop,
+  .sidebar {
+    transition: none;
+  }
 }

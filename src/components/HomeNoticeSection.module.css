@@ -98,7 +98,7 @@
   white-space: pre-wrap;
 }
 
-@media (max-width: 640px) {
+@container (max-width: 640px) {
   .section {
     padding: 0 16px 24px;
   }

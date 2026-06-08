@@ -9,7 +9,7 @@ const steps = [
   },
   {
     title: '입금 확인',
-    description: '캠퍼스 관리자가 신청자별 입금 상태를 확인합니다.',
+    description: '캠퍼스 회계 순장님이 신청자별 입금 상태를 확인합니다.',
     icon: CreditCard,
   },
   {
@@ -29,7 +29,7 @@ const ProcessSection = () => {
     <section className={styles.section}>
       <div className={styles.container}>
         <div className={styles.header}>
-          <p>BUS RESERVATION FLOW</p>
+          <p>버스 예약 절차</p>
           <h2>귀가 버스 이용 순서</h2>
         </div>
 

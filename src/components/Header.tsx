@@ -1,8 +1,14 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
-import { LogIn, LogOut, Menu } from 'lucide-react';
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
+import { LogIn, LogOut, Menu, ShieldCheck } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import {
+  getAdminRoles,
+  setActiveAdminRole,
+  type AdminRole,
+} from '../lib/adminService';
 import { supabase } from '../lib/supabase';
 import styles from './Header.module.css';
+import LogoutModal from './LogoutModal';
 
 const Sidebar = lazy(() => import('./Sidebar'));
 
@@ -10,11 +16,15 @@ const Header = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [hasOpenedSidebar, setHasOpenedSidebar] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
+  const [adminShortcutRole, setAdminShortcutRole] = useState<AdminRole | null>(
+    null
+  );
 
   const location = useLocation();
   const navigate = useNavigate();
   const homePath = location.pathname.startsWith('/admin')
-    ? '/admin/global'
+    ? '/admin/dashboard'
     : '/';
 
   const toggleSidebar = () => {
@@ -24,44 +34,92 @@ const Header = () => {
 
     setIsSidebarOpen((current) => !current);
   };
+  const closeSidebar = useCallback(() => setIsSidebarOpen(false), []);
 
   useEffect(() => {
+    let isMounted = true;
+
+    const updateAuthState = async (
+      session: Awaited<ReturnType<typeof supabase.auth.getSession>>['data']['session']
+    ) => {
+      if (!isMounted) return;
+
+      setIsLoggedIn(!!session);
+
+      if (!session) {
+        setAdminShortcutRole(null);
+        return;
+      }
+
+      const roles = await getAdminRoles(session.user.id);
+
+      if (!isMounted) return;
+
+      setAdminShortcutRole(
+        roles.find((role) => role.role === 'global_admin') ??
+          roles.find((role) => role.role === 'campus_admin') ??
+          roles.find((role) => role.role === 'boarding_manager') ??
+          null
+      );
+    };
+
     const checkLogin = async () => {
       const { data, error } = await supabase.auth.getSession();
 
       if (error) {
         console.error('Failed to get session:', error);
-        setIsLoggedIn(false);
+        if (isMounted) {
+          setIsLoggedIn(false);
+          setAdminShortcutRole(null);
+        }
         return;
       }
 
-      setIsLoggedIn(!!data?.session);
+      await updateAuthState(data.session);
     };
 
-    checkLogin();
+    void checkLogin();
 
     const { data: authListener } = supabase.auth.onAuthStateChange(
       (_event, session) => {
-        setIsLoggedIn(!!session);
+        void updateAuthState(session);
       }
     );
 
     return () => {
+      isMounted = false;
       authListener.subscription.unsubscribe();
     };
   }, []);
 
-  const handleAuthButtonClick = async () => {
+  const handleAdminShortcutClick = async () => {
+    if (!adminShortcutRole) return;
+
+    if (adminShortcutRole.role !== 'global_admin') {
+      await setActiveAdminRole(adminShortcutRole.user_id, adminShortcutRole.id);
+    }
+
+    navigate(
+      adminShortcutRole.role === 'global_admin'
+        ? '/admin/dashboard'
+        : adminShortcutRole.role === 'campus_admin'
+          ? '/admin/campus-dashboard'
+          : '/admin/boarding'
+    );
+  };
+
+  const handleLogout = async () => {
+    const { error } = await supabase.auth.signOut();
+
+    if (error) throw error;
+
+    setIsLogoutModalOpen(false);
+    navigate('/');
+  };
+
+  const handleAuthButtonClick = () => {
     if (isLoggedIn) {
-      const { error } = await supabase.auth.signOut();
-
-      if (error) {
-        alert('로그아웃 중 문제가 발생했습니다.');
-        return;
-      }
-
-      alert('로그아웃되었습니다.');
-      navigate('/');
+      setIsLogoutModalOpen(true);
       return;
     }
 
@@ -69,53 +127,85 @@ const Header = () => {
   };
 
   return (
-    <header className={styles.header}>
-      <button
-        type="button"
-        className={styles.logo}
-        onClick={() => navigate(homePath)}
-        aria-label="홈으로 이동"
-      >
-        CCC 여름수련회 버스
-      </button>
-
-      <div className={styles.rightGroup}>
+    <>
+      <header className={styles.header}>
         <button
           type="button"
-          className={styles.loginButton}
-          aria-label={isLoggedIn ? '로그아웃' : '로그인'}
-          onClick={handleAuthButtonClick}
+          className={styles.logo}
+          onClick={() => navigate(homePath)}
+          aria-label="홈으로 이동"
         >
-          {isLoggedIn ? (
-            <LogOut size={20} color="#1e40af" />
-          ) : (
-            <LogIn size={20} color="#1e40af" />
-          )}
-
-          <span className={styles.loginText}>
-            {isLoggedIn ? '로그아웃' : '로그인'}
-          </span>
+          CCC 여름수련회 버스
         </button>
 
-        <button
-          type="button"
-          className={styles.menuButton}
-          aria-label="메뉴 열기"
-          onClick={toggleSidebar}
-        >
-          <Menu size={24} color="#1e40af" />
-        </button>
-      </div>
+        <div className={styles.rightGroup}>
+          <button
+            type="button"
+            className={styles.loginButton}
+            aria-label={isLoggedIn ? '로그아웃' : '로그인'}
+            onClick={handleAuthButtonClick}
+          >
+            {isLoggedIn ? (
+              <LogOut size={20} color="#1e40af" />
+            ) : (
+              <LogIn size={20} color="#1e40af" />
+            )}
 
-      {hasOpenedSidebar && (
-        <Suspense fallback={null}>
-          <Sidebar
-            isOpen={isSidebarOpen}
-            onClose={() => setIsSidebarOpen(false)}
-          />
-        </Suspense>
+            <span className={styles.loginText}>
+              {isLoggedIn ? '로그아웃' : '로그인'}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            className={styles.menuButton}
+            aria-controls="main-sidebar"
+            aria-label={isSidebarOpen ? '메뉴 닫기' : '메뉴 열기'}
+            aria-expanded={isSidebarOpen}
+            onClick={toggleSidebar}
+          >
+            <Menu size={24} color="#1e40af" />
+          </button>
+        </div>
+
+        {hasOpenedSidebar && (
+          <Suspense fallback={null}>
+            <Sidebar
+              isOpen={isSidebarOpen}
+              onClose={closeSidebar}
+            />
+          </Suspense>
+        )}
+      </header>
+
+      {location.pathname === '/' && adminShortcutRole && (
+        <section className={styles.adminBar} aria-label="관리자 페이지 바로가기">
+          <div className={styles.adminBarCopy}>
+            <span className={styles.adminBarIcon} aria-hidden="true">
+              <ShieldCheck size={18} />
+            </span>
+            <span className={styles.adminBarText}>
+              <strong>관리자 전용</strong>
+              <span>신청 및 버스 운영 현황을 관리할 수 있습니다.</span>
+            </span>
+          </div>
+          <button
+            type="button"
+            className={styles.adminBarButton}
+            onClick={() => void handleAdminShortcutClick()}
+          >
+            관리자 페이지
+          </button>
+        </section>
       )}
-    </header>
+
+      {isLogoutModalOpen && (
+        <LogoutModal
+          onClose={() => setIsLogoutModalOpen(false)}
+          onConfirm={handleLogout}
+        />
+      )}
+    </>
   );
 };
 

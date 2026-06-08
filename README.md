@@ -14,10 +14,18 @@ includes the Seoul organization and station seed sections, so do not rerun
 ### 사용자용
 - **신청하기** (`/reservation`): 귀가 버스 신청
 - **버스표 확인** (`/ticket`): 신청 현황 및 버스표 확인
-- **버스표** (`/confirmed-ticket`): 확정된 버스표 상세 보기
+- **버스표** (`/ticket`): 신청 현황과 확정된 버스표 상세 보기
 
 ### 관리자용
-- **버스표 관리** (`/admin/tickets`): 모든 신청 조회 및 버스표 확정
+- **운영 대시보드** (`/admin/dashboard`): 전체 운영 현황과 빠른 작업
+- **가입·신청 현황** (`/admin/applications`): 조직별 가입 및 신청 현황
+- **개별 사용자 관리** (`/admin/users`): 사용자별 신청, 입금, 권한 관리
+- **문의·공지** (`/admin/communications`): 캠퍼스 문의와 공지 관리
+- **배차 관리** (`/admin/allocations`): 배차 계산, 작업공간, 결과 관리
+- **입금·정산** (`/admin/payments/*`): 잔여 좌석, 캠퍼스 송금, 최종 검토
+- **권한 관리** (`/admin/access/*`): 캠퍼스 관리자와 선탑자 관리
+- **운영 설정** (`/admin/settings/*`): 초기 설정, 참여 목표, 신청 마감
+- **시스템 관리** (`/admin/system/*`): 시뮬레이션과 관리 작업 기록
 
 ## 설정 방법
 

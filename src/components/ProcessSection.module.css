@@ -84,7 +84,7 @@
   line-height: 1.5;
 }
 
-@media (max-width: 640px) {
+@container (max-width: 640px) {
   .section {
     padding: 0 16px 32px;
   }
