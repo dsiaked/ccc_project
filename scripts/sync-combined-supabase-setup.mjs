@@ -55,6 +55,7 @@ const setupFiles = [
   '119_allow_confirmation_transaction_cleanup.sql',
   '120_search_all_users_for_campus_admin.sql',
   '121_fix_campus_payment_account_campus_id_ambiguity.sql',
+  '122_fix_campus_admin_search_rpc_access.sql',
 ];
 
 let combined = readFileSync(combinedPath, 'utf8').replaceAll('\r\n', '\n');

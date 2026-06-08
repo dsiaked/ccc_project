@@ -314,6 +314,10 @@ for (const [setupFile, migrationFile] of [
     '121_fix_campus_payment_account_campus_id_ambiguity.sql',
     '20260610040001_121_fix_campus_payment_account_campus_id_ambiguity.sql',
   ],
+  [
+    '122_fix_campus_admin_search_rpc_access.sql',
+    '20260610050001_122_fix_campus_admin_search_rpc_access.sql',
+  ],
 ]) {
   test(`${setupFile} matches its migration`, () => {
     const setupSql = readFileSync(`sql/setup/${setupFile}`, 'utf8').replaceAll(
@@ -827,6 +831,7 @@ test('combined setup includes the latest campus request workflow', () => {
     'BEGIN sql/setup/119_allow_confirmation_transaction_cleanup.sql',
     'BEGIN sql/setup/120_search_all_users_for_campus_admin.sql',
     'BEGIN sql/setup/121_fix_campus_payment_account_campus_id_ambiguity.sql',
+    'BEGIN sql/setup/122_fix_campus_admin_search_rpc_access.sql',
   ];
   let previousMarkerIndex = -1;
   for (const marker of orderedMarkers) {
