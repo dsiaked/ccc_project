@@ -64,6 +64,13 @@ const stageActions: Record<number, { label: string; path: string } | undefined> 
   7: { label: '잔여 좌석 판매 열기', path: '/admin/payments/remaining-seats' },
 };
 
+const stageReviewActions: Record<number, { label: string; path: string } | undefined> = {
+  3: { label: '신청 현황 확인', path: '/admin/applications' },
+  4: { label: '최종 입금 검토', path: '/admin/payments/final-review' },
+  5: { label: '캠퍼스 송금 확인', path: '/admin/payments/campus-transfers' },
+  8: { label: '탑승 관리 열기', path: '/admin/boarding' },
+};
+
 const stageSummaryLabels: Record<string, string> = {
   project_id: '실행 프로젝트 ID',
   campus_count: '등록 캠퍼스',
@@ -926,6 +933,7 @@ const AdminSimulationPage = () => {
             {simulationStages.map(([title, description, changes], index) => {
               const expanded = expandedStageIndex === index;
               const stageAction = stageActions[index];
+              const stageReviewAction = stageReviewActions[index];
               const stagePreview =
                 previewMode === 'before'
                   ? buildStagePreview(index, preview, stageRuns, referenceConfig)
@@ -989,6 +997,16 @@ const AdminSimulationPage = () => {
                               : `모두 입금 완료로 만들기 · ${activeReservationCount.toLocaleString()}명`}
                           </button>
                         </div>}
+                        {stageReviewAction && (
+                          <button
+                            type="button"
+                            className={styles.reviewButton}
+                            onClick={() => navigate(stageReviewAction.path)}
+                          >
+                            <Database size={15} />
+                            {stageReviewAction.label}
+                          </button>
+                        )}
                         {index === 4 ? (
                           <div className={styles.actionReasons}>
                             {stageDisabledReason && (

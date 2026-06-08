@@ -42,3 +42,16 @@ constant and deploying the function again.
   batches of at most 100 accounts. The server owns the resume offset and
   account count after the first batch, refuses conflicting real campus-admin
   roles, and verifies the final profile and campus-admin-role counts.
+- `reservations`: creates deterministic first- and second-choice reservations
+  while leaving every tenth simulation account without a reservation.
+- `payments`: completes and verifies every active reservation payment. Existing
+  payments are updated and missing payments are created.
+- `transfers`: closes the reservation deadline, creates every campus transfer
+  report, and records headquarters confirmation before allocation planning.
+- `boarding`: requires a confirmed allocation, records every bus departure, and
+  produces deterministic boarded, no-show, and unchecked passenger states with
+  boarding events.
+
+Allocation planning and remaining-seat sales stay on their dedicated admin
+screens because both steps require human review before their mutations are
+confirmed.
