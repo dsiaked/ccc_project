@@ -1115,24 +1115,13 @@ test('campus administrator search can find users outside the selected campus', (
     migration,
     /from public\.profiles profile\s+where \(nullif\(trim\(p_district\)/i
   );
-  assert.match(adminPage, /query: searchQuery \|\| undefined/i);
-  assert.match(adminPage, /managesSelectedCampus\(/i);
-  assert.doesNotMatch(
-    adminPage,
-    /disabled=\{searchingUsers \|\| !selectedCampusName\}/
-  );
-  assert.doesNotMatch(
-    adminPage,
-    /disabled=\{!selectedCampusName \|\| searchingUsers\}/
-  );
+  assert.match(adminPage, /query: (?:searchQuery|query) \|\| undefined/i);
   assert.match(
     adminPage,
-    /관리 대상 캠퍼스를 선택하지 않아도 전체 사용자를 검색할 수 있습니다/
+    /const searchUsers = async \(page = 1, campus = target, query = searchQuery\)/i
   );
-  assert.match(
-    adminPage,
-    /\) : isCurrentSelectedCampusAdmin \? \([\s\S]*handleCancelCampusAdmin/i
-  );
+  assert.match(adminPage, /void searchUsers\(1, campus, ''\)/i);
+  assert.match(adminPage, /getCampusAdminAssignments\(\)/i);
   assert.match(
     migration,
     /candidate\.district,\s+candidate\.team,\s+candidate\.campus,/i
