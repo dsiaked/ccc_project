@@ -32,6 +32,7 @@ interface CoverageRow {
   subscriberCount: number;
   confirmedCount: number;
   participantTarget: number;
+  allocationRate: number | null;
   reservationRate: number | null;
   subscriberRate: number | null;
   reservationGap: number | null;
@@ -44,6 +45,7 @@ interface CoverageRow {
 type CoverageBaseRow = Omit<
   CoverageRow,
   | 'participantTarget'
+  | 'allocationRate'
   | 'reservationRate'
   | 'subscriberRate'
   | 'reservationGap'
@@ -558,6 +560,10 @@ const AdminTicketPage = () => {
           ...row,
           participantTarget,
           reservationGap,
+          allocationRate:
+            row.reservationCount > 0
+              ? (row.confirmedCount / row.reservationCount) * 100
+              : null,
           reservationRate:
             !isIndividualUnit && row.subscriberCount > 0
               ? (row.reservationCount / row.subscriberCount) * 100
@@ -828,6 +834,7 @@ const AdminTicketPage = () => {
             <div>
               <h2>조직별 신청률 및 가입률</h2>
               <p>
+                배차율은 신청 인원 중 배차가 확정된 비율(확정 인원 ÷ 신청 인원)입니다.
                 신청률은 가입 인원 중 버스를 신청한 비율(신청 인원 ÷ 가입 인원)이며,
                 가입률은 예상 참여 인원 중 가입을 완료한 비율(가입 인원 ÷ 참여 인원)입니다.
                 서울지구 캠퍼스와 기타 지구 개인 데이터를 바탕으로 팀과 지구 비율도
@@ -975,7 +982,7 @@ const AdminTicketPage = () => {
           <div
             className={styles.coverageTableWrap}
             role="region"
-            aria-label="조직별 신청률 및 가입률 표"
+            aria-label="조직별 배차율, 신청률 및 가입률 표"
             tabIndex={0}
           >
             <table className={styles.coverageTable}>
@@ -986,6 +993,7 @@ const AdminTicketPage = () => {
                   <th className={styles.peopleHeader}>
                     확정 / 신청 / 가입 / 참여
                   </th>
+                  <th>배차율 (확정/신청)</th>
                   <th>신청률 (신청/가입)</th>
                   <th>가입률 (가입/참여)</th>
                   <th>관리자 / 연락처</th>
@@ -995,7 +1003,7 @@ const AdminTicketPage = () => {
               <tbody>
                 {filteredCoverageRows.length === 0 ? (
                   <tr>
-                    <td className={styles.emptyCoverageCell} colSpan={6}>
+                    <td className={styles.emptyCoverageCell} colSpan={7}>
                       조건에 맞는 신청 현황이 없습니다.
                     </td>
                   </tr>
@@ -1053,6 +1061,29 @@ const AdminTicketPage = () => {
                                 : '-'}
                             </strong>
                           </span>
+                        </td>
+                        <td>
+                          <div className={styles.rateCell}>
+                            <div className={styles.rateBarTrack}>
+                              <div
+                                className={`${styles.rateBarFill} ${
+                                  styles[`rate_${getRateStatus(row.allocationRate)}`]
+                                }`}
+                                style={{
+                                  width: `${
+                                    row.allocationRate === null
+                                      ? 0
+                                      : Math.min(row.allocationRate, 100)
+                                  }%`,
+                                }}
+                              />
+                            </div>
+                            <span>
+                              {row.allocationRate === null
+                                ? '-'
+                                : `${row.allocationRate.toFixed(1)}%`}
+                            </span>
+                          </div>
                         </td>
                         <td>
                           {isIndividualUnit ? (
