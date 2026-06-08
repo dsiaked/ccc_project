@@ -8,7 +8,6 @@ import {
 } from 'react';
 import {
   ArrowLeft,
-  CircleAlert,
   ChevronDown,
   ChevronUp,
   CheckCircle2,
@@ -63,18 +62,6 @@ type ReservationStatusFilter =
   | 'cancelled';
 type TicketStatusFilter = 'all' | 'confirmed' | 'pending' | 'not_applied';
 type AdminRoleFilter = 'all' | 'general' | 'campus_admin' | 'global_admin';
-
-interface CampusIssueDetail {
-  total: number;
-  notApplied: number;
-  unpaid: number;
-  admins: Array<{
-    userId: string;
-    name: string;
-    phone: string;
-    email: string | null;
-  }>;
-}
 
 type ReservationItem = PersonalTicketItem;
 type AdminRoleRow = PersonalTicketAdminRole;
@@ -165,20 +152,7 @@ const AdminPersonalTicketPage = () => {
   const [totalReservations, setTotalReservations] = useState(0);
   const [filteredTotal, setFilteredTotal] = useState(0);
   const [summary, setSummary] = useState<PersonalTicketSummary>(emptySummary);
-  const [campusOptions, setCampusOptions] = useState<
-    Array<{
-      name: string;
-      issueCount: number;
-      notAppliedCount: number;
-      unpaidCount: number;
-      admins: Array<{
-        userId: string;
-        name: string;
-        phone: string;
-        email: string | null;
-      }>;
-    }>
-  >([]);
+  const [campusOptions, setCampusOptions] = useState<Array<{ name: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savingRole, setSavingRole] = useState(false);
@@ -201,7 +175,6 @@ const AdminPersonalTicketPage = () => {
   const [campusFilter, setCampusFilter] = useState(
     () => searchParams.get('campus') || 'all'
   );
-  const issueOnly = searchParams.get('campusIssue') === 'issues_only';
   const [page, setPage] = useState(1);
   const [roleDistricts, setRoleDistricts] = useState<SelectOption[]>([]);
   const [roleTeams, setRoleTeams] = useState<SelectOption[]>([]);
@@ -230,7 +203,6 @@ const AdminPersonalTicketPage = () => {
           status: statusFilter,
           ticket: ticketFilter,
           adminRole: adminRoleFilter,
-          campusIssue: issueOnly ? 'issues_only' : 'all',
           campus: campusFilter,
         }),
         !roleDistrictsLoadedRef.current
@@ -277,7 +249,6 @@ const AdminPersonalTicketPage = () => {
     adminRoleFilter,
     campusFilter,
     deferredSearchKeyword,
-    issueOnly,
     page,
     statusFilter,
     ticketFilter,
@@ -339,33 +310,15 @@ const AdminPersonalTicketPage = () => {
 
   const campuses = campusOptions.map((campus) => campus.name);
 
-  const campusIssueDetails = useMemo(() => {
-    const details = new Map<string, CampusIssueDetail>();
-
-    campusOptions.forEach((campus) => {
-      if (campus.issueCount > 0) {
-        details.set(campus.name, {
-          total: campus.issueCount,
-          notApplied: campus.notAppliedCount,
-          unpaid: campus.unpaidCount,
-          admins: campus.admins,
-        });
-      }
-    });
-
-    return details;
-  }, [campusOptions]);
   const hasActiveFilters =
     Boolean(searchKeyword.trim()) ||
     ticketFilter !== 'all' ||
     statusFilter !== 'all' ||
     adminRoleFilter !== 'all' ||
-    campusFilter !== 'all' ||
-    issueOnly;
+    campusFilter !== 'all';
   const advancedFilterCount = [
     statusFilter !== 'all',
     adminRoleFilter !== 'all',
-    campusFilter !== 'all',
   ].filter(Boolean).length;
 
   const resetFilters = () => {
@@ -402,6 +355,14 @@ const AdminPersonalTicketPage = () => {
   const selectCampus = (campus: string) => {
     setCampusFilter(campus);
     setPage(1);
+
+    const next = new URLSearchParams(searchParams);
+    if (campus === 'all') {
+      next.delete('campus');
+    } else {
+      next.set('campus', campus);
+    }
+    setSearchParams(next, { replace: true });
 
     const firstReservation = reservations.find(
       (reservation) => reservation.campus === campus
@@ -808,28 +769,6 @@ const AdminPersonalTicketPage = () => {
             </button>
             <button
               type="button"
-              className={styles.issueReviewButton}
-              onClick={() => {
-                const next = new URLSearchParams(searchParams);
-
-                if (issueOnly) {
-                  next.delete('campusIssue');
-                } else {
-                  next.set('campusIssue', 'issues_only');
-                }
-
-                setSearchParams(next);
-                setPage(1);
-              }}
-            >
-              <CircleAlert size={16} />
-              {issueOnly ? '전체 사용자 보기' : '문제 캠퍼스 검토'}
-              {campusIssueDetails.size > 0 && (
-                <span>{campusIssueDetails.size}</span>
-              )}
-            </button>
-            <button
-              type="button"
               className={styles.addUserButton}
               onClick={() => setIsCreateUserOpen(true)}
             >
@@ -897,6 +836,20 @@ const AdminPersonalTicketPage = () => {
               <option value="not_applied">버스 미신청</option>
             </select>
 
+            <select
+              className={campusFilter !== 'all' ? styles.activeFilter : undefined}
+              value={campusFilter}
+              aria-label="캠퍼스"
+              onChange={(event) => selectCampus(event.target.value)}
+            >
+              <option value="all">캠퍼스 · 전체</option>
+              {campuses.map((campus) => (
+                <option key={campus} value={campus}>
+                  {campus}
+                </option>
+              ))}
+            </select>
+
             <button
               type="button"
               className={`${styles.filterToggle} ${
@@ -958,22 +911,6 @@ const AdminPersonalTicketPage = () => {
                   <option value="global_admin">전체 관리자</option>
                 </select>
               </label>
-
-              <label>
-                <span>캠퍼스</span>
-                <select
-                  className={campusFilter !== 'all' ? styles.activeFilter : undefined}
-                  value={campusFilter}
-                  onChange={(event) => selectCampus(event.target.value)}
-                >
-                  <option value="all">전체</option>
-                  {campuses.map((campus) => (
-                    <option key={campus} value={campus}>
-                      {campus}
-                    </option>
-                  ))}
-                </select>
-              </label>
             </div>
           )}
 
@@ -1012,21 +949,8 @@ const AdminPersonalTicketPage = () => {
                 </button>
               )}
               {campusFilter !== 'all' && (
-                <button type="button" onClick={() => {
-                  setCampusFilter('all');
-                  setPage(1);
-                }}>
+                <button type="button" onClick={() => selectCampus('all')}>
                   캠퍼스: {campusFilter} <X size={13} />
-                </button>
-              )}
-              {issueOnly && (
-                <button type="button" onClick={() => {
-                  const next = new URLSearchParams(searchParams);
-                  next.delete('campusIssue');
-                  setSearchParams(next);
-                  setPage(1);
-                }}>
-                  문제 사용자만 <X size={13} />
                 </button>
               )}
             </div>
@@ -1036,8 +960,6 @@ const AdminPersonalTicketPage = () => {
             <span>
               전체 {totalReservations.toLocaleString()}명 중{' '}
               <strong>{filteredTotal.toLocaleString()}명</strong>
-              {' · '}문제 캠퍼스{' '}
-              <strong>{campusIssueDetails.size.toLocaleString()}곳</strong>
             </span>
             <button
               type="button"

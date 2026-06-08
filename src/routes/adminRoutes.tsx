@@ -182,11 +182,6 @@ const legacyAdminRoutes = [
   { path: 'tickets', to: '/admin/applications', roles: globalAdminOnly },
   { path: 'personal-tickets', to: '/admin/users', roles: globalAdminOnly },
   {
-    path: 'campus-issues',
-    to: '/admin/users?campusIssue=issues_only',
-    roles: globalAdminOnly,
-  },
-  {
     path: 'campus-admins',
     to: '/admin/access/campus-admins',
     roles: globalAdminOnly,

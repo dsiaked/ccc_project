@@ -55,17 +55,6 @@ export interface PersonalTicketSummary {
 
 export interface PersonalTicketCampus {
   name: string;
-  issueCount: number;
-  notAppliedCount: number;
-  unpaidCount: number;
-  admins: PersonalTicketCampusAdmin[];
-}
-
-export interface PersonalTicketCampusAdmin {
-  userId: string;
-  name: string;
-  phone: string;
-  email: string | null;
 }
 
 export interface PersonalTicketPageParams {
@@ -75,7 +64,6 @@ export interface PersonalTicketPageParams {
   status: string;
   ticket: string;
   adminRole: string;
-  campusIssue: string;
   campus: string;
 }
 
@@ -123,15 +111,6 @@ type PersonalTicketRpcResponse = {
   };
   campuses?: Array<{
     name?: string;
-    issue_count?: number;
-    not_applied_count?: number;
-    unpaid_count?: number;
-    admins?: Array<{
-      user_id?: string;
-      name?: string;
-      phone?: string;
-      email?: string | null;
-    }>;
   }>;
 };
 
@@ -166,7 +145,7 @@ export async function getPersonalTicketPage(
     p_status: params.status,
     p_ticket: params.ticket,
     p_admin_role: params.adminRole,
-    p_campus_issue: params.campusIssue,
+    p_campus_issue: 'all',
     p_campus: params.campus,
   });
 
@@ -201,34 +180,10 @@ export async function getPersonalTicketPage(
     },
     campuses: (response.campuses ?? [])
       .filter(
-        (
-          campus
-        ): campus is {
-          name: string;
-          issue_count?: number;
-          not_applied_count?: number;
-          unpaid_count?: number;
-          admins?: Array<{
-            user_id?: string;
-            name?: string;
-            phone?: string;
-            email?: string | null;
-          }>;
-        } => Boolean(campus.name)
+        (campus): campus is { name: string } => Boolean(campus.name)
       )
       .map((campus) => ({
         name: campus.name,
-        issueCount: Number(campus.issue_count ?? 0),
-        notAppliedCount: Number(campus.not_applied_count ?? 0),
-        unpaidCount: Number(campus.unpaid_count ?? 0),
-        admins: (campus.admins ?? [])
-          .filter((admin) => Boolean(admin.user_id))
-          .map((admin) => ({
-            userId: String(admin.user_id),
-            name: admin.name ?? '',
-            phone: admin.phone ?? '',
-            email: admin.email ?? null,
-          })),
       })),
   };
 }

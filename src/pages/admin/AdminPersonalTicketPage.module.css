@@ -52,7 +52,6 @@
 .refreshButton,
 .addUserButton,
 .boardingManagerButton,
-.issueReviewButton,
 .primaryButton,
 .secondaryButton,
 .dangerButton,
@@ -189,7 +188,7 @@
 
 .toolbarPrimary {
   display: grid;
-  grid-template-columns: minmax(240px, 1fr) minmax(180px, 220px) auto;
+  grid-template-columns: minmax(220px, 1fr) minmax(170px, 210px) minmax(160px, 200px) auto;
   gap: 10px;
 }
 
@@ -270,7 +269,7 @@
 
 .advancedFilters {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
   padding: 12px;
   border: 1px solid #dbeafe;
@@ -394,25 +393,6 @@
   border: 1px solid #2563eb;
   background: #2563eb;
   color: #ffffff;
-}
-
-.issueReviewButton {
-  border: 1px solid #fbbf24;
-  background: #fffbeb;
-  color: #b45309;
-}
-
-.issueReviewButton span {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 20px;
-  height: 20px;
-  padding: 0 6px;
-  border-radius: 999px;
-  background: #f59e0b;
-  color: #ffffff;
-  font-size: 11px;
 }
 
 .table {
