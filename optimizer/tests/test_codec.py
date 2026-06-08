@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from exact_optimizer.codec import input_from_snapshot, result_to_dict
+from exact_optimizer.codec import input_from_snapshot, result_from_dict, result_to_dict
 from exact_optimizer.schema import AllocationResult
 
 
@@ -50,6 +50,38 @@ class CodecTests(unittest.TestCase):
 
     def test_serializes_result(self) -> None:
         self.assertEqual(result_to_dict(AllocationResult(status="OPTIMAL"))["status"], "OPTIMAL")
+
+    def test_rejects_non_string_passenger_fields(self) -> None:
+        snapshot = {
+            "schema_version": 1,
+            "bus": {
+                "capacity": 45,
+                "price": 900000,
+                "recommended_minimum_passengers": 36,
+            },
+            "passengers": [
+                {
+                    "reservation_id": "reservation-1",
+                    "campus": None,
+                    "team": "Team",
+                    "first_choice": "A",
+                    "second_choice": "B",
+                }
+            ],
+        }
+
+        with self.assertRaisesRegex(ValueError, "campus must be a string"):
+            input_from_snapshot(snapshot)
+
+    def test_ignores_malformed_optional_result_payload(self) -> None:
+        result = result_from_dict(
+            {
+                "status": "OPTIMAL",
+                "buses": [{"bus_id": "bus-001"}],
+            }
+        )
+
+        self.assertIsNone(result)
 
 
 if __name__ == "__main__":
