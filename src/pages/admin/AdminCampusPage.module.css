@@ -18,6 +18,28 @@
   margin-bottom: 24px;
 }
 
+.scopeSelector {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.scopeSelector select {
+  min-height: 38px;
+  max-width: 100%;
+  padding: 0 34px 0 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #0f172a;
+  font: inherit;
+}
+
 .adminScopeBadge {
   display: inline-flex;
   align-items: center;
@@ -42,6 +64,30 @@
   font-size: 14px;
   color: #666666;
   margin: 0;
+}
+
+.signupGuideAlert {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: -12px 0 24px;
+  padding: 14px 16px;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.signupGuideAlert svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.signupGuideAlert p {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.55;
 }
 
 .noticeAlert {
@@ -120,6 +166,109 @@
   background: #1d4ed8;
 }
 
+.paymentAccountPanel {
+  margin-bottom: 20px;
+  padding: 18px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.paymentAccountHeading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.paymentAccountIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  border-radius: 8px;
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.paymentAccountHeading h2,
+.paymentAccountHeading p {
+  margin: 0;
+}
+
+.paymentAccountHeading h2 {
+  color: #0f172a;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.paymentAccountHeading p {
+  margin-top: 3px;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.paymentAccountFields {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.8fr) minmax(200px, 1.4fr) minmax(120px, 0.8fr) auto;
+  align-items: end;
+  gap: 10px;
+}
+
+.paymentAccountFields label {
+  display: grid;
+  gap: 6px;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.paymentAccountFields input {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  color: #0f172a;
+  font: inherit;
+}
+
+.paymentAccountFields input:focus {
+  border-color: #2563eb;
+  outline: 2px solid #dbeafe;
+}
+
+.paymentAccountFields button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 42px;
+  padding: 0 15px;
+  border: 0;
+  border-radius: 8px;
+  background: #2563eb;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.paymentAccountFields button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.paymentAccountMessage {
+  margin: 12px 0 0;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 800;
+}
+
 .statsBar {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -133,6 +282,12 @@
   border: 1px solid #dbe3ed;
   border-radius: 8px;
   background: #ffffff;
+}
+
+@media (max-width: 800px) {
+  .paymentAccountFields {
+    grid-template-columns: 1fr;
+  }
 }
 
 .guideToggle {
@@ -336,6 +491,20 @@
   margin: 0;
   color: #64748b;
   font-size: 13px;
+  line-height: 1.5;
+}
+
+.guideDepositName {
+  display: block;
+  width: fit-content;
+  margin-top: 6px;
+  padding: 7px 9px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 13px;
+  font-weight: 900;
   line-height: 1.5;
 }
 
@@ -586,7 +755,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 5px;
-  padding: 6px 9px 3px;
+  padding: 7px 9px 8px;
 }
 
 .ticketBadge,
@@ -611,42 +780,6 @@
   background: #ffffff;
   color: #334155;
   border: 1px solid #cbd5e1;
-}
-
-.ticketMetaList {
-  display: grid;
-  gap: 4px;
-  padding: 4px 9px 8px;
-}
-
-.ticketMetaItem {
-  display: flex;
-  align-items: flex-start;
-  gap: 5px;
-  min-width: 0;
-  color: #64748b;
-}
-
-.ticketMetaItem > span {
-  display: flex;
-  align-items: baseline;
-  min-width: 0;
-  gap: 5px;
-}
-
-.ticketMetaItem small {
-  color: #64748b;
-  font-size: 9px;
-  font-weight: 800;
-  white-space: nowrap;
-}
-
-.ticketMetaItem strong {
-  overflow-wrap: anywhere;
-  color: #334155;
-  font-size: 11px;
-  font-weight: 800;
-  line-height: 1.35;
 }
 
 .ticketPending {
@@ -781,6 +914,59 @@ input[type='checkbox'] {
   }
 }
 
+@media (max-width: 420px) {
+  .main {
+    padding: 10px;
+    padding-top: 16px;
+    padding-bottom: calc(40px + env(safe-area-inset-bottom));
+  }
+
+  .header {
+    margin-bottom: 18px;
+  }
+
+  .header h1 {
+    font-size: 22px;
+    line-height: 1.25;
+  }
+
+  .noticeAlert,
+  .stat,
+  .paymentRatioCard,
+  .guidePanel,
+  .listToolbar,
+  .transferBox,
+  .requestHelpBox {
+    border-radius: 10px;
+  }
+
+  .noticeAlert,
+  .transferBox {
+    padding: 14px;
+  }
+
+  .tableContainer {
+    margin-right: -10px;
+    margin-left: -10px;
+    border-right: 0;
+    border-left: 0;
+    border-radius: 0;
+    scrollbar-width: thin;
+  }
+
+  .tableContainer::after {
+    content: '표는 좌우로 밀어서 확인할 수 있습니다';
+    position: sticky;
+    left: 10px;
+    display: block;
+    width: fit-content;
+    padding: 8px 10px;
+    color: #64748b;
+    font-size: 11px;
+    font-weight: 800;
+  }
+}
+
 
 .transferBox {
   margin-top: 24px;
@@ -871,6 +1057,13 @@ input[type='checkbox'] {
   font-size: 17px;
   font-weight: 900;
   overflow-wrap: anywhere;
+}
+
+.transferDepositorName {
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.5;
 }
 
 .transferStatusPill {
@@ -1031,6 +1224,30 @@ input[type='checkbox'] {
   cursor: not-allowed;
 }
 
+.cancelTransferButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid #fca5a5;
+  border-radius: 10px;
+  padding: 11px 15px;
+  background: #ffffff;
+  color: #b91c1c;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.cancelTransferButton:hover:not(:disabled) {
+  background: #fef2f2;
+}
+
+.cancelTransferButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .transferActionStack {
   display: flex;
   flex-direction: column;
@@ -1106,4 +1323,21 @@ input[type='checkbox'] {
 
 .outlineButton:hover {
   background: #f8fafc;
+}
+
+@media (max-width: 420px) {
+  .transferBox,
+  .requestHelpBox {
+    padding: 14px;
+    border-radius: 10px;
+  }
+
+  .transferActionStack {
+    min-width: 0;
+  }
+
+  .transferActionHint {
+    max-width: none;
+    text-align: left;
+  }
 }

@@ -2,6 +2,10 @@ import type { ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 
 import type { AdminRoleType } from '../lib/adminService';
+import {
+  canAdminRoleAccess,
+  getAdminFallbackPath,
+} from '../utils/adminAccess';
 import { useAdminAuth } from './AdminAuthProvider';
 import styles from './AdminProtectedRoute.module.css';
 
@@ -41,15 +45,10 @@ const AdminProtectedRoute = ({
     );
   }
 
-  if (!adminRole || !allowedRoles.includes(adminRole.role)) {
-    const unauthorizedPath =
-      adminRole?.role === 'campus_admin'
-        ? '/admin/campus'
-        : adminRole?.role === 'boarding_manager'
-          ? '/admin/boarding'
-          : '/admin/global';
-
-    return <Navigate to={unauthorizedPath} replace />;
+  if (!adminRole || !canAdminRoleAccess(adminRole.role, allowedRoles)) {
+    return (
+      <Navigate to={getAdminFallbackPath(adminRole?.role ?? null)} replace />
+    );
   }
 
   return children;

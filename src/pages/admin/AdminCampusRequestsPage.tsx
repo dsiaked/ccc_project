@@ -942,7 +942,7 @@ const AdminCampusRequestsPage = () => {
       eyebrow: '캠퍼스 커뮤니케이션',
       title: '캠퍼스 공지',
       description:
-        '전체 또는 선택한 캠퍼스 관리자에게 전달할 운영 공지를 작성하고 관리합니다.',
+        '전체 또는 선택한 캠퍼스 회계 순장님에게 전달할 운영 공지를 작성하고 관리합니다.',
     },
     home: {
       eyebrow: '사용자 커뮤니케이션',
@@ -987,7 +987,7 @@ const AdminCampusRequestsPage = () => {
         </span>
         <span className={styles.globalSectionCopy}>
           <strong>캠퍼스 공지</strong>
-          <small>캠퍼스 관리자 대상 공지를 관리합니다.</small>
+          <small>캠퍼스 회계 순장님 대상 공지를 관리합니다.</small>
         </span>
         <em>{summary.notices}</em>
       </button>
@@ -1040,7 +1040,7 @@ const AdminCampusRequestsPage = () => {
           <button
             type="button"
             className={styles.backButton}
-            onClick={() => navigate('/admin/global')}
+            onClick={() => navigate('/admin/dashboard')}
           >
             <ArrowLeft size={18} />
             전체 관리자 화면
@@ -1076,11 +1076,11 @@ const AdminCampusRequestsPage = () => {
           type="button"
           className={styles.backButton}
           onClick={() =>
-            navigate(isGlobalAdmin ? '/admin/global' : '/admin/campus')
+            navigate(isGlobalAdmin ? '/admin/dashboard' : '/admin/campus-dashboard')
           }
         >
           <ArrowLeft size={18} />
-          {isGlobalAdmin ? '전체 관리자 화면' : '캠퍼스 관리자 화면'}
+          {isGlobalAdmin ? '전체 관리자 화면' : '캠퍼스 회계 순장님 화면'}
         </button>
 
         <section className={styles.headerSection}>
@@ -1141,7 +1141,7 @@ const AdminCampusRequestsPage = () => {
               <div className={styles.sectionHeader}>
                 <h2>전체 캠퍼스 공지</h2>
                 <p>
-                  등록한 공지는 모든 캠퍼스 관리자 홈과 문의 게시판에 표시됩니다.
+                  등록한 공지는 모든 캠퍼스 회계 순장님 홈과 문의 게시판에 표시됩니다.
                 </p>
               </div>
               <div className={styles.noticeComposerActions}>
@@ -1175,7 +1175,7 @@ const AdminCampusRequestsPage = () => {
                     onChange={(event) =>
                       setNoticeContentInput(event.target.value)
                     }
-                    placeholder="캠퍼스 관리자에게 일괄 안내할 내용을 입력해주세요."
+                    placeholder="캠퍼스 회계 순장님에게 일괄 안내할 내용을 입력해주세요."
                     rows={5}
                   />
                 </label>
@@ -1538,7 +1538,7 @@ const AdminCampusRequestsPage = () => {
                       <div className={styles.requestMeta}>
                         <span>
                           {request.isGlobalNotice
-                            ? '모든 캠퍼스 관리자'
+                            ? '모든 캠퍼스 회계 순장님'
                             : `${request.district} / ${request.team} / ${request.campus}`}
                         </span>
                         <span>{formatDateTime(request.createdAt)}</span>

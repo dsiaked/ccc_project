@@ -4,13 +4,14 @@
   z-index: 1200;
   display: grid;
   place-items: center;
-  padding: 20px;
+  padding: max(20px, env(safe-area-inset-top)) 20px max(20px, env(safe-area-inset-bottom));
   background: rgba(15, 23, 42, 0.45);
 }
 
 .modal {
   width: min(620px, 100%);
   max-height: calc(100vh - 40px);
+  max-height: calc(100dvh - 40px);
   overflow-y: auto;
   border: 1px solid #dfe3e8;
   border-radius: 12px;
@@ -58,7 +59,11 @@
 
 .header button {
   display: inline-flex;
-  padding: 6px;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
   border: 0;
   border-radius: 7px;
   background: transparent;
@@ -202,6 +207,16 @@
 }
 
 @media (max-width: 620px) {
+  .backdrop {
+    align-items: end;
+    padding: 10px 10px max(10px, env(safe-area-inset-bottom));
+  }
+
+  .modal {
+    max-height: calc(100dvh - 20px);
+    border-radius: 16px 16px 0 0;
+  }
+
   .form,
   .organizationGrid {
     grid-template-columns: 1fr;
@@ -209,5 +224,10 @@
 
   .actions {
     flex-direction: column-reverse;
+  }
+
+  .actions button,
+  .organizationMode button {
+    min-height: 44px;
   }
 }

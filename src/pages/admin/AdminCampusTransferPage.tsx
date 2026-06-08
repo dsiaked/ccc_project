@@ -372,7 +372,7 @@ const AdminCampusTransferPage = () => {
             <button
               type="button"
               className={styles.refreshButton}
-              onClick={() => navigate('/admin/campus-requests')}
+              onClick={() => navigate('/admin/communications')}
             >
               <MessageSquare size={17} />
               문의 게시판
@@ -480,7 +480,7 @@ const AdminCampusTransferPage = () => {
                     <th>지구</th>
                     <th>팀</th>
                     <th>캠퍼스</th>
-                    <th>캠퍼스 관리자</th>
+                    <th>캠퍼스 회계 순장님</th>
                     <th>입금 확인액 / 송금 예정액</th>
                     <th>상태</th>
                     <th>처리</th>

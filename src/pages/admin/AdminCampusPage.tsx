@@ -5,21 +5,26 @@ import {
   BusFront,
   ChevronDown,
   ChevronUp,
-  Clock3,
   Download,
-  MapPin,
+  Landmark,
   Megaphone,
   MessageSquare,
+  RotateCcw,
+  Save,
 } from 'lucide-react';
 import AdminHeader from './AdminHeader';
+import { useAdminAuth } from '../../components/AdminAuthProvider';
+import { formatBusLabel } from '../../utils/busLabel';
 import { supabase } from '../../lib/supabase';
 import {
   getAdminRole,
   getBusTicketPrice,
   getCampusTransferByScope,
   getCampusTransferStats,
+  getCampusScopesForAdmin,
   getGlobalCampusNotices,
   getReservationsWithPaymentByTeamCampus,
+  cancelCampusTransferReport,
   createOrUpdatePaymentStatus,
   markCampusTransferSent,
   type CampusRequest,
@@ -30,6 +35,11 @@ import {
   markCampusNoticesRead,
 } from '../../lib/adminNoticeReadState';
 import { getDistrictTransferAccountNumber } from '../../lib/districtTransferAccountService';
+import {
+  getCampusPaymentAccount,
+  updateCampusPaymentAccount,
+  type CampusPaymentAccount,
+} from '../../lib/campusPaymentAccountService';
 import styles from './AdminCampusPage.module.css';
 
 interface PaymentInfo {
@@ -77,10 +87,16 @@ interface ReservationWithPayment {
 }
 
 interface CampusAdminScope {
+  campusId: string;
   district: string;
   team: string;
   campus: string;
 }
+
+const getScopeKey = (scope: CampusAdminScope) =>
+  [scope.district, scope.team, scope.campus].join('\0');
+
+const GLOBAL_ADMIN_CAMPUS_SCOPE_KEY = 'ccc-bus-global-admin-campus-scope';
 
 const getErrorMessage = (error: unknown) => {
   if (error instanceof Error) return error.message;
@@ -131,11 +147,9 @@ const getConfirmedTicketLines = (
   if (!ticket) return ['미확정'];
 
   return [
-    `확정: ${ticket.dropoffStation || '-'} ${ticket.busNumber || '-'} ${
+    `확정: ${ticket.dropoffStation || '-'} ${formatBusLabel(ticket.busNumber) || '-'} ${
       ticket.seatNumber ? `${ticket.seatNumber}번 좌석` : '좌석 미지정'
     }`,
-    `출발장소: ${ticket.boardingPlace || '-'}`,
-    `출발시간: ${ticket.departureTime || '-'}`,
   ];
 };
 
@@ -174,16 +188,24 @@ const findCampusTransfer = (
 
 const CampusAdminPage = () => {
   const navigate = useNavigate();
+  const { adminRole: activeAdminRole } = useAdminAuth();
 
   const [reservations, setReservations] = useState<ReservationWithPayment[]>([]);
   const [loading, setLoading] = useState(true);
   const [verifying, setVerifying] = useState(false);
   const [transferSending, setTransferSending] = useState(false);
+  const [savingPaymentAccount, setSavingPaymentAccount] = useState(false);
   const [savingApplicantImage, setSavingApplicantImage] = useState(false);
   const [isApplicantListOpen, setIsApplicantListOpen] = useState(true);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
 
   const [adminScope, setAdminScope] = useState<CampusAdminScope | null>(null);
+  const [availableScopes, setAvailableScopes] = useState<CampusAdminScope[]>([]);
+  const [selectedScopeKey, setSelectedScopeKey] = useState(() =>
+    typeof window === 'undefined'
+      ? ''
+      : window.localStorage.getItem(GLOBAL_ADMIN_CAMPUS_SCOPE_KEY) ?? ''
+  );
   const [campusTransfer, setCampusTransfer] =
     useState<CampusTransferStat | null>(null);
   const [campusNotices, setCampusNotices] = useState<CampusRequest[]>([]);
@@ -191,6 +213,11 @@ const CampusAdminPage = () => {
   const [ticketPrice, setTicketPrice] = useState(0);
   const [districtTransferAccountNumber, setDistrictTransferAccountNumber] =
     useState('');
+  const [paymentAccount, setPaymentAccount] =
+    useState<CampusPaymentAccount | null>(null);
+  const [paymentAccountMessage, setPaymentAccountMessage] = useState<
+    string | null
+  >(null);
 
   const getPayment = (reservation: ReservationWithPayment) => {
     return reservation.payments?.[0] || null;
@@ -247,27 +274,53 @@ const CampusAdminPage = () => {
 
         const adminRole = await getAdminRole(session.user.id);
 
-        if (!adminRole || adminRole.role !== 'campus_admin') {
+        if (
+          !adminRole ||
+          (adminRole.role !== 'campus_admin' &&
+            adminRole.role !== 'global_admin')
+        ) {
           if (isMounted) {
-            alert('캠퍼스 관리자만 접근할 수 있습니다.');
+            alert('캠퍼스 회계 순장님만 접근할 수 있습니다.');
             navigate('/');
           }
           return;
         }
 
-        if (!adminRole.district || !adminRole.team || !adminRole.campus) {
+        let nextScope: CampusAdminScope | null = null;
+
+        if (adminRole.role === 'global_admin') {
+          const scopes = await getCampusScopesForAdmin();
+          nextScope =
+            scopes.find((scope) => getScopeKey(scope) === selectedScopeKey) ??
+            scopes[0] ??
+            null;
+
           if (isMounted) {
-            alert('관리자 계정에 지구, 팀, 캠퍼스 정보가 없습니다.');
-            navigate('/');
+            setAvailableScopes(scopes);
+            setSelectedScopeKey(nextScope ? getScopeKey(nextScope) : '');
+          }
+        } else if (adminRole.district && adminRole.team && adminRole.campus) {
+          if (!adminRole.campus_id) {
+            throw new Error('캠퍼스 관리자에게 연결된 캠퍼스 ID가 없습니다.');
+          }
+
+          nextScope = {
+            campusId: adminRole.campus_id,
+            district: adminRole.district,
+            team: adminRole.team,
+            campus: adminRole.campus,
+          };
+        }
+
+        if (!nextScope) {
+          if (isMounted) {
+            setAdminScope(null);
+            setReservations([]);
+            setCampusTransfer(null);
+            setCampusNotices([]);
           }
           return;
         }
-
-        const nextScope = {
-          district: adminRole.district,
-          team: adminRole.team,
-          campus: adminRole.campus,
-        };
 
         const [
           reservationsResult,
@@ -275,22 +328,26 @@ const CampusAdminPage = () => {
           transferStatusResult,
           noticesResult,
           transferAccountNumberResult,
+          paymentAccountResult,
         ] = await Promise.allSettled([
           getReservationsWithPaymentByTeamCampus(
-            adminRole.campus,
-            adminRole.team
+            nextScope.campus,
+            nextScope.team
           ),
           getBusTicketPrice(),
           loadCampusTransferStatus(nextScope),
-          getGlobalCampusNotices().then((result) => {
-            if (result.error) throw result.error;
+          adminRole.role === 'campus_admin'
+            ? getGlobalCampusNotices().then((result) => {
+                if (result.error) throw result.error;
 
-            return getUnreadCampusNotices(
-              session.user.id,
-              result.data ?? []
-            );
-          }),
+                return getUnreadCampusNotices(
+                  session.user.id,
+                  result.data ?? []
+                );
+              })
+            : Promise.resolve([]),
           getDistrictTransferAccountNumber(),
+          getCampusPaymentAccount(nextScope.campusId),
         ]);
 
         if (reservationsResult.status === 'rejected') {
@@ -298,13 +355,9 @@ const CampusAdminPage = () => {
         }
 
         if (isMounted) {
-          setAdminScope({
-            district: adminRole.district,
-            team: adminRole.team,
-            campus: adminRole.campus,
-          });
+          setAdminScope(nextScope);
 
-          setCampus(adminRole.campus);
+          setCampus(nextScope.campus);
           setReservations(
             reservationsResult.value as unknown as ReservationWithPayment[]
           );
@@ -338,6 +391,22 @@ const CampusAdminPage = () => {
               transferAccountNumberResult.reason
             );
           }
+
+          if (paymentAccountResult.status === 'fulfilled') {
+            setPaymentAccount(
+              paymentAccountResult.value ?? {
+                campusId: nextScope.campusId,
+                bankName: '',
+                accountNumber: '',
+                accountHolder: '',
+              }
+            );
+          } else {
+            console.warn(
+              'Failed to load campus payment account:',
+              paymentAccountResult.reason
+            );
+          }
         }
       } catch (error) {
         console.error('Failed to load reservations:', error);
@@ -357,7 +426,12 @@ const CampusAdminPage = () => {
     return () => {
       isMounted = false;
     };
-  }, [loadCampusTransferStatus, navigate]);
+  }, [
+    activeAdminRole?.id,
+    loadCampusTransferStatus,
+    navigate,
+    selectedScopeKey,
+  ]);
 
   const stats = useMemo(() => {
     const completed = reservations.filter((reservation) => {
@@ -426,7 +500,7 @@ const CampusAdminPage = () => {
       const margin = 48;
       const titleHeight = 150;
       const headerHeight = 54;
-      const rowHeight = 74;
+      const rowHeight = 54;
       const footerHeight = 54;
       const tableWidth = columns.reduce((sum, column) => sum + column.width, 0);
       const logicalWidth = tableWidth + margin * 2;
@@ -744,7 +818,7 @@ const CampusAdminPage = () => {
     }
 
     const ok = window.confirm(
-      `${adminScope.campus} 캠퍼스 전체 ${paidPeople}명의 입금을 확인했고, 본부에 ${totalAmount.toLocaleString()}원을 송금했다고 보고할까요?\n\n송금 완료 버튼을 누른 이후에는 캠퍼스 관리자 화면에서 입금 상태와 송금 보고 내용을 수정할 수 없습니다.`
+      `${adminScope.campus} 캠퍼스 전체 ${paidPeople}명의 입금을 확인했고, 본부에 ${totalAmount.toLocaleString()}원을 송금했다고 보고할까요?\n\n입금자명은 공백 없이 캠퍼스명 뒤에 담당자명을 입력해주세요. (예: ${adminScope.campus}홍길동)\n\n송금 완료 버튼을 누른 이후에는 캠퍼스 회계 순장님 화면에서 입금 상태와 송금 보고 내용을 수정할 수 없습니다.`
     );
 
     if (!ok) return;
@@ -786,6 +860,38 @@ const CampusAdminPage = () => {
     }
   };
 
+  const handleCancelCampusTransferReport = async () => {
+    if (!campusTransfer || campusTransfer.status !== 'sent') {
+      alert('취소할 송금 보고 완료 내역이 없습니다.');
+      return;
+    }
+
+    const ok = window.confirm(
+      '송금 보고 완료를 취소할까요?\n\n취소 후 입금 상태를 다시 수정할 수 있으며, 확인이 끝나면 송금 완료를 다시 보고해야 합니다.'
+    );
+
+    if (!ok) return;
+
+    setTransferSending(true);
+
+    try {
+      await cancelCampusTransferReport({ transferId: campusTransfer.id });
+
+      setCampusTransfer(null);
+
+      if (adminScope) {
+        await refreshReservations(adminScope.campus, adminScope.team);
+      }
+
+      alert('송금 보고 완료를 취소했습니다.');
+    } catch (error) {
+      console.error('송금 보고 완료 취소 실패:', error);
+      alert(`송금 보고 완료 취소 중 오류가 발생했습니다: ${getErrorMessage(error)}`);
+    } finally {
+      setTransferSending(false);
+    }
+  };
+
   const handleOpenCampusRequests = () => {
     if (adminScope && campusNotices.length > 0) {
       void supabase.auth.getSession().then(({ data }) => {
@@ -802,7 +908,49 @@ const CampusAdminPage = () => {
       });
     }
 
-    navigate('/admin/campus-requests');
+    navigate('/admin/communications');
+  };
+
+  const updatePaymentAccountDraft = (
+    field: 'bankName' | 'accountNumber' | 'accountHolder',
+    value: string
+  ) => {
+    if (!adminScope) return;
+
+    setPaymentAccountMessage(null);
+    setPaymentAccount((current) => ({
+      campusId: adminScope.campusId,
+      bankName: current?.bankName ?? '',
+      accountNumber: current?.accountNumber ?? '',
+      accountHolder: current?.accountHolder ?? '',
+      [field]: value,
+    }));
+  };
+
+  const handleSavePaymentAccount = async () => {
+    if (
+      !paymentAccount?.bankName.trim() ||
+      !paymentAccount.accountNumber.trim() ||
+      !paymentAccount.accountHolder.trim()
+    ) {
+      setPaymentAccountMessage('은행, 계좌번호, 예금주를 모두 입력해주세요.');
+      return;
+    }
+
+    setSavingPaymentAccount(true);
+    setPaymentAccountMessage(null);
+
+    try {
+      const saved = await updateCampusPaymentAccount(paymentAccount);
+      setPaymentAccount(saved);
+      setPaymentAccountMessage('입금 계좌를 저장했습니다.');
+    } catch (error) {
+      setPaymentAccountMessage(
+        `입금 계좌 저장에 실패했습니다: ${getErrorMessage(error)}`
+      );
+    } finally {
+      setSavingPaymentAccount(false);
+    }
   };
 
   if (loading) {
@@ -823,6 +971,33 @@ const CampusAdminPage = () => {
 
       <main className={styles.main}>
         <div className={styles.header}>
+          {activeAdminRole?.role === 'global_admin' && (
+            <label className={styles.scopeSelector}>
+              <span>관리할 캠퍼스</span>
+              <select
+                value={selectedScopeKey}
+                onChange={(event) => {
+                  const nextScopeKey = event.target.value;
+                  setSelectedScopeKey(nextScopeKey);
+                  window.localStorage.setItem(
+                    GLOBAL_ADMIN_CAMPUS_SCOPE_KEY,
+                    nextScopeKey
+                  );
+                }}
+                disabled={availableScopes.length === 0}
+              >
+                {availableScopes.length === 0 ? (
+                  <option value="">관리 가능한 캠퍼스가 없습니다</option>
+                ) : (
+                  availableScopes.map((scope) => (
+                    <option key={getScopeKey(scope)} value={getScopeKey(scope)}>
+                      {scope.district} / {scope.team} / {scope.campus}
+                    </option>
+                  ))
+                )}
+              </select>
+            </label>
+          )}
           {adminScope && (
             <div className={styles.adminScopeBadge}>
               {adminScope.district} · {adminScope.team} · {adminScope.campus}
@@ -833,6 +1008,14 @@ const CampusAdminPage = () => {
             버스 신청자의 입금 상태를 확인하고 본부 송금 절차를 진행합니다.
           </p>
         </div>
+
+        <section className={styles.signupGuideAlert}>
+          <AlertTriangle size={20} aria-hidden="true" />
+          <p>
+            서울지구 소속이 아니더라도 본인 캠퍼스와 함께 온 친구들은 본인
+            캠퍼스로 회원가입하도록 안내해주세요.
+          </p>
+        </section>
 
         {campusNotices.length > 0 && (
           <section className={styles.noticeAlert}>
@@ -858,6 +1041,63 @@ const CampusAdminPage = () => {
           </section>
         )}
 
+        <section className={styles.paymentAccountPanel}>
+          <div className={styles.paymentAccountHeading}>
+            <div className={styles.paymentAccountIcon}>
+              <Landmark size={20} />
+            </div>
+            <div>
+              <h2>회계 순장님 입금 계좌</h2>
+              <p>신청자가 버스비를 입금할 현재 캠퍼스 계좌입니다.</p>
+            </div>
+          </div>
+          <div className={styles.paymentAccountFields}>
+            <label>
+              <span>은행</span>
+              <input
+                value={paymentAccount?.bankName ?? ''}
+                onChange={(event) =>
+                  updatePaymentAccountDraft('bankName', event.target.value)
+                }
+                placeholder="예: 국민은행"
+              />
+            </label>
+            <label>
+              <span>계좌번호</span>
+              <input
+                value={paymentAccount?.accountNumber ?? ''}
+                onChange={(event) =>
+                  updatePaymentAccountDraft('accountNumber', event.target.value)
+                }
+                placeholder="계좌번호"
+              />
+            </label>
+            <label>
+              <span>예금주</span>
+              <input
+                value={paymentAccount?.accountHolder ?? ''}
+                onChange={(event) =>
+                  updatePaymentAccountDraft('accountHolder', event.target.value)
+                }
+                placeholder="예금주"
+              />
+            </label>
+            <button
+              type="button"
+              onClick={() => void handleSavePaymentAccount()}
+              disabled={savingPaymentAccount || !adminScope}
+            >
+              <Save size={16} />
+              {savingPaymentAccount ? '저장 중' : '계좌 저장'}
+            </button>
+          </div>
+          {paymentAccountMessage && (
+            <p className={styles.paymentAccountMessage} role="status">
+              {paymentAccountMessage}
+            </p>
+          )}
+        </section>
+
         <section className={styles.guidePanel}>
           <button
             type="button"
@@ -879,7 +1119,13 @@ const CampusAdminPage = () => {
                 <strong>사용 순서</strong>
                 <ol className={styles.guideList}>
                   <li>신청자 전원이 본인 계좌로 입금했는지 확인합니다.</li>
-                  <li>전원 입금이 확인되면 서울지구 계좌로 송금합니다.</li>
+                  <li>
+                    전원 입금이 확인되면 서울지구 계좌로 송금합니다.
+                    <span className={styles.guideDepositName}>
+                      입금자명: 공백 없이 캠퍼스명 뒤에 담당자명 (예:{' '}
+                      {adminScope?.campus || '서울캠'}홍길동)
+                    </span>
+                  </li>
                   <li>
                     송금을 완료했다면 아래의 &quot;송금 완료&quot; 버튼을
                     눌러주세요.
@@ -1089,7 +1335,7 @@ const CampusAdminPage = () => {
                             <div className={styles.ticketAssignment}>
                               <span className={styles.ticketBadge}>
                                 <BusFront size={13} />
-                                {confirmedTicket.busNumber || '-'}
+                                {formatBusLabel(confirmedTicket.busNumber) || '-'}
                               </span>
                               <span className={styles.seatBadge}>
                                 {confirmedTicket.seatNumber
@@ -1098,26 +1344,6 @@ const CampusAdminPage = () => {
                               </span>
                             </div>
 
-                            <div className={styles.ticketMetaList}>
-                              <div className={styles.ticketMetaItem}>
-                                <MapPin size={14} />
-                                <span>
-                                  <small>탑승 장소</small>
-                                  <strong>
-                                    {confirmedTicket.boardingPlace || '-'}
-                                  </strong>
-                                </span>
-                              </div>
-                              <div className={styles.ticketMetaItem}>
-                                <Clock3 size={14} />
-                                <span>
-                                  <small>출발 시간</small>
-                                  <strong>
-                                    {confirmedTicket.departureTime || '-'}
-                                  </strong>
-                                </span>
-                              </div>
-                            </div>
                           </div>
                         ) : (
                           <span className={styles.ticketPending}>미확정</span>
@@ -1198,6 +1424,10 @@ const CampusAdminPage = () => {
                   {districtTransferAccountNumber ||
                     '전체 관리자가 계좌 번호를 아직 설정하지 않았습니다.'}
                 </strong>
+                <small className={styles.transferDepositorName}>
+                  입금자명: 공백 없이 캠퍼스명 뒤에 담당자명 (예:{' '}
+                  {adminScope?.campus || '서울캠'}홍길동)
+                </small>
               </div>
 
               <div className={styles.transferSummaryGrid}>
@@ -1246,16 +1476,29 @@ const CampusAdminPage = () => {
 
           </div>
 
-          {canReportCampusTransfer && (
+          {(canReportCampusTransfer || campusTransfer?.status === 'sent') && (
             <div className={styles.transferActionStack}>
-              <button
-                type="button"
-                className={styles.primaryButton}
-                onClick={handleMarkCampusTransferSent}
-                disabled={transferSending}
-              >
-                {transferSending ? '처리 중...' : reportButtonLabel}
-              </button>
+              {canReportCampusTransfer && (
+                <button
+                  type="button"
+                  className={styles.primaryButton}
+                  onClick={handleMarkCampusTransferSent}
+                  disabled={transferSending}
+                >
+                  {transferSending ? '처리 중...' : reportButtonLabel}
+                </button>
+              )}
+              {campusTransfer?.status === 'sent' && (
+                <button
+                  type="button"
+                  className={styles.cancelTransferButton}
+                  onClick={handleCancelCampusTransferReport}
+                  disabled={transferSending}
+                >
+                  <RotateCcw size={16} />
+                  {transferSending ? '처리 중...' : '송금 보고 완료 취소'}
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -1276,7 +1519,7 @@ const CampusAdminPage = () => {
           <button
             type="button"
             className={styles.outlineButton}
-            onClick={() => navigate('/admin/campus-requests')}
+            onClick={() => navigate('/admin/communications')}
           >
             문의 게시판 열기
           </button>

@@ -1,0 +1,45 @@
+.page { min-height: 100vh; background: #f4f6f8; }
+.main { padding: 32px; }
+.hero { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; margin-bottom: 24px; }
+.eyebrow { color: #b42318; font-size: 13px; font-weight: 900; }
+.hero h1 { margin: 6px 0 8px; color: #101828; font-size: 32px; }
+.hero p, .panelHeader p { margin: 0; color: #667085; line-height: 1.6; }
+.heroActions { display: flex; gap: 8px; }
+.heroActions button, .errorState button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 40px; padding: 0 14px; border: 1px solid #d0d5dd; border-radius: 8px; background: #fff; color: #344054; font: inherit; font-size: 13px; font-weight: 800; cursor: pointer; }
+.summaryGrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-bottom: 20px; }
+.summaryCard { display: grid; gap: 7px; padding: 20px; border: 1px solid #dfe4ea; border-radius: 12px; background: #fff; color: #1570ef; box-shadow: 0 2px 8px rgba(16, 24, 40, .04); }
+.summaryCard span, .summaryCard small { color: #667085; font-size: 12px; font-weight: 700; }
+.summaryCard strong { color: #101828; font-size: 26px; }
+.dangerCard { color: #d92d20; border-color: #fecdca; }
+.warningCard { color: #dc6803; border-color: #fedf89; }
+.toolbar, .panel { border: 1px solid #e4e7ec; border-radius: 12px; background: #fff; }
+.toolbar { display: flex; align-items: center; gap: 14px; padding: 14px; margin-bottom: 20px; }
+.toolbar > span { color: #98a2b3; font-size: 12px; font-weight: 700; }
+.searchBox { display: flex; align-items: center; gap: 8px; min-width: 360px; padding: 0 12px; border: 1px solid #d0d5dd; border-radius: 8px; color: #667085; }
+.searchBox input { width: 100%; height: 40px; border: 0; outline: 0; background: transparent; font: inherit; }
+.panel { overflow: hidden; margin-bottom: 20px; }
+.panelHeader { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; padding: 20px; border-bottom: 1px solid #e4e7ec; }
+.panelHeader h2 { margin: 0 0 6px; color: #101828; font-size: 19px; }
+.panelHeader p { font-size: 13px; }
+.panelHeader select { min-width: 170px; height: 40px; padding: 0 10px; border: 1px solid #d0d5dd; border-radius: 8px; background: #fff; font: inherit; font-size: 13px; font-weight: 700; }
+.tableWrap { overflow-x: auto; }
+.table { width: 100%; min-width: 880px; border-collapse: collapse; }
+.table th, .table td { padding: 14px 16px; border-bottom: 1px solid #eaecf0; color: #344054; font-size: 13px; text-align: left; vertical-align: middle; }
+.table th { background: #f9fafb; color: #667085; font-size: 12px; font-weight: 900; }
+.table td { font-weight: 700; }
+.table td strong, .table td span { display: block; }
+.table td span:not(.badge) { margin-top: 4px; color: #98a2b3; font-size: 11px; }
+.badge { display: inline-flex !important; width: fit-content; margin: 0 !important; padding: 5px 9px; border-radius: 999px; font-size: 11px; font-weight: 900; }
+.reasonList { display: flex; flex-wrap: wrap; gap: 5px; }
+.reasonBadge { display: inline-flex !important; width: fit-content; margin: 0 !important; padding: 4px 7px; border-radius: 6px; background: #eef4ff; color: #3538cd !important; font-size: 10px !important; font-weight: 900; }
+.transfer_pending, .payment_missing { background: #fee4e2; color: #b42318; }
+.transfer_sent, .payment_pending { background: #fef0c7; color: #b54708; }
+.transfer_confirmed { background: #dcfae6; color: #067647; }
+.payment_refunded { background: #e4e7ec; color: #475467; }
+.dangerText { color: #d92d20; }
+.textButton { margin-top: 5px; padding: 0; border: 0; background: transparent; color: #175cd3; font: inherit; font-size: 11px; font-weight: 800; cursor: pointer; }
+.emptyCell { padding: 40px !important; color: #667085 !important; text-align: center !important; }
+.errorState { display: flex; align-items: center; gap: 12px; padding: 14px; margin-bottom: 18px; border: 1px solid #fecdca; border-radius: 10px; background: #fef3f2; color: #b42318; }
+button:disabled { cursor: wait; opacity: .6; }
+@media (max-width: 1100px) { .summaryGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 720px) { .main { padding: 20px 14px; } .hero, .panelHeader, .toolbar { flex-direction: column; } .heroActions, .searchBox, .panelHeader select { width: 100%; min-width: 0; } .summaryGrid { grid-template-columns: 1fr; } }

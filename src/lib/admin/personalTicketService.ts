@@ -48,6 +48,7 @@ export interface PersonalTicketSummary {
   applied: number;
   confirmed: number;
   pending: number;
+  paid: number;
   cancelled: number;
   notApplied: number;
 }
@@ -116,6 +117,7 @@ type PersonalTicketRpcResponse = {
     applied?: number;
     confirmed?: number;
     pending?: number;
+    paid?: number;
     cancelled?: number;
     not_applied?: number;
   };
@@ -193,6 +195,7 @@ export async function getPersonalTicketPage(
       applied: Number(summary.applied ?? 0),
       confirmed: Number(summary.confirmed ?? 0),
       pending: Number(summary.pending ?? 0),
+      paid: Number(summary.paid ?? 0),
       cancelled: Number(summary.cancelled ?? 0),
       notApplied: Number(summary.not_applied ?? 0),
     },

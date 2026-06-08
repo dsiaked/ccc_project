@@ -15,10 +15,13 @@ export interface BoardingBus {
   capacity: number;
   departedAt?: string | null;
   departedBy?: string | null;
+  checkInCode?: string | null;
+  checkInCodeExpiresAt?: string | null;
 }
 
 export interface BoardingPassenger {
   reservationId: string;
+  busId?: string;
   name: string;
   phone: string;
   district: string;
@@ -62,12 +65,66 @@ export interface BoardingManagerUser {
   team: string | null;
   campus: string | null;
   isBoardingManager: boolean;
+  assignedBusIds: string[];
 }
+
+export interface BoardingManagerAssignmentBus {
+  id: string;
+  label: string;
+  destination: string;
+}
+
+export interface BoardingManagerAssignmentOptions {
+  isAvailable: boolean;
+  allocationId: string | null;
+  allocationName: string | null;
+  buses: BoardingManagerAssignmentBus[];
+}
+
+export interface BoardingRosterGoogleSheetSyncResult {
+  spreadsheetId: string;
+  spreadsheetUrl: string;
+  allocationName: string;
+  passengerCount: number;
+  busCount: number;
+  syncedAt: string;
+}
+
+const isMissingBoardingManagerAssignmentRpc = (error: {
+  code?: string;
+  message?: string;
+}) =>
+  error.code === 'PGRST202' ||
+  error.code === '42883' ||
+  error.message?.includes('schema cache') ||
+  error.message?.includes('Could not find the function');
 
 export const getBoardingManagementSnapshot = async () => {
   const { data, error } = await supabase.rpc('get_boarding_management_snapshot');
   if (error) throw new Error(error.message);
   return (data ?? null) as BoardingSnapshot | null;
+};
+
+export const syncBoardingRosterGoogleSheet = async () => {
+  const { data, error } = await supabase.functions.invoke(
+    'boarding-roster-google-sheet',
+    { body: {} }
+  );
+  if (error) {
+    const context =
+      'context' in error
+        ? (error as { context?: unknown }).context
+        : null;
+    if (context instanceof Response) {
+      const body = (await context.clone().json().catch(() => null)) as {
+        error?: string;
+      } | null;
+      if (body?.error) throw new Error(body.error);
+    }
+    throw error;
+  }
+  if (data?.error) throw new Error(String(data.error));
+  return data as BoardingRosterGoogleSheetSyncResult;
 };
 
 export const setPassengerBoardingStatus = async (
@@ -106,6 +163,14 @@ export const cancelBoardingBusDeparture = async (busId: string) => {
   if (error) throw new Error(error.message);
 };
 
+export const rotateBoardingCheckInCode = async (busId: string) => {
+  const { data, error } = await supabase.rpc('rotate_boarding_check_in_code', {
+    p_bus_id: busId,
+  });
+  if (error) throw new Error(error.message);
+  return String(data ?? '');
+};
+
 export const getBoardingManagerUsers = async (search: string) => {
   const { data, error } = await supabase.rpc('get_boarding_manager_users', {
     p_search: search,
@@ -121,6 +186,7 @@ export const getBoardingManagerUsers = async (search: string) => {
     team: string | null;
     campus: string | null;
     is_boarding_manager: boolean;
+    assigned_bus_ids: string[] | null;
   }>).map((row) => ({
     userId: row.user_id,
     name: row.name,
@@ -130,7 +196,57 @@ export const getBoardingManagerUsers = async (search: string) => {
     team: row.team,
     campus: row.campus,
     isBoardingManager: row.is_boarding_manager,
+    assignedBusIds: row.assigned_bus_ids ?? [],
   }));
+};
+
+export const getBoardingManagerAssignmentOptions = async () => {
+  const { data, error } = await supabase.rpc('get_boarding_manager_assignment_options');
+  if (error) {
+    if (isMissingBoardingManagerAssignmentRpc(error)) {
+      return {
+        isAvailable: false,
+        allocationId: null,
+        allocationName: null,
+        buses: [],
+      } satisfies BoardingManagerAssignmentOptions;
+    }
+    throw new Error(error.message);
+  }
+
+  const value = (data ?? {}) as {
+    allocationId?: string | null;
+    allocationName?: string | null;
+    buses?: BoardingManagerAssignmentBus[];
+  };
+
+  return {
+    isAvailable: true,
+    allocationId: value.allocationId ?? null,
+    allocationName: value.allocationName ?? null,
+    buses: value.buses ?? [],
+  } satisfies BoardingManagerAssignmentOptions;
+};
+
+export const saveBoardingManagerBusAssignments = async (
+  userId: string,
+  busIds: string[]
+) => {
+  const { error } = await supabase.rpc(
+    'set_boarding_manager_bus_assignments_as_global_admin',
+    {
+      p_user_id: userId,
+      p_bus_ids: busIds,
+    }
+  );
+  if (error) {
+    if (isMissingBoardingManagerAssignmentRpc(error)) {
+      throw new Error(
+        '담당 호차 지정 DB 기능이 설치되지 않았습니다. Supabase에 sql/setup/96_boarding_manager_bus_assignments.sql을 적용해 주세요.'
+      );
+    }
+    throw new Error(error.message);
+  }
 };
 
 export const assignBoardingManager = async (userId: string) => {

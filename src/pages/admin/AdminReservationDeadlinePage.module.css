@@ -171,7 +171,12 @@
 }
 
 .primaryButton,
-.secondaryButton {
+.secondaryButton,
+.dangerButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
   min-width: 120px;
   height: 44px;
   padding: 0 16px;
@@ -193,8 +198,20 @@
   color: #344054;
 }
 
+.dangerButton {
+  margin-right: auto;
+  border: 1px solid #f04438;
+  background: #ffffff;
+  color: #b42318;
+}
+
+.dangerButton:hover:not(:disabled) {
+  background: #fef3f2;
+}
+
 .primaryButton:disabled,
-.secondaryButton:disabled {
+.secondaryButton:disabled,
+.dangerButton:disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }
@@ -222,7 +239,12 @@
   }
 
   .primaryButton,
-  .secondaryButton {
+  .secondaryButton,
+  .dangerButton {
     width: 100%;
+  }
+
+  .dangerButton {
+    margin-right: 0;
   }
 }

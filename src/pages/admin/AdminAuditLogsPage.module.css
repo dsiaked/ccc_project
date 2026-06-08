@@ -1,0 +1,46 @@
+.pageContainer { min-height: 100vh; background: #f3f6fa; }
+.main { width: 100%; max-width: 1400px; margin: 0 auto; padding: 100px 24px 56px; }
+.backButton { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 18px; border: 0; background: transparent; color: #475467; font: inherit; font-size: 13px; font-weight: 800; cursor: pointer; }
+.hero { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; padding: 22px; border: 1px solid #dbeafe; border-radius: 10px; background: #eff6ff; }
+.heroIcon { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 10px; background: #dbeafe; color: #1d4ed8; }
+.hero span { color: #1d4ed8; font-size: 12px; font-weight: 900; }
+.hero h1 { margin: 4px 0; color: #101828; font-size: 28px; font-weight: 900; }
+.hero p { margin: 0; color: #667085; font-size: 14px; }
+.filters { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin-bottom: 18px; padding: 18px; border: 1px solid #e4e7ec; border-radius: 10px; background: #fff; }
+.filters label { display: grid; gap: 7px; }
+.filters label > span { color: #475467; font-size: 12px; font-weight: 900; }
+.filters input, .filters select { width: 100%; min-height: 42px; border: 1px solid #d0d5dd; border-radius: 8px; padding: 0 11px; background: #fff; color: #101828; font: inherit; }
+.searchField { position: relative; }
+.searchField svg { position: absolute; top: 13px; left: 11px; color: #98a2b3; }
+.searchField input { padding-left: 34px; }
+.error { display: grid; gap: 8px; margin-bottom: 18px; padding: 16px; border: 1px solid #fecaca; border-radius: 8px; background: #fff7f7; color: #b42318; font-size: 13px; font-weight: 800; }
+.error strong { color: #991b1b; font-size: 15px; }
+.error p { margin: 0; line-height: 1.6; }
+.error button { width: fit-content; min-height: 36px; border: 1px solid #fca5a5; border-radius: 8px; padding: 0 12px; background: #ffffff; color: #b42318; font: inherit; font-size: 12px; font-weight: 900; cursor: pointer; }
+.logPanel { border: 1px solid #e4e7ec; border-radius: 10px; background: #fff; overflow: hidden; }
+.panelHeader { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px; border-bottom: 1px solid #eaecf0; }
+.panelHeader h2 { margin: 0; color: #101828; font-size: 18px; }
+.panelHeader p { margin: 4px 0 0; color: #667085; font-size: 12px; }
+.panelHeader button, .pagination button { display: inline-flex; align-items: center; gap: 5px; min-height: 36px; border: 1px solid #d0d5dd; border-radius: 8px; padding: 0 12px; background: #fff; color: #344054; font: inherit; font-size: 12px; font-weight: 900; cursor: pointer; }
+.logList { display: grid; }
+.logItem { border-bottom: 1px solid #eaecf0; }
+.logItem summary { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 16px 18px; cursor: pointer; }
+.logItem summary:hover { background: #f9fafb; }
+.logItem summary div { display: grid; gap: 3px; }
+.logItem summary strong { color: #101828; font-size: 14px; }
+.logItem summary span { color: #667085; font-size: 12px; }
+.logItem summary code { color: #667085; font-size: 11px; }
+.actionBadge { display: inline-flex; justify-content: center; min-width: 48px; padding: 5px 8px; border-radius: 999px; font-size: 11px !important; font-weight: 900; }
+.insert { background: #dcfce7; color: #15803d !important; }
+.update { background: #dbeafe; color: #1d4ed8 !important; }
+.delete { background: #fee2e2; color: #b42318 !important; }
+.detailGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 0 18px 18px; }
+.detailGrid section { min-width: 0; }
+.detailGrid h3 { margin: 0 0 7px; color: #475467; font-size: 12px; }
+.detailGrid pre { max-height: 360px; margin: 0; overflow: auto; border: 1px solid #e4e7ec; border-radius: 8px; padding: 12px; background: #f8fafc; color: #344054; font-size: 11px; line-height: 1.5; white-space: pre-wrap; word-break: break-all; }
+.emptyState { padding: 56px 20px; color: #667085; font-size: 14px; font-weight: 700; text-align: center; }
+.pagination { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 16px; }
+.pagination span { color: #475467; font-size: 12px; font-weight: 900; }
+.pagination button:disabled, .panelHeader button:disabled { cursor: default; opacity: .45; }
+@media (max-width: 1000px) { .filters { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 700px) { .main { padding: 88px 12px 40px; } .filters, .detailGrid { grid-template-columns: 1fr; } .logItem summary { grid-template-columns: auto minmax(0, 1fr); } .logItem summary code { display: none; } }

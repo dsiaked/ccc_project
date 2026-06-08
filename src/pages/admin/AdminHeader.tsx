@@ -3,17 +3,27 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Banknote,
   Bus,
+  ChevronDown,
   ClipboardList,
   ClipboardCheck,
+  FileCheck2,
+  Gauge,
+  Home,
   LayoutDashboard,
+  LoaderCircle,
   LogOut,
+  Megaphone,
   MessageSquare,
   PanelLeftClose,
   PanelLeftOpen,
   Route,
   FlaskConical,
+  History,
   Settings,
+  SlidersHorizontal,
+  UserCog,
   Users,
+  Workflow,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -22,135 +32,266 @@ import {
   getAdminRoles,
   getGlobalCampusNotices,
   getUnreadCampusRequestIds,
-  setActiveAdminRole,
   type AdminRole,
   type AdminRoleType,
 } from '../../lib/adminService';
 import { useAdminAuth } from '../../components/AdminAuthProvider';
+import LogoutModal from '../../components/LogoutModal';
 import {
   campusNoticeReadEventName,
   getUnreadCampusNotices,
 } from '../../lib/adminNoticeReadState';
 import { supabase } from '../../lib/supabase';
+import { canAdminRoleAccess } from '../../utils/adminAccess';
 import styles from './AdminHeader.module.css';
 
 interface AdminNavItem {
   label: string;
   path: string;
   icon: LucideIcon;
-  group: 'overview' | 'operations' | 'management';
+  stageGroup:
+    | 'prepare'
+    | 'application'
+    | 'payment'
+    | 'allocation'
+    | 'boarding'
+    | 'followUp';
+  targetGroup: 'global' | 'individual' | 'campus' | 'boardingManager';
   matchPaths?: string[];
+  activeTab?: 'requests' | 'notices' | 'home';
   allowedRoles: AdminRoleType[];
 }
 
 const navItems: AdminNavItem[] = [
   {
-    label: '대시보드',
-    path: '/admin/global',
+    label: '운영 대시보드',
+    path: '/admin/dashboard',
     icon: LayoutDashboard,
-    group: 'overview',
+    stageGroup: 'prepare',
+    targetGroup: 'global',
     allowedRoles: ['global_admin'],
   },
   {
-    label: '운영 초기값 설정',
-    path: '/admin/setup-check',
+    label: '가입·신청 현황',
+    path: '/admin/applications',
+    icon: Users,
+    stageGroup: 'application',
+    targetGroup: 'individual',
+    allowedRoles: ['global_admin'],
+  },
+  {
+    label: '탑승 확인 관리',
+    path: '/admin/boarding',
+    icon: ClipboardList,
+    stageGroup: 'boarding',
+    targetGroup: 'boardingManager',
+    allowedRoles: ['global_admin', 'boarding_manager'],
+  },
+  {
+    label: '캠퍼스 입금·송금 관리',
+    path: '/admin/campus-dashboard',
+    icon: Banknote,
+    stageGroup: 'payment',
+    targetGroup: 'campus',
+    allowedRoles: ['campus_admin'],
+  },
+  {
+    label: '문의 처리',
+    path: '/admin/communications',
+    icon: MessageSquare,
+    stageGroup: 'application',
+    targetGroup: 'campus',
+    activeTab: 'requests',
+    allowedRoles: ['global_admin', 'campus_admin'],
+  },
+  {
+    label: '캠퍼스 공지',
+    path: '/admin/communications?tab=notices',
+    icon: Megaphone,
+    stageGroup: 'application',
+    targetGroup: 'campus',
+    activeTab: 'notices',
+    allowedRoles: ['global_admin'],
+  },
+  {
+    label: '홈화면 공지',
+    path: '/admin/communications?tab=home',
+    icon: Home,
+    stageGroup: 'application',
+    targetGroup: 'global',
+    activeTab: 'home',
+    allowedRoles: ['global_admin'],
+  },
+  {
+    label: '배차 계산',
+    path: '/admin/allocations',
+    icon: Route,
+    stageGroup: 'allocation',
+    targetGroup: 'global',
+    allowedRoles: ['global_admin'],
+  },
+  {
+    label: '배차안 편집·확정',
+    path: '/admin/allocations/workspace',
+    icon: Workflow,
+    stageGroup: 'allocation',
+    targetGroup: 'global',
+    allowedRoles: ['global_admin'],
+  },
+  {
+    label: '배차 로직',
+    path: '/admin/allocations/logic',
+    icon: SlidersHorizontal,
+    stageGroup: 'allocation',
+    targetGroup: 'global',
+    allowedRoles: ['global_admin'],
+  },
+  {
+    label: '확정 배차 결과',
+    path: '/admin/allocations/result',
+    icon: FileCheck2,
+    stageGroup: 'allocation',
+    targetGroup: 'global',
+    allowedRoles: ['global_admin'],
+  },
+  {
+    label: '잔여좌석 판매',
+    path: '/admin/payments/remaining-seats',
+    icon: Bus,
+    stageGroup: 'allocation',
+    targetGroup: 'individual',
+    allowedRoles: ['global_admin'],
+  },
+  {
+    label: '캠퍼스 송금 확인',
+    path: '/admin/payments/campus-transfers',
+    icon: Banknote,
+    stageGroup: 'payment',
+    targetGroup: 'campus',
+    allowedRoles: ['global_admin'],
+  },
+  {
+    label: '미입금 최종 점검',
+    path: '/admin/payments/final-review',
     icon: ClipboardCheck,
-    group: 'management',
+    stageGroup: 'payment',
+    targetGroup: 'individual',
+    allowedRoles: ['global_admin'],
+  },
+  {
+    label: '사용자 관리',
+    path: '/admin/users',
+    icon: Users,
+    stageGroup: 'application',
+    targetGroup: 'individual',
+    allowedRoles: ['global_admin'],
+  },
+  {
+    label: '캠퍼스 관리자 관리',
+    path: '/admin/access/campus-admins',
+    icon: UserCog,
+    stageGroup: 'prepare',
+    targetGroup: 'campus',
+    allowedRoles: ['global_admin'],
+  },
+  {
+    label: '선탑자 권한·호차 관리',
+    path: '/admin/access/boarding-managers',
+    icon: UserCog,
+    stageGroup: 'prepare',
+    targetGroup: 'boardingManager',
+    allowedRoles: ['global_admin'],
+  },
+  {
+    label: '운영 설정',
+    path: '/admin/settings',
+    icon: ClipboardCheck,
+    stageGroup: 'prepare',
+    targetGroup: 'global',
     allowedRoles: ['global_admin'],
   },
   {
     label: '시뮬레이션',
-    path: '/admin/simulation',
+    path: '/admin/system/simulation',
     icon: FlaskConical,
-    group: 'management',
+    stageGroup: 'prepare',
+    targetGroup: 'global',
     allowedRoles: ['global_admin'],
   },
   {
-    label: '신청 현황',
-    path: '/admin/tickets',
-    icon: Users,
-    group: 'overview',
+    label: '예상 참여 인원 관리',
+    path: '/admin/settings/participation-targets',
+    icon: Gauge,
+    stageGroup: 'prepare',
+    targetGroup: 'campus',
     allowedRoles: ['global_admin'],
   },
   {
-    label: '선탑자 탑승 현황',
-    path: '/admin/boarding',
-    icon: ClipboardList,
-    group: 'overview',
-    allowedRoles: ['global_admin', 'boarding_manager'],
-  },
-  {
-    label: '캠퍼스 관리',
-    path: '/admin/campus',
-    icon: Banknote,
-    group: 'overview',
-    allowedRoles: ['campus_admin'],
-  },
-  {
-    label: '본부 입금',
-    path: '/admin/campus-transfer',
-    icon: Banknote,
-    group: 'operations',
-    allowedRoles: ['global_admin'],
-  },
-  {
-    label: '공지·문의',
-    path: '/admin/campus-requests',
-    icon: MessageSquare,
-    group: 'overview',
-    allowedRoles: ['global_admin', 'campus_admin'],
-  },
-  {
-    label: '배차',
-    path: '/admin/allocation',
-    icon: Route,
-    group: 'operations',
-    matchPaths: [
-      '/admin/bus-allocation',
-      '/admin/allocation/logic',
-      '/admin/allocation/result',
-      '/admin/remaining-seat-sales',
-    ],
-    allowedRoles: ['global_admin'],
-  },
-  {
-    label: '개별 사용자 관리',
-    path: '/admin/users',
-    icon: Bus,
-    group: 'management',
-    matchPaths: [
-      '/admin/personal-tickets',
-      '/admin/campus-admins',
-      '/admin/boarding-managers',
-      '/admin/campus-issues',
-    ],
-    allowedRoles: ['global_admin'],
-  },
-  {
-    label: '설정',
-    path: '/admin/participation-targets',
+    label: '신청 마감 설정',
+    path: '/admin/settings/reservation-deadline',
     icon: Settings,
-    group: 'management',
-    matchPaths: ['/admin/reservation-deadline'],
+    stageGroup: 'prepare',
+    targetGroup: 'global',
+    allowedRoles: ['global_admin'],
+  },
+  {
+    label: '관리 작업 기록',
+    path: '/admin/system/audit-logs',
+    icon: History,
+    stageGroup: 'followUp',
+    targetGroup: 'global',
     allowedRoles: ['global_admin'],
   },
 ];
 
-const navGroups = [
-  { id: 'overview', label: '운영 현황' },
-  { id: 'operations', label: '배차 · 정산' },
-  { id: 'management', label: '관리 · 설정' },
+const stageNavGroups = [
+  { id: 'prepare', label: '1. 운영 준비' },
+  { id: 'application', label: '2. 신청 · 소통' },
+  { id: 'payment', label: '3. 입금 · 검토' },
+  { id: 'allocation', label: '4. 배차' },
+  { id: 'boarding', label: '5. 탑승 · 운행' },
+  { id: 'followUp', label: '6. 사후 관리' },
+] as const;
+
+const targetNavGroups = [
+  { id: 'global', label: '전체 운영' },
+  { id: 'individual', label: '개인' },
+  { id: 'campus', label: '캠퍼스' },
+  { id: 'boardingManager', label: '선탑자' },
 ] as const;
 
 const sidebarCollapsedStorageKey = 'admin-sidebar-collapsed';
+const sidebarViewStorageKey = 'admin-sidebar-view';
+const expandedNavGroupsStorageKey = 'admin-expanded-nav-groups';
+type SidebarView = 'stage' | 'target';
+type NavGroupId = AdminNavItem['stageGroup'] | AdminNavItem['targetGroup'];
+const rolePagePreloads: Record<'campus_admin' | 'boarding_manager', () => Promise<unknown>> = {
+  campus_admin: () => import('./AdminCampusPage'),
+  boarding_manager: () => import('./AdminBoardingPage'),
+};
 
 const AdminHeader = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { session, adminRole: activeAdminRole } = useAdminAuth();
+  const {
+    session,
+    adminRole: activeAdminRole,
+    switchAdminRole,
+  } = useAdminAuth();
   const [switchableRoles, setSwitchableRoles] = useState<AdminRole[]>([]);
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const [activeRoleId, setActiveRoleId] = useState('');
+  const [switchingRoleId, setSwitchingRoleId] = useState('');
   const [campusNoticeCount, setCampusNoticeCount] = useState(0);
+  const [sidebarView, setSidebarView] = useState<SidebarView>(() => {
+    try {
+      return window.localStorage.getItem(sidebarViewStorageKey) === 'target'
+        ? 'target'
+        : 'stage';
+    } catch {
+      return 'stage';
+    }
+  });
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
     try {
       return window.localStorage.getItem(sidebarCollapsedStorageKey) === 'true';
@@ -158,6 +299,19 @@ const AdminHeader = () => {
       return false;
     }
   });
+  const [expandedNavGroups, setExpandedNavGroups] = useState<Set<NavGroupId>>(
+    () => {
+      try {
+        const storedGroups = JSON.parse(
+          window.localStorage.getItem(expandedNavGroupsStorageKey) ?? '[]'
+        ) as NavGroupId[];
+
+        return new Set(['prepare', 'global', ...storedGroups]);
+      } catch {
+        return new Set(['prepare', 'global']);
+      }
+    }
+  );
 
   useEffect(() => {
     let isMounted = true;
@@ -268,7 +422,11 @@ const AdminHeader = () => {
   }, [session, activeAdminRole]);
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    const { error } = await supabase.auth.signOut();
+
+    if (error) throw error;
+
+    setIsLogoutModalOpen(false);
     navigate('/admin/login');
   };
 
@@ -278,8 +436,51 @@ const AdminHeader = () => {
       return;
     }
 
-    await setActiveAdminRole(session.user.id, roleId);
-    window.location.reload();
+    setSwitchingRoleId(roleId);
+
+    try {
+      const targetRole = switchableRoles.find((role) => role.id === roleId);
+
+      if (targetRole?.role === 'campus_admin' || targetRole?.role === 'boarding_manager') {
+        await rolePagePreloads[targetRole.role]();
+      }
+
+      const role = await switchAdminRole(roleId);
+      navigate(role.role === 'boarding_manager' ? '/admin/boarding' : '/admin/campus-dashboard');
+    } finally {
+      setSwitchingRoleId('');
+    }
+  };
+
+  const handleNavItemClick = async (item: AdminNavItem) => {
+    if (!session || !activeAdminRole) {
+      navigate('/admin/login');
+      return;
+    }
+
+    if (canAdminRoleAccess(activeAdminRole.role, item.allowedRoles)) {
+      navigate(item.path);
+      return;
+    }
+
+    const targetRole = switchableRoles.find((role) =>
+      item.allowedRoles.includes(role.role)
+    );
+
+    if (!targetRole) return;
+
+    setSwitchingRoleId(targetRole.id);
+
+    try {
+      if (targetRole.role === 'campus_admin' || targetRole.role === 'boarding_manager') {
+        await rolePagePreloads[targetRole.role]();
+      }
+
+      await switchAdminRole(targetRole.id);
+      navigate(item.path);
+    } finally {
+      setSwitchingRoleId('');
+    }
   };
 
   const handleSidebarToggle = () => {
@@ -296,28 +497,86 @@ const AdminHeader = () => {
     });
   };
 
-  const isActive = (item: AdminNavItem) => {
-    const paths = [item.path, ...(item.matchPaths ?? [])];
+  const handleSidebarViewChange = (view: SidebarView) => {
+    setSidebarView(view);
 
-    return paths.some((path) => location.pathname === path);
+    try {
+      window.localStorage.setItem(sidebarViewStorageKey, view);
+    } catch {
+      // The selected view remains usable when browser storage is unavailable.
+    }
+  };
+
+  const handleNavGroupToggle = (groupId: NavGroupId) => {
+    setExpandedNavGroups((previous) => {
+      const next = new Set(previous);
+
+      if (next.has(groupId)) {
+        next.delete(groupId);
+      } else {
+        next.add(groupId);
+      }
+
+      try {
+        window.localStorage.setItem(
+          expandedNavGroupsStorageKey,
+          JSON.stringify([...next])
+        );
+      } catch {
+        // The grouped navigation still works when browser storage is unavailable.
+      }
+
+      return next;
+    });
+  };
+
+  const isActive = (item: AdminNavItem) => {
+    const itemPath = item.path.split('?')[0];
+    const paths = [itemPath, ...(item.matchPaths ?? [])];
+    const isPathActive = paths.some((path) => location.pathname === path);
+
+    if (!isPathActive || !item.activeTab) return isPathActive;
+
+    const currentTab = new URLSearchParams(location.search).get('tab');
+
+    return item.activeTab === 'requests'
+      ? currentTab === null || currentTab === 'requests'
+      : currentTab === item.activeTab;
   };
 
   const adminRole = activeAdminRole?.role ?? null;
   const visibleNavItems = adminRole
-    ? navItems.filter((item) => item.allowedRoles.includes(adminRole))
+    ? navItems.filter(
+        (item) =>
+          canAdminRoleAccess(adminRole, item.allowedRoles) ||
+          switchableRoles.some((role) =>
+            canAdminRoleAccess(role.role, item.allowedRoles)
+          )
+      )
     : [];
   const homePath =
     adminRole === 'campus_admin'
-      ? '/admin/campus'
+      ? '/admin/campus-dashboard'
       : adminRole === 'boarding_manager'
         ? '/admin/boarding'
-        : '/admin/global';
+        : '/admin/dashboard';
+  const isCampusAdmin = adminRole === 'campus_admin';
+  const effectiveSidebarView = isCampusAdmin ? 'target' : sidebarView;
+  const navGroups =
+    effectiveSidebarView === 'stage' ? stageNavGroups : targetNavGroups;
+  const activeItem = visibleNavItems.find((item) => isActive(item));
+  const activeGroup =
+    effectiveSidebarView === 'stage'
+      ? activeItem?.stageGroup
+      : activeItem?.targetGroup;
 
   return (
-    <header
+    <>
+      <header
       className={`${styles.header} ${
         isSidebarCollapsed ? styles.collapsed : ''
       }`}
+      aria-busy={Boolean(switchingRoleId)}
     >
       <div className={styles.sidebarTop}>
         <button
@@ -328,7 +587,7 @@ const AdminHeader = () => {
           title={isSidebarCollapsed ? '관리자 홈' : undefined}
         >
           <span className={styles.logoMark}>CCC</span>
-          <span className={styles.logoLabel}>Bus Admin</span>
+          <span className={styles.logoLabel}>버스 관리자</span>
         </button>
 
         <button
@@ -345,20 +604,82 @@ const AdminHeader = () => {
             <PanelLeftClose size={18} />
           )}
         </button>
+
+        {switchingRoleId && (
+          <span className={styles.switchingIndicator} aria-live="polite">
+            <LoaderCircle size={16} />
+            <span>권한 전환 중</span>
+          </span>
+        )}
       </div>
 
-      <nav className={styles.nav} aria-label="관리자 메뉴">
+      {!isCampusAdmin && (
+        <div
+          className={styles.viewSwitcher}
+          role="group"
+          aria-label="관리자 메뉴 분류 방식"
+        >
+          <button
+            type="button"
+            className={sidebarView === 'stage' ? styles.activeView : undefined}
+            onClick={() => handleSidebarViewChange('stage')}
+            aria-pressed={sidebarView === 'stage'}
+            title={isSidebarCollapsed ? '단계별 메뉴' : undefined}
+          >
+            <ClipboardCheck size={15} />
+            <span>단계별</span>
+          </button>
+          <button
+            type="button"
+            className={sidebarView === 'target' ? styles.activeView : undefined}
+            onClick={() => handleSidebarViewChange('target')}
+            aria-pressed={sidebarView === 'target'}
+            title={isSidebarCollapsed ? '대상별 메뉴' : undefined}
+          >
+            <Users size={15} />
+            <span>대상별</span>
+          </button>
+        </div>
+      )}
+
+      <nav
+        className={`${styles.nav} ${isCampusAdmin ? styles.simpleNav : ''}`}
+        aria-label="관리자 메뉴"
+      >
         {navGroups.map((group) => {
           const groupItems = visibleNavItems.filter(
-            (item) => item.group === group.id
+            (item) =>
+              (effectiveSidebarView === 'stage'
+                ? item.stageGroup
+                : item.targetGroup) === group.id
           );
 
           if (groupItems.length === 0) return null;
+          const isGroupExpanded =
+            isCampusAdmin ||
+            expandedNavGroups.has(group.id) ||
+            activeGroup === group.id;
 
           return (
             <div className={styles.navGroup} key={group.id}>
-              <span className={styles.navGroupLabel}>{group.label}</span>
-              <div className={styles.navGroupItems}>
+              {!isCampusAdmin && (
+                <button
+                  type="button"
+                  className={styles.navGroupToggle}
+                  onClick={() => handleNavGroupToggle(group.id)}
+                  aria-expanded={isGroupExpanded}
+                  aria-controls={`admin-nav-group-${group.id}`}
+                >
+                  <span>{group.label}</span>
+                  <ChevronDown size={14} />
+                </button>
+              )}
+              <div
+                id={`admin-nav-group-${group.id}`}
+                className={`${styles.navGroupItems} ${
+                  isGroupExpanded ? '' : styles.navGroupItemsCollapsed
+                }`}
+              >
                 {groupItems.map((item) => {
                   const Icon = item.icon;
 
@@ -367,14 +688,27 @@ const AdminHeader = () => {
                       key={item.path}
                       type="button"
                       className={isActive(item) ? styles.activeNavItem : undefined}
-                      onClick={() => navigate(item.path)}
+                      onClick={() => void handleNavItemClick(item)}
+                      disabled={Boolean(switchingRoleId)}
+                      onMouseEnter={() => {
+                        const targetRole = switchableRoles.find((role) =>
+                          item.allowedRoles.includes(role.role)
+                        );
+
+                        if (
+                          targetRole?.role === 'campus_admin' ||
+                          targetRole?.role === 'boarding_manager'
+                        ) {
+                          void rolePagePreloads[targetRole.role]();
+                        }
+                      }}
                       aria-current={isActive(item) ? 'page' : undefined}
                       aria-label={item.label}
                       title={isSidebarCollapsed ? item.label : undefined}
                     >
                       <Icon size={18} />
                       <span className={styles.navItemLabel}>{item.label}</span>
-                      {item.path === '/admin/campus-requests' &&
+                      {item.path === '/admin/communications' &&
                         campusNoticeCount > 0 && (
                           <span className={styles.navBadge}>
                             {campusNoticeCount}
@@ -395,6 +729,8 @@ const AdminHeader = () => {
             <span>사용 권한</span>
             <select
               value={activeRoleId}
+              aria-label="사용 권한 선택"
+              disabled={Boolean(switchingRoleId)}
               onChange={(event) =>
                 void handleAdminRoleChange(event.target.value)
               }
@@ -402,10 +738,10 @@ const AdminHeader = () => {
               {switchableRoles.map((role) => (
                 <option key={role.id} value={role.id}>
                   {role.role === 'boarding_manager'
-                    ? '선탑자'
-                    : [role.district, role.team, role.campus]
+                    ? '선탑자 역할'
+                    : `캠퍼스 회계 순장님 · ${[role.district, role.team, role.campus]
                         .filter(Boolean)
-                        .join(' / ')}
+                        .join(' / ')}`}
                 </option>
               ))}
             </select>
@@ -415,7 +751,7 @@ const AdminHeader = () => {
         <button
           type="button"
           className={styles.logoutButton}
-          onClick={handleLogout}
+          onClick={() => setIsLogoutModalOpen(true)}
           aria-label="로그아웃"
           title={isSidebarCollapsed ? '로그아웃' : undefined}
         >
@@ -423,7 +759,15 @@ const AdminHeader = () => {
           <span className={styles.logoutLabel}>로그아웃</span>
         </button>
       </div>
-    </header>
+      </header>
+
+      {isLogoutModalOpen && (
+        <LogoutModal
+          onClose={() => setIsLogoutModalOpen(false)}
+          onConfirm={handleLogout}
+        />
+      )}
+    </>
   );
 };
 

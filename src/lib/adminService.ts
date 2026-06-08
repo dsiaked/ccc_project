@@ -24,6 +24,7 @@ export interface AdminRole {
   id: string;
   user_id: string;
   role: AdminRoleType;
+  campus_id: string | null;
   district: string | null;
   team: string | null;
   campus: string | null;
@@ -54,6 +55,13 @@ export interface SelectOption {
   name: string;
 }
 
+export interface AdminCampusScope {
+  campusId: string;
+  district: string;
+  team: string;
+  campus: string;
+}
+
 export interface CampusOptionViewRow {
   district_id: string;
   district: string;
@@ -67,6 +75,7 @@ export type CampusManagerSearchParams = {
   district?: string;
   team?: string;
   campus?: string;
+  query?: string;
   page?: number;
   pageSize?: number;
 };
@@ -86,13 +95,15 @@ export type AdminCreateUserInput = {
   password: string;
   name: string;
   phone: string;
-  organizationMode: 'registered' | 'manual';
+  organizationMode: 'registered' | 'external';
   districtId?: string;
   teamId?: string;
   campusId?: string;
   district?: string;
   team?: string;
   campus?: string;
+  coordinatorName?: string;
+  coordinatorPhone?: string;
 };
 
 type CampusTransferStatsRow = {
@@ -350,10 +361,7 @@ export async function getAdminRoles(userId: string) {
       .order('updated_at', { ascending: false, nullsFirst: false })
       .order('created_at', { ascending: false, nullsFirst: false });
 
-    if (error) {
-      console.error('Failed to get admin role:', error);
-      return [];
-    }
+    if (error) throw error;
 
     const roles = (data ?? []) as AdminRole[];
 
@@ -489,6 +497,24 @@ export async function getCampusesByTeam(teamId: string) {
   return Array.from(map.values());
 }
 
+export async function getCampusScopesForAdmin(): Promise<AdminCampusScope[]> {
+  const { data, error } = await supabase
+    .from('campus_options')
+    .select('campus_id, district, team, campus')
+    .order('district', { ascending: true })
+    .order('team', { ascending: true })
+    .order('campus', { ascending: true });
+
+  if (error) throw error;
+
+  return (data ?? []).map((item) => ({
+    campusId: item.campus_id,
+    district: item.district,
+    team: item.team,
+    campus: item.campus,
+  }));
+}
+
 export async function deleteUserAccountForAdmin(userId: string) {
   const { data, error } = await supabase.rpc('delete_user_account_as_admin', {
     p_user_id: userId,
@@ -563,6 +589,7 @@ export async function searchUsersForCampusManager({
   district,
   team,
   campus,
+  query,
   page = 1,
   pageSize = 50,
 }: CampusManagerSearchParams) {
@@ -574,6 +601,7 @@ export async function searchUsersForCampusManager({
       p_district: district ?? null,
       p_team: team ?? null,
       p_campus: campus ?? null,
+      p_query: query?.trim() || null,
       p_limit: normalizedPageSize,
       p_offset: (normalizedPage - 1) * normalizedPageSize,
     }
@@ -585,7 +613,7 @@ export async function searchUsersForCampusManager({
       error.message.includes('get_campus_admin_manage_users_page')
     ) {
       throw new Error(
-        '캠퍼스 관리자 검색 DB 함수가 설치되지 않았습니다. sql/setup/75_campus_admin_manage_users_page.sql을 적용해주세요.'
+        '캠퍼스 회계 순장님 검색 DB 함수가 설치되지 않았습니다. sql/setup/75_campus_admin_manage_users_page.sql을 적용해주세요.'
       );
     }
 
@@ -645,7 +673,7 @@ export async function registerCampusAdmin({
   }
 
   /*
-    같은 지구/팀/캠퍼스에 이미 캠퍼스 관리자가 있으면 먼저 제거합니다.
+    같은 지구/팀/캠퍼스에 이미 캠퍼스 회계 순장님이 있으면 먼저 제거합니다.
     그래서 기존 관리자가 등록되어 있어도 새 관리자로 변경할 수 있습니다.
   */
   const { error } = await supabase.rpc('assign_campus_admin_as_global_admin', {
@@ -1101,6 +1129,29 @@ export async function markCampusTransferSent({
 }
 
 // ===== 캠퍼스 문의 게시판 =====
+
+export async function cancelCampusTransferReport(params: {
+  transferId: string;
+}) {
+  if (!params.transferId || params.transferId.startsWith('empty-')) {
+    throw new Error('취소할 캠퍼스 송금 보고를 찾지 못했습니다.');
+  }
+
+  const { data, error } = await supabase.rpc('cancel_campus_transfer_report', {
+    p_transfer_id: params.transferId,
+  });
+
+  if (error) {
+    console.error('캠퍼스 송금 보고 완료 취소 실패:', error);
+    throw new Error(error.message);
+  }
+
+  if (!data) {
+    throw new Error('취소할 캠퍼스 송금 보고를 찾지 못했습니다.');
+  }
+
+  return data;
+}
 
 export interface CampusRequest {
   id: string;

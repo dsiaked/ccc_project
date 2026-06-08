@@ -27,12 +27,12 @@ import styles from './AdminSimulationPage.module.css';
 const simulationStages = [
   ['시뮬레이션 정보 초기화', '시뮬레이션용 시험 계정과 모든 운영 자료를 삭제하여 처음부터 다시 설정할 수 있는 상태로 되돌립니다.', ['시뮬레이션용 시험 계정 전체 삭제', '모든 신청·입금·배차·요청·공지 삭제', '조직·캠퍼스·행선지·버스 옵션·운영 설정 삭제']],
   ['운영 초기값 설정', '서울지구 조직도와 기본 행선지를 등록하고 권장 시뮬레이션 운영 초기값을 생성합니다.', ['서울지구 조직도·기본 행선지 등록', '예상 참여 인원 2,500명 설정', '44인승 SIM 버스 옵션·요금 설정']],
-  ['사용자 및 캠퍼스 관리자 생성', '소형·중형·대형·거점형 캠퍼스가 섞인 비균등 분포로 일반 회원과 모든 캠퍼스 관리자를 생성합니다.', ['다양한 캠퍼스 규모별 실제 로그인 계정 생성', '프로필 생성', '관리자 5명은 캠퍼스 2개씩 담당']],
+  ['사용자 및 캠퍼스 회계 순장님 생성', '소형·중형·대형·거점형 캠퍼스가 섞인 비균등 분포로 일반 회원과 모든 캠퍼스 회계 순장님을 생성합니다.', ['다양한 캠퍼스 규모별 실제 로그인 계정 생성', '프로필 생성', '관리자 5명은 캠퍼스 2개씩 담당']],
   ['개별 신청', '사용자별 1·2지망 신청을 생성하고 실제 신청 건수를 확인합니다.', ['개별 신청', '행선지 수요 분산', '신청 상태 확인']],
-  ['개별 입금', '신청자별 입금 여부를 랜덤으로 나누거나 모든 신청자를 입금 완료 상태로 설정합니다.', ['랜덤 입금·미입금 상태 설정', '전체 입금 완료 상태 설정', '입금 완료 사용자의 캠퍼스 관리자 확인 기록 반영']],
+  ['개별 입금', '입금되지 않은 개별 사용자의 입금 상태를 완료로 변경합니다.', ['입금 행이 없는 활성 신청의 완료 입금 생성', '입금 대기 상태를 완료로 변경', '기존 완료·환불 입금 보존']],
   ['임시 배차안 생성', '전체 입금 완료 여부와 관계없이 활성 신청 수요를 기준으로 임시 배차안을 생성합니다.', ['활성 신청 기준 배차 추천 계산', '임시 배차안 생성 및 편집', '전체 입금 전에도 실행 가능']],
   ['잔여 좌석 판매 및 추가 버스표', '기존 미탑승 사용자과 신규 사용자을 섞어 잔여 좌석을 판매합니다.', ['추가 구매자 선정·생성', '잔여 좌석 판매', '추가 버스표 발급']],
-  ['모두 송금 완료', '캠퍼스 관리자가 확인한 개인 입금을 기준으로 캠퍼스별 송금 보고를 생성합니다.', ['신청 마감', '개인 입금 확인 상태 검증', '모든 캠퍼스 송금 보고 생성']],
+  ['모두 송금 완료', '캠퍼스 회계 순장님이 확인한 개인 입금을 기준으로 캠퍼스별 송금 보고를 생성합니다.', ['신청 마감', '개인 입금 확인 상태 검증', '모든 캠퍼스 송금 보고 생성']],
   ['행사 종료 및 전체 정산 보고서', '현재 저장 가능한 정산 자료를 확인하고, 아직 필요한 탑승·노쇼 기록 기능을 구분합니다.', ['현재 정산 자료 확인', '탑승·노쇼 기록 모델 설계', '최종 보고서 기능 구현']],
 ] as const;
 
@@ -58,8 +58,8 @@ const getStageRunName = (index: number) =>
               : '';
 
 const stageActions: Record<number, { label: string; path: string } | undefined> = {
-  5: { label: '배차 화면 열기', path: '/admin/allocation' },
-  6: { label: '잔여 좌석 판매 열기', path: '/admin/remaining-seat-sales' },
+  5: { label: '배차 화면 열기', path: '/admin/allocations' },
+  6: { label: '잔여 좌석 판매 열기', path: '/admin/payments/remaining-seats' },
 };
 
 const stageSummaryLabels: Record<string, string> = {
@@ -79,24 +79,23 @@ const stageSummaryLabels: Record<string, string> = {
   checked_at: '확인 완료 시각',
   total_accounts: '총 계정',
   general_users: '일반 회원',
-  campus_admins: '캠퍼스 관리자',
+  campus_admins: '캠퍼스 회계 순장님',
   multi_campus_admins: '2개 캠퍼스 담당 관리자',
-  campus_admin_roles: '캠퍼스 관리자 권한',
+  campus_admin_roles: '캠퍼스 회계 순장님 권한',
   general_user_distribution_range: '캠퍼스별 일반 회원 분포',
   processed: '처리 완료',
   created_in_batch: '현재 배치 생성',
   skipped_in_batch: '현재 배치 기존 계정',
   created_total: '누적 생성',
   completed_in_batch: '현재 배치 입금 완료',
-  pending_in_batch: '현재 배치 입금 대기',
+  updated_in_batch: '현재 배치 대기 상태 변경',
   completed_total: '누적 입금 완료',
-  pending_total: '누적 입금 대기',
+  updated_total: '누적 대기 상태 변경',
   deadline_closed: '신청 마감',
   completed_payments: '입금 완료 처리',
   verified_payments: '캠퍼스 확인 처리',
   verified_in_batch: '이번 배치 캠퍼스 확인',
   verified_total: '누적 캠퍼스 확인',
-  payment_mode: '개별 입금 설정 모드',
   sent_transfers: '송금 보고 처리',
   sent_total_amount: '총 송금액',
   skipped_total: '누적 기존 계정',
@@ -136,7 +135,7 @@ const cleanupResultLabels: Record<string, string> = {
   stations: '행선지',
   busOptions: '버스 옵션',
   appSettings: '운영 설정',
-  campusAdminRoles: '캠퍼스 관리자 권한',
+  campusAdminRoles: '캠퍼스 회계 순장님 권한',
   organization: '조직 구조',
 };
 
@@ -152,7 +151,7 @@ const cleanupResultNotes: Record<string, string> = {
   stations: '신청 화면의 행선지 정보',
   busOptions: '배차 계산용 차량 옵션',
   appSettings: '시뮬레이션 실행 잠금을 제외한 앱 설정',
-  campusAdminRoles: '캠퍼스 관리자 권한',
+  campusAdminRoles: '캠퍼스 회계 순장님 권한',
   organization: '지구·팀·캠퍼스',
 };
 
@@ -319,14 +318,14 @@ const buildStagePreview = (
       ...common,
       metrics: [
         ['일반 회원', `${selectedGeneralUsers.toLocaleString()}명`],
-        ['캠퍼스 관리자', `${selectedCampusAdmins.toLocaleString()}명`],
+        ['캠퍼스 회계 순장님', `${selectedCampusAdmins.toLocaleString()}명`],
         ['총 실제 계정', `${selectedTotalAccounts.toLocaleString()}개`],
         ['캠퍼스별 일반 회원 분포', selectedDistributionRange],
       ],
       rows: selectedCampuses.map((campus) => ({
         label: `${campus.team} · ${campus.campus}`,
         value: `${campus.generalUserCount.toLocaleString()}명`,
-        note: `캠퍼스 관리자 ${campus.campusAdminCount}명`,
+        note: `캠퍼스 회계 순장님 ${campus.campusAdminCount}명`,
       })),
     };
   }
@@ -349,21 +348,22 @@ const buildStagePreview = (
     },
     {
       status:
-        (operation?.payments.total ?? 0) > 0
-          ? '개별 입금 설정됨'
+        (operation?.payments.completed ?? 0) >=
+        ((operation?.reservations.requested ?? 0) + (operation?.reservations.confirmed ?? 0))
+          ? '개별 입금 완료'
           : (operation?.reservations.total ?? 0) > 0
-            ? '입금 생성 필요'
+            ? '미입금 사용자 있음'
             : '개별 신청 필요',
       metrics: [
-        ['입금 데이터', `${(operation?.payments.total ?? 0).toLocaleString()}건`],
+        ['활성 신청', `${((operation?.reservations.requested ?? 0) + (operation?.reservations.confirmed ?? 0)).toLocaleString()}건`],
         ['입금 완료', `${(operation?.payments.completed ?? 0).toLocaleString()}건`],
         ['입금 대기', `${(operation?.payments.pending ?? 0).toLocaleString()}건`],
-        ['입금 없는 요청 신청', `${Math.max(0, (operation?.reservations.requested ?? 0) - (operation?.payments.total ?? 0)).toLocaleString()}건`],
+        ['미입금 추정', `${Math.max(0, (operation?.reservations.requested ?? 0) + (operation?.reservations.confirmed ?? 0) - (operation?.payments.completed ?? 0)).toLocaleString()}건`],
       ],
       rows: [
-        { label: '개별 입금 상태', value: `완료 ${(operation?.payments.completed ?? 0).toLocaleString()} / 미입금 ${(operation?.payments.pending ?? 0).toLocaleString()}`, note: '입금 완료 사용자는 소속 캠퍼스 관리자를 확인자로 기록' },
-        { label: '설정 대상 신청', value: `${(operation?.reservations.requested ?? 0).toLocaleString()}건`, note: '현재 요청 상태인 신청의 입금 데이터를 교체' },
-        { label: '설정 방법', value: '랜덤 또는 전체 입금', note: '두 실행 버튼 중 필요한 시뮬레이션 상태를 선택' },
+        { label: '개별 입금 상태', value: `완료 ${(operation?.payments.completed ?? 0).toLocaleString()} / 대기 ${(operation?.payments.pending ?? 0).toLocaleString()}`, note: '완료된 입금과 환불 입금은 그대로 보존' },
+        { label: '처리 대상', value: `${Math.max(0, (operation?.reservations.requested ?? 0) + (operation?.reservations.confirmed ?? 0) - (operation?.payments.completed ?? 0)).toLocaleString()}건`, note: '입금 행이 없거나 입금 대기 상태인 활성 신청' },
+        { label: '처리 결과', value: '미입금 → 입금 완료', note: '소속 캠퍼스 회계 순장님 확인 기록도 함께 반영' },
       ],
     },
     {
@@ -385,7 +385,7 @@ const buildStagePreview = (
       rows: [
         { label: '신청 마감 일시', value: operation?.deadlineAt ? new Date(operation.deadlineAt).toLocaleString() : '설정 없음', note: '현재 서버 설정 기준' },
         { label: '캠퍼스 입금 확인', value: `${(operation?.payments.verified ?? 0).toLocaleString()}건`, note: 'verified_at이 기록된 실제 입금' },
-        { label: '캠퍼스 송금 처리', value: `송금 ${(operation?.transfers.sent ?? 0).toLocaleString()} / 본부 확인 ${(operation?.transfers.confirmed ?? 0).toLocaleString()}`, note: `캠퍼스 관리자 ${campusAdmins.toLocaleString()}명 기준` },
+        { label: '캠퍼스 송금 처리', value: `송금 ${(operation?.transfers.sent ?? 0).toLocaleString()} / 본부 확인 ${(operation?.transfers.confirmed ?? 0).toLocaleString()}`, note: `캠퍼스 회계 순장님 ${campusAdmins.toLocaleString()}명 기준` },
       ],
     },
     {
@@ -622,19 +622,63 @@ const AdminSimulationPage = () => {
   const accountsStageUnlocked = preview?.referenceSetup.isReady ?? false;
   const reservationsStageUnlocked =
     (preview?.existingSimulationProfileCount ?? 0) > 0;
-  const paymentsStageUnlocked = (preview?.operation.reservations.total ?? 0) > 0;
   const activeReservationCount =
     (preview?.operation.reservations.requested ?? 0) +
     (preview?.operation.reservations.confirmed ?? 0);
+  const paymentsStageUnlocked = activeReservationCount > 0;
+  const unpaidIndividualCount = Math.max(
+    0,
+    activeReservationCount - (preview?.operation.payments.completed ?? 0)
+  );
   const allPaymentsCompleted =
     (preview?.operation.payments.total ?? 0) > 0 &&
     preview?.operation.payments.total === activeReservationCount &&
+    preview?.operation.payments.completed === activeReservationCount &&
     preview?.operation.payments.verified === activeReservationCount;
   const allocationStageUnlocked = activeReservationCount > 0;
-  const transfersStageUnlocked =
-    allPaymentsCompleted && (preview?.operation.allocations.confirmed ?? 0) > 0;
+  const transfersStageUnlocked = allPaymentsCompleted;
+  const getStageDisabledReason = (index: number) => {
+    if (index > 7) return stageActions[index] ? null : '아직 실행 기능이 구현되지 않은 단계입니다.';
+    if (!preview) return '시뮬레이션 상태를 불러온 뒤 실행할 수 있습니다.';
+    if (!preview.safety.projectIdMatches) {
+      return '허용된 테스트 Supabase 프로젝트에서만 실행할 수 있습니다.';
+    }
+    if (!preview.safety.simulationEnabled) {
+      return '상단의 실행 잠금에서 시뮬레이션 실행을 활성화해야 합니다.';
+    }
+    if (runningStageIndex !== null) {
+      return runningStageIndex === index
+        ? '현재 이 단계를 실행하고 있습니다.'
+        : `${runningStageIndex}단계를 실행 중이므로 완료될 때까지 기다려주세요.`;
+    }
+    if (index === 2 && !accountsStageUnlocked) {
+      return `운영 초기값이 부족합니다: ${preview.referenceSetup.missing.join(', ') || '1단계 실행 필요'}`;
+    }
+    if (index === 3 && !reservationsStageUnlocked) {
+      return '신청을 만들 시뮬레이션 계정이 없습니다. 2단계를 먼저 실행하세요.';
+    }
+    if (index === 4 && !paymentsStageUnlocked) {
+      return '입금 상태를 설정할 요청 또는 확정 상태의 활성 신청이 없습니다. 3단계를 먼저 실행하세요.';
+    }
+    if (index === 4 && unpaidIndividualCount === 0) {
+      return '입금 완료로 변경할 미입금 개별 사용자가 없습니다.';
+    }
+    if (index === 5 && !allocationStageUnlocked) {
+      return '임시 배차안을 만들 활성 신청이 없습니다. 3단계를 먼저 실행하세요.';
+    }
+    if (index === 6 && !allPaymentsCompleted) {
+      return `활성 신청 ${activeReservationCount.toLocaleString()}건 중 입금 완료·확인은 ${(preview.operation.payments.verified ?? 0).toLocaleString()}건입니다. 4단계에서 미입금 사용자 입금 완료 처리를 실행하세요.`;
+    }
+    if (index === 6 && (preview.operation.allocations.confirmed ?? 0) === 0) {
+      return '확정된 배차안이 없습니다. 5단계 배차 화면에서 배차안을 확정하세요.';
+    }
+    if (index === 7 && !transfersStageUnlocked) {
+      return `활성 신청 ${activeReservationCount.toLocaleString()}건 중 입금 완료·확인은 ${(preview.operation.payments.verified ?? 0).toLocaleString()}건입니다. 4단계에서 미입금 사용자 입금 완료 처리를 실행하세요.`;
+    }
+    return null;
+  };
 
-  const handleRunStage = async (index: number, paymentMode?: 'random' | 'all') => {
+  const handleRunStage = async (index: number) => {
     if (index > 7 || index === 5 || index === 6) return;
 
     if (index === 0) {
@@ -694,7 +738,7 @@ const AdminSimulationPage = () => {
         }
 
         setStageRuns(await getSimulationStageRuns());
-        setRunMessage('일반 회원과 모든 캠퍼스 관리자 계정 생성을 완료했습니다.');
+        setRunMessage('일반 회원과 모든 캠퍼스 회계 순장님 계정 생성을 완료했습니다.');
       } else if (index <= 4) {
         const stage = index === 3 ? 'reservations' : 'payments';
         let offset = 0;
@@ -706,7 +750,6 @@ const AdminSimulationPage = () => {
             runId,
             offset,
             batchSize: 200,
-            paymentMode,
           });
           runId = run.id;
           offset = run.next_offset ?? offset;
@@ -714,7 +757,7 @@ const AdminSimulationPage = () => {
           const total = Number(run.summary.total_accounts ?? 0);
           const processed = Number(run.summary.processed ?? offset);
           setRunMessage(
-            `${index === 3 ? '개별 신청' : paymentMode === 'all' ? '전체 입금 완료 설정' : '랜덤 개별 입금 설정'} 중: ${processed.toLocaleString()} / ${total.toLocaleString()}`
+            `${index === 3 ? '개별 신청' : '미입금 사용자 입금 완료 처리'} 중: ${processed.toLocaleString()} / ${total.toLocaleString()}`
           );
         }
 
@@ -722,9 +765,7 @@ const AdminSimulationPage = () => {
         setRunMessage(
           index === 3
             ? '3단계 개별 신청을 완료했습니다. 매 10번째 계정은 미신청자로 유지됩니다.'
-            : paymentMode === 'all'
-              ? '4단계 전체 입금 완료 설정을 완료했습니다.'
-              : '4단계 랜덤 개별 입금 설정을 완료했습니다.'
+            : '4단계 미입금 개별 사용자 입금 완료 처리를 마쳤습니다.'
         );
       } else if (index === 7) {
         const run = await runSimulationStage('transfers');
@@ -795,7 +836,7 @@ const AdminSimulationPage = () => {
     <div className={styles.pageContainer}>
       <AdminHeader />
       <main className={styles.main}>
-        <button type="button" className={styles.backButton} onClick={() => navigate('/admin/global')}>
+        <button type="button" className={styles.backButton} onClick={() => navigate('/admin/dashboard')}>
           <ArrowLeft size={16} />전체 관리자
         </button>
 
@@ -862,6 +903,9 @@ const AdminSimulationPage = () => {
                 previewMode === 'before'
                   ? buildStagePreview(index, preview, stageRuns, referenceConfig)
                   : buildStageResultPreview(index, preview, stageRuns);
+              const stageDisabledReason = getStageDisabledReason(index);
+              const transferReportDisabledReason =
+                index === 4 ? getStageDisabledReason(7) : null;
               return <article key={title} className={expanded ? styles.stageExpanded : undefined}>
                 <button
                   type="button"
@@ -880,75 +924,76 @@ const AdminSimulationPage = () => {
                         <strong>{index === 0 ? '초기화 처리 항목' : '자료 반영 항목'}</strong>
                         <ul>{changes.map((change) => <li key={change}>{change}</li>)}</ul>
                       </div>
-                      {index !== 1 && index !== 4 && <button
-                        type="button"
-                        className={index === 0 ? styles.cleanupButton : undefined}
-                        onClick={() =>
-                          stageAction
-                            ? navigate(stageAction.path)
-                            : void handleRunStage(index)
-                        }
-                        disabled={
-                          index <= 7
-                            ? !preview?.safety.isSafeToExecute ||
-                              (index === 2 && !accountsStageUnlocked) ||
-                              (index === 3 && !reservationsStageUnlocked) ||
-                              (index === 4 && !paymentsStageUnlocked) ||
-                              (index === 5 && !allocationStageUnlocked) ||
-                              (index === 6 && !transfersStageUnlocked) ||
-                              (index === 7 && !transfersStageUnlocked) ||
-                              runningStageIndex !== null
-                            : !stageAction
-                        }
-                      >
-                        <Play size={15} />
-                        {runningStageIndex === index
-                          ? '실행 중...'
-                          : index === 0
-                            ? '시뮬레이션 초기화'
-                            : index === 2 && !accountsStageUnlocked
-                              ? '기초 세팅 필요'
-                              : index === 3 && !reservationsStageUnlocked
-                                ? '계정 생성 필요'
-                                : index === 4 && !paymentsStageUnlocked
-                                  ? '개별 신청 필요'
-                                  : index === 5 && !allocationStageUnlocked
-                                    ? '활성 신청 필요'
-                                  : (index === 6 || index === 7) && !transfersStageUnlocked
-                                    ? '배차 확정 필요'
-                                  : index === 3
-                                    ? '개별 신청'
-                                    : index === 7
-                                        ? '모두 송금 완료'
-                                      : index <= 2
-                                        ? '이 단계 실행'
-                                : stageAction?.label ?? '기능 설계 필요'}
-                      </button>}
-                      {index === 4 && <div className={styles.paymentActions}>
-                        <button
+                      {index !== 1 && <div className={styles.stageActionArea}>
+                        {index !== 4 && <button
                           type="button"
-                          onClick={() => void handleRunStage(index, 'random')}
-                          disabled={
-                            !preview?.safety.isSafeToExecute ||
-                            !paymentsStageUnlocked ||
-                            runningStageIndex !== null
+                          className={index === 0 ? styles.cleanupButton : undefined}
+                          onClick={() =>
+                            stageAction
+                              ? navigate(stageAction.path)
+                              : void handleRunStage(index)
                           }
+                          disabled={stageDisabledReason !== null}
+                          title={stageDisabledReason ?? undefined}
                         >
                           <Play size={15} />
-                          {runningStageIndex === index ? '실행 중...' : '랜덤 입금 상태 설정'}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void handleRunStage(index, 'all')}
-                          disabled={
-                            !preview?.safety.isSafeToExecute ||
-                            !paymentsStageUnlocked ||
-                            runningStageIndex !== null
-                          }
-                        >
-                          <Play size={15} />
-                          {runningStageIndex === index ? '실행 중...' : '전체 입금 완료'}
-                        </button>
+                          {runningStageIndex === index
+                            ? '실행 중...'
+                            : index === 0
+                              ? '시뮬레이션 초기화'
+                              : index === 3
+                                ? '개별 신청'
+                                : index === 7
+                                  ? '모두 송금 완료'
+                                  : index <= 2
+                                    ? '이 단계 실행'
+                                    : stageAction?.label ?? '기능 설계 필요'}
+                        </button>}
+                        {index === 4 && <div className={styles.paymentActions}>
+                          <button
+                            type="button"
+                            onClick={() => void handleRunStage(index)}
+                            disabled={stageDisabledReason !== null}
+                            title={stageDisabledReason ?? undefined}
+                          >
+                            <Play size={15} />
+                            {runningStageIndex === index
+                              ? '입금 상태 변경 중...'
+                              : `입금 상태로 만들기 · 미입금 ${unpaidIndividualCount.toLocaleString()}명`}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void handleRunStage(7)}
+                            disabled={transferReportDisabledReason !== null}
+                            title={transferReportDisabledReason ?? undefined}
+                          >
+                            <Play size={15} />
+                            {runningStageIndex === 7
+                              ? '송금 완료 보고 중...'
+                              : '캠퍼스 송금 완료 보고'}
+                          </button>
+                        </div>}
+                        {index === 4 ? (
+                          <div className={styles.actionReasons}>
+                            {stageDisabledReason && (
+                              <p className={styles.disabledReason}>
+                                <AlertTriangle size={15} />
+                                <span><strong>입금 상태로 만들기</strong>{stageDisabledReason}</span>
+                              </p>
+                            )}
+                            {transferReportDisabledReason && (
+                              <p className={styles.disabledReason}>
+                                <AlertTriangle size={15} />
+                                <span><strong>캠퍼스 송금 완료 보고</strong>{transferReportDisabledReason}</span>
+                              </p>
+                            )}
+                          </div>
+                        ) : stageDisabledReason && (
+                          <p className={styles.disabledReason}>
+                            <AlertTriangle size={15} />
+                            <span><strong>현재 실행할 수 없는 이유</strong>{stageDisabledReason}</span>
+                          </p>
+                        )}
                       </div>}
                     </div>
 
@@ -1033,17 +1078,23 @@ const AdminSimulationPage = () => {
                               <span>구조 및 인원·행선지·송금 계좌·버스 옵션 및 요금 설정</span>
                               <small>실행 후 다음 사용자 생성 단계를 진행할 수 있습니다.</small>
                             </div>
-                            <button
-                              type="button"
-                              onClick={() => void handleRunStage(1)}
-                              disabled={
-                                !preview?.safety.isSafeToExecute ||
-                                runningStageIndex !== null
-                              }
-                            >
-                              <Play size={15} />
-                              {runningStageIndex === 1 ? '1단계 실행 중...' : '1단계 실행'}
-                            </button>
+                            <div className={styles.stageActionArea}>
+                              <button
+                                type="button"
+                                onClick={() => void handleRunStage(1)}
+                                disabled={stageDisabledReason !== null}
+                                title={stageDisabledReason ?? undefined}
+                              >
+                                <Play size={15} />
+                                {runningStageIndex === 1 ? '1단계 실행 중...' : '1단계 실행'}
+                              </button>
+                              {stageDisabledReason && (
+                                <p className={styles.disabledReason}>
+                                  <AlertTriangle size={15} />
+                                  <span><strong>현재 실행할 수 없는 이유</strong>{stageDisabledReason}</span>
+                                </p>
+                              )}
+                            </div>
                           </div>
                         </div>
                       )}
@@ -1053,7 +1104,7 @@ const AdminSimulationPage = () => {
                           <div className={styles.setupRequiredGuideHeader}>
                             <AlertTriangle size={19} />
                             <div>
-                              <strong>사용자 및 캠퍼스 관리자 생성 전 기초 세팅이 필요합니다.</strong>
+                              <strong>사용자 및 캠퍼스 회계 순장님 생성 전 기초 세팅이 필요합니다.</strong>
                               <p>
                                 아래 {preview?.referenceSetup.missing.length ?? 0}개 항목을
                                 준비한 뒤 미리보기를 새로고침하면 실행 버튼이 열립니다.
@@ -1180,7 +1231,7 @@ const AdminSimulationPage = () => {
           <div className={styles.sectionTitle}><Database size={21} /><div><h2>최근 실행 기록</h2><p>서버가 기록한 단계별 실행 결과입니다.</p></div></div>
           <div className={styles.historyList}>
             {stageRuns.length > 0 ? stageRuns.map((run) => <article key={run.id}>
-              <div><strong>{run.stage === 'cleanup' ? '0단계 시뮬레이션 정보 초기화' : run.stage === 'reference' ? '1단계 운영 초기값 설정' : run.stage === 'accounts' ? '2단계 사용자 및 캠퍼스 관리자 생성' : run.stage === 'reservations' ? '3단계 개별 신청' : run.stage === 'payments' ? '4단계 개별 입금' : run.stage === 'transfers' ? '7단계 모두 송금 완료' : run.stage}</strong><span>{new Date(run.started_at).toLocaleString()}</span></div>
+              <div><strong>{run.stage === 'cleanup' ? '0단계 시뮬레이션 정보 초기화' : run.stage === 'reference' ? '1단계 운영 초기값 설정' : run.stage === 'accounts' ? '2단계 사용자 및 캠퍼스 회계 순장님 생성' : run.stage === 'reservations' ? '3단계 개별 신청' : run.stage === 'payments' ? '4단계 개별 입금' : run.stage === 'transfers' ? '7단계 모두 송금 완료' : run.stage}</strong><span>{new Date(run.started_at).toLocaleString()}</span></div>
               <span className={run.status === 'completed' ? styles.completedBadge : run.status === 'failed' ? styles.failedBadge : styles.runningBadge}>{run.status}</span>
             </article>) : <p className={styles.emptyHistory}>아직 실행 기록이 없습니다.</p>}
           </div>

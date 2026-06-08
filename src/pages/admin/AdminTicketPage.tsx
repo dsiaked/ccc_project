@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, RefreshCw, RotateCcw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import AdminHeader from './AdminHeader';
 import { supabase } from '../../lib/supabase';
@@ -12,7 +12,8 @@ interface ReservationWithUser extends ReturnBusReservation {
 }
 
 type ParticipationScope = 'district' | 'team' | 'campus';
-type CoverageScopeFilter = 'all' | ParticipationScope;
+type CoverageScopeFilter = 'all' | 'individual' | ParticipationScope;
+type AttentionFilter = 'all' | 'low-reservation' | 'low-subscriber';
 type CoverageSortOption =
   | 'organization'
   | 'rate-desc'
@@ -30,7 +31,6 @@ interface CoverageRow {
   reservationCount: number;
   subscriberCount: number;
   confirmedCount: number;
-  cancelledCount: number;
   participantTarget: number;
   reservationRate: number | null;
   subscriberRate: number | null;
@@ -38,6 +38,7 @@ interface CoverageRow {
   campusAdminName: string | null;
   campusAdminPhone: string | null;
   campusAdminManagedCount: number;
+  personPhone: string | null;
 }
 
 type CoverageBaseRow = Omit<
@@ -108,14 +109,19 @@ interface ProfileRow {
 
 interface SubscriberProfileRow {
   id: string;
+  name: string | null;
+  phone: string | null;
   district: string | null;
   team: string | null;
   campus: string | null;
 }
 
 const RESERVATION_PAGE_SIZE = 1000;
+const SEOUL_DISTRICT = '서울지구';
 
 const normalizeName = (value: string) => value.replace(/\s/g, '').trim();
+const isIndividualCoverageRow = (row: Pick<CoverageRow, 'scope' | 'district'>) =>
+  row.scope === 'campus' && row.district !== SEOUL_DISTRICT;
 
 const getRateStatus = (rate: number | null) => {
   if (rate === null) return 'unset';
@@ -129,8 +135,9 @@ const getCoverageKey = (
   scope: ParticipationScope,
   district: string,
   team = '',
-  campus = ''
-) => `${scope}|${district}|${team}|${campus}`;
+  campus = '',
+  identity = ''
+) => `${scope}|${district}|${team}|${campus}${identity ? `|${identity}` : ''}`;
 
 const getAllReservationRows = async (): Promise<ReservationRow[]> => {
   const rows: ReservationRow[] = [];
@@ -174,7 +181,7 @@ const getAllSubscriberProfileRows = async (): Promise<
     const from = rows.length;
     const { data, count, error } = await supabase
       .from('profiles')
-      .select('id, district, team, campus', { count: 'exact' })
+      .select('id, name, phone, district, team, campus', { count: 'exact' })
       .order('id', { ascending: false })
       .range(from, from + RESERVATION_PAGE_SIZE - 1);
 
@@ -205,8 +212,14 @@ const AdminTicketPage = () => {
     SubscriberProfileRow[]
   >([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState('');
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const [coverageScopeFilter, setCoverageScopeFilter] =
     useState<CoverageScopeFilter>('campus');
+  const [attentionFilter, setAttentionFilter] =
+    useState<AttentionFilter>('all');
   const [coverageSearchText, setCoverageSearchText] = useState('');
   const [coverageSortOption, setCoverageSortOption] =
     useState<CoverageSortOption>('organization');
@@ -215,6 +228,9 @@ const AdminTicketPage = () => {
   >({});
   useEffect(() => {
     const loadReservations = async () => {
+      setRefreshing(true);
+      setLoadError('');
+
       try {
         const [
           reservationData,
@@ -245,7 +261,7 @@ const AdminTicketPage = () => {
         }
 
         if (campusAdminError) {
-          console.warn('캠퍼스 관리자 정보 조회 실패:', campusAdminError);
+          console.warn('캠퍼스 회계 순장님 정보 조회 실패:', campusAdminError);
         }
 
         const campusAdminRoles = campusAdminError
@@ -263,7 +279,7 @@ const AdminTicketPage = () => {
             .in('id', campusAdminUserIds);
 
           if (profileError) {
-            console.warn('캠퍼스 관리자 프로필 조회 실패:', profileError);
+            console.warn('캠퍼스 회계 순장님 프로필 조회 실패:', profileError);
           } else {
             profileMap = new Map(
               ((profileData || []) as ProfileRow[]).map((profile) => [
@@ -290,22 +306,22 @@ const AdminTicketPage = () => {
           const savedData = item.data || {};
 
           return {
-            id: savedData.id || item.id,
-            name: savedData.name || item.name || '',
-            phone: savedData.phone || item.phone || '',
-            district: savedData.district || item.district || '서울지구',
-            team: savedData.team || item.team || '',
-            campus: savedData.campus || item.campus || '',
+            id: item.id,
+            name: item.name || savedData.name || '',
+            phone: item.phone || savedData.phone || '',
+            district: item.district || savedData.district || '서울지구',
+            team: item.team || savedData.team || '',
+            campus: item.campus || savedData.campus || '',
             stationPreferences:
-              savedData.stationPreferences || item.station_preferences || [],
+              item.station_preferences || savedData.stationPreferences || [],
             status: item.status || savedData.status || 'requested',
             confirmedTicket:
               item.confirmed_ticket || savedData.confirmedTicket || undefined,
             requestedAt:
-              savedData.requestedAt ||
               item.created_at ||
+              savedData.requestedAt ||
               new Date().toISOString(),
-            updatedAt: savedData.updatedAt || item.updated_at || undefined,
+            updatedAt: item.updated_at || savedData.updatedAt || undefined,
             userId: item.user_id,
           } as ReservationWithUser;
         });
@@ -342,16 +358,18 @@ const AdminTicketPage = () => {
         setOrganizationUnits(formattedOrganizationUnits);
         setCampusAdmins(formattedCampusAdmins);
         setParticipationTargets(participationSetting.targets);
+        setLastUpdatedAt(new Date());
       } catch (error) {
         console.error('Failed to load reservations:', error);
-        alert('신청 정보를 로드할 수 없습니다.');
+        setLoadError('신청 현황을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
       } finally {
         setLoading(false);
+        setRefreshing(false);
       }
     };
 
     void loadReservations();
-  }, []);
+  }, [reloadKey]);
 
   const campusAdminMap = useMemo(() => {
     const map = new Map<string, CampusAdminProfile>();
@@ -393,19 +411,26 @@ const AdminTicketPage = () => {
       scope: ParticipationScope,
       district: string,
       team = '',
-      campus = ''
+      campus = '',
+      identity = '',
+      labelOverride = '',
+      personPhone: string | null = null
     ) => {
-      const key = getCoverageKey(scope, district, team, campus);
+      const key = getCoverageKey(scope, district, team, campus, identity);
       const existing = rowMap.get(key);
 
-      if (existing) return existing;
+      if (existing) {
+        if (!existing.personPhone && personPhone) existing.personPhone = personPhone;
+        return existing;
+      }
 
-      const label =
+      const label = labelOverride || (
         scope === 'district'
           ? district
           : scope === 'team'
             ? `${district} / ${team}`
-            : `${district} / ${team} / ${campus}`;
+            : `${district} / ${team} / ${campus}`
+      );
 
       const next = {
         key,
@@ -417,7 +442,7 @@ const AdminTicketPage = () => {
         reservationCount: 0,
         subscriberCount: 0,
         confirmedCount: 0,
-        cancelledCount: 0,
+        personPhone,
       };
 
       rowMap.set(key, next);
@@ -425,19 +450,41 @@ const AdminTicketPage = () => {
     };
 
     organizationUnits.forEach((unit) => {
+      if (unit.district !== SEOUL_DISTRICT) return;
+
       ensureRow('district', unit.district);
       ensureRow('team', unit.district, unit.team);
       ensureRow('campus', unit.district, unit.team, unit.campus);
     });
 
     subscriberProfiles.forEach((profile) => {
-      if (!profile.district || !profile.team || !profile.campus) return;
+      if (!profile.district) return;
+      const team = profile.team || '미등록 팀';
+      const campus = profile.campus || '미등록 캠퍼스';
 
-      [
-        ensureRow('district', profile.district),
-        ensureRow('team', profile.district, profile.team),
-        ensureRow('campus', profile.district, profile.team, profile.campus),
-      ].forEach((row) => {
+      const detailRow =
+        profile.district === SEOUL_DISTRICT
+          ? ensureRow('campus', profile.district, team, campus)
+          : ensureRow(
+              'campus',
+              profile.district,
+              team,
+              campus,
+              profile.id,
+              `${profile.name || '이름 미등록'} · ${profile.district} / ${campus}`,
+              profile.phone
+            );
+
+      const rows =
+        profile.district === SEOUL_DISTRICT
+          ? [
+              ensureRow('district', profile.district),
+              ensureRow('team', profile.district, team),
+              detailRow,
+            ]
+          : [detailRow];
+
+      rows.forEach((row) => {
         row.subscriberCount += 1;
       });
     });
@@ -446,15 +493,29 @@ const AdminTicketPage = () => {
       const district = reservation.district || '미등록 지구';
       const team = reservation.team || '미등록 팀';
       const campus = reservation.campus || '미등록 캠퍼스';
-      const rows = [
-        ensureRow('district', district),
-        ensureRow('team', district, team),
-        ensureRow('campus', district, team, campus),
-      ];
+      const detailRow =
+        district === SEOUL_DISTRICT
+          ? ensureRow('campus', district, team, campus)
+          : ensureRow(
+              'campus',
+              district,
+              team,
+              campus,
+              reservation.userId,
+              `${reservation.name || '이름 미등록'} · ${district} / ${campus}`,
+              reservation.phone
+            );
+      const rows =
+        district === SEOUL_DISTRICT
+          ? [
+              ensureRow('district', district),
+              ensureRow('team', district, team),
+              detailRow,
+            ]
+          : [detailRow];
 
       rows.forEach((row) => {
         if (reservation.status === 'cancelled') {
-          row.cancelledCount += 1;
           return;
         }
 
@@ -489,6 +550,7 @@ const AdminTicketPage = () => {
     return baseRows
       .map((row) => {
         const participantTarget = getParticipantTarget(row);
+        const isIndividualUnit = isIndividualCoverageRow(row);
         const reservationGap =
           participantTarget > 0 ? participantTarget - row.reservationCount : null;
 
@@ -497,11 +559,11 @@ const AdminTicketPage = () => {
           participantTarget,
           reservationGap,
           reservationRate:
-            row.subscriberCount > 0
+            !isIndividualUnit && row.subscriberCount > 0
               ? (row.reservationCount / row.subscriberCount) * 100
               : null,
           subscriberRate:
-            participantTarget > 0
+            !isIndividualUnit && participantTarget > 0
               ? (row.subscriberCount / participantTarget) * 100
               : null,
           campusAdminName:
@@ -558,14 +620,32 @@ const AdminTicketPage = () => {
     const searchValue = normalizeName(coverageSearchText);
     const rows = coverageRows.filter((row) => {
       const matchesScope =
-        coverageScopeFilter === 'all' || row.scope === coverageScopeFilter;
+        coverageScopeFilter === 'all' ||
+        (coverageScopeFilter === 'individual'
+          ? isIndividualCoverageRow(row)
+          : row.scope === coverageScopeFilter &&
+            (coverageScopeFilter !== 'campus' || !isIndividualCoverageRow(row)));
+      const matchesAttention =
+        attentionFilter === 'all' ||
+        (attentionFilter === 'low-reservation' &&
+          row.reservationRate !== null &&
+          row.reservationRate < 50) ||
+        (attentionFilter === 'low-subscriber' &&
+          row.subscriberRate !== null &&
+          row.subscriberRate < 50);
 
-      if (!matchesScope) return false;
+      if (!matchesScope || !matchesAttention) return false;
       if (!searchValue) return true;
 
-      return [row.label, row.district, row.team, row.campus].some((value) =>
-        normalizeName(value).includes(searchValue)
-      );
+      return [
+        row.label,
+        row.district,
+        row.team,
+        row.campus,
+        row.campusAdminName || '',
+        row.campusAdminPhone || '',
+        row.personPhone || '',
+      ].some((value) => normalizeName(value).includes(searchValue));
     });
 
     if (coverageSortOption === 'organization') return rows;
@@ -587,18 +667,19 @@ const AdminTicketPage = () => {
     });
   }, [
     coverageRows,
+    attentionFilter,
     coverageScopeFilter,
     coverageSearchText,
     coverageSortOption,
   ]);
 
-  const campusCoverageRows = coverageRows.filter(
-    (row) => row.scope === 'campus'
+  const ratedCampusCoverageRows = coverageRows.filter(
+    (row) => row.scope === 'campus' && !isIndividualCoverageRow(row)
   );
-  const lowReservationRateCampusCount = campusCoverageRows.filter(
+  const lowReservationRateCampusCount = ratedCampusCoverageRows.filter(
     (row) => row.reservationRate !== null && row.reservationRate < 50
   ).length;
-  const lowSubscriberRateCampusCount = campusCoverageRows.filter(
+  const lowSubscriberRateCampusCount = ratedCampusCoverageRows.filter(
     (row) => row.subscriberRate !== null && row.subscriberRate < 50
   ).length;
   const totalReservationRate =
@@ -607,13 +688,43 @@ const AdminTicketPage = () => {
     totalParticipantTarget > 0
       ? (subscriberCount / totalParticipantTarget) * 100
       : null;
+  const hasActiveFilters =
+    coverageScopeFilter !== 'campus' ||
+    attentionFilter !== 'all' ||
+    coverageSearchText.trim() !== '' ||
+    coverageSortOption !== 'organization';
+
+  const resetFilters = () => {
+    setCoverageScopeFilter('campus');
+    setAttentionFilter('all');
+    setCoverageSearchText('');
+    setCoverageSortOption('organization');
+  };
+
+  const applyAttentionFilter = (filter: AttentionFilter) => {
+    const nextFilter = attentionFilter === filter ? 'all' : filter;
+
+    setCoverageScopeFilter('campus');
+    setAttentionFilter(nextFilter);
+    setCoverageSortOption(
+      nextFilter === 'all'
+        ? 'organization'
+        : filter === 'low-subscriber'
+          ? 'subscriber-rate-asc'
+          : 'rate-asc'
+    );
+  };
 
   if (loading) {
     return (
       <div className={styles.pageContainer}>
         <AdminHeader />
         <main className={styles.main}>
-          <p>로딩 중...</p>
+          <div className={styles.loadingCard} aria-live="polite">
+            <RefreshCw size={20} />
+            <strong>신청 현황을 불러오는 중입니다.</strong>
+            <span>조직별 가입·신청 데이터를 집계하고 있습니다.</span>
+          </div>
         </main>
       </div>
     );
@@ -628,23 +739,54 @@ const AdminTicketPage = () => {
           <button
             type="button"
             className={styles.backButton}
-            onClick={() => navigate('/admin/global')}
+            onClick={() => navigate('/admin/dashboard')}
           >
             <ArrowLeft size={16} />
-            전체 관리자
+            전체 관리자 대시보드
           </button>
         </div>
 
         <div className={styles.header}>
           <div>
             <p className={styles.eyebrow}>버스표 운영 현황</p>
-            <h1>가입 및 신청 전환 현황</h1>
+            <h1>가입·신청 현황</h1>
             <p>
-              캠퍼스별 가입 인원, 신청 인원, 예상 참여 인원을 비교해 배차 전 확인이
-              필요한 조직을 점검합니다.
+              서울지구는 캠퍼스별로, 기타 지구는 개인 단위로 가입·신청 현황을
+              비교해 배차 전 확인이 필요한 대상을 점검합니다.
             </p>
           </div>
+          <div className={styles.refreshArea}>
+            <span>
+              {lastUpdatedAt
+                ? `마지막 갱신 ${lastUpdatedAt.toLocaleTimeString('ko-KR', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}`
+                : '아직 갱신되지 않음'}
+            </span>
+            <button
+              type="button"
+              className={styles.refreshButton}
+              disabled={refreshing}
+              onClick={() => setReloadKey((value) => value + 1)}
+            >
+              <RefreshCw size={15} />
+              {refreshing ? '갱신 중...' : '새로고침'}
+            </button>
+          </div>
         </div>
+
+        {loadError && (
+          <div className={styles.errorBanner} role="alert">
+            <span>{loadError}</span>
+            <button
+              type="button"
+              onClick={() => setReloadKey((value) => value + 1)}
+            >
+              다시 시도
+            </button>
+          </div>
+        )}
 
         <div className={styles.statsBar}>
           {[
@@ -688,7 +830,8 @@ const AdminTicketPage = () => {
               <p>
                 신청률은 가입 인원 중 버스를 신청한 비율(신청 인원 ÷ 가입 인원)이며,
                 가입률은 예상 참여 인원 중 가입을 완료한 비율(가입 인원 ÷ 참여 인원)입니다.
-                캠퍼스 데이터를 바탕으로 팀과 지구 비율도 자동 합산합니다.
+                서울지구 캠퍼스와 기타 지구 개인 데이터를 바탕으로 팀과 지구 비율도
+                자동 합산합니다.
               </p>
             </div>
 
@@ -698,6 +841,7 @@ const AdminTicketPage = () => {
             <div className={styles.scopeTabs}>
               {[
                 ['campus', '캠퍼스'],
+                ['individual', '개인-기타지구'],
                 ['team', '팀'],
                 ['district', '지구'],
                 ['all', '전체'],
@@ -738,7 +882,7 @@ const AdminTicketPage = () => {
                 type="search"
                 value={coverageSearchText}
                 onChange={(event) => setCoverageSearchText(event.target.value)}
-                placeholder="지구, 팀, 캠퍼스 검색"
+                placeholder="조직, 관리자, 개인 연락처 검색"
               />
             </div>
           </div>
@@ -758,48 +902,106 @@ const AdminTicketPage = () => {
                 {totalSubscriberRate === null ? '-' : `${totalSubscriberRate.toFixed(1)}%`}
               </strong>
             </div>
-            <div className={styles.coverageInsight}>
+            <button
+              type="button"
+              className={`${styles.coverageInsight} ${styles.coverageInsightButton} ${
+                attentionFilter === 'low-reservation'
+                  ? styles.coverageInsightActive
+                  : ''
+              }`}
+              aria-pressed={attentionFilter === 'low-reservation'}
+              onClick={() => applyAttentionFilter('low-reservation')}
+            >
               <span>신청률 50% 미만 캠퍼스 / 전체 캠퍼스</span>
               <strong>
                 {lowReservationRateCampusCount.toLocaleString()} /{' '}
-                {campusCoverageRows.length.toLocaleString()}개
+                {ratedCampusCoverageRows.length.toLocaleString()}개
               </strong>
-            </div>
-            <div className={styles.coverageInsight}>
+              <em>클릭하여 목록 필터링</em>
+            </button>
+            <button
+              type="button"
+              className={`${styles.coverageInsight} ${styles.coverageInsightButton} ${
+                attentionFilter === 'low-subscriber'
+                  ? styles.coverageInsightActive
+                  : ''
+              }`}
+              aria-pressed={attentionFilter === 'low-subscriber'}
+              onClick={() => applyAttentionFilter('low-subscriber')}
+            >
               <span>가입률 50% 미만 캠퍼스 / 전체 캠퍼스</span>
               <strong>
                 {lowSubscriberRateCampusCount.toLocaleString()} /{' '}
-                {campusCoverageRows.length.toLocaleString()}개
+                {ratedCampusCoverageRows.length.toLocaleString()}개
               </strong>
-            </div>
+              <em>클릭하여 목록 필터링</em>
+            </button>
           </div>
 
-          <div className={styles.coverageTableWrap}>
+          <div className={styles.tableMeta}>
+            <div className={styles.resultSummary} aria-live="polite">
+              전체 {coverageRows.length.toLocaleString()}개 중{' '}
+              <strong>{filteredCoverageRows.length.toLocaleString()}개</strong> 표시
+              {attentionFilter !== 'all' && (
+                <span className={styles.activeFilterChip}>
+                  {attentionFilter === 'low-reservation'
+                    ? '신청률 50% 미만'
+                    : '가입률 50% 미만'}
+                </span>
+              )}
+            </div>
+            <div className={styles.rateLegend} aria-label="비율 상태 기준">
+              <span><i className={styles.legendLow} />낮음 50% 미만</span>
+              <span><i className={styles.legendWatch} />주의 50~69%</span>
+              <span><i className={styles.legendHealthy} />양호 70~99%</span>
+              <span><i className={styles.legendComplete} />완료 100% 이상</span>
+            </div>
+            {hasActiveFilters && (
+              <button
+                type="button"
+                className={styles.resetButton}
+                onClick={resetFilters}
+              >
+                <RotateCcw size={14} />
+                필터 초기화
+              </button>
+            )}
+          </div>
+
+          <p className={styles.tableScrollHint}>
+            표를 좌우로 밀어 상세 항목을 확인할 수 있습니다.
+          </p>
+
+          <div
+            className={styles.coverageTableWrap}
+            role="region"
+            aria-label="조직별 신청률 및 가입률 표"
+            tabIndex={0}
+          >
             <table className={styles.coverageTable}>
               <thead>
                 <tr>
                   <th>단위</th>
                   <th>조직</th>
                   <th className={styles.peopleHeader}>
-                    신청 인원 / 가입 인원 / 수련회 참여인원
+                    확정 / 신청 / 가입 / 참여
                   </th>
                   <th>신청률 (신청/가입)</th>
                   <th>가입률 (가입/참여)</th>
-                  <th>관리자</th>
-                  <th>확정</th>
-                  <th>관리자에 의한 신청 취소</th>
+                  <th>관리자 / 연락처</th>
                 </tr>
               </thead>
 
               <tbody>
                 {filteredCoverageRows.length === 0 ? (
                   <tr>
-                    <td className={styles.emptyCoverageCell} colSpan={8}>
+                    <td className={styles.emptyCoverageCell} colSpan={6}>
                       조건에 맞는 신청 현황이 없습니다.
                     </td>
                   </tr>
                 ) : (
                   filteredCoverageRows.map((row) => {
+                    const isIndividualUnit = isIndividualCoverageRow(row);
                     const isLowReservationRate =
                       row.reservationRate !== null && row.reservationRate < 50;
                     const isLowSubscriberRate =
@@ -815,18 +1017,26 @@ const AdminTicketPage = () => {
                         <td>
                           <span
                             className={`${styles.scopeBadge} ${
-                              styles[`scope_${row.scope}`]
+                              styles[
+                                `scope_${isIndividualUnit ? 'person' : row.scope}`
+                              ]
                             }`}
                           >
                             {row.scope === 'district'
                               ? '지구'
                               : row.scope === 'team'
                                 ? '팀'
-                                : '캠퍼스'}
+                                : isIndividualUnit
+                                  ? '개인 - 기타지구'
+                                  : '캠퍼스'}
                           </span>
                         </td>
                         <td className={styles.coverageLabel}>{row.label}</td>
                         <td className={styles.peopleRatioCell}>
+                          <span>
+                            <em>확정</em>
+                            <strong>{row.confirmedCount.toLocaleString()}명</strong>
+                          </span>
                           <span>
                             <em>신청</em>
                             <strong>{row.reservationCount.toLocaleString()}명</strong>
@@ -845,80 +1055,108 @@ const AdminTicketPage = () => {
                           </span>
                         </td>
                         <td>
-                          <div
-                            className={`${styles.rateCell} ${
-                              isLowReservationRate ? styles.rateCellLow : ''
-                            }`}
-                          >
-                            <div className={styles.rateBarTrack}>
-                              <div
-                                className={`${styles.rateBarFill} ${
-                                  styles[
-                                    `rate_${getRateStatus(row.reservationRate)}`
-                                  ]
-                                }`}
-                                style={{
-                                  width: `${
-                                    row.reservationRate === null
-                                      ? 0
-                                      : Math.min(row.reservationRate, 100)
-                                  }%`,
-                                }}
-                              />
-                            </div>
-                            <span>
-                              {row.reservationRate === null
-                                ? '-'
-                                : `${row.reservationRate.toFixed(1)}%`}
-                            </span>
-                          </div>
-                        </td>
-                        <td>
-                          <div
-                            className={`${styles.rateCell} ${
-                              isLowSubscriberRate ? styles.rateCellLow : ''
-                            }`}
-                          >
-                            <div className={styles.rateBarTrack}>
-                              <div
-                                className={`${styles.rateBarFill} ${
-                                  styles[`rate_${getRateStatus(row.subscriberRate)}`]
-                                }`}
-                                style={{
-                                  width: `${
-                                    row.subscriberRate === null
-                                      ? 0
-                                      : Math.min(row.subscriberRate, 100)
-                                  }%`,
-                                }}
-                              />
-                            </div>
-                            <span>
-                              {row.subscriberRate === null
-                                ? '-'
-                                : `${row.subscriberRate.toFixed(1)}%`}
-                            </span>
-                          </div>
-                        </td>
-                        <td className={styles.campusAdminCell}>
-                          {row.scope !== 'campus' ? (
-                            <span>-</span>
-                          ) : row.campusAdminName || row.campusAdminPhone ? (
-                            <>
-                              <strong>{row.campusAdminName || '이름 없음'}</strong>
-                              <span>{row.campusAdminPhone || '번호 없음'}</span>
-                              {row.campusAdminManagedCount > 1 && (
-                                <span className={styles.multiCampusAdminBadge}>
-                                  총 {row.campusAdminManagedCount}개 캠퍼스 관리
-                                </span>
-                              )}
-                            </>
+                          {isIndividualUnit ? (
+                            <span className={styles.notApplicable}>-</span>
                           ) : (
-                            <span>미등록</span>
+                            <div
+                              className={`${styles.rateCell} ${
+                                isLowReservationRate ? styles.rateCellLow : ''
+                              }`}
+                            >
+                              <div className={styles.rateBarTrack}>
+                                <div
+                                  className={`${styles.rateBarFill} ${
+                                    styles[
+                                      `rate_${getRateStatus(row.reservationRate)}`
+                                    ]
+                                  }`}
+                                  style={{
+                                    width: `${
+                                      row.reservationRate === null
+                                        ? 0
+                                        : Math.min(row.reservationRate, 100)
+                                    }%`,
+                                  }}
+                                />
+                              </div>
+                              <span>
+                                {row.reservationRate === null
+                                  ? '-'
+                                  : `${row.reservationRate.toFixed(1)}%`}
+                              </span>
+                            </div>
                           )}
                         </td>
-                        <td>{row.confirmedCount.toLocaleString()}명</td>
-                        <td>{row.cancelledCount.toLocaleString()}명</td>
+                        <td>
+                          {isIndividualUnit ? (
+                            <span className={styles.notApplicable}>-</span>
+                          ) : (
+                            <div
+                              className={`${styles.rateCell} ${
+                                isLowSubscriberRate ? styles.rateCellLow : ''
+                              }`}
+                            >
+                              <div className={styles.rateBarTrack}>
+                                <div
+                                  className={`${styles.rateBarFill} ${
+                                    styles[`rate_${getRateStatus(row.subscriberRate)}`]
+                                  }`}
+                                  style={{
+                                    width: `${
+                                      row.subscriberRate === null
+                                        ? 0
+                                        : Math.min(row.subscriberRate, 100)
+                                    }%`,
+                                  }}
+                                />
+                              </div>
+                              <span>
+                                {row.subscriberRate === null
+                                  ? '-'
+                                  : `${row.subscriberRate.toFixed(1)}%`}
+                              </span>
+                            </div>
+                          )}
+                        </td>
+                        <td className={styles.campusAdminCell}>
+                          <div className={styles.campusAdminContent}>
+                            {isIndividualUnit ? (
+                              row.personPhone ? (
+                                <a
+                                  className={styles.phoneLink}
+                                  href={`tel:${row.personPhone.replace(/[^\d+]/g, '')}`}
+                                >
+                                  {row.personPhone}
+                                </a>
+                              ) : (
+                                <span>번호 없음</span>
+                              )
+                            ) : row.scope !== 'campus' ? (
+                              <span>-</span>
+                            ) : row.campusAdminName || row.campusAdminPhone ? (
+                              <>
+                                <strong>{row.campusAdminName || '이름 없음'}</strong>
+                                {row.campusAdminPhone ? (
+                                  <a
+                                    className={styles.phoneLink}
+                                    href={`tel:${row.campusAdminPhone.replace(/[^\d+]/g, '')}`}
+                                  >
+                                    {row.campusAdminPhone}
+                                  </a>
+                                ) : (
+                                  <span>번호 없음</span>
+                                )}
+                                {row.campusAdminManagedCount > 1 && (
+                                  <span className={styles.multiCampusAdminBadge}>
+                                    총 {row.campusAdminManagedCount}개 캠퍼스 관리
+                                  </span>
+                                )}
+                              </>
+                            ) : (
+                              <span>미등록</span>
+                            )}
+                          </div>
+                        </td>
                       </tr>
                     );
                   })

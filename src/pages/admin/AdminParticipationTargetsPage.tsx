@@ -1146,7 +1146,7 @@ const AdminParticipationTargetsPage = () => {
         <div className={styles.header}>
           <div>
             <div className={styles.titleRow}>
-              <h1>참여 인원 관리</h1>
+              <h1>예상 참여 인원 관리</h1>
               <span
                 className={`${styles.saveStatus} ${styles[`saveStatus_${saveStatus}`]}`}
                 role="status"
@@ -1168,7 +1168,7 @@ const AdminParticipationTargetsPage = () => {
             </p>
           </div>
 
-          <button type="button" onClick={() => navigate('/admin/tickets')}>
+          <button type="button" onClick={() => navigate('/admin/applications')}>
             신청률 현황 보기
           </button>
         </div>

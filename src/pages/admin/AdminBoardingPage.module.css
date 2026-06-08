@@ -4,32 +4,66 @@
 .hero span { color: #93c5fd; font-size: 12px; font-weight: 900; text-transform: uppercase; }
 .hero h1 { margin: 6px 0; font-size: 30px; }
 .hero p { margin: 0; color: #cbd5e1; }
-.hero button, .departure, .cancelDeparture { align-self: center; min-height: 44px; padding: 0 16px; border: 0; border-radius: 9px; font-weight: 900; cursor: pointer; }
+.hero button, .departure, .cancelDeparture, .clearSearch { align-self: center; min-height: 44px; padding: 0 16px; border: 0; border-radius: 9px; font-weight: 900; cursor: pointer; }
 .hero button { display: flex; align-items: center; gap: 7px; background: white; color: #172554; }
 .error { padding: 12px; border: 1px solid #fecaca; border-radius: 8px; background: #fff1f2; color: #be123c; font-weight: 800; }
 .empty { margin-top: 18px; padding: 70px 20px; border: 1px dashed #cbd5e1; border-radius: 14px; background: white; text-align: center; color: #64748b; }
 .empty h2 { color: #172554; }
-.allocationTitle { display: flex; justify-content: space-between; gap: 10px; margin: 20px 0 12px; }
+.allocationTitle { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin: 20px 0 12px; }
+.allocationTitle > div:first-child { display: grid; gap: 4px; }
 .allocationTitle strong { color: #172554; font-size: 18px; }
 .allocationTitle span { color: #b45309; font-size: 12px; font-weight: 800; }
+.exportActions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px; }
+.exportActions button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 38px; padding: 0 11px; border: 1px solid #bfdbfe; border-radius: 8px; background: white; color: #1d4ed8; font-weight: 900; cursor: pointer; }
+.exportActions button:hover { background: #eff6ff; }
+.exportActions button:disabled { opacity: .5; cursor: default; }
+.sheetSyncStatus { flex-basis: 100%; color: #166534 !important; font-size: 11px !important; text-align: right; }
+.overview { margin-bottom: 12px; padding: 12px; border: 1px solid #dbe3ee; border-radius: 14px; background: white; }
+.overviewStats dt { color: #64748b; font-size: 12px; font-weight: 800; }
+.busProgress { height: 7px; overflow: hidden; border-radius: 999px; background: #e2e8f0; }
+.busProgress span { display: block; height: 100%; border-radius: inherit; background: #2563eb; transition: width .2s ease; }
+.overviewStats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin: 0; }
+.overviewStats div { display: grid; align-content: center; gap: 5px; padding: 10px 12px; border-radius: 10px; background: #f8fafc; }
+.overviewStats dd { margin: 0; color: #172554; font-size: 20px; font-weight: 900; }
+.overviewStats .overviewAlert { background: #fff1f2; }.overviewStats .overviewAlert dt, .overviewStats .overviewAlert dd { color: #be123c; }
+.busToolbar { display: grid; grid-template-columns: minmax(220px, 360px) auto 1fr; align-items: center; gap: 8px; margin-bottom: 10px; }
+.busToolbar label { display: flex; align-items: center; gap: 7px; min-height: 40px; padding: 0 10px; border: 1px solid #cbd5e1; border-radius: 9px; background: white; color: #64748b; }
+.busToolbar input { width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; font: inherit; }
+.busToolbar button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 40px; padding: 0 11px; border: 1px solid #cbd5e1; border-radius: 9px; background: white; color: #475569; font-weight: 800; cursor: pointer; }
+.busToolbar label button { min-width: 28px; min-height: 28px; padding: 0; border: 0; border-radius: 999px; background: #e2e8f0; }
+.busToolbar button.problemFilterActive { border-color: #fda4af; background: #fff1f2; color: #be123c; }
+.busToolbar > span { color: #64748b; font-size: 12px; font-weight: 800; text-align: right; }
 .busGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
-.busCard { padding: 16px; border: 2px solid transparent; border-radius: 12px; background: white; text-align: left; cursor: pointer; }
+.busCard { padding: 15px; border: 2px solid transparent; border-radius: 12px; background: white; text-align: left; cursor: pointer; }
 .busCardActive { border-color: #2563eb; box-shadow: 0 6px 18px rgba(37, 99, 235, .15); }
+.busCardProblem:not(.busCardActive) { border-color: #fecaca; }
 .busCard > div:first-child { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .busCard strong { color: #172554; font-size: 19px; }
-.busCard p { margin: 7px 0 12px; color: #64748b; }
+.busCard p { margin: 6px 0 13px; overflow: hidden; color: #64748b; text-overflow: ellipsis; white-space: nowrap; }
+.busCardStatus { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
+.selectedBadge { display: inline-flex; align-items: center; gap: 3px; padding: 4px 7px; border-radius: 999px; background: #dbeafe; color: #1d4ed8; font-size: 11px; font-weight: 900; }
 .departedBadge { padding: 4px 7px; border-radius: 999px; background: #dcfce7; color: #166534; font-size: 11px; font-weight: 900; }
-.busCounts { display: flex; flex-wrap: wrap; gap: 5px; }
-.busCounts span, .statusBadge { padding: 5px 8px; border-radius: 999px; font-size: 11px; font-weight: 900; }
+.busProgressHeader { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; color: #475569; font-size: 12px; font-weight: 800; }
+.busProgressHeader strong { color: #2563eb; font-size: 12px; }
+.busProgress { height: 5px; }
+.busCounts { display: flex; align-items: center; flex-wrap: wrap; gap: 5px 10px; margin-top: 10px; }
+.busCounts span { color: #64748b; font-size: 11px; font-weight: 800; }
+.busCounts .noShow, .statusBadge { padding: 5px 8px; border-radius: 999px; font-size: 11px; font-weight: 900; }
 .boarded { background: #dcfce7; color: #166534; }.unchecked { background: #fef3c7; color: #92400e; }.noShow { background: #fee2e2; color: #991b1b; }
+.noBuses { display: grid; justify-items: center; gap: 8px; padding: 34px 20px; border: 1px dashed #cbd5e1; border-radius: 12px; background: white; color: #64748b; text-align: center; }
+.noBuses button { min-height: 36px; padding: 0 12px; border: 1px solid #bfdbfe; border-radius: 8px; background: #eff6ff; color: #1d4ed8; font-weight: 900; cursor: pointer; }
 .roster { margin-top: 18px; padding: 20px; border: 1px solid #dfe3e8; border-radius: 14px; background: white; }
 .rosterHeader { display: flex; justify-content: space-between; gap: 16px; padding-bottom: 18px; border-bottom: 1px solid #e5e7eb; }
 .rosterHeader span { color: #2563eb; font-size: 12px; font-weight: 900; }.rosterHeader h2 { margin: 4px 0; color: #172554; }.rosterHeader p { margin: 0; color: #64748b; }
-.departure { background: #b91c1c; color: white; }.cancelDeparture { background: #fff1f2; color: #be123c; border: 1px solid #fecaca; }
+.departure { background: #b91c1c; color: white; }.cancelDeparture { background: #fff1f2; color: #be123c; border: 1px solid #fecaca; }.clearSearch { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid #bfdbfe; background: #eff6ff; color: #1d4ed8; }
 .filters { display: grid; grid-template-columns: 1fr 220px auto; align-items: center; gap: 10px; margin: 16px 0; }
 .filters label { display: flex; align-items: center; gap: 8px; padding: 0 12px; border: 1px solid #cbd5e1; border-radius: 9px; }
 .filters input, .filters select { width: 100%; height: 44px; border: 0; background: white; font: inherit; }.filters select { padding: 0 12px; border: 1px solid #cbd5e1; border-radius: 9px; }
+.inputClear { display: grid; flex: 0 0 auto; place-content: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 999px; background: #e2e8f0; color: #475569; cursor: pointer; }
 .resultCount { min-width: 52px; color: #2563eb; font-size: 14px; text-align: right; }
+.statusFilters { display: flex; flex-wrap: wrap; gap: 7px; margin: -4px 0 14px; }
+.statusFilters button { min-height: 34px; padding: 0 11px; border: 1px solid #cbd5e1; border-radius: 999px; background: white; color: #64748b; font-weight: 800; cursor: pointer; }
+.statusFilters button.statusFilterActive { border-color: #2563eb; background: #eff6ff; color: #1d4ed8; }
 .passengerList { display: grid; gap: 9px; }
 .noResults { display: grid; justify-items: center; gap: 6px; padding: 48px 20px; border: 1px dashed #cbd5e1; border-radius: 10px; color: #64748b; text-align: center; }
 .noResults strong { color: #334155; }
@@ -38,7 +72,7 @@
 .status_unchecked { border-left-color: #f59e0b; }.status_boarded { border-left-color: #16a34a; background: #fbfffc; }.status_no_show { border-left-color: #dc2626; background: #fffafa; }
 .nameRow { display: flex; align-items: center; gap: 8px; }.nameRow strong { color: #172554; font-size: 17px; }
 .status_unchecked .statusBadge { background: #fef3c7; color: #92400e; }.status_boarded .statusBadge { background: #dcfce7; color: #166534; }.status_no_show .statusBadge { background: #fee2e2; color: #991b1b; }
-.meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }.meta span { padding: 4px 7px; border-radius: 6px; background: #f1f5f9; color: #475569; font-size: 12px; font-weight: 700; }
+.meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }.meta span, .meta a { padding: 4px 7px; border-radius: 6px; background: #f1f5f9; color: #475569; font-size: 12px; font-weight: 700; }.meta a { color: #1d4ed8; text-decoration: none; }
 .changeSummary { display: flex; align-items: center; flex-wrap: wrap; gap: 5px 8px; margin-top: 9px; font-size: 12px; }
 .changeSummary strong { padding: 4px 7px; border-radius: 6px; font-size: 11px; }
 .changeSummary span { color: #64748b; }
@@ -50,9 +84,12 @@
 .actions button { display: flex; align-items: center; gap: 4px; min-height: 36px; padding: 0 9px; border-radius: 7px; font-weight: 800; cursor: pointer; }
 .actions button:disabled { opacity: .42; cursor: default; }
 .boardButton { border: 1px solid #86efac; background: #f0fdf4; color: #166534; }.noShowButton { border: 1px solid #fecaca; background: #fff1f2; color: #be123c; }.resetButton { border: 1px solid #cbd5e1; background: white; color: #475569; }
-.noteEditor { grid-column: 1 / -1; display: grid; grid-template-columns: auto minmax(180px, 1fr) auto; align-items: center; gap: 8px; padding-top: 11px; border-top: 1px solid #e5e7eb; }
+.noteDetails { grid-column: 1 / -1; border-top: 1px solid #e5e7eb; }
+.noteDetails summary { display: flex; align-items: center; gap: 8px; padding-top: 11px; color: #475569; font-size: 12px; font-weight: 900; cursor: pointer; }
+.noteDetails summary small { min-width: 0; overflow: hidden; color: #64748b; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.noteEditor { display: grid; grid-template-columns: auto minmax(180px, 1fr) auto; align-items: center; gap: 8px; padding-top: 10px; }
 .noteEditor label { color: #475569; font-size: 12px; font-weight: 900; }
-.noteEditor input { width: 100%; min-width: 0; height: 38px; padding: 0 10px; border: 1px solid #cbd5e1; border-radius: 7px; background: white; color: #172554; font: inherit; }
+.noteEditor textarea { width: 100%; min-width: 0; min-height: 54px; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 7px; background: white; color: #172554; font: inherit; line-height: 1.4; resize: vertical; }
 .noteEditor button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 38px; padding: 0 11px; border: 1px solid #bfdbfe; border-radius: 7px; background: #eff6ff; color: #1d4ed8; font-weight: 900; cursor: pointer; }
 .noteEditor button:disabled { opacity: .45; cursor: default; }
 @media (max-width: 900px) {
@@ -73,7 +110,8 @@
 
   .hero button,
   .departure,
-  .cancelDeparture {
+  .cancelDeparture,
+  .clearSearch {
     width: 100%;
     justify-content: center;
   }
@@ -81,6 +119,39 @@
   .allocationTitle {
     gap: 4px;
     margin: 16px 2px 10px;
+  }
+
+  .exportActions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    margin-top: 8px;
+  }
+
+  .exportActions button {
+    min-height: 44px;
+  }
+
+  .sheetSyncStatus {
+    grid-column: 1 / -1;
+    text-align: left;
+  }
+
+  .overview {
+    padding: 10px;
+  }
+
+  .overviewStats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .busToolbar {
+    grid-template-columns: 1fr auto;
+  }
+
+  .busToolbar > span {
+    grid-column: 1 / -1;
+    text-align: left;
   }
 
   .busGrid {
@@ -99,7 +170,7 @@
 
   .busCard {
     flex: 0 0 min(78vw, 300px);
-    min-height: 126px;
+    min-height: 170px;
     scroll-snap-align: start;
   }
 
@@ -154,6 +225,22 @@
     text-align: left;
   }
 
+  .statusFilters {
+    margin-top: 0;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    scrollbar-width: none;
+  }
+
+  .statusFilters::-webkit-scrollbar {
+    display: none;
+  }
+
+  .statusFilters button {
+    flex: 0 0 auto;
+    min-height: 40px;
+  }
+
   .passenger {
     grid-template-columns: 1fr;
     gap: 13px;
@@ -175,7 +262,8 @@
     margin-top: 8px;
   }
 
-  .meta span {
+  .meta span,
+  .meta a {
     padding: 5px 7px;
   }
 
@@ -211,8 +299,8 @@
     grid-column: 1 / -1;
   }
 
-  .noteEditor input {
-    height: 44px;
+  .noteEditor textarea {
+    min-height: 64px;
   }
 
   .noteEditor button {
@@ -220,7 +308,93 @@
   }
 }
 
+.checkInCodePanel {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto minmax(190px, auto);
+  align-items: center;
+  gap: 18px;
+  margin: 18px 0;
+  padding: 18px;
+  border: 1px solid #bfdbfe;
+  border-radius: 12px;
+  background: #eff6ff;
+}
+
+.checkInCodeCopy {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  color: #1d4ed8;
+}
+
+.checkInCodeCopy div,
+.checkInCodeActions {
+  display: grid;
+  gap: 4px;
+}
+
+.checkInCodeCopy span,
+.checkInCodeActions span {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.checkInCodeValue {
+  min-width: 190px;
+  color: #172554;
+  font-size: 30px;
+  font-weight: 950;
+  letter-spacing: 0.18em;
+  text-align: center;
+}
+
+.checkInCodeActions {
+  justify-items: end;
+}
+
+.checkInCodeActions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 42px;
+  padding: 0 14px;
+  border: 1px solid #93c5fd;
+  border-radius: 9px;
+  background: #ffffff;
+  color: #1d4ed8;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.checkInCodeActions button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+@media (max-width: 760px) {
+  .checkInCodePanel {
+    grid-template-columns: 1fr;
+  }
+
+  .checkInCodeValue {
+    text-align: left;
+  }
+
+  .checkInCodeActions {
+    justify-items: stretch;
+  }
+}
+
 @media (max-width: 560px) {
+  .busToolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .busToolbar > span {
+    grid-column: auto;
+  }
+
   .hero {
     gap: 14px;
     border-radius: 12px;

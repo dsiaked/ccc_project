@@ -1035,6 +1035,40 @@
   outline: none;
 }
 
+.paymentAccountTable {
+  min-width: 900px;
+}
+
+.accountTableInput,
+.accountNumberInput {
+  min-width: 130px;
+  height: 36px;
+  padding: 0 9px;
+  border: 1px solid #ccd3dc;
+  border-radius: 6px;
+  color: #101828;
+  font: inherit;
+  outline: none;
+}
+
+.accountNumberInput {
+  min-width: 210px;
+}
+
+.accountTableInput:focus,
+.accountNumberInput:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.tableSubText {
+  display: block;
+  margin-top: 4px;
+  color: #667085;
+  font-size: 11px;
+  font-weight: 700;
+}
+
 .addressInput {
   width: 260px;
 }

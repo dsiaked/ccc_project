@@ -14,7 +14,7 @@
  *     - 기존 시뮬레이션 계정과 연결 데이터를 정리합니다.
  *     - 조직 구조, 행선지 정류장, 버스 옵션, 기본 앱 설정을 생성합니다.
  *     - CMD에서 입력한 이메일과 비밀번호로 전체 관리자 계정을 생성하거나 갱신합니다.
- *     - 일반 사용자와 캠퍼스 관리자 Auth 계정을 생성합니다.
+ *     - 일반 사용자와 캠퍼스 회계 순장님 Auth 계정을 생성합니다.
  *     - 프로필, 관리자 권한, 예약, 초기 입금 데이터를 생성하고 검증합니다.
  *     - 전체 관리자 비밀번호는 입력 중 *로 표시됩니다.
  *
@@ -58,7 +58,7 @@
  *   npm.cmd run simulation -- seed:payments
  *     - 요청 상태 예약에 초기 payments 행을 생성합니다.
  *     - 일반 사용자는 완료 95%, 대기 5% 비율을 사용합니다.
- *     - 캠퍼스 관리자의 결제 상태는 완료로 생성합니다.
+ *     - 캠퍼스 회계 순장님의 결제 상태는 완료로 생성합니다.
  *
  *   npm.cmd run simulation -- seed:verify
  *     - Auth 사용자, 프로필, 관리자 권한, 예약, 결제 개수를 검증합니다.
@@ -70,7 +70,7 @@
  *   npm.cmd run simulation -- cleanup
  *     - 운영 데이터, 전체 관리자가 아닌 Auth 사용자, 행선지, 버스 옵션, 조직 구조, 앱 설정을 삭제합니다.
  *     - 전체 관리자 Auth 계정, 프로필, global_admin 권한만 보존합니다.
- *     - 캠퍼스 관리자 Auth 계정, 프로필, campus_admin 권한은 모두 삭제합니다.
+ *     - 캠퍼스 회계 순장님 Auth 계정, 프로필, campus_admin 권한은 모두 삭제합니다.
  *     - 조직 삭제를 위해 보존된 전체 관리자의 지구·팀·캠퍼스 범위는 초기화합니다.
  *     - 현재 DB에 없는 선택 테이블은 건너뛰고 나머지 삭제를 계속합니다.
  *     - 삭제 후 npm.cmd run simulation -- seed:reference 또는 seed를 실행해 복구합니다.
@@ -83,12 +83,12 @@
  *
  *   npm.cmd run simulation -- settle:payments
  *     - 요청 상태 예약의 결제를 완료 상태로 변경합니다.
- *     - 해당 캠퍼스 관리자를 입금 확인자로 기록합니다.
+ *     - 해당 캠퍼스 회계 순장님을 입금 확인자로 기록합니다.
  *
  *   npm.cmd run simulation -- settle:reports
- *     - 미완료 개별 입금을 먼저 캠퍼스 관리자 확인 완료 상태로 변경합니다.
+ *     - 미완료 개별 입금을 먼저 캠퍼스 회계 순장님 확인 완료 상태로 변경합니다.
  *     - 캠퍼스별 개별 입금 내역을 합산합니다.
- *     - 각 캠퍼스 관리자가 전체 관리자에게 송금 보고한 sent 상태를 생성합니다.
+ *     - 각 캠퍼스 회계 순장님이 전체 관리자에게 송금 보고한 sent 상태를 생성합니다.
  *     - 활성 상태의 실제 사용자 예약이 있으면 안전을 위해 중단됩니다.
  *     - 기존 settle:transfers 명령도 같은 단계의 호환용 별칭으로 사용할 수 있습니다.
  *
@@ -612,7 +612,7 @@ function assertOneAdminPerCampus(admins, campuses) {
   );
   if (invalid.length > 0 || extra.length > 0 || admins.length !== campuses.length) {
     throw new Error(
-      `모든 캠퍼스마다 캠퍼스 관리자가 정확히 한 명이어야 합니다. ` +
+      `모든 캠퍼스마다 캠퍼스 회계 순장님이 정확히 한 명이어야 합니다. ` +
         `캠퍼스 ${campuses.length}개, 관리자 ${admins.length}명, ` +
         `누락 또는 중복 ${invalid.length + extra.length}건`,
     );
@@ -1048,7 +1048,7 @@ async function seedAuth() {
   const adminSpecs = allCampuses.map((campus, index) => ({
     sequence: userCount + index + 1,
     email: adminEmail(index + 1),
-    name: `시뮬레이션 캠퍼스 관리자 ${pad(index + 1)}`,
+    name: `시뮬레이션 캠퍼스 회계 순장님 ${pad(index + 1)}`,
     phone: `010-8${String(index + 1).padStart(7, '0').slice(-7)}`,
     paymentStatus: 'completed',
     simRole: 'campus_admin',
@@ -1063,7 +1063,7 @@ async function seedAuth() {
     }
     return user;
   });
-  console.log(`캠퍼스 관리자 ${adminSpecs.length}명을 생성하는 중...`);
+  console.log(`캠퍼스 회계 순장님 ${adminSpecs.length}명을 생성하는 중...`);
   await mapWithConcurrency(adminSpecs, createAuthUser);
 }
 
@@ -1111,7 +1111,7 @@ async function seedProfiles() {
   );
   if (conflicts.length > 0) {
     throw new Error(
-      `시뮬레이션 범위에 실제 캠퍼스 관리자 ${conflicts.length}명이 있습니다.`,
+      `시뮬레이션 범위에 실제 캠퍼스 회계 순장님 ${conflicts.length}명이 있습니다.`,
     );
   }
 
@@ -1129,7 +1129,7 @@ async function seedProfiles() {
   }));
   for (const rowChunk of chunks(roleRows)) {
     const { error } = await getClient().from('admin_roles').insert(rowChunk);
-    if (error) throw new Error(`캠퍼스 관리자 권한 등록 실패: ${error.message}`);
+    if (error) throw new Error(`캠퍼스 회계 순장님 권한 등록 실패: ${error.message}`);
   }
   const registeredRoles = await fetchRowsByIds(
     'admin_roles',
@@ -1226,7 +1226,7 @@ async function seedReservations() {
   }
   const adminRoleCount = await countRows('admin_roles', 'user_id', adminIds);
   if (adminRoleCount !== adminIds.length) {
-    throw new Error('캠퍼스 관리자 권한이 완전하지 않습니다. seed:accounts를 먼저 실행하세요.');
+    throw new Error('캠퍼스 회계 순장님 권한이 완전하지 않습니다. seed:accounts를 먼저 실행하세요.');
   }
   const stations = await loadStations();
   const now = Date.now();
@@ -1402,7 +1402,7 @@ async function settlePayments() {
   for (const reservation of requested) {
     const adminId = adminByScope.get(scopeKey(reservation));
     if (!adminId) {
-      throw new Error(`${scopeKey(reservation)} 범위의 시뮬레이션 캠퍼스 관리자가 없습니다.`);
+      throw new Error(`${scopeKey(reservation)} 범위의 시뮬레이션 캠퍼스 회계 순장님이 없습니다.`);
     }
     const ids = reservationIdsByAdmin.get(adminId) ?? [];
     ids.push(reservation.id);
@@ -1484,7 +1484,7 @@ async function settleTransferReports() {
   const now = new Date().toISOString();
   const rows = [...grouped.values()].map((group) => {
     const sentBy = adminByScope.get(scopeKey(group));
-    if (!sentBy) throw new Error(`${scopeKey(group)} 범위의 캠퍼스 관리자가 없습니다.`);
+    if (!sentBy) throw new Error(`${scopeKey(group)} 범위의 캠퍼스 회계 순장님이 없습니다.`);
     return {
       district_id: group.district_id,
       district: group.district,
@@ -1796,7 +1796,7 @@ async function cleanup() {
       .delete({ count: 'exact' })
       .eq('role', 'campus_admin');
   if (campusAdminRoleError) {
-    throw new Error(`캠퍼스 관리자 권한 삭제 실패: ${campusAdminRoleError.message}`);
+    throw new Error(`캠퍼스 회계 순장님 권한 삭제 실패: ${campusAdminRoleError.message}`);
   }
   console.log(`  admin_roles: campus_admin 권한 ${campusAdminRoleCount ?? 0}건 삭제`);
   await deleteRowsByIds('profiles', 'id', deletableUserIds);

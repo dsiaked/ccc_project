@@ -68,7 +68,7 @@ const AdminLoginPage = () => {
           : null;
 
       if (adminRole.role === 'campus_admin') {
-        navigate(requestedPath ?? '/admin/campus', { replace: true });
+        navigate(requestedPath ?? '/admin/campus-dashboard', { replace: true });
         return;
       }
 
@@ -78,7 +78,7 @@ const AdminLoginPage = () => {
       }
 
       if (adminRole.role === 'global_admin') {
-        navigate(requestedPath ?? '/admin/global', { replace: true });
+        navigate(requestedPath ?? '/admin/dashboard', { replace: true });
         return;
       }
 
@@ -105,7 +105,7 @@ const AdminLoginPage = () => {
 
             <h1 className={styles.title}>관리자 로그인</h1>
             <p className={styles.subtitle}>
-              캠퍼스 관리자, 선탑자 또는 전체 관리자 계정으로 로그인해주세요.
+              캠퍼스 회계 순장님, 선탑자 또는 전체 관리자 계정으로 로그인해주세요.
             </p>
           </div>
 

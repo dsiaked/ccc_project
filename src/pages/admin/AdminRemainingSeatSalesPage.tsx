@@ -26,6 +26,7 @@ import {
 import { supabase } from '../../lib/supabase';
 import type { RemainingSeatClaim, ReturnBusReservation } from '../../types/reservation';
 import { formatKoreanDateTime } from '../../utils/dateTime';
+import { formatBusLabel } from '../../utils/busLabel';
 
 import styles from './AdminRemainingSeatSalesPage.module.css';
 
@@ -92,9 +93,11 @@ const AdminRemainingSeatSalesPage = () => {
   const [loadError, setLoadError] = useState('');
   const [completedOpen, setCompletedOpen] = useState(false);
 
-  const loadData = async () => {
-    setLoading(true);
-    setLoadError('');
+  const loadData = async (showLoading = true) => {
+    if (showLoading) {
+      setLoading(true);
+      setLoadError('');
+    }
 
     try {
       const [latestAllocation, reservationResult, nextSettings, paymentSettingResult] = await Promise.all([
@@ -139,9 +142,13 @@ const AdminRemainingSeatSalesPage = () => {
       });
     } catch (error) {
       console.error('잔여좌석 관리 데이터 조회 실패:', error);
-      setLoadError(getErrorMessage(error));
+      if (showLoading) {
+        setLoadError(getErrorMessage(error));
+      }
     } finally {
-      setLoading(false);
+      if (showLoading) {
+        setLoading(false);
+      }
     }
   };
 
@@ -149,6 +156,15 @@ const AdminRemainingSeatSalesPage = () => {
     // Initial page load synchronizes external Supabase data.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadData();
+
+    const refresh = () => void loadData(false);
+    const intervalId = window.setInterval(refresh, 5_000);
+    window.addEventListener('focus', refresh);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', refresh);
+    };
   }, []);
 
   const buses = allocation?.allocation_data?.buses ?? [];
@@ -167,14 +183,17 @@ const AdminRemainingSeatSalesPage = () => {
       pending,
       completed,
       available: Math.max(0, bus.capacity - assigned),
+      initialAvailable: Math.max(0, bus.capacity - assigned) + pending + completed,
       visible: !settings.hiddenBusIds.includes(bus.id),
     };
   });
-  const busesWithRemainingSeats = busStatuses.filter((item) => item.available > 0);
+  const busesWithRemainingSeats = busStatuses.filter((item) => item.initialAvailable > 0);
 
-  const totalAvailable = busesWithRemainingSeats
-    .filter((item) => item.visible && settings.enabled)
-    .reduce((sum, item) => sum + item.available, 0);
+  const totalAvailable = busesWithRemainingSeats.reduce((sum, item) => sum + item.available, 0);
+  const totalInitialAvailable = busesWithRemainingSeats.reduce(
+    (sum, item) => sum + item.initialAvailable,
+    0
+  );
 
   const saveSettings = async (nextSettings: RemainingSeatSalesSettings, key: string) => {
     setSavingKey(key);
@@ -249,7 +268,7 @@ const AdminRemainingSeatSalesPage = () => {
         <button
           type="button"
           className={styles.backButton}
-          onClick={() => navigate('/admin/global')}
+          onClick={() => navigate('/admin/dashboard')}
         >
           <ArrowLeft size={18} />
           전체 관리자 화면
@@ -307,14 +326,14 @@ const AdminRemainingSeatSalesPage = () => {
           </button>
           <button type="button" className={styles.refreshButton} onClick={() => void loadData()}>
             <RefreshCw size={17} />
-            새로고침
+            새로고침 · 5초 자동 갱신
           </button>
         </section>
 
         <section className={styles.summaryGrid}>
           <div>
-            <span>현재 공개 잔여석</span>
-            <strong>{totalAvailable}석</strong>
+            <span>현재 남은 좌석 / 최초 잔여석</span>
+            <strong>{totalAvailable}석 / {totalInitialAvailable}석</strong>
           </div>
           <div className={pendingClaims.length > 0 ? styles.attentionSummary : ''}>
             <span>입금 확인 필요</span>
@@ -326,7 +345,9 @@ const AdminRemainingSeatSalesPage = () => {
           </div>
           <div>
             <span>공개 중인 버스</span>
-            <strong>{busesWithRemainingSeats.filter((item) => item.visible).length}대</strong>
+            <strong>
+              {busesWithRemainingSeats.filter((item) => item.visible && item.available > 0).length}대
+            </strong>
           </div>
         </section>
 
@@ -358,7 +379,7 @@ const AdminRemainingSeatSalesPage = () => {
                     </div>
                   </div>
                   <dl className={styles.claimDetails}>
-                    <div><dt>버스</dt><dd>{item.claim.busLabel}</dd></div>
+                    <div><dt>호차</dt><dd>{formatBusLabel(item.claim.busLabel)}</dd></div>
                     <div><dt>행선지</dt><dd>{item.claim.destination}</dd></div>
                     <div><dt>신청 시각</dt><dd>{formatKoreanDateTime(item.claim.requestedAt)}</dd></div>
                     <div><dt>입금 계좌</dt><dd>{item.claim.transferAccount || '설정 필요'}</dd></div>
@@ -410,7 +431,7 @@ const AdminRemainingSeatSalesPage = () => {
                   <div className={styles.busCardHeader}>
                     <div>
                       <Bus size={19} />
-                      <strong>{item.bus.label}</strong>
+                      <strong>{formatBusLabel(item.bus.label)}</strong>
                       <span>{item.bus.destination}행</span>
                     </div>
                     <button
@@ -423,7 +444,10 @@ const AdminRemainingSeatSalesPage = () => {
                     </button>
                   </div>
                   <div className={styles.busMetrics}>
-                    <div><span>신청 가능</span><strong>{item.available}석</strong></div>
+                    <div>
+                      <span>현재 남음 / 최초</span>
+                      <strong>{item.available}석 / {item.initialAvailable}석</strong>
+                    </div>
                     <div><span>입금 대기</span><strong>{item.pending}석</strong></div>
                     <div><span>확정 완료</span><strong>{item.completed}석</strong></div>
                   </div>
@@ -454,7 +478,7 @@ const AdminRemainingSeatSalesPage = () => {
                 completedClaims.map((item) => (
                   <div key={item.reservationId}>
                     <strong>{item.name}</strong>
-                    <span>{item.claim.busLabel} · {item.claim.destination}행</span>
+                    <span>{formatBusLabel(item.claim.busLabel)} · {item.claim.destination}행</span>
                     <b>{item.claim.amount.toLocaleString()}원</b>
                   </div>
                 ))

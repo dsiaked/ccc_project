@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, CalendarClock } from 'lucide-react';
+import { ArrowLeft, CalendarClock, Zap } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 import AdminHeader from './AdminHeader';
@@ -135,6 +135,31 @@ const AdminReservationDeadlinePage = () => {
     }
   };
 
+  const handleCloseImmediately = async () => {
+    const ok = window.confirm(
+      '지금 즉시 신청을 마감할까요? 마감 후에는 사용자가 신청 정보를 저장하거나 수정할 수 없습니다.'
+    );
+
+    if (!ok) return;
+
+    setSaving(true);
+
+    try {
+      const savedDeadline = await updateReservationDeadline(new Date().toISOString());
+
+      setDeadlineAt(savedDeadline.deadlineAt);
+      setDeadlineInput(formatDateTimeLocal(savedDeadline.deadlineAt));
+      setNowMs(Date.now());
+
+      alert('신청을 즉시 마감했습니다.');
+    } catch (error) {
+      console.error('신청 즉시 마감 실패:', error);
+      alert(`신청 즉시 마감 중 오류가 발생했습니다: ${getErrorMessage(error)}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className={styles.pageContainer}>
@@ -154,7 +179,7 @@ const AdminReservationDeadlinePage = () => {
         <button
           type="button"
           className={styles.backButton}
-          onClick={() => navigate('/admin/global')}
+          onClick={() => navigate('/admin/dashboard')}
         >
           <ArrowLeft size={18} />
           전체 관리자 화면
@@ -214,6 +239,16 @@ const AdminReservationDeadlinePage = () => {
           </div>
 
           <div className={styles.actionRow}>
+            <button
+              type="button"
+              className={styles.dangerButton}
+              onClick={handleCloseImmediately}
+              disabled={saving || isClosed}
+            >
+              <Zap size={17} />
+              {isClosed ? '이미 마감됨' : '즉시 마감'}
+            </button>
+
             <button
               type="button"
               className={styles.secondaryButton}

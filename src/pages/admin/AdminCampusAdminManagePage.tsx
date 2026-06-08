@@ -38,6 +38,36 @@ const USER_PAGE_SIZE = 50;
 
 const makeSavedOptionId = (...parts: string[]) => parts.join('|');
 
+const managesSelectedCampus = (
+  user: AdminUserSearchResult,
+  district: string,
+  team: string,
+  campus: string
+) =>
+  user.managedCampuses?.some(
+    (scope) =>
+      scope.district === district &&
+      scope.team === team &&
+      scope.campus === campus
+  ) ??
+  (user.role === 'campus_admin' &&
+    user.district === district &&
+    user.team === team &&
+    user.campus === campus);
+
+const prioritizeSelectedCampusAdmin = (
+  users: AdminUserSearchResult[],
+  district: string,
+  team: string,
+  campus: string
+) =>
+  [...users].sort((a, b) => {
+    const isSelectedCampusAdmin = (user: AdminUserSearchResult) =>
+      managesSelectedCampus(user, district, team, campus);
+
+    return Number(isSelectedCampusAdmin(b)) - Number(isSelectedCampusAdmin(a));
+  });
+
 const toUniqueOptions = (
   rows: SavedCampusRow[],
   getName: (row: SavedCampusRow) => string,
@@ -95,6 +125,7 @@ const AdminCampusAdminManagePage = () => {
   const [selectedTeamName, setSelectedTeamName] = useState('');
   const [selectedCampusId, setSelectedCampusId] = useState('');
   const [selectedCampusName, setSelectedCampusName] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
 
   const [searchedUsers, setSearchedUsers] = useState<AdminUserSearchResult[]>(
     []
@@ -114,10 +145,12 @@ const AdminCampusAdminManagePage = () => {
     return (
       searchedUsers.find(
         (user) =>
-          user.role === 'campus_admin' &&
-          user.district === selectedDistrictName &&
-          user.team === selectedTeamName &&
-          user.campus === selectedCampusName
+          managesSelectedCampus(
+            user,
+            selectedDistrictName,
+            selectedTeamName,
+            selectedCampusName
+          )
       ) ?? null
     );
   }, [
@@ -289,11 +322,19 @@ const AdminCampusAdminManagePage = () => {
       district: selectedDistrictName || undefined,
       team: selectedTeamName || undefined,
       campus: selectedCampusName || undefined,
+      query: searchQuery || undefined,
       page,
       pageSize: USER_PAGE_SIZE,
     });
 
-    setSearchedUsers(result.users);
+    setSearchedUsers(
+      prioritizeSelectedCampusAdmin(
+        result.users,
+        selectedDistrictName,
+        selectedTeamName,
+        selectedCampusName
+      )
+    );
     setSearchPage(result.page);
     setSearchTotalCount(result.totalCount);
 
@@ -346,7 +387,7 @@ const AdminCampusAdminManagePage = () => {
     if (user.role === 'global_admin') {
       setMessage({
         type: 'error',
-        text: '전체 관리자는 캠퍼스 관리자로 변경할 수 없습니다.',
+        text: '전체 관리자는 캠퍼스 회계 순장님으로 변경할 수 없습니다.',
       });
       return;
     }
@@ -357,10 +398,10 @@ const AdminCampusAdminManagePage = () => {
 
     const ok = window.confirm(
       isChanging
-        ? `현재 ${targetCampus} 캠퍼스 관리자는 ${
+        ? `현재 ${targetCampus} 캠퍼스 회계 순장님은 ${
             currentCampusAdmin?.name || '이름 없음'
           }님입니다.\n기존 관리자를 취소하고 ${user.name}님으로 변경할까요?`
-        : `${user.name}님을 ${targetCampus} 캠퍼스 관리자로 등록할까요?`
+        : `${user.name}님을 ${targetCampus} 캠퍼스 회계 순장님으로 등록할까요?`
     );
 
     if (!ok) return;
@@ -380,14 +421,14 @@ const AdminCampusAdminManagePage = () => {
       setMessage({
         type: 'success',
         text: isChanging
-          ? `${targetCampus} 캠퍼스 관리자를 ${user.name}님으로 변경했습니다.`
-          : `${user.name}님을 ${targetCampus} 캠퍼스 관리자로 등록했습니다.`,
+          ? `${targetCampus} 캠퍼스 회계 순장님을 ${user.name}님으로 변경했습니다.`
+          : `${user.name}님을 ${targetCampus} 캠퍼스 회계 순장님으로 등록했습니다.`,
       });
     } catch (error) {
       console.error('Failed to assign campus admin:', error);
       setMessage({
         type: 'error',
-        text: `캠퍼스 관리자 등록 또는 변경 중 오류가 발생했습니다: ${getErrorMessage(
+        text: `캠퍼스 회계 순장님 등록 또는 변경 중 오류가 발생했습니다: ${getErrorMessage(
           error
         )}`,
       });
@@ -407,7 +448,7 @@ const AdminCampusAdminManagePage = () => {
       return;
     }
 
-    const ok = window.confirm(`${user.name}님의 캠퍼스 관리자 권한을 취소할까요?`);
+    const ok = window.confirm(`${user.name}님의 캠퍼스 회계 순장님 권한을 취소할까요?`);
 
     if (!ok) return;
 
@@ -419,13 +460,13 @@ const AdminCampusAdminManagePage = () => {
 
       setMessage({
         type: 'success',
-        text: `${user.name}님의 캠퍼스 관리자 권한을 취소했습니다.`,
+        text: `${user.name}님의 캠퍼스 회계 순장님 권한을 취소했습니다.`,
       });
     } catch (error) {
       console.error('Failed to cancel campus admin:', error);
       setMessage({
         type: 'error',
-        text: `캠퍼스 관리자 권한 취소 중 오류가 발생했습니다: ${getErrorMessage(
+        text: `캠퍼스 회계 순장님 권한 취소 중 오류가 발생했습니다: ${getErrorMessage(
           error
         )}`,
       });
@@ -453,7 +494,7 @@ const AdminCampusAdminManagePage = () => {
         <button
           type="button"
           className={styles.backButton}
-          onClick={() => navigate('/admin/global')}
+          onClick={() => navigate('/admin/dashboard')}
         >
           <ArrowLeft size={16} />
           전체 관리자 대시보드
@@ -466,7 +507,7 @@ const AdminCampusAdminManagePage = () => {
             </div>
             <div>
               <span className={styles.eyebrow}>Campus Admin</span>
-              <h1>캠퍼스 관리자 권한 관리</h1>
+              <h1>캠퍼스 회계 순장님 권한 관리</h1>
               <p>
                 캠퍼스를 먼저 선택한 뒤 담당자를 검색해 관리자 권한을 등록하거나
                 변경할 수 있습니다.
@@ -506,7 +547,7 @@ const AdminCampusAdminManagePage = () => {
               <UserCog size={18} />
             </span>
             <div>
-              <span>현재 캠퍼스 관리자</span>
+              <span>현재 캠퍼스 회계 순장님</span>
               <strong>
                 {currentCampusAdmin
                   ? currentCampusAdmin.name
@@ -587,9 +628,22 @@ const AdminCampusAdminManagePage = () => {
           <div className={styles.filterActions}>
             <span>
               {selectedCampusName
-                ? `${selectedCampusName} 캠퍼스의 사용자를 검색합니다`
+                ? `전체 사용자 중 ${selectedCampusName} 캠퍼스 관리자를 검색합니다`
                 : '캠퍼스를 선택하면 검색할 수 있습니다'}
             </span>
+            <input
+              className={styles.userSearchInput}
+              type="search"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && selectedCampusName) {
+                  void handleSearchUsers(1);
+                }
+              }}
+              placeholder="이름, 이메일, 연락처, 소속 검색"
+              disabled={!selectedCampusName || searchingUsers}
+            />
             <button
               type="button"
               className={styles.primaryButton}
@@ -619,7 +673,7 @@ const AdminCampusAdminManagePage = () => {
             <div>
               <span className={styles.sectionLabel}>02. 관리자 지정</span>
               <h2>검색 결과</h2>
-              <p>선택한 캠퍼스 범위에 맞는 사용자를 확인하고 권한을 지정합니다.</p>
+              <p>소속 캠퍼스와 관계없이 사용자를 찾아 선택한 캠퍼스 권한을 지정합니다.</p>
             </div>
             <span><Users size={14} /> 총 {searchTotalCount}명</span>
           </div>
@@ -636,20 +690,17 @@ const AdminCampusAdminManagePage = () => {
                 const isCampusAdmin = user.role === 'campus_admin';
                 const isGlobalAdmin = user.role === 'global_admin';
                 const isCurrentSelectedCampusAdmin =
-                  isCampusAdmin &&
                   Boolean(
                     selectedDistrictName &&
                       selectedTeamName &&
                       selectedCampusName
                   ) &&
-                  user.district === selectedDistrictName &&
-                  user.team === selectedTeamName &&
-                  user.campus === selectedCampusName;
-                const hasUserScope = Boolean(
-                  (selectedDistrictName || user.district) &&
-                    (selectedTeamName || user.team) &&
-                    (selectedCampusName || user.campus)
-                );
+                  managesSelectedCampus(
+                    user,
+                    selectedDistrictName,
+                    selectedTeamName,
+                    selectedCampusName
+                  );
                 const isLoading = actionLoadingUserId === user.userId;
 
                 return (
@@ -673,8 +724,8 @@ const AdminCampusAdminManagePage = () => {
                         {isCampusAdmin && (
                           <span className={styles.campusBadge}>
                             {isCurrentSelectedCampusAdmin
-                              ? '현재 캠퍼스 관리자'
-                              : '캠퍼스 관리자'}
+                              ? '현재 캠퍼스 회계 순장님'
+                              : '캠퍼스 회계 순장님'}
                           </span>
                         )}
                       </div>
@@ -709,7 +760,7 @@ const AdminCampusAdminManagePage = () => {
                           <ShieldCheck size={16} />
                           전체 관리자
                         </button>
-                      ) : isCampusAdmin ? (
+                      ) : isCurrentSelectedCampusAdmin ? (
                         <button
                           type="button"
                           className={styles.dangerButton}
@@ -723,15 +774,13 @@ const AdminCampusAdminManagePage = () => {
                           type="button"
                           className={styles.primaryButton}
                           onClick={() => void handleAssignOrChangeCampusAdmin(user)}
-                          disabled={isLoading || !hasUserScope}
+                          disabled={isLoading || !selectedCampusName}
                         >
                           {isLoading
                             ? '처리 중...'
-                            : !hasUserScope
-                              ? '범위 필요'
-                              : currentCampusAdmin
-                                ? '관리자 변경'
-                                : '관리자 등록'}
+                            : currentCampusAdmin
+                              ? '관리자 변경'
+                              : '관리자 등록'}
                         </button>
                       )}
                     </div>

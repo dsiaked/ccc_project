@@ -537,7 +537,6 @@ export async function runSimulationStage(
     batchSize?: number;
     userCount?: number;
     referenceConfig?: SimulationReferenceConfig;
-    paymentMode?: 'random' | 'all';
   } = {}
 ): Promise<SimulationStageResponse> {
   const { data, error } = await supabase.functions.invoke('simulation-runner', {
@@ -548,7 +547,6 @@ export async function runSimulationStage(
       batch_size: options.batchSize,
       user_count: options.userCount,
       reference_config: options.referenceConfig,
-      payment_mode: options.paymentMode,
     },
   });
 

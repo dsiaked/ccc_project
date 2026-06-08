@@ -1,19 +1,26 @@
 import { lazy, type ReactNode } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 
 import { AdminAuthProvider } from '../components/AdminAuthProvider';
 import AdminProtectedRoute from '../components/AdminProtectedRoute';
 import type { AdminRoleType } from '../lib/adminService';
 
 const AdminLoginPage = lazy(() => import('../pages/admin/AdminLoginPage'));
-const CampusAdminPage = lazy(() => import('../pages/admin/AdminCampusPage'));
-const AdminGlobalPage = lazy(() => import('../pages/admin/AdminGlobalPage'));
-const BusAllocationPage = lazy(
+const AdminCampusDashboardPage = lazy(
+  () => import('../pages/admin/AdminCampusPage')
+);
+const AdminDashboardPage = lazy(() => import('../pages/admin/AdminGlobalPage'));
+const AdminAllocationsPage = lazy(
   () => import('../pages/admin/AdminExactAllocationPage')
 );
-const AdminTicketPage = lazy(() => import('../pages/admin/AdminTicketPage'));
+const AdminApplicationsPage = lazy(
+  () => import('../pages/admin/AdminTicketPage')
+);
 const AdminCampusTransferPage = lazy(
   () => import('../pages/admin/AdminCampusTransferPage')
+);
+const AdminFinalPaymentReviewPage = lazy(
+  () => import('../pages/admin/AdminFinalPaymentReviewPage')
 );
 const AdminParticipationTargetsPage = lazy(
   () => import('../pages/admin/AdminParticipationTargetsPage')
@@ -24,11 +31,8 @@ const AdminReservationDeadlinePage = lazy(
 const AdminCampusRequestsPage = lazy(
   () => import('../pages/admin/AdminCampusRequestsPage')
 );
-const AdminPersonalTicketPage = lazy(
+const AdminUsersPage = lazy(
   () => import('../pages/admin/AdminPersonalTicketPage')
-);
-const AdminCampusIssueReviewPage = lazy(
-  () => import('../pages/admin/AdminCampusIssueReviewPage')
 );
 const AdminCampusAdminManagePage = lazy(
   () => import('../pages/admin/AdminCampusAdminManagePage')
@@ -55,6 +59,9 @@ const AdminBoardingPage = lazy(() => import('../pages/admin/AdminBoardingPage'))
 const AdminBoardingManagerPage = lazy(
   () => import('../pages/admin/AdminBoardingManagerPage')
 );
+const AdminAuditLogsPage = lazy(
+  () => import('../pages/admin/AdminAuditLogsPage')
+);
 
 const globalAdminOnly = ['global_admin'] as const satisfies readonly AdminRoleType[];
 const campusAdminOnly = ['campus_admin'] as const satisfies readonly AdminRoleType[];
@@ -74,106 +81,201 @@ const adminRoute = (
   <AdminProtectedRoute allowedRoles={allowedRoles}>{element}</AdminProtectedRoute>
 );
 
-const adminRoutes = [
+const RedirectWithSearch = ({ to }: { to: string }) => {
+  const location = useLocation();
+  const search = location.search.slice(1);
+  const destination = search
+    ? `${to}${to.includes('?') ? '&' : '?'}${search}`
+    : to;
+
+  return <Navigate to={destination} replace />;
+};
+
+const canonicalAdminRoutes = [
   { path: 'login', element: <AdminLoginPage /> },
+  { path: '', element: <Navigate to="/admin/dashboard" replace /> },
   {
-    path: 'global',
-    element: adminRoute(<AdminGlobalPage />, globalAdminOnly),
+    path: 'dashboard',
+    element: adminRoute(<AdminDashboardPage />, globalAdminOnly),
   },
   {
-    path: 'campus',
-    element: adminRoute(<CampusAdminPage />, campusAdminOnly),
+    path: 'campus-dashboard',
+    element: adminRoute(<AdminCampusDashboardPage />, campusAdminOnly),
   },
   {
     path: 'boarding',
     element: adminRoute(<AdminBoardingPage />, boardingAccess),
   },
   {
-    path: 'boarding-managers',
+    path: 'access/boarding-managers',
     element: adminRoute(<AdminBoardingManagerPage />, globalAdminOnly),
   },
   {
-    path: 'tickets',
-    element: adminRoute(<AdminTicketPage />, globalAdminOnly),
+    path: 'applications',
+    element: adminRoute(<AdminApplicationsPage />, globalAdminOnly),
   },
   {
     path: 'users',
-    element: adminRoute(<AdminPersonalTicketPage />, globalAdminOnly),
+    element: adminRoute(<AdminUsersPage />, globalAdminOnly),
   },
   {
-    path: 'personal-tickets',
-    element: adminRoute(<AdminPersonalTicketPage />, globalAdminOnly),
-  },
-  {
-    path: 'campus-issues',
-    element: adminRoute(<AdminCampusIssueReviewPage />, globalAdminOnly),
-  },
-  {
-    path: 'campus-admins',
+    path: 'access/campus-admins',
     element: adminRoute(<AdminCampusAdminManagePage />, globalAdminOnly),
   },
   {
-    path: 'setup-check',
+    path: 'settings',
     element: adminRoute(<AdminSetupCheckPage />, globalAdminOnly),
   },
   {
-    path: 'simulation',
+    path: 'system/simulation',
     element: adminRoute(<AdminSimulationPage />, globalAdminOnly),
   },
   {
-    path: 'home-announcements',
-    element: adminRoute(
-      <Navigate to="/admin/campus-requests?tab=home" replace />,
-      globalAdminOnly
-    ),
+    path: 'system/audit-logs',
+    element: adminRoute(<AdminAuditLogsPage />, globalAdminOnly),
   },
   {
-    path: 'participation-targets',
+    path: 'settings/participation-targets',
     element: adminRoute(<AdminParticipationTargetsPage />, globalAdminOnly),
   },
   {
-    path: 'reservation-deadline',
+    path: 'settings/reservation-deadline',
     element: adminRoute(<AdminReservationDeadlinePage />, globalAdminOnly),
   },
   {
-    path: 'campus-requests',
+    path: 'communications',
     element: adminRoute(<AdminCampusRequestsPage />, allAdminRoles),
   },
   {
-    path: 'allocation',
-    element: adminRoute(<BusAllocationPage />, globalAdminOnly),
+    path: 'allocations',
+    element: adminRoute(<AdminAllocationsPage />, globalAdminOnly),
   },
   {
-    path: 'allocation/result',
+    path: 'allocations/result',
     element: adminRoute(<AdminAllocationResultPage />, globalAdminOnly),
   },
   {
-    path: 'allocation/workspace',
+    path: 'allocations/workspace',
     element: adminRoute(<AdminAllocationWorkspacePage />, globalAdminOnly),
   },
   {
-    path: 'allocation/logic',
+    path: 'allocations/logic',
     element: adminRoute(<AdminAllocationLogicPage />, globalAdminOnly),
   },
   {
-    path: 'bus-allocation',
-    element: adminRoute(<BusAllocationPage />, globalAdminOnly),
-  },
-  {
-    path: 'remaining-seat-sales',
+    path: 'payments/remaining-seats',
     element: adminRoute(<AdminRemainingSeatSalesPage />, globalAdminOnly),
   },
   {
-    path: 'campus-transfer',
+    path: 'payments/campus-transfers',
     element: adminRoute(<AdminCampusTransferPage />, globalAdminOnly),
   },
+  {
+    path: 'payments/final-review',
+    element: adminRoute(<AdminFinalPaymentReviewPage />, globalAdminOnly),
+  },
 ];
+
+const legacyAdminRoutes = [
+  { path: 'global', to: '/admin/dashboard', roles: globalAdminOnly },
+  { path: 'campus', to: '/admin/campus-dashboard', roles: campusAdminOnly },
+  { path: 'tickets', to: '/admin/applications', roles: globalAdminOnly },
+  { path: 'personal-tickets', to: '/admin/users', roles: globalAdminOnly },
+  {
+    path: 'campus-issues',
+    to: '/admin/users?campusIssue=issues_only',
+    roles: globalAdminOnly,
+  },
+  {
+    path: 'campus-admins',
+    to: '/admin/access/campus-admins',
+    roles: globalAdminOnly,
+  },
+  {
+    path: 'boarding-managers',
+    to: '/admin/access/boarding-managers',
+    roles: globalAdminOnly,
+  },
+  { path: 'setup-check', to: '/admin/settings', roles: globalAdminOnly },
+  {
+    path: 'participation-targets',
+    to: '/admin/settings/participation-targets',
+    roles: globalAdminOnly,
+  },
+  {
+    path: 'reservation-deadline',
+    to: '/admin/settings/reservation-deadline',
+    roles: globalAdminOnly,
+  },
+  {
+    path: 'campus-requests',
+    to: '/admin/communications',
+    roles: allAdminRoles,
+  },
+  {
+    path: 'home-announcements',
+    to: '/admin/communications?tab=home',
+    roles: globalAdminOnly,
+  },
+  { path: 'allocation', to: '/admin/allocations', roles: globalAdminOnly },
+  { path: 'bus-allocation', to: '/admin/allocations', roles: globalAdminOnly },
+  {
+    path: 'allocation/result',
+    to: '/admin/allocations/result',
+    roles: globalAdminOnly,
+  },
+  {
+    path: 'allocation/workspace',
+    to: '/admin/allocations/workspace',
+    roles: globalAdminOnly,
+  },
+  {
+    path: 'allocation/logic',
+    to: '/admin/allocations/logic',
+    roles: globalAdminOnly,
+  },
+  {
+    path: 'remaining-seat-sales',
+    to: '/admin/payments/remaining-seats',
+    roles: globalAdminOnly,
+  },
+  {
+    path: 'campus-transfer',
+    to: '/admin/payments/campus-transfers',
+    roles: globalAdminOnly,
+  },
+  {
+    path: 'final-payment-review',
+    to: '/admin/payments/final-review',
+    roles: globalAdminOnly,
+  },
+  {
+    path: 'simulation',
+    to: '/admin/system/simulation',
+    roles: globalAdminOnly,
+  },
+  {
+    path: 'audit-logs',
+    to: '/admin/system/audit-logs',
+    roles: globalAdminOnly,
+  },
+] as const;
 
 const AdminRoutes = () => (
   <AdminAuthProvider>
     <Routes>
-      {adminRoutes.map((route) => (
+      {canonicalAdminRoutes.map((route) => (
         <Route key={route.path} path={route.path} element={route.element} />
+      ))}
+      {legacyAdminRoutes.map((route) => (
+        <Route
+          key={route.path}
+          path={route.path}
+          element={adminRoute(
+            <RedirectWithSearch to={route.to} />,
+            route.roles
+          )}
+        />
       ))}
       <Route path="*" element={<Navigate to="/admin/login" replace />} />
     </Routes>

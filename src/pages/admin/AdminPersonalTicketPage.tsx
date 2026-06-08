@@ -124,6 +124,7 @@ const emptySummary: PersonalTicketSummary = {
   applied: 0,
   confirmed: 0,
   pending: 0,
+  paid: 0,
   cancelled: 0,
   notApplied: 0,
 };
@@ -158,7 +159,7 @@ const ticketToDraft = (
 
 const AdminPersonalTicketPage = () => {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { session } = useAdminAuth();
   const [reservations, setReservations] = useState<ReservationItem[]>([]);
   const [totalReservations, setTotalReservations] = useState(0);
@@ -200,6 +201,7 @@ const AdminPersonalTicketPage = () => {
   const [campusFilter, setCampusFilter] = useState(
     () => searchParams.get('campus') || 'all'
   );
+  const issueOnly = searchParams.get('campusIssue') === 'issues_only';
   const [page, setPage] = useState(1);
   const [roleDistricts, setRoleDistricts] = useState<SelectOption[]>([]);
   const [roleTeams, setRoleTeams] = useState<SelectOption[]>([]);
@@ -228,7 +230,7 @@ const AdminPersonalTicketPage = () => {
           status: statusFilter,
           ticket: ticketFilter,
           adminRole: adminRoleFilter,
-          campusIssue: 'all',
+          campusIssue: issueOnly ? 'issues_only' : 'all',
           campus: campusFilter,
         }),
         !roleDistrictsLoadedRef.current
@@ -275,6 +277,7 @@ const AdminPersonalTicketPage = () => {
     adminRoleFilter,
     campusFilter,
     deferredSearchKeyword,
+    issueOnly,
     page,
     statusFilter,
     ticketFilter,
@@ -325,8 +328,8 @@ const AdminPersonalTicketPage = () => {
       return (
         <span className={`${styles.adminBadge} ${styles.adminCampus}`}>
           {campusAdminRoleCount > 1
-            ? `캠퍼스 관리자 ${campusAdminRoleCount}개`
-            : '캠퍼스 관리자'}
+            ? `캠퍼스 회계 순장님 ${campusAdminRoleCount}개`
+            : '캠퍼스 회계 순장님'}
         </span>
       );
     }
@@ -357,7 +360,8 @@ const AdminPersonalTicketPage = () => {
     ticketFilter !== 'all' ||
     statusFilter !== 'all' ||
     adminRoleFilter !== 'all' ||
-    campusFilter !== 'all';
+    campusFilter !== 'all' ||
+    issueOnly;
   const advancedFilterCount = [
     statusFilter !== 'all',
     adminRoleFilter !== 'all',
@@ -370,6 +374,7 @@ const AdminPersonalTicketPage = () => {
     setStatusFilter('all');
     setAdminRoleFilter('all');
     setCampusFilter('all');
+    setSearchParams({});
     setPage(1);
   };
 
@@ -454,7 +459,7 @@ const AdminPersonalTicketPage = () => {
     if (!selectedReservation) return;
 
     if (selectedGlobalAdminRole) {
-      alert('전체 관리자는 캠퍼스 관리자로 변경할 수 없습니다.');
+      alert('전체 관리자는 캠퍼스 회계 순장님으로 변경할 수 없습니다.');
       return;
     }
 
@@ -474,14 +479,14 @@ const AdminPersonalTicketPage = () => {
       });
     } catch (error) {
       console.error('Failed to inspect campus admin role:', error);
-      alert(`기존 캠퍼스 관리자 확인 중 오류가 발생했습니다: ${getErrorMessage(error)}`);
+      alert(`기존 캠퍼스 회계 순장님 확인 중 오류가 발생했습니다: ${getErrorMessage(error)}`);
       return;
     }
 
     const ok = window.confirm(
       selectedRoleScopeCurrentAdmin
         ? `${roleCampusName} 캠퍼스에는 이미 다른 관리자가 등록되어 있습니다.\n기존 관리자를 교체하고 ${selectedReservation.name}님을 등록할까요?`
-        : `${selectedReservation.name}님을 ${roleCampusName} 캠퍼스 관리자로 등록할까요?`
+        : `${selectedReservation.name}님을 ${roleCampusName} 캠퍼스 회계 순장님으로 등록할까요?`
     );
 
     if (!ok) return;
@@ -496,10 +501,10 @@ const AdminPersonalTicketPage = () => {
         campus: roleCampusName,
       });
       await loadReservations();
-      alert(`${roleCampusName} 캠퍼스 관리자 권한을 등록했습니다.`);
+      alert(`${roleCampusName} 캠퍼스 회계 순장님 권한을 등록했습니다.`);
     } catch (error) {
       console.error('Failed to assign campus admin role:', error);
-      alert(`캠퍼스 관리자 권한 등록 중 오류가 발생했습니다: ${getErrorMessage(error)}`);
+      alert(`캠퍼스 회계 순장님 권한 등록 중 오류가 발생했습니다: ${getErrorMessage(error)}`);
     } finally {
       setSavingRole(false);
     }
@@ -519,10 +524,10 @@ const AdminPersonalTicketPage = () => {
     try {
       await cancelCampusAdmin(adminRole.id);
       await loadReservations();
-      alert('캠퍼스 관리자 권한을 취소했습니다.');
+      alert('캠퍼스 회계 순장님 권한을 취소했습니다.');
     } catch (error) {
       console.error('Failed to cancel campus admin role:', error);
-      alert(`캠퍼스 관리자 권한 취소 중 오류가 발생했습니다: ${getErrorMessage(error)}`);
+      alert(`캠퍼스 회계 순장님 권한 취소 중 오류가 발생했습니다: ${getErrorMessage(error)}`);
     } finally {
       setSavingRole(false);
     }
@@ -717,7 +722,7 @@ const AdminPersonalTicketPage = () => {
       selectedReservation.email ||
       selectedReservation.userId;
     const ok = window.confirm(
-      `${confirmationLabel} 사용자를 삭제할까요?\n\n로그인 계정, 신청 내역, 결제 정보, 캠퍼스 관리자 권한이 함께 삭제되며 복구할 수 없습니다.`
+      `${confirmationLabel} 사용자를 삭제할까요?\n\n로그인 계정, 신청 내역, 결제 정보, 캠퍼스 회계 순장님 권한이 함께 삭제되며 복구할 수 없습니다.`
     );
 
     if (!ok) return;
@@ -776,7 +781,7 @@ const AdminPersonalTicketPage = () => {
         <button
           type="button"
           className={styles.backButton}
-          onClick={() => navigate('/admin/global')}
+          onClick={() => navigate('/admin/dashboard')}
         >
           <ArrowLeft size={18} />
           전체 관리자 화면
@@ -796,7 +801,7 @@ const AdminPersonalTicketPage = () => {
             <button
               type="button"
               className={styles.boardingManagerButton}
-              onClick={() => navigate('/admin/boarding-managers')}
+              onClick={() => navigate('/admin/access/boarding-managers')}
             >
               <ShieldCheck size={16} />
               선탑자 권한 관리
@@ -804,10 +809,21 @@ const AdminPersonalTicketPage = () => {
             <button
               type="button"
               className={styles.issueReviewButton}
-              onClick={() => navigate('/admin/campus-issues')}
+              onClick={() => {
+                const next = new URLSearchParams(searchParams);
+
+                if (issueOnly) {
+                  next.delete('campusIssue');
+                } else {
+                  next.set('campusIssue', 'issues_only');
+                }
+
+                setSearchParams(next);
+                setPage(1);
+              }}
             >
               <CircleAlert size={16} />
-              문제 캠퍼스 검토
+              {issueOnly ? '전체 사용자 보기' : '문제 캠퍼스 검토'}
               {campusIssueDetails.size > 0 && (
                 <span>{campusIssueDetails.size}</span>
               )}
@@ -840,6 +856,10 @@ const AdminPersonalTicketPage = () => {
             <div>
               <span>신청 인원</span>
               <strong>{summary.applied.toLocaleString()}</strong>
+            </div>
+            <div>
+              <span>입금 완료 인원</span>
+              <strong>{summary.paid.toLocaleString()}</strong>
             </div>
             <div>
               <span>전체 인원</span>
@@ -934,7 +954,7 @@ const AdminPersonalTicketPage = () => {
                 >
                   <option value="all">전체</option>
                   <option value="general">일반 사용자</option>
-                  <option value="campus_admin">캠퍼스 관리자</option>
+                  <option value="campus_admin">캠퍼스 회계 순장님</option>
                   <option value="global_admin">전체 관리자</option>
                 </select>
               </label>
@@ -988,7 +1008,7 @@ const AdminPersonalTicketPage = () => {
                   setAdminRoleFilter('all');
                   setPage(1);
                 }}>
-                  권한: {adminRoleFilter === 'general' ? '일반 사용자' : adminRoleFilter === 'campus_admin' ? '캠퍼스 관리자' : '전체 관리자'} <X size={13} />
+                  권한: {adminRoleFilter === 'general' ? '일반 사용자' : adminRoleFilter === 'campus_admin' ? '캠퍼스 회계 순장님' : '전체 관리자'} <X size={13} />
                 </button>
               )}
               {campusFilter !== 'all' && (
@@ -997,6 +1017,16 @@ const AdminPersonalTicketPage = () => {
                   setPage(1);
                 }}>
                   캠퍼스: {campusFilter} <X size={13} />
+                </button>
+              )}
+              {issueOnly && (
+                <button type="button" onClick={() => {
+                  const next = new URLSearchParams(searchParams);
+                  next.delete('campusIssue');
+                  setSearchParams(next);
+                  setPage(1);
+                }}>
+                  문제 사용자만 <X size={13} />
                 </button>
               )}
             </div>
@@ -1049,6 +1079,8 @@ const AdminPersonalTicketPage = () => {
                           role.user_id === reservation.userId &&
                           role.role === 'campus_admin'
                       );
+                      const isExternal =
+                        reservation.rawData?.affiliationType === 'external';
 
                       return (
                         <tr
@@ -1075,10 +1107,13 @@ const AdminPersonalTicketPage = () => {
                         <td className={styles.personCell}>
                           <strong>{reservation.name}</strong>
                           <span>{reservation.phone || '-'}</span>
+                          {isExternal && (
+                            <span className={styles.adminBadge}>타지구 참가자</span>
+                          )}
                           {renderAdminRoleBadge(reservation)}
                         </td>
                         <td>
-                          {reservation.team}
+                          {isExternal ? reservation.district : reservation.team}
                           <br />
                           <span className={styles.muted}>
                             {reservation.campus}
@@ -1210,8 +1245,18 @@ const AdminPersonalTicketPage = () => {
                   <div>
                     <h2>{selectedReservation.name}</h2>
                     <p>
-                      {selectedReservation.team} / {selectedReservation.campus}
+                      {selectedReservation.rawData?.affiliationType === 'external'
+                        ? `${selectedReservation.district} / ${selectedReservation.campus}`
+                        : `${selectedReservation.team} / ${selectedReservation.campus}`}
                     </p>
+                    {selectedReservation.rawData?.affiliationType ===
+                      'external' && (
+                      <p>
+                        담당 간사{' '}
+                        {selectedReservation.rawData.coordinatorName || '-'} ·{' '}
+                        {selectedReservation.rawData.coordinatorPhone || '-'}
+                      </p>
+                    )}
                   </div>
                   {selectedReservation.confirmedTicket ? (
                     <CheckCircle2 size={24} color="#16a34a" />
@@ -1234,8 +1279,8 @@ const AdminPersonalTicketPage = () => {
                           ? '전체 관리자'
                           : selectedCampusAdminRoles.length > 0
                             ? selectedCampusAdminRoles.length > 1
-                              ? `캠퍼스 관리자 ${selectedCampusAdminRoles.length}개`
-                              : '캠퍼스 관리자'
+                              ? `캠퍼스 회계 순장님 ${selectedCampusAdminRoles.length}개`
+                              : '캠퍼스 회계 순장님'
                           : '일반 사용자'}
                       </strong>
                     </div>
@@ -1354,7 +1399,7 @@ const AdminPersonalTicketPage = () => {
                           }
                         >
                           <ShieldCheck size={16} />
-                          선택한 캠퍼스 관리자 등록
+                          선택한 캠퍼스 회계 순장님 등록
                         </button>
 
                       </div>

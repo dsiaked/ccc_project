@@ -6,8 +6,11 @@ import {
   CheckCircle2,
   CircleHelp,
   CreditCard,
+  Goal,
   MessageSquare,
+  History,
   Timer,
+  UserCheck,
   Users,
 } from 'lucide-react';
 
@@ -30,6 +33,12 @@ import {
   getGlobalScenarioChecklist,
   updateGlobalScenarioChecklist,
 } from '../../lib/globalScenarioChecklistService';
+import {
+  adminAuditActionLabels,
+  adminAuditResourceLabels,
+  getRecentAdminAuditLogs,
+  type AdminAuditLog,
+} from '../../lib/admin/adminAuditLogService';
 
 import styles from './AdminGlobalPage.module.css';
 import AdminHeader from './AdminHeader';
@@ -38,9 +47,9 @@ const operationScenarioSteps = [
   {
     id: 'initial-setup',
     title: '운영 초기값 설정',
-    description: '조직, 예상 참여 인원, 캠퍼스 관리자 권한을 먼저 점검합니다.',
+    description: '조직, 예상 참여 인원, 캠퍼스 회계 순장님 권한을 먼저 점검합니다.',
     actionLabel: '운영 초기값 설정하기',
-    actionPath: '/admin/setup-check',
+    actionPath: '/admin/settings',
   },
   {
     id: 'post-deadline-operations',
@@ -48,9 +57,9 @@ const operationScenarioSteps = [
     description: '신청 마감 일시를 설정하고, 각 팀과 캠퍼스에 공지를 전달한 뒤 신청을 시작합니다.',
     checks: ['신청 마감 일시 설정', '팀·캠퍼스별 공지 전달', '신청 시작'],
     actionLabel: '신청 마감 일시 설정하기',
-    actionPath: '/admin/reservation-deadline',
+    actionPath: '/admin/settings/reservation-deadline',
     actionLinks: [
-      { label: '신청 현황 확인하기', path: '/admin/tickets' },
+      { label: '가입·신청 현황 확인하기', path: '/admin/applications' },
     ],
   },
   {
@@ -59,10 +68,10 @@ const operationScenarioSteps = [
     description: '캠퍼스별 입금 현황을 집계하고 접수된 문의를 확인하여 처리합니다.',
     checks: ['입금 집계 확인', '문의 처리'],
     actionLabel: '입금 집계 확인하기',
-    actionPath: '/admin/campus-transfer',
+    actionPath: '/admin/payments/final-review',
     actionLinks: [
       { label: '개별 사용자 관리', path: '/admin/users' },
-      { label: '문의', path: '/admin/campus-requests' },
+      { label: '문의', path: '/admin/communications' },
     ],
   },
   {
@@ -70,21 +79,21 @@ const operationScenarioSteps = [
     title: '배차 계획 산출',
     description: '신청 인원과 행선지별 수요를 바탕으로 배차 계획을 산출하고 결과를 검토합니다.',
     actionLabel: '배차 계획 산출하기',
-    actionPath: '/admin/allocation',
+    actionPath: '/admin/allocations',
   },
   {
     id: 'remaining-seat-sales',
     title: '배차 확정 이후 잔여 좌석 판매',
     description: '배차 확정 후 잔여 좌석을 추가 판매하고 관리합니다.',
     actionLabel: '잔여 좌석 관리하기',
-    actionPath: '/admin/remaining-seat-sales',
+    actionPath: '/admin/payments/remaining-seats',
   },
   {
     id: 'final-check',
     title: '출발 전 최종 점검',
     description: '탑승 명단, 입금 상태, 탑승 장소, 안내 사항을 마지막으로 확인합니다.',
     actionLabel: '최종 명단 확인하기',
-    actionPath: '/admin/tickets',
+    actionPath: '/admin/applications',
   },
 ] as const;
 
@@ -102,19 +111,19 @@ const quickActions = [
   {
     title: '공지·문의 관리',
     description: '캠퍼스 문의와 캠퍼스 공지, 홈화면 공지를 함께 관리합니다.',
-    path: '/admin/campus-requests',
+    path: '/admin/communications',
     icon: CircleHelp,
   },
   {
     title: '배차 로직',
     description: '배차 계산 기준과 옵션을 점검합니다.',
-    path: '/admin/allocation/logic',
+    path: '/admin/allocations/logic',
     icon: Bus,
   },
   {
-    title: '선탑자 권한 관리',
+    title: '선탑자 권한·담당 호차 관리',
     description: '선탑자 계정을 지정하고 전체 호차 탑승 확인 권한을 관리합니다.',
-    path: '/admin/boarding-managers',
+    path: '/admin/access/boarding-managers',
     icon: Users,
   },
 ] as const;
@@ -165,6 +174,7 @@ const AdminGlobalPage = () => {
   const [checkedScenarioStepIds, setCheckedScenarioStepIds] = useState<
     string[]
   >([]);
+  const [recentAuditLogs, setRecentAuditLogs] = useState<AdminAuditLog[]>([]);
 
   const handleToggleScenarioStep = (stepId: string) => {
     const previous = checkedScenarioStepIds;
@@ -196,6 +206,7 @@ const AdminGlobalPage = () => {
         unresolvedRequestResult,
         draftAllocationResult,
         confirmedAllocationResult,
+        recentAuditLogsResult,
       ] =
         await Promise.all([
           getCampusTransferStats(),
@@ -223,6 +234,10 @@ const AdminGlobalPage = () => {
             .from('bus_allocations')
             .select('id', { count: 'exact', head: true })
             .filter('allocation_data->>status', 'eq', 'confirmed'),
+          getRecentAdminAuditLogs(5).catch((error) => {
+            console.warn('Failed to load recent admin audit logs:', error);
+            return [];
+          }),
         ]);
 
       const dashboardError =
@@ -244,6 +259,7 @@ const AdminGlobalPage = () => {
       setUnresolvedRequestCount(unresolvedRequestResult.count ?? 0);
       setDraftAllocationCount(draftAllocationResult.count ?? 0);
       setConfirmedAllocationCount(confirmedAllocationResult.count ?? 0);
+      setRecentAuditLogs(recentAuditLogsResult);
     } catch (error) {
       console.error('Failed to load data:', error);
       setLoadError('대시보드 데이터를 불러올 수 없습니다. 잠시 후 다시 시도해주세요.');
@@ -389,30 +405,52 @@ const AdminGlobalPage = () => {
         </section>
 
         <section className={styles.metricsGrid} aria-label="핵심 지표">
-          <div className={`${styles.metric} ${styles.peopleMetric}`}>
+          <button
+            type="button"
+            className={styles.metric}
+            onClick={() => navigate('/admin/applications')}
+            aria-label={`신청자 ${totalPeople}명, 가입·신청 현황으로 이동`}
+          >
             <div className={styles.metricIconSlate}>
               <Users size={22} />
             </div>
-            <div className={styles.peopleMetricValues}>
-              <div>
-                <span>신청자</span>
-                <strong>{totalPeople.toLocaleString()}명</strong>
-              </div>
-              <div>
-                <span>가입자</span>
-                <strong>{subscriberCount.toLocaleString()}명</strong>
-              </div>
-              <div>
-                <span>예상 인원</span>
-                <strong>{participationTarget.toLocaleString()}명</strong>
-              </div>
-            </div>
-          </div>
+            <span>신청자</span>
+            <strong>{totalPeople.toLocaleString()}명</strong>
+            <p>가입·신청 현황 확인</p>
+          </button>
 
           <button
             type="button"
             className={styles.metric}
-            onClick={() => navigate('/admin/campus-transfer')}
+            onClick={() => navigate('/admin/users')}
+            aria-label={`가입자 ${subscriberCount}명, 개별 사용자 관리로 이동`}
+          >
+            <div className={styles.metricIconBlue}>
+              <UserCheck size={22} />
+            </div>
+            <span>가입자</span>
+            <strong>{subscriberCount.toLocaleString()}명</strong>
+            <p>개별 사용자 관리</p>
+          </button>
+
+          <button
+            type="button"
+            className={styles.metric}
+            onClick={() => navigate('/admin/settings/participation-targets')}
+            aria-label={`예상 인원 ${participationTarget}명, 예상 참여 인원 관리로 이동`}
+          >
+            <div className={styles.metricIconSlate}>
+              <Goal size={22} />
+            </div>
+            <span>예상 인원</span>
+            <strong>{participationTarget.toLocaleString()}명</strong>
+            <p>캠퍼스별 목표 확인</p>
+          </button>
+
+          <button
+            type="button"
+            className={styles.metric}
+            onClick={() => navigate('/admin/payments/final-review')}
             aria-label={`입금률 ${formatPercent(paymentCollectionRate)}, 입금 관리로 이동`}
           >
               <div className={styles.metricIconGreen}>
@@ -435,7 +473,7 @@ const AdminGlobalPage = () => {
             className={`${styles.metric} ${
               unresolvedRequestCount > 0 ? styles.attentionMetric : ''
             }`}
-            onClick={() => navigate('/admin/campus-requests')}
+            onClick={() => navigate('/admin/communications')}
             aria-label={`미처리 문의 ${unresolvedRequestCount}건, 문의 관리로 이동`}
           >
             <div className={styles.metricIconAmber}>
@@ -459,7 +497,7 @@ const AdminGlobalPage = () => {
                   ? styles.deadlineMetricClosed
                   : styles.deadlineMetricOpen
             }`}
-            onClick={() => navigate('/admin/reservation-deadline')}
+            onClick={() => navigate('/admin/settings/reservation-deadline')}
             aria-label={`신청 마감 설정, 현재 상태 ${deadlineStatus}`}
           >
             <div
@@ -494,7 +532,7 @@ const AdminGlobalPage = () => {
                   ? styles.progressMetric
                   : styles.attentionMetric
             }`}
-            onClick={() => navigate('/admin/allocation')}
+            onClick={() => navigate('/admin/allocations')}
             aria-label={`배차 상태 ${allocationStatus}, 배차 관리로 이동`}
           >
             <div
@@ -620,6 +658,52 @@ const AdminGlobalPage = () => {
               );
             })}
           </div>
+        </section>
+
+        <section className={styles.section}>
+          <div className={styles.sectionHeader}>
+            <div>
+              <h2>최근 관리 작업</h2>
+              <p>입금 정보와 캠퍼스 송금의 최근 변경 기록입니다.</p>
+            </div>
+            <button
+              type="button"
+              className={styles.auditLogsButton}
+              onClick={() => navigate('/admin/system/audit-logs')}
+            >
+              전체 기록 보기
+              <ArrowRight size={15} />
+            </button>
+          </div>
+
+          {recentAuditLogs.length === 0 ? (
+            <div className={styles.auditEmpty}>
+              <History size={20} />
+              아직 기록된 관리 작업이 없습니다.
+            </div>
+          ) : (
+            <div className={styles.auditList}>
+              {recentAuditLogs.map((log) => (
+                <button
+                  type="button"
+                  key={log.id}
+                  onClick={() => navigate('/admin/system/audit-logs')}
+                >
+                  <span className={`${styles.auditBadge} ${styles[log.action]}`}>
+                    {adminAuditActionLabels[log.action]}
+                  </span>
+                  <strong>
+                    {adminAuditResourceLabels[log.resourceType] ??
+                      log.resourceType}
+                  </strong>
+                  <span>{log.actorName}</span>
+                  <time dateTime={log.createdAt}>
+                    {new Date(log.createdAt).toLocaleString('ko-KR')}
+                  </time>
+                </button>
+              ))}
+            </div>
+          )}
         </section>
 
         <section className={styles.section}>

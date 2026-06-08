@@ -46,8 +46,14 @@
 .stageDetail ul { margin: 9px 0 0; padding-left: 18px; color: #475467; font-size: 13px; line-height: 1.8; }
 .stageDetail button { min-width: 126px; height: 40px; padding: 0 14px; border: 0; background: #2563eb; color: #fff; }
 .stageDetail .cleanupButton { background: #b42318; }
+.stageActionArea { display: grid; justify-items: end; gap: 8px; max-width: 480px; }
 .paymentActions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 .paymentActions button:last-child { background: #027a48; }
+.actionReasons { display: grid; gap: 6px; width: 100%; }
+.disabledReason { display: flex; align-items: flex-start; gap: 7px; margin: 0; padding: 9px 11px; border: 1px solid #fedf89; border-radius: 8px; background: #fffaeb; color: #7a2e0e; font-size: 12px; line-height: 1.5; text-align: left; }
+.disabledReason svg { flex: 0 0 auto; margin-top: 1px; color: #dc6803; }
+.disabledReason span, .disabledReason strong { display: block; }
+.disabledReason strong { margin-bottom: 2px; color: #b54708; }
 .runMessage { margin: 14px 0 0; padding: 11px 13px; border-radius: 8px; background: #eff4ff; color: #175cd3; font-size: 13px; font-weight: 800; }
 .previewTabs { display: flex; gap: 4px; padding: 0 16px; border-bottom: 1px solid #d0d5dd; }
 .previewTabs button { min-height: 38px; padding: 0 13px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: #667085; font-size: 13px; font-weight: 900; cursor: pointer; }
@@ -159,4 +165,4 @@
 .tableWrap td:nth-child(3), .tableWrap td:nth-child(4) { font-weight: 800; }
 @media (max-width: 1000px) { .campusSelectorList { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 860px) { .hero { flex-direction: column; } .summaryGrid, .safetyGrid, .inlineMetrics, .referenceInputGrid, .campusSelectorList { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 600px) { .main { width: min(100% - 24px, 1120px); padding-top: 24px; } .summaryGrid, .safetyGrid, .inlineMetrics, .resultGuideGrid, .referenceInputGrid, .recommendedValueGrid, .busOptionEditor, .busOptionEditor fieldset, .setupRequiredGuide li, .campusSelectorList, .cleanupResultGuide { grid-template-columns: 1fr; } .safetyControls, .inlinePreviewHeader, .resultGuideHeader, .referenceEditorHeader, .busOptionEditorHeader, .campusSelectorHeader, .referenceActionBar { align-items: stretch; flex-direction: column; } .referencePresetActions { justify-content: stretch; } .referencePresetActions button, .referenceActionBar button, .safetyControls button, .cleanupResultGuide button { width: 100%; } .stageDetail { align-items: stretch; flex-direction: column; padding-left: 16px; } .stageDetail button { width: 100%; } }
+@media (max-width: 600px) { .main { width: min(100% - 24px, 1120px); padding-top: 24px; } .summaryGrid, .safetyGrid, .inlineMetrics, .resultGuideGrid, .referenceInputGrid, .recommendedValueGrid, .busOptionEditor, .busOptionEditor fieldset, .setupRequiredGuide li, .campusSelectorList, .cleanupResultGuide { grid-template-columns: 1fr; } .safetyControls, .inlinePreviewHeader, .resultGuideHeader, .referenceEditorHeader, .busOptionEditorHeader, .campusSelectorHeader, .referenceActionBar { align-items: stretch; flex-direction: column; } .referencePresetActions { justify-content: stretch; } .referencePresetActions button, .referenceActionBar button, .safetyControls button, .cleanupResultGuide button { width: 100%; } .stageDetail { align-items: stretch; flex-direction: column; padding-left: 16px; } .stageActionArea { max-width: none; justify-items: stretch; } .stageDetail button { width: 100%; } }

@@ -270,7 +270,7 @@
 
 .advancedFilters {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
   padding: 12px;
   border: 1px solid #dbeafe;
@@ -1059,12 +1059,14 @@
     border-right: none;
   }
 
-  .summaryCard div:last-child {
-    grid-column: 1 / -1;
+  .summaryCard div:nth-child(n + 3) {
     margin-top: 12px;
     padding-top: 12px;
-    padding-left: 0;
     border-top: 1px solid #eaecf0;
+  }
+
+  .summaryCard div:nth-child(3) {
+    padding-left: 0;
   }
 
   .toolbar,

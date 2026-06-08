@@ -33,8 +33,6 @@ import {
   resetReservationData,
   updateBusOption,
   updateBusTicketPrice,
-  type ReservationDataResetOptions,
-  type ReservationDataResetStats,
 } from '../../lib/adminService';
 import { supabase } from '../../lib/supabase';
 import { getParticipationTargetsSetting } from '../../lib/participationTargetsService';
@@ -43,302 +41,45 @@ import {
   updateDistrictTransferAccountNumber,
 } from '../../lib/districtTransferAccountService';
 import {
+  getAllCampusPaymentAccounts,
+  updateCampusPaymentAccount,
+  type CampusPaymentAccount,
+} from '../../lib/campusPaymentAccountService';
+import {
   formatReservationDeadline,
   getReservationDeadline,
-  updateReservationDeadline,
 } from '../../lib/reservationDeadlineService';
+import { geocodeKakaoAddress } from '../../utils/kakaoMapSdk';
+import {
+  RESET_CONFIRM_TEXT,
+  countSelectedResetRows,
+  defaultResetOptions,
+  emptyBusOptionDraft,
+  emptyNewCampusDraft,
+  emptyNewStationDraft,
+  emptyResetStats,
+  getCampusKey,
+  getErrorMessage,
+  getSetupDetailFromSearch,
+  hasSelectedSetupReset,
+  normalizeCampusRows,
+  parseBusOptionDraft,
+  summarizeBusOptions,
+  summarizeCampusSetup,
+  type BusOptionDraft,
+  type BusOptionRow,
+  type CampusAdminRoleRow,
+  type CampusOptionRow,
+  type CampusSetupRow,
+  type NewCampusDraft,
+  type NewStationDraft,
+  type ReservationDataResetOptions,
+  type ReservationDataResetStats,
+  type SetupDetailId,
+  type StationSetupRow,
+} from './adminSetupModel';
 
 import styles from './AdminSetupCheckPage.module.css';
-
-interface CampusOptionRow {
-  district: string | null;
-  team: string | null;
-  campus: string | null;
-}
-
-interface CampusAdminRoleRow {
-  district: string | null;
-  team: string | null;
-  campus: string | null;
-}
-
-interface CampusSetupRow {
-  key: string;
-  district: string;
-  team: string;
-  campus: string;
-  target: number;
-  hasAdmin: boolean;
-}
-
-interface StationSetupRow {
-  id: string;
-  name: string;
-  line: string | null;
-  address: string | null;
-  lat: number | null;
-  lng: number | null;
-  is_active: boolean;
-}
-
-interface NewStationDraft {
-  name: string;
-  line: string;
-  address: string;
-}
-
-interface NewCampusDraft {
-  district: string;
-  team: string;
-  campus: string;
-}
-
-interface BusOptionRow {
-  id: string;
-  capacity: number;
-  estimated_price: number;
-  max_count?: number | null;
-  notes?: string | null;
-}
-
-interface BusOptionDraft {
-  capacity: string;
-  estimatedPrice: string;
-  maxCount: string;
-  notes: string;
-}
-
-type SetupDetailId =
-  | 'organization'
-  | 'campus-admins'
-  | 'destinations'
-  | 'bus-options';
-
-const RESET_CONFIRM_TEXT = '신청정보 초기화';
-const emptyNewStationDraft: NewStationDraft = {
-  name: '',
-  line: '',
-  address: '',
-};
-const emptyNewCampusDraft: NewCampusDraft = {
-  district: '',
-  team: '',
-  campus: '',
-};
-
-const getSetupDetailFromSearch = (search: string): SetupDetailId | null => {
-  const detail = new URLSearchParams(search).get('detail');
-  return detail === 'organization' ||
-    detail === 'campus-admins' ||
-    detail === 'destinations' ||
-    detail === 'bus-options'
-    ? detail
-    : null;
-};
-const emptyBusOptionDraft: BusOptionDraft = {
-  capacity: '',
-  estimatedPrice: '',
-  maxCount: '999',
-  notes: '',
-};
-
-const formatDateTimeLocal = (isoValue: string | null) => {
-  if (!isoValue) return '';
-
-  const date = new Date(isoValue);
-
-  if (Number.isNaN(date.getTime())) return '';
-
-  const timezoneOffsetMs = date.getTimezoneOffset() * 60 * 1000;
-
-  return new Date(date.getTime() - timezoneOffsetMs)
-    .toISOString()
-    .slice(0, 16);
-};
-
-const parseDateTimeLocal = (value: string) => {
-  if (!value) return null;
-
-  const date = new Date(value);
-
-  return Number.isNaN(date.getTime()) ? null : date.toISOString();
-};
-
-const KAKAO_MAP_SDK_ID = 'kakao-map-sdk';
-
-const normalizeEnvValue = (value: unknown) =>
-  String(value ?? '')
-    .trim()
-    .replace(/^['"]|['"]$/g, '');
-
-const getKakaoMapAppKey = () =>
-  normalizeEnvValue(import.meta.env.VITE_KAKAO_JAVASCRIPT_KEY) ||
-  normalizeEnvValue(import.meta.env.VITE_KAKAO_MAP_KEY);
-
-const loadKakaoMapSdk = () =>
-  new Promise<void>((resolve, reject) => {
-    if (window.kakao?.maps) {
-      window.kakao.maps.load(resolve);
-      return;
-    }
-
-    const appKey = getKakaoMapAppKey();
-
-    if (!appKey) {
-      reject(new Error('카카오 지도 JavaScript 키가 설정되지 않았습니다.'));
-      return;
-    }
-
-    const scriptSrc = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(
-      appKey
-    )}&libraries=services&autoload=false`;
-    const existingScript = document.getElementById(
-      KAKAO_MAP_SDK_ID
-    ) as HTMLScriptElement | null;
-
-    if (existingScript && existingScript.src !== scriptSrc) {
-      existingScript.remove();
-    }
-
-    const currentScript = document.getElementById(
-      KAKAO_MAP_SDK_ID
-    ) as HTMLScriptElement | null;
-    const script = currentScript ?? document.createElement('script');
-    const timeoutId = window.setTimeout(() => {
-      reject(new Error('카카오 지도 SDK를 불러오는 시간이 초과되었습니다.'));
-    }, 10000);
-
-    script.id = KAKAO_MAP_SDK_ID;
-    script.src = scriptSrc;
-    script.async = true;
-    script.onload = () => {
-      window.clearTimeout(timeoutId);
-
-      if (!window.kakao?.maps) {
-        reject(new Error('카카오 지도 SDK를 불러오지 못했습니다.'));
-        return;
-      }
-
-      window.kakao.maps.load(resolve);
-    };
-    script.onerror = () => {
-      window.clearTimeout(timeoutId);
-      reject(new Error('카카오 지도 SDK를 불러오지 못했습니다.'));
-    };
-
-    if (!currentScript) {
-      document.head.appendChild(script);
-    }
-  });
-
-const geocodeStationAddress = async (address: string) => {
-  await loadKakaoMapSdk();
-
-  const services = window.kakao?.maps?.services;
-
-  if (!services) {
-    throw new Error('카카오 주소 검색 서비스를 사용할 수 없습니다.');
-  }
-
-  return new Promise<{ lat: number; lng: number }>((resolve, reject) => {
-    const geocoder = new services.Geocoder();
-
-    geocoder.addressSearch(address, (result, status) => {
-      const firstResult = result[0];
-
-      if (status !== services.Status.OK || !firstResult) {
-        reject(new Error(`주소의 위치를 찾지 못했습니다: ${address}`));
-        return;
-      }
-
-      const lat = Number(firstResult.y);
-      const lng = Number(firstResult.x);
-
-      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-        reject(new Error(`주소의 좌표가 올바르지 않습니다: ${address}`));
-        return;
-      }
-
-      resolve({ lat, lng });
-    });
-  });
-};
-
-const emptyResetStats: ReservationDataResetStats = {
-  reservations: 0,
-  payments: 0,
-  campusTransfers: 0,
-  busAllocations: 0,
-  campusRequests: 0,
-  campusRequestMessages: 0,
-  stations: 0,
-  busOptions: 0,
-  appSettings: 0,
-  homeAnnouncements: 0,
-  campusAdminRoles: 0,
-  organization: 0,
-  userAccounts: 0,
-};
-
-const defaultResetOptions: ReservationDataResetOptions = {
-  reservations: true,
-  payments: true,
-  campusTransfers: true,
-  busAllocations: true,
-  campusRequests: true,
-  stations: false,
-  busOptions: false,
-  appSettings: false,
-  homeAnnouncements: false,
-  campusAdminRoles: false,
-  organization: false,
-  userAccounts: false,
-};
-
-const getCampusKey = (district: string, team: string, campus: string) =>
-  `campus|${district}|${team}|${campus}`;
-
-const normalizeCampusRows = (rows: CampusOptionRow[]) =>
-  rows.map((row, index, array) => {
-    const district = row.district?.trim() || '미등록 지구';
-    const team = row.team?.trim() || '미등록 팀';
-    const campus = row.campus?.trim() || '미등록 캠퍼스';
-    const baseKey = getCampusKey(district, team, campus);
-    const duplicateIndex = array
-      .slice(0, index)
-      .filter(
-        (target) =>
-          (target.district?.trim() || '미등록 지구') === district &&
-          (target.team?.trim() || '미등록 팀') === team &&
-          (target.campus?.trim() || '미등록 캠퍼스') === campus
-      ).length;
-
-    return {
-      key: duplicateIndex > 0 ? `${baseKey}|${duplicateIndex}` : baseKey,
-      baseKey,
-      district,
-      team,
-      campus,
-    };
-  });
-
-const getErrorMessage = (error: unknown) => {
-  if (error instanceof Error) return error.message;
-
-  if (error && typeof error === 'object') {
-    const errorRecord = error as Record<string, unknown>;
-
-    return String(
-      errorRecord.message ||
-        errorRecord.details ||
-        errorRecord.hint ||
-        errorRecord.code ||
-        JSON.stringify(errorRecord)
-    );
-  }
-
-  return '알 수 없는 오류가 발생했습니다.';
-};
 
 const AdminSetupCheckPage = () => {
   const navigate = useNavigate();
@@ -346,7 +87,9 @@ const AdminSetupCheckPage = () => {
   const [loading, setLoading] = useState(true);
   const [savingPrice, setSavingPrice] = useState(false);
   const [savingAccountNumber, setSavingAccountNumber] = useState(false);
-  const [savingDeadline, setSavingDeadline] = useState(false);
+  const [savingCampusAccountId, setSavingCampusAccountId] = useState<
+    string | null
+  >(null);
   const [savingStationId, setSavingStationId] = useState<string | null>(null);
   const [savingBusOptionId, setSavingBusOptionId] = useState<string | null>(
     null
@@ -364,12 +107,16 @@ const AdminSetupCheckPage = () => {
   const [showResetPanel, setShowResetPanel] = useState(false);
   const [showCompletedSettings, setShowCompletedSettings] = useState(false);
   const [campuses, setCampuses] = useState<CampusSetupRow[]>([]);
+  const [campusPaymentAccounts, setCampusPaymentAccounts] = useState<
+    Record<string, CampusPaymentAccount>
+  >({});
+  const [savedCampusPaymentAccountIds, setSavedCampusPaymentAccountIds] =
+    useState<Set<string>>(new Set());
   const [stations, setStations] = useState<StationSetupRow[]>([]);
   const [busOptions, setBusOptions] = useState<BusOptionRow[]>([]);
   const [busTicketPrice, setBusTicketPrice] = useState(0);
   const [busTicketPriceInput, setBusTicketPriceInput] = useState('');
   const [deadlineAt, setDeadlineAt] = useState<string | null>(null);
-  const [deadlineInput, setDeadlineInput] = useState('');
   const [accountNumber, setAccountNumber] = useState('');
   const [accountNumberInput, setAccountNumberInput] = useState('');
   const [resetStats, setResetStats] =
@@ -402,24 +149,10 @@ const AdminSetupCheckPage = () => {
     emptyBusOptionDraft
   );
 
-  const summary = useMemo(() => {
-    const districtCount = new Set(campuses.map((row) => row.district)).size;
-    const teamCount = new Set(
-      campuses.map((row) => `${row.district}|${row.team}`)
-    ).size;
-    const totalTarget = campuses.reduce((sum, row) => sum + row.target, 0);
-    const missingTargetCount = campuses.filter((row) => row.target <= 0).length;
-    const missingAdminCount = campuses.filter((row) => !row.hasAdmin).length;
-
-    return {
-      districtCount,
-      teamCount,
-      campusCount: campuses.length,
-      totalTarget,
-      missingTargetCount,
-      missingAdminCount,
-    };
-  }, [campuses]);
+  const summary = useMemo(
+    () => summarizeCampusSetup(campuses, savedCampusPaymentAccountIds),
+    [campuses, savedCampusPaymentAccountIds]
+  );
 
   const missingTargetCampuses = useMemo(
     () => campuses.filter((row) => row.target <= 0),
@@ -442,19 +175,34 @@ const AdminSetupCheckPage = () => {
           ? '설정 완료'
           : `${summary.missingTargetCount.toLocaleString()}개 캠퍼스 인원 미입력`,
       actionLabel: '인원 현황 및 설정',
-      actionPath: '/admin/participation-targets',
+      actionPath: '/admin/settings/participation-targets',
       isReady: summary.campusCount > 0 && summary.missingTargetCount === 0,
+    },
+    {
+      id: 'campus-payment-accounts',
+      icon: Landmark,
+      title: '캠퍼스별 회계 순장님 입금 계좌',
+      description:
+        '신청자가 버스표 금액을 입금할 캠퍼스별 은행, 계좌번호, 예금주를 설정합니다.',
+      status:
+        summary.campusCount > 0 && summary.missingPaymentAccountCount === 0
+          ? '설정 완료'
+          : `${summary.missingPaymentAccountCount.toLocaleString()}개 캠퍼스 계좌 미설정`,
+      actionLabel: '입금 계좌 설정',
+      actionPath: '',
+      isReady:
+        summary.campusCount > 0 && summary.missingPaymentAccountCount === 0,
     },
     {
       id: 'campus-admins',
       icon: ShieldCheck,
-      title: '캠퍼스 관리자 배정',
+      title: '캠퍼스 회계 순장님 배정',
       description:
-        '각 캠퍼스의 회계 팀장이 캠퍼스 관리자로 등록되어 있는지 확인합니다.',
+        '각 캠퍼스의 회계 팀장이 캠퍼스 회계 순장님으로 등록되어 있는지 확인합니다.',
       status:
         summary.campusCount > 0 && summary.missingAdminCount === 0
           ? '설정 완료'
-          : `${summary.campusCount.toLocaleString()}개 중 ${summary.missingAdminCount.toLocaleString()}개 캠퍼스 관리자 미등록`,
+          : `${summary.campusCount.toLocaleString()}개 중 ${summary.missingAdminCount.toLocaleString()}개 캠퍼스 회계 순장님 미등록`,
       actionLabel: '관리자 현황 및 설정',
       actionPath: '/admin/users',
       isReady: summary.campusCount > 0 && summary.missingAdminCount === 0,
@@ -506,7 +254,7 @@ const AdminSetupCheckPage = () => {
       icon: Landmark,
       title: '서울지구 송금 계좌',
       description:
-        '캠퍼스 관리자가 버스표 금액을 송금할 서울지구 계좌 번호를 설정합니다.',
+        '캠퍼스 회계 순장님이 버스표 금액을 송금할 서울지구 계좌 번호를 설정합니다.',
       status: accountNumber || '계좌 번호 미설정',
       actionLabel: '계좌 번호 저장',
       actionPath: '',
@@ -520,73 +268,23 @@ const AdminSetupCheckPage = () => {
         '신청과 수정이 종료되는 날짜와 시간을 설정합니다. 비우면 마감 제한이 해제됩니다.',
       status: deadlineAt ? '신청 마감 일시 설정됨' : '신청 마감 일시 미설정',
       actionLabel: '신청 마감 일시 저장',
-      actionPath: '',
+      actionPath: '/admin/settings/reservation-deadline',
       isReady: Boolean(deadlineAt),
     },
   ];
   const readySetupCount = setupItems.filter((item) => item.isReady).length;
   const pendingSetupItems = setupItems.filter((item) => !item.isReady);
   const completedSetupItems = setupItems.filter((item) => item.isReady);
-  const busOptionSummary = useMemo(() => {
-    if (busOptions.length === 0) {
-      return {
-        headline: '미설정',
-        detail: '배차 계산에 사용할 버스를 등록해주세요.',
-      };
-    }
-
-    const capacities = busOptions.map((option) => option.capacity);
-    const prices = busOptions.map((option) => option.estimated_price);
-    const totalMaxCount = busOptions.reduce(
-      (sum, option) => sum + (option.max_count ?? 999),
-      0
-    );
-    const minCapacity = Math.min(...capacities);
-    const maxCapacity = Math.max(...capacities);
-    const minPrice = Math.min(...prices);
-    const maxPrice = Math.max(...prices);
-
-    if (busOptions.length === 1) {
-      return {
-        headline: `${minCapacity.toLocaleString()}인승 · 최대 ${totalMaxCount.toLocaleString()}대`,
-        detail: `대당 예상 ${minPrice.toLocaleString()}원`,
-      };
-    }
-
-    return {
-      headline: `${busOptions.length.toLocaleString()}개 옵션 · ${minCapacity.toLocaleString()}~${maxCapacity.toLocaleString()}인승`,
-      detail: `대당 ${minPrice.toLocaleString()}~${maxPrice.toLocaleString()}원 · 최대 ${totalMaxCount.toLocaleString()}대`,
-    };
-  }, [busOptions]);
+  const busOptionSummary = useMemo(
+    () => summarizeBusOptions(busOptions),
+    [busOptions]
+  );
   const setupProgressPercent = Math.round(
     (readySetupCount / setupItems.length) * 100
   );
-  const selectedResetRows =
-    (resetOptions.reservations ? resetStats.reservations : 0) +
-    (resetOptions.reservations || resetOptions.payments
-      ? resetStats.payments
-      : 0) +
-    (resetOptions.campusTransfers ? resetStats.campusTransfers : 0) +
-    (resetOptions.busAllocations ? resetStats.busAllocations : 0) +
-    (resetOptions.campusRequests
-      ? resetStats.campusRequests + resetStats.campusRequestMessages
-      : 0) +
-    (resetOptions.stations ? resetStats.stations : 0) +
-    (resetOptions.busOptions ? resetStats.busOptions : 0) +
-    (resetOptions.appSettings ? resetStats.appSettings : 0) +
-    (resetOptions.homeAnnouncements ? resetStats.homeAnnouncements : 0) +
-    (resetOptions.campusAdminRoles ? resetStats.campusAdminRoles : 0) +
-    (resetOptions.organization ? resetStats.organization : 0) +
-    (resetOptions.userAccounts ? resetStats.userAccounts : 0);
+  const selectedResetRows = countSelectedResetRows(resetStats, resetOptions);
   const hasSelectedUserReset = resetOptions.userAccounts;
-  const hasSelectedSetupReset =
-    resetOptions.stations ||
-    resetOptions.busOptions ||
-    resetOptions.appSettings ||
-    resetOptions.homeAnnouncements ||
-    resetOptions.campusAdminRoles ||
-    resetOptions.organization ||
-    resetOptions.userAccounts;
+  const includesSetupReset = hasSelectedSetupReset(resetOptions);
   const resetTargets = [
     {
       id: 'reservations',
@@ -671,7 +369,7 @@ const AdminSetupCheckPage = () => {
     {
       id: 'campusAdminRoles',
       stage: 'users',
-      label: '캠퍼스 관리자',
+      label: '캠퍼스 회계 순장님',
       count: resetStats.campusAdminRoles,
       detail: '전체 관리자 권한은 유지',
       danger: true,
@@ -713,7 +411,7 @@ const AdminSetupCheckPage = () => {
       id: 'users',
       step: '2단계',
       title: '사용자·권한 구성',
-      description: '시뮬레이션 계정과 캠퍼스 관리자 권한',
+      description: '시뮬레이션 계정과 캠퍼스 회계 순장님 권한',
     },
     {
       id: 'application',
@@ -744,10 +442,11 @@ const AdminSetupCheckPage = () => {
         districtTransferAccountNumber,
         savedBusOptions,
         reservationDeadline,
+        savedCampusPaymentAccounts,
       ] = await Promise.all([
         supabase
           .from('campus_options')
-          .select('district, team, campus')
+          .select('campus_id, district, team, campus')
           .order('district', { ascending: true })
           .order('team', { ascending: true })
           .order('campus', { ascending: true }),
@@ -767,6 +466,7 @@ const AdminSetupCheckPage = () => {
         getDistrictTransferAccountNumber(),
         getBusOptions(),
         getReservationDeadline(),
+        getAllCampusPaymentAccounts(),
       ]);
 
       if (campusResult.error) throw campusResult.error;
@@ -782,6 +482,7 @@ const AdminSetupCheckPage = () => {
       const sourceCampusRows = (campusResult.data ?? []) as CampusOptionRow[];
       const rows = normalizeCampusRows(sourceCampusRows).map((item) => ({
         key: item.key,
+        campusId: item.campusId,
         district: item.district,
         team: item.team,
         campus: item.campus,
@@ -790,12 +491,22 @@ const AdminSetupCheckPage = () => {
       }));
 
       setCampuses(rows);
+      setCampusPaymentAccounts(
+        Object.fromEntries(
+          savedCampusPaymentAccounts.map((account) => [
+            account.campusId,
+            account,
+          ])
+        )
+      );
+      setSavedCampusPaymentAccountIds(
+        new Set(savedCampusPaymentAccounts.map((account) => account.campusId))
+      );
       setStations((stationResult.data ?? []) as StationSetupRow[]);
       setBusOptions(savedBusOptions as BusOptionRow[]);
       setBusTicketPrice(ticketPrice);
       setBusTicketPriceInput(String(ticketPrice));
       setDeadlineAt(reservationDeadline.deadlineAt);
-      setDeadlineInput(formatDateTimeLocal(reservationDeadline.deadlineAt));
       setAccountNumber(districtTransferAccountNumber);
       setAccountNumberInput(districtTransferAccountNumber);
       setResetStats(reservationDataStats);
@@ -828,6 +539,66 @@ const AdminSetupCheckPage = () => {
     setBusOptionDraft(null);
     setDetailPortalTarget(null);
     setActiveDetailId((current) => (current === id ? null : id));
+  };
+
+  const updateCampusAccountDraft = (
+    campusId: string,
+    field: 'bankName' | 'accountNumber' | 'accountHolder',
+    value: string
+  ) => {
+    setCampusError(null);
+    setCampusPaymentAccounts((current) => ({
+      ...current,
+      [campusId]: {
+        campusId,
+        bankName: current[campusId]?.bankName ?? '',
+        accountNumber: current[campusId]?.accountNumber ?? '',
+        accountHolder: current[campusId]?.accountHolder ?? '',
+        [field]: value,
+      },
+    }));
+  };
+
+  const handleSaveCampusPaymentAccount = async (campus: CampusSetupRow) => {
+    const account = campusPaymentAccounts[campus.campusId];
+
+    if (
+      !account?.bankName.trim() ||
+      !account.accountNumber.trim() ||
+      !account.accountHolder.trim()
+    ) {
+      setCampusError(
+        `${campus.campus}의 은행, 계좌번호, 예금주를 모두 입력해주세요.`
+      );
+      return;
+    }
+
+    setSavingCampusAccountId(campus.campusId);
+    setCampusError(null);
+    setMessage(null);
+    setError(null);
+
+    try {
+      const saved = await updateCampusPaymentAccount(account);
+      setCampusPaymentAccounts((current) => ({
+        ...current,
+        [saved.campusId]: saved,
+      }));
+      setSavedCampusPaymentAccountIds((current) => {
+        const next = new Set(current);
+        next.add(saved.campusId);
+        return next;
+      });
+      setMessage(`${campus.campus} 사용자 입금 계좌를 저장했습니다.`);
+    } catch (saveError) {
+      setCampusError(
+        `${campus.campus} 입금 계좌를 저장하지 못했습니다: ${getErrorMessage(
+          saveError
+        )}`
+      );
+    } finally {
+      setSavingCampusAccountId(null);
+    }
   };
 
   const startStationEdit = (station: StationSetupRow) => {
@@ -920,7 +691,7 @@ const AdminSetupCheckPage = () => {
     try {
       const address = stationDraft.address?.trim() || null;
       const coordinates = address
-        ? await geocodeStationAddress(address)
+        ? await geocodeKakaoAddress(address)
         : { lat: null, lng: null };
       const { data, error: updateError } = await supabase.rpc(
         'upsert_station_as_global_admin',
@@ -972,7 +743,7 @@ const AdminSetupCheckPage = () => {
     try {
       const address = newStationDraft.address.trim() || null;
       const coordinates = address
-        ? await geocodeStationAddress(address)
+        ? await geocodeKakaoAddress(address)
         : { lat: null, lng: null };
       const { data, error: insertError } = await supabase.rpc(
         'upsert_station_as_global_admin',
@@ -1034,31 +805,6 @@ const AdminSetupCheckPage = () => {
     } finally {
       setDeletingStationId(null);
     }
-  };
-
-  const parseBusOptionDraft = (draft: BusOptionDraft) => {
-    const capacity = Number(draft.capacity);
-    const estimatedPrice = Number(draft.estimatedPrice);
-    const maxCount = Number(draft.maxCount);
-
-    if (!Number.isInteger(capacity) || capacity < 1) {
-      throw new Error('좌석 수는 1명 이상의 정수로 입력해주세요.');
-    }
-
-    if (!Number.isInteger(estimatedPrice) || estimatedPrice < 0) {
-      throw new Error('예상 가격은 0원 이상의 정수로 입력해주세요.');
-    }
-
-    if (!Number.isInteger(maxCount) || maxCount < 1) {
-      throw new Error('사용 가능 대수는 1대 이상의 정수로 입력해주세요.');
-    }
-
-    return {
-      capacity,
-      estimatedPrice,
-      maxCount,
-      notes: draft.notes.trim() || null,
-    };
   };
 
   const handleAddBusOption = async () => {
@@ -1167,38 +913,6 @@ const AdminSetupCheckPage = () => {
       setError(`버스 옵션 삭제에 실패했습니다: ${getErrorMessage(deleteError)}`);
     } finally {
       setDeletingBusOptionId(null);
-    }
-  };
-
-  const handleSaveDeadline = async () => {
-    const deadlineIso = parseDateTimeLocal(deadlineInput);
-
-    if (deadlineInput && !deadlineIso) {
-      setError('신청 마감 일시를 올바른 날짜와 시간으로 입력해주세요.');
-      return;
-    }
-
-    setSavingDeadline(true);
-    setMessage(null);
-    setError(null);
-
-    try {
-      const savedDeadline = await updateReservationDeadline(deadlineIso);
-
-      setDeadlineAt(savedDeadline.deadlineAt);
-      setDeadlineInput(formatDateTimeLocal(savedDeadline.deadlineAt));
-      setMessage(
-        savedDeadline.deadlineAt
-          ? `신청 마감 일시를 ${formatReservationDeadline(savedDeadline.deadlineAt)}로 저장했습니다.`
-          : '신청 마감 일시를 해제했습니다.'
-      );
-    } catch (saveError) {
-      console.error('Failed to save reservation deadline:', saveError);
-      setError(
-        `신청 마감 일시 저장에 실패했습니다: ${getErrorMessage(saveError)}`
-      );
-    } finally {
-      setSavingDeadline(false);
     }
   };
 
@@ -1312,7 +1026,7 @@ const AdminSetupCheckPage = () => {
   const handleResetReservationData = async () => {
     const confirmText = hasSelectedUserReset
       ? '사용자 데이터 전체 삭제'
-      : hasSelectedSetupReset
+      : includesSetupReset
         ? '전체 설정 초기화'
         : RESET_CONFIRM_TEXT;
     const confirmedText = window.prompt(
@@ -1323,7 +1037,7 @@ const AdminSetupCheckPage = () => {
       }${
         hasSelectedUserReset
           ? '\n\n경고: 다른 모든 인증 계정과 연결 데이터가 영구 삭제됩니다.'
-          : hasSelectedSetupReset
+          : includesSetupReset
             ? '\n\n주의: 설정 데이터가 포함되어 신청 및 관리 기능에 즉시 영향을 줍니다.'
             : ''
       }\n\n계속하려면 "${confirmText}"를 입력해주세요.`
@@ -1441,31 +1155,6 @@ const AdminSetupCheckPage = () => {
                   {savingAccountNumber ? '저장 중...' : accountNumber ? '수정' : '설정하기'}
                 </button>
               </div>
-            ) : item.id === 'reservation-deadline' ? (
-              <div className={styles.deadlineEditor}>
-                <input
-                  type="datetime-local"
-                  value={deadlineInput}
-                  onChange={(event) => setDeadlineInput(event.target.value)}
-                  aria-label="신청 마감 날짜 및 시간"
-                />
-                <button
-                  type="button"
-                  className={styles.secondaryButton}
-                  onClick={() => setDeadlineInput('')}
-                  disabled={savingDeadline}
-                >
-                  입력 비우기
-                </button>
-                <button
-                  type="button"
-                  className={styles.primaryButton}
-                  onClick={() => void handleSaveDeadline()}
-                  disabled={savingDeadline}
-                >
-                  {savingDeadline ? '저장 중...' : deadlineAt ? '수정' : '설정하기'}
-                </button>
-              </div>
             ) : (
               <button
                 type="button"
@@ -1475,6 +1164,7 @@ const AdminSetupCheckPage = () => {
                 onClick={() => {
                   if (
                     item.id === 'organization' ||
+                    item.id === 'campus-payment-accounts' ||
                     item.id === 'campus-admins' ||
                     item.id === 'destinations' ||
                     item.id === 'bus-options'
@@ -1532,7 +1222,7 @@ const AdminSetupCheckPage = () => {
         <button
           type="button"
           className={styles.backButton}
-          onClick={() => navigate('/admin/global')}
+          onClick={() => navigate('/admin/dashboard')}
         >
           <ArrowLeft size={16} />
           전체 관리자 대시보드
@@ -1541,7 +1231,7 @@ const AdminSetupCheckPage = () => {
         <section className={styles.header}>
           <div>
             <span className={styles.eyebrow}>Step 0</span>
-            <h1>운영 초기값 설정</h1>
+            <h1>운영 설정·초기화</h1>
             <p>
               신청을 받기 전에 조직 구조, 관리자 권한, 요금, 송금 계좌,
               행선지, 버스 옵션과 신청 마감 일시를 설정합니다.
@@ -1670,7 +1360,7 @@ const AdminSetupCheckPage = () => {
                 <button
                   type="button"
                   className={styles.secondaryButton}
-                  onClick={() => navigate('/admin/participation-targets')}
+                  onClick={() => navigate('/admin/settings/participation-targets')}
                 >
                   구조 및 인원 설정
                   <ArrowRight size={16} />
@@ -1769,6 +1459,121 @@ const AdminSetupCheckPage = () => {
                       <td>{row.target > 0 ? `${row.target}명` : '미입력'}</td>
                     </tr>
                   ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
+
+        {activeDetailId === 'campus-payment-accounts' && (
+          <section
+            id="detail-campus-payment-accounts"
+            className={styles.detailPanel}
+          >
+            <div className={styles.panelHeader}>
+              <div>
+                <h2>캠퍼스별 회계 순장님 입금 계좌</h2>
+                <p>
+                  신청자가 선택한 캠퍼스에 맞는 계좌가 신청 확인 화면에
+                  표시됩니다.
+                </p>
+              </div>
+              <span className={styles.panelCount}>
+                미설정 {summary.missingPaymentAccountCount.toLocaleString()}개
+              </span>
+            </div>
+
+            {campusError && (
+              <p className={styles.stationErrorMessage} role="alert">
+                {campusError}
+              </p>
+            )}
+
+            <div className={styles.tableWrap}>
+              <table className={styles.paymentAccountTable}>
+                <thead>
+                  <tr>
+                    <th>캠퍼스</th>
+                    <th>은행</th>
+                    <th>계좌번호</th>
+                    <th>예금주</th>
+                    <th>관리</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {campuses.map((campus) => {
+                    const account = campusPaymentAccounts[campus.campusId];
+                    const isSaving = savingCampusAccountId === campus.campusId;
+
+                    return (
+                      <tr key={campus.key}>
+                        <td>
+                          <strong>{campus.campus}</strong>
+                          <small className={styles.tableSubText}>
+                            {campus.district} / {campus.team}
+                          </small>
+                        </td>
+                        <td>
+                          <input
+                            className={styles.accountTableInput}
+                            value={account?.bankName ?? ''}
+                            onChange={(event) =>
+                              updateCampusAccountDraft(
+                                campus.campusId,
+                                'bankName',
+                                event.target.value
+                              )
+                            }
+                            placeholder="예: 국민은행"
+                            aria-label={`${campus.campus} 은행`}
+                          />
+                        </td>
+                        <td>
+                          <input
+                            className={styles.accountNumberInput}
+                            value={account?.accountNumber ?? ''}
+                            onChange={(event) =>
+                              updateCampusAccountDraft(
+                                campus.campusId,
+                                'accountNumber',
+                                event.target.value
+                              )
+                            }
+                            placeholder="계좌번호"
+                            aria-label={`${campus.campus} 계좌번호`}
+                          />
+                        </td>
+                        <td>
+                          <input
+                            className={styles.accountTableInput}
+                            value={account?.accountHolder ?? ''}
+                            onChange={(event) =>
+                              updateCampusAccountDraft(
+                                campus.campusId,
+                                'accountHolder',
+                                event.target.value
+                              )
+                            }
+                            placeholder="예금주"
+                            aria-label={`${campus.campus} 예금주`}
+                          />
+                        </td>
+                        <td>
+                          <button
+                            type="button"
+                            className={styles.rowSaveButton}
+                            onClick={() =>
+                              void handleSaveCampusPaymentAccount(campus)
+                            }
+                            disabled={isSaving}
+                          >
+                            <Save size={14} />
+                            {isSaving ? '저장 중' : '저장'}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -2394,7 +2199,7 @@ const AdminSetupCheckPage = () => {
               <h2>DB 정보 초기화</h2>
               <p>
                 운영 데이터뿐 아니라 행선지, 버스 옵션, 앱 설정, 공지,
-                캠퍼스 관리자 권한, 조직 구조, 사용자 계정을 선택적으로
+                캠퍼스 회계 순장님 권한, 조직 구조, 사용자 계정을 선택적으로
                 초기화합니다. 현재 로그인한 전체 관리자 계정은 보호됩니다.
               </p>
             </div>
