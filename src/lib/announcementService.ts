@@ -43,11 +43,14 @@ const mapAnnouncement = (row: HomeAnnouncementRow): HomeAnnouncement => ({
 });
 
 export async function getPublishedHomeAnnouncements(limit = 5) {
+  const now = new Date().toISOString();
   const { data, error } = await supabase
     .from('home_announcements')
     .select('*')
     .eq('is_published', true)
     .eq('is_archived', false)
+    .or(`publish_start_at.is.null,publish_start_at.lte.${now}`)
+    .or(`publish_end_at.is.null,publish_end_at.gt.${now}`)
     .order('is_pinned', { ascending: false })
     .order('created_at', { ascending: false })
     .limit(limit);
