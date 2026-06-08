@@ -11,54 +11,25 @@ import {
   type TeamOption,
   type CampusOption,
 } from '../lib/organizationService';
+import {
+  clearSignupDraft as clearSignupDraftStorage,
+  loadSignupDraft as loadSignupDraftFromStorage,
+  saveSignupDraft as saveSignupDraftToSession,
+  type SignupDraft,
+} from '../utils/signupDraftStorage';
 import styles from './SignupPage.module.css';
 
 const validateEmail = (value: string) => /^\S+@\S+\.\S+$/.test(value);
 const validatePhone = (value: string) => /^010-\d{4}-\d{4}$/.test(value);
 const EXTERNAL_DISTRICT_ID = 'external';
-const SIGNUP_DRAFT_STORAGE_KEY = 'ccc-bus-signup-draft';
 
-interface SignupDraft {
-  email: string;
-  name: string;
-  phone: string;
-  districtId: string;
-  teamId: string;
-  campusId: string;
-  externalDistrict: string;
-  externalCampus: string;
-  coordinatorName: string;
-  coordinatorPhone: string;
-}
+const loadSignupDraft = (): SignupDraft =>
+  loadSignupDraftFromStorage(window.sessionStorage, window.localStorage);
 
-const emptySignupDraft: SignupDraft = {
-  email: '',
-  name: '',
-  phone: '',
-  districtId: '',
-  teamId: '',
-  campusId: '',
-  externalDistrict: '',
-  externalCampus: '',
-  coordinatorName: '',
-  coordinatorPhone: '',
-};
-
-const loadSignupDraft = (): SignupDraft => {
-  try {
-    const savedDraft = window.localStorage.getItem(SIGNUP_DRAFT_STORAGE_KEY);
-
-    if (!savedDraft) return emptySignupDraft;
-
-    return { ...emptySignupDraft, ...JSON.parse(savedDraft) };
-  } catch {
-    return emptySignupDraft;
-  }
-};
 
 const clearSignupDraft = () => {
   try {
-    window.localStorage.removeItem(SIGNUP_DRAFT_STORAGE_KEY);
+    clearSignupDraftStorage(window.sessionStorage, window.localStorage);
   } catch {
     // 회원가입 완료 처리는 브라우저 저장소 상태와 관계없이 계속됩니다.
   }
@@ -148,10 +119,7 @@ const SignupPage = () => {
     };
 
     try {
-      window.localStorage.setItem(
-        SIGNUP_DRAFT_STORAGE_KEY,
-        JSON.stringify(draft)
-      );
+      saveSignupDraftToSession(draft, window.sessionStorage);
     } catch {
       // 회원가입은 브라우저 저장소를 사용할 수 없어도 계속 진행할 수 있습니다.
     }
