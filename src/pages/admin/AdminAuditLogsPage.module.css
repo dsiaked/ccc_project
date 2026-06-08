@@ -34,7 +34,32 @@
 .insert { background: #dcfce7; color: #15803d !important; }
 .update { background: #dbeafe; color: #1d4ed8 !important; }
 .delete { background: #fee2e2; color: #b42318 !important; }
-.detailGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 0 18px 18px; }
+.logDetails { display: grid; gap: 16px; padding: 0 18px 18px; }
+.actionDescription { margin: 0; border-left: 3px solid #3b82f6; padding: 10px 12px; background: #eff6ff; color: #344054; font-size: 13px; font-weight: 800; line-height: 1.5; }
+.metaGrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 0; }
+.metaGrid div { min-width: 0; border: 1px solid #e4e7ec; border-radius: 8px; padding: 12px; background: #fff; }
+.metaGrid dt { margin-bottom: 6px; color: #667085; font-size: 11px; font-weight: 900; }
+.metaGrid dd { margin: 0; overflow: hidden; color: #101828; font-size: 13px; font-weight: 900; text-overflow: ellipsis; white-space: nowrap; }
+.metaGrid span { display: block; margin-top: 4px; overflow: hidden; color: #98a2b3; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.resourceId { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 11px !important; }
+.changeSection { overflow: hidden; border: 1px solid #e4e7ec; border-radius: 8px; }
+.changeHeader { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 14px; border-bottom: 1px solid #e4e7ec; background: #f8fafc; }
+.changeHeader h3 { margin: 0; color: #344054; font-size: 13px; }
+.changeHeader p { margin: 3px 0 0; color: #667085; font-size: 11px; }
+.changeHeader > strong { color: #1d4ed8; font-size: 12px; }
+.changeTable { display: grid; }
+.changeTableHeader, .changeRow { display: grid; grid-template-columns: minmax(150px, .7fr) minmax(0, 1fr) minmax(0, 1fr); gap: 12px; padding: 10px 14px; }
+.changeTableHeader { background: #f9fafb; color: #667085; font-size: 10px; font-weight: 900; }
+.changeRow { align-items: start; border-top: 1px solid #f0f2f5; color: #344054; font-size: 12px; line-height: 1.5; }
+.changeRow > div { display: grid; gap: 2px; }
+.changeRow strong { color: #344054; font-size: 12px; }
+.changeRow code { color: #98a2b3; font-size: 9px; }
+.changeRow > span { min-width: 0; border-radius: 5px; padding: 6px 8px; background: #f8fafc; overflow-wrap: anywhere; }
+.changeRow > span:last-child { background: #eff6ff; color: #1e40af; }
+.noChanges { padding: 28px 14px; color: #667085; font-size: 12px; font-weight: 700; text-align: center; }
+.rawDetails { border: 1px solid #e4e7ec; border-radius: 8px; overflow: hidden; }
+.rawDetails > summary { padding: 11px 13px; background: #f8fafc; color: #475467; font-size: 12px; font-weight: 900; cursor: pointer; }
+.detailGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 12px; }
 .detailGrid section { min-width: 0; }
 .detailGrid h3 { margin: 0 0 7px; color: #475467; font-size: 12px; }
 .detailGrid pre { max-height: 360px; margin: 0; overflow: auto; border: 1px solid #e4e7ec; border-radius: 8px; padding: 12px; background: #f8fafc; color: #344054; font-size: 11px; line-height: 1.5; white-space: pre-wrap; word-break: break-all; }
@@ -42,5 +67,5 @@
 .pagination { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 16px; }
 .pagination span { color: #475467; font-size: 12px; font-weight: 900; }
 .pagination button:disabled, .panelHeader button:disabled { cursor: default; opacity: .45; }
-@media (max-width: 1000px) { .filters { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 700px) { .main { padding: 88px 12px 40px; } .filters, .detailGrid { grid-template-columns: 1fr; } .logItem summary { grid-template-columns: auto minmax(0, 1fr); } .logItem summary code { display: none; } }
+@media (max-width: 1000px) { .filters, .metaGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 700px) { .main { padding: 88px 12px 40px; } .filters, .metaGrid, .detailGrid { grid-template-columns: 1fr; } .logItem summary { grid-template-columns: auto minmax(0, 1fr); } .logItem summary code { display: none; } .changeTableHeader { display: none; } .changeRow { grid-template-columns: 1fr; gap: 6px; } .changeRow > span::before { display: block; margin-bottom: 2px; color: #667085; font-size: 9px; font-weight: 900; } .changeRow > span:nth-child(2)::before { content: '변경 전'; } .changeRow > span:nth-child(3)::before { content: '변경 후'; } }
