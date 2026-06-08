@@ -1109,7 +1109,7 @@ Deno.serve(async (request) => {
       let updatedInBatch = 0;
       let completedInBatch = 0;
       let verifiedInBatch = 0;
-      let skippedInBatch = 0;
+      const skippedInBatch = 0;
 
       if (stage === 'reservations') {
         const { data: stations, error: stationError } = await serviceClient
