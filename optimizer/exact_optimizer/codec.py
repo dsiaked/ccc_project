@@ -40,6 +40,11 @@ def input_from_snapshot(snapshot: dict[str, Any]) -> OptimizationInput:
             recommended_minimum_passengers=int(
                 bus["recommended_minimum_passengers"]
             ),
+            maximum_buses=(
+                int(bus["maximum_buses"])
+                if bus.get("maximum_buses") is not None
+                else None
+            ),
         ),
     )
 

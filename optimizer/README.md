@@ -8,7 +8,8 @@ can be tested before infrastructure is added.
 
 ```bash
 python -m pip install -r optimizer/requirements.txt
-python -m unittest discover -s optimizer/tests -v
+cd optimizer
+python -m unittest discover -s tests -v
 ```
 
 The optimizer accepts anonymized passenger data only. A result is usable by the

@@ -60,7 +60,7 @@ const AdminAllocationLogicPage = () => {
         <button
           type="button"
           className={styles.backButton}
-          onClick={() => navigate('/admin/allocation')}
+          onClick={() => navigate('/admin/allocations')}
         >
           <ArrowLeft size={18} />
           배차 계산으로 돌아가기
@@ -82,7 +82,7 @@ const AdminAllocationLogicPage = () => {
           <button
             type="button"
             className={styles.primaryButton}
-            onClick={() => navigate('/admin/allocation')}
+            onClick={() => navigate('/admin/allocations')}
           >
             배차 계산 실행
             <ArrowRight size={17} />

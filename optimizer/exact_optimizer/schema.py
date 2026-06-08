@@ -21,6 +21,7 @@ class BusConfiguration:
     capacity: int
     price: int
     recommended_minimum_passengers: int = 36
+    maximum_buses: int | None = None
 
 
 @dataclass(frozen=True)
@@ -74,4 +75,3 @@ class AllocationResult:
     warnings: tuple[AllocationWarning, ...] = ()
     error_message: str | None = None
     diagnostics: dict[str, object] = field(default_factory=dict)
-

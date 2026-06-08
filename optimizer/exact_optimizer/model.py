@@ -132,6 +132,9 @@ def _solve_phase(
     solver = cp_model.CpSolver()
     solver.parameters.num_search_workers = search_workers or _search_worker_count()
     solver.parameters.random_seed = 0
+    solver.parameters.randomize_search = False
+    if solver.parameters.num_search_workers == 1:
+        solver.parameters.search_branching = cp_model.FIXED_SEARCH
     if max_time_seconds is not None:
         solver.parameters.max_time_in_seconds = max_time_seconds
     monitor_stopped = Event()
@@ -227,6 +230,9 @@ def _solve_primary_objectives(
         model.Add(buses >= has_buses)
         buses_by_destination[destination] = buses
         assigned_by_destination[destination] = assigned_count
+
+    if data.bus.maximum_buses is not None:
+        model.Add(_sum(buses_by_destination.values()) <= data.bus.maximum_buses)
 
     objectives: list[ObjectiveValue] = []
     solver = _solve_phase(
@@ -481,7 +487,7 @@ def _build_result_from_slot_assignments(
         buses.append(
             AllocationBus(
                 bus_id=bus_id,
-                label=f"{bus_index + 1} bus",
+                label=f"{bus_index + 1}호차",
                 destination=slot.destination,
                 capacity=data.bus.capacity,
                 price=data.bus.price,
@@ -647,10 +653,21 @@ def optimize(
             )
         )
     except PhaseSolveError as error:
+        minimum_capacity_buses = ceil(len(passengers) / data.bus.capacity)
+        maximum_buses = data.bus.maximum_buses
         return AllocationResult(
             status="INFEASIBLE" if error.status == "INFEASIBLE" else "FAILED",
             error_message=str(error),
-            diagnostics={"destinations": destinations},
+            diagnostics={
+                "destinations": destinations,
+                "maximum_buses": maximum_buses,
+                "minimum_capacity_buses": minimum_capacity_buses,
+                "seat_shortage": (
+                    max(0, len(passengers) - maximum_buses * data.bus.capacity)
+                    if maximum_buses is not None
+                    else 0
+                ),
+            },
         )
     if not detailed_balance:
         return _build_baseline_result(

@@ -5,6 +5,7 @@ export interface ExactAllocationOptimizerConfig {
   capacity: number;
   price: number;
   recommended_minimum_passengers: number;
+  maximum_buses: number;
 }
 
 export interface ExactAllocationBusOption {
@@ -68,6 +69,9 @@ export interface ExactAllocationJob {
   best_known_bus_count: number | null;
   proven_bus_count: number | null;
   result_reused: boolean;
+  reservations_changed: boolean;
+  snapshot_active_reservation_count: number | null;
+  current_active_reservation_count: number;
   result?: ExactAllocationResult | null;
   diagnostics?: Record<string, unknown> | null;
   error_message: string | null;
@@ -83,6 +87,13 @@ const throwAllocationWriteError = (error: { message?: string }) => {
     )
   ) {
     throw new Error('신청 마감 후에만 배차를 진행할 수 있습니다.');
+  }
+  if (
+    error.message?.includes(
+      'Cancel the confirmed allocation before using allocation planning.'
+    )
+  ) {
+    throw new Error('확정 배차를 먼저 취소한 뒤 최적해 계산을 진행해주세요.');
   }
   throw error;
 };

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  ArrowRight,
   BookOpen,
   CheckCircle2,
   FolderOpen,
@@ -7,8 +8,10 @@ import {
   Play,
   RotateCcw,
   Square,
+  TriangleAlert,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { formatBusLabel } from '../../utils/busLabel';
 
 import AdminHeader from './AdminHeader';
 import {
@@ -141,6 +144,7 @@ const initialConfig: ExactAllocationOptimizerConfig = {
   capacity: 45,
   price: 0,
   recommended_minimum_passengers: 36,
+  maximum_buses: 999,
 };
 
 const AdminExactAllocationPage = () => {
@@ -157,6 +161,10 @@ const AdminExactAllocationPage = () => {
   const [busOptionCount, setBusOptionCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [savingConfig, setSavingConfig] = useState(false);
+  const [savedRecommendedMinimum, setSavedRecommendedMinimum] = useState(
+    initialConfig.recommended_minimum_passengers
+  );
+  const [configSaved, setConfigSaved] = useState(false);
   const [starting, setStarting] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [creatingDraft, setCreatingDraft] = useState(false);
@@ -197,15 +205,19 @@ const AdminExactAllocationPage = () => {
       setConfirmedWorkspaces(confirmed);
       setBusOptionCount(busOptions.length);
       const busOption = busOptions[0];
-      setConfig({
+      const loadedConfig = {
         ...nextConfig,
         capacity: busOption?.capacity ?? nextConfig.capacity,
         price: busOption?.estimated_price ?? nextConfig.price,
+        maximum_buses: busOption?.max_count ?? nextConfig.maximum_buses ?? 999,
         recommended_minimum_passengers: Math.min(
           nextConfig.recommended_minimum_passengers,
           busOption?.capacity ?? nextConfig.capacity
         ),
-      });
+      };
+      setConfig(loadedConfig);
+      setSavedRecommendedMinimum(loadedConfig.recommended_minimum_passengers);
+      setConfigSaved(false);
     } catch (loadError) {
       setError(formatError(loadError));
     } finally {
@@ -242,6 +254,20 @@ const AdminExactAllocationPage = () => {
   }, [currentJob]);
 
   useEffect(() => {
+    if (!currentJob || activeStatuses.has(currentJob.status)) return;
+
+    const intervalId = window.setInterval(() => {
+      void getExactAllocationJob(currentJob.id)
+        .then((job) => {
+          if (job) setCurrentJob(job);
+        })
+        .catch((pollError) => setError(formatError(pollError)));
+    }, 10000);
+
+    return () => window.clearInterval(intervalId);
+  }, [currentJob]);
+
+  useEffect(() => {
     window.localStorage.setItem(executionModeStorageKey, executionMode);
   }, [executionMode]);
 
@@ -270,6 +296,7 @@ const AdminExactAllocationPage = () => {
 
   const activeJob = currentJob && activeStatuses.has(currentJob.status);
   const reusedResult = currentJob?.result_reused === true;
+  const reservationsChanged = currentJob?.reservations_changed === true;
   const linkedWorkspaceId =
     linkedWorkspace && linkedWorkspace.jobId === currentJob?.id
       ? linkedWorkspace.workspaceId
@@ -278,6 +305,13 @@ const AdminExactAllocationPage = () => {
     currentJob?.status === 'OPTIMAL' &&
     linkedWorkspace?.jobId !== currentJob.id;
   const hasSingleBusOption = busOptionCount === 1;
+  const configChanged =
+    config.recommended_minimum_passengers !== savedRecommendedMinimum;
+  const recommendedMinimumInvalid =
+    config.recommended_minimum_passengers < 1 ||
+    config.recommended_minimum_passengers > config.capacity;
+  const confirmedWorkspace = confirmedWorkspaces[0] ?? null;
+  const allocationPlanningLocked = confirmedWorkspace !== null;
   const optimalResult =
     currentJob?.status === 'OPTIMAL' ? currentJob.result ?? null : null;
   const resultDestinations = useMemo(
@@ -342,8 +376,12 @@ const AdminExactAllocationPage = () => {
     }
     setSavingConfig(true);
     setError(null);
+    setConfigSaved(false);
     try {
-      setConfig(await saveExactAllocationOptimizerConfig(config));
+      const savedConfig = await saveExactAllocationOptimizerConfig(config);
+      setConfig(savedConfig);
+      setSavedRecommendedMinimum(savedConfig.recommended_minimum_passengers);
+      setConfigSaved(true);
     } catch (saveError) {
       setError(formatError(saveError));
     } finally {
@@ -356,10 +394,19 @@ const AdminExactAllocationPage = () => {
       setError('버스 옵션 관리에서 버스 옵션을 하나만 등록한 뒤 계산을 시작해주세요.');
       return;
     }
+    if (recommendedMinimumInvalid) {
+      setError(
+        `권장 최소 탑승 인원을 1명 이상, 버스 정원 ${config.capacity.toLocaleString()}명 이하로 입력해주세요.`
+      );
+      return;
+    }
     setStarting(true);
     setError(null);
+    setConfigSaved(false);
     try {
-      await saveExactAllocationOptimizerConfig(config);
+      const savedConfig = await saveExactAllocationOptimizerConfig(config);
+      setConfig(savedConfig);
+      setSavedRecommendedMinimum(savedConfig.recommended_minimum_passengers);
       const jobId = await createExactAllocationJob(executionMode);
       const job = await getExactAllocationJob(jobId);
       if (job) setCurrentJob(job);
@@ -421,12 +468,12 @@ const AdminExactAllocationPage = () => {
     setError(null);
     try {
       const row = await createDraftFromExactAllocationJob(currentJob.id, name);
-      navigate(`/admin/allocation/workspace?id=${row.id}`);
+      navigate(`/admin/allocations/workspace?id=${row.id}`);
     } catch (draftError) {
       const existing = await getAllocationWorkspaceForExactJob(currentJob.id)
         .catch(() => null);
       if (existing) {
-        navigate(`/admin/allocation/workspace?id=${existing.id}`);
+        navigate(`/admin/allocations/workspace?id=${existing.id}`);
         return;
       }
       setError(formatError(draftError));
@@ -475,7 +522,8 @@ const AdminExactAllocationPage = () => {
       <main className={styles.main}>
         <header className={styles.hero}>
           <div>
-            <h1>최저비용 배차</h1>
+            <span className={styles.eyebrow}>배차 운영</span>
+            <h1>배차 계산 및 배차안 관리</h1>
             <p>
               모든 승객을 1·2지망 안에서 배차하며, 최저 버스 대수가 수학적으로
               증명된 결과만 사용합니다.
@@ -485,7 +533,7 @@ const AdminExactAllocationPage = () => {
             <button
               className={styles.secondary}
               type="button"
-              onClick={() => navigate('/admin/allocation/logic')}
+              onClick={() => navigate('/admin/allocations/logic')}
             >
               <BookOpen size={15} /> 로직 설명
             </button>
@@ -498,7 +546,96 @@ const AdminExactAllocationPage = () => {
 
         {error && <div className={styles.error}>{error}</div>}
 
-        <section className={styles.section}>
+        {confirmedWorkspace && (
+          <section className={styles.confirmedWorkspaceTop}>
+            <div>
+              <span className={styles.confirmedWorkspaceEyebrow}>배차 확정 완료</span>
+              <h2>{confirmedWorkspace.allocation_name}</h2>
+              <p>
+                확정 배차를 취소하기 전까지 새 계산, 버스 설정, 임시 배차안 편집을
+                사용할 수 없습니다.
+              </p>
+              <div>
+                <small>버스 {confirmedWorkspace.bus_count.toLocaleString()}대</small>
+                <small>승객 {confirmedWorkspace.passenger_count.toLocaleString()}명</small>
+                <small>{confirmedWorkspace.total_cost.toLocaleString()}원</small>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() =>
+                navigate(`/admin/allocations/workspace?id=${confirmedWorkspace.id}`)
+              }
+            >
+              확정 배차 확인 및 취소 <ArrowRight size={17} />
+            </button>
+          </section>
+        )}
+
+        {allocationPlanningLocked && (
+          <div className={styles.planningLockNotice}>
+            <CheckCircle2 size={18} />
+            확정 배차안이 운영 기준으로 잠겨 있습니다. 변경이 필요하면 위 확정안을
+            열어 배차 확정을 먼저 취소해주세요.
+          </div>
+        )}
+
+        <div className={allocationPlanningLocked ? styles.planningLocked : undefined}>
+        <nav className={styles.workflow} aria-label="배차 운영 순서">
+          <a className={styles.workflowItem} href="#saved-allocations">
+            <span className={styles.workflowStep}>01</span>
+            <span className={styles.workflowIcon}>
+              <FolderOpen size={18} />
+            </span>
+            <span className={styles.workflowContent}>
+              <small>먼저 확인</small>
+              <strong>저장된 배차안</strong>
+              <em>
+                임시 {draftWorkspaces.length.toLocaleString()} · 확정{' '}
+                {confirmedWorkspaces.length.toLocaleString()}
+              </em>
+            </span>
+            <ArrowRight size={17} />
+          </a>
+          <a className={styles.workflowItem} href="#bus-settings">
+            <span className={styles.workflowStep}>02</span>
+            <span className={styles.workflowIcon}>
+              <BookOpen size={18} />
+            </span>
+            <span className={styles.workflowContent}>
+              <small>계산 전 준비</small>
+              <strong>버스 설정</strong>
+              <em>
+                {loading
+                  ? '설정 확인 중'
+                  : hasSingleBusOption
+                    ? `정원 ${config.capacity.toLocaleString()}명`
+                    : '버스 옵션 확인 필요'}
+              </em>
+            </span>
+            <ArrowRight size={17} />
+          </a>
+          <a className={styles.workflowItem} href="#optimization">
+            <span className={styles.workflowStep}>03</span>
+            <span className={styles.workflowIcon}>
+              {activeJob ? <LoaderCircle size={18} /> : <Play size={18} />}
+            </span>
+            <span className={styles.workflowContent}>
+              <small>계산 및 검증</small>
+              <strong>최적해 계산</strong>
+              <em>
+                {activeJob
+                  ? `${displayedProgress}% 진행 중`
+                  : currentJob?.status === 'OPTIMAL'
+                    ? '최적해 증명 완료'
+                    : '계산 대기'}
+              </em>
+            </span>
+            <ArrowRight size={17} />
+          </a>
+        </nav>
+
+        <section className={styles.section} id="saved-allocations">
           <div className={styles.sectionHeader}>
             <div>
               <h2><FolderOpen size={18} /> 저장된 배차안</h2>
@@ -516,21 +653,35 @@ const AdminExactAllocationPage = () => {
             </div>
           </div>
           {draftWorkspaces.length + confirmedWorkspaces.length > 0 ? (
-            <div className={styles.draftList}>
-              {[...draftWorkspaces, ...confirmedWorkspaces].map((workspace) => (
+            <div
+              className={`${styles.draftList} ${
+                confirmedWorkspaces.length > 0 ? styles.hasConfirmedWorkspace : ''
+              }`}
+            >
+              {[...confirmedWorkspaces, ...draftWorkspaces].map((workspace) => (
                 <button
                   className={`${styles.draftItem} ${
                     workspace.status === 'confirmed' ? styles.confirmedItem : ''
+                  } ${
+                    confirmedWorkspaces.length > 0 &&
+                    workspace.status !== 'confirmed'
+                      ? styles.secondaryDraftItem
+                      : ''
                   }`}
                   key={workspace.id}
                   type="button"
                   onClick={() =>
-                    navigate(`/admin/allocation/workspace?id=${workspace.id}`)
+                    navigate(`/admin/allocations/workspace?id=${workspace.id}`)
                   }
                 >
                   <span className={styles.draftItemTitle}>
                     <strong>{workspace.allocation_name}</strong>
-                    <em>{workspace.status === 'confirmed' ? '확정' : '임시'}</em>
+                    <em>
+                      {workspace.status === 'confirmed' && (
+                        <CheckCircle2 size={12} />
+                      )}
+                      {workspace.status === 'confirmed' ? '확정 배차안' : '임시'}
+                    </em>
                   </span>
                   <span className={styles.draftItemMetrics}>
                     <small>버스 {workspace.bus_count.toLocaleString()}대</small>
@@ -622,7 +773,7 @@ const AdminExactAllocationPage = () => {
           </div>
         </details>
 
-        <section className={styles.section}>
+        <section className={styles.section} id="bus-settings">
           <div className={styles.sectionHeader}>
             <div>
               <h2>단일 버스 설정</h2>
@@ -635,65 +786,108 @@ const AdminExactAllocationPage = () => {
                 className={styles.secondary}
                 type="button"
                 disabled={Boolean(activeJob)}
-                onClick={() => navigate('/admin/setup-check?detail=bus-options')}
+                onClick={() => navigate('/admin/settings?detail=bus-options')}
               >
                 버스 옵션 관리
-              </button>
-              <button
-                className={styles.secondary}
-                type="button"
-                disabled={loading || savingConfig || Boolean(activeJob) || !hasSingleBusOption}
-                onClick={handleSaveConfig}
-              >
-                {savingConfig ? '저장 중...' : '권장 인원 저장'}
               </button>
             </div>
           </div>
           {!loading && !hasSingleBusOption && (
-            <div className={styles.warning}>
-              {busOptionCount === 0
-                ? '등록된 버스 옵션이 없습니다. 버스 옵션 관리에서 한 개를 등록해주세요.'
-                : `버스 옵션이 ${busOptionCount.toLocaleString()}개 등록되어 있습니다. 단일 버스 계산을 위해 하나만 남겨주세요.`}
+            <div className={`${styles.warning} ${styles.busOptionWarning}`}>
+              <span>
+                {busOptionCount === 0
+                  ? '등록된 버스 옵션이 없습니다. 버스 옵션 관리에서 한 개를 등록해주세요.'
+                  : `버스 옵션이 ${busOptionCount.toLocaleString()}개 등록되어 있습니다. 단일 버스 계산을 위해 하나만 남겨주세요.`}
+              </span>
+              <button
+                className={styles.warningAction}
+                type="button"
+                onClick={() => navigate('/admin/settings?detail=bus-options')}
+              >
+                버스 옵션 관리로 이동 <ArrowRight size={15} />
+              </button>
             </div>
           )}
-          <div className={styles.configGrid}>
-            <label>
-              버스 정원
-              <input
-                type="number"
-                min="1"
-                disabled
-                value={config.capacity}
-              />
-            </label>
-            <label>
-              대당 예상 비용
-              <input
-                type="number"
-                min="0"
-                disabled
-                value={config.price}
-              />
-            </label>
-            <label>
-              권장 최소 탑승 인원
-              <input
-                type="number"
-                min="1"
-                disabled={Boolean(activeJob)}
-                value={config.recommended_minimum_passengers}
-                onChange={(event) =>
-                  setConfig((current) => ({
-                    ...current,
-                    recommended_minimum_passengers: Number(event.target.value),
-                  }))
-                }
-              />
-            </label>
+          <div className={styles.busSettingLayout}>
+            <div className={styles.currentBusSettings}>
+              <div className={styles.settingGroupHeader}>
+                <strong>현재 적용 버스</strong>
+                <span>버스 옵션 관리에서 변경</span>
+              </div>
+              <div className={styles.configSummaryGrid}>
+                <div className={styles.configSummaryCard}>
+                  <span>버스 정원</span>
+                  <strong>{config.capacity.toLocaleString()}<small>명</small></strong>
+                </div>
+                <div className={styles.configSummaryCard}>
+                  <span>대당 예상 비용</span>
+                  <strong>{config.price.toLocaleString()}<small>원</small></strong>
+                </div>
+                <div className={styles.configSummaryCard}>
+                  <span>최대 사용 가능 버스</span>
+                  <strong>{config.maximum_buses.toLocaleString()}<small>대</small></strong>
+                </div>
+              </div>
+            </div>
+
+            <div className={styles.recommendedSetting}>
+              <div className={styles.settingGroupHeader}>
+                <strong>권장 최소 탑승 인원</strong>
+                <span className={styles.editableBadge}>직접 설정</span>
+              </div>
+              <p>
+                이 인원 미만으로 탑승하는 버스가 생기지 않도록 계산 시 권장 기준으로 사용합니다.
+              </p>
+              <div className={styles.recommendedSettingControls}>
+                <label className={styles.numberInput}>
+                  <span className={styles.srOnly}>권장 최소 탑승 인원</span>
+                  <input
+                    type="number"
+                    min="1"
+                    max={config.capacity}
+                    disabled={Boolean(activeJob)}
+                    value={config.recommended_minimum_passengers}
+                    onChange={(event) => {
+                      setConfigSaved(false);
+                      setConfig((current) => ({
+                        ...current,
+                        recommended_minimum_passengers: Number(event.target.value),
+                      }));
+                    }}
+                  />
+                  <span>명</span>
+                </label>
+                <button
+                  className={styles.primary}
+                  type="button"
+                  disabled={
+                    loading ||
+                    savingConfig ||
+                    Boolean(activeJob) ||
+                    !hasSingleBusOption ||
+                    !configChanged ||
+                    recommendedMinimumInvalid
+                  }
+                  onClick={handleSaveConfig}
+                >
+                  {savingConfig ? '저장 중...' : '변경사항 저장'}
+                </button>
+              </div>
+              {recommendedMinimumInvalid && (
+                <small className={styles.fieldError}>
+                  1명 이상, 버스 정원 {config.capacity.toLocaleString()}명 이하로 입력해주세요.
+                </small>
+              )}
+              {configSaved && (
+                <small className={styles.saveSuccess} role="status">
+                  <CheckCircle2 size={14} /> 권장 인원을 저장했습니다.
+                </small>
+              )}
+            </div>
           </div>
         </section>
 
-        <section className={styles.section}>
+        <section className={styles.section} id="optimization">
           <div className={styles.sectionHeader}>
             <div>
               <h2>최적해 계산</h2>
@@ -719,7 +913,13 @@ const AdminExactAllocationPage = () => {
                   <button
                     className={styles.primary}
                     type="button"
-                    disabled={starting || resetting || loading || !hasSingleBusOption}
+                    disabled={
+                      starting ||
+                      resetting ||
+                      loading ||
+                      !hasSingleBusOption ||
+                      recommendedMinimumInvalid
+                    }
                     onClick={handleStart}
                   >
                     <Play size={15} /> {starting ? '시작 중...' : '정확 계산 시작'}
@@ -807,6 +1007,21 @@ const AdminExactAllocationPage = () => {
                   {reusedResult ? '즉시 재사용' : currentJob.status}
                 </span>
               </div>
+              {reservationsChanged && (
+                <div className={styles.reservationChangeNotice}>
+                  <TriangleAlert size={22} />
+                  <div>
+                    <strong>계산 이후 예약 변동이 있습니다</strong>
+                    <p>
+                      계산 당시 활성 예약{' '}
+                      {currentJob.snapshot_active_reservation_count ?? '확인 불가'}명,
+                      현재 {currentJob.current_active_reservation_count}명입니다.
+                      인원수가 같아도 예약 정보나 상태가 변경되었을 수 있으니
+                      최적해를 다시 계산해주세요.
+                    </p>
+                  </div>
+                </div>
+              )}
               {reusedResult ? (
                 <div className={styles.reusedResultNotice}>
                   <CheckCircle2 size={22} />
@@ -946,7 +1161,8 @@ const AdminExactAllocationPage = () => {
                     disabled={
                       currentJob.status !== 'OPTIMAL' ||
                       startingDetailedBalance ||
-                      Boolean(activeJob)
+                      Boolean(activeJob) ||
+                      reservationsChanged
                     }
                     onClick={handleStartDetailedBalance}
                   >
@@ -1014,7 +1230,7 @@ const AdminExactAllocationPage = () => {
             <div className={styles.busGrid}>
               {optimalResult.buses.map((bus) => (
                 <article className={styles.busCard} key={bus.bus_id}>
-                  <strong>{bus.label} · {bus.destination}</strong>
+                  <strong>{formatBusLabel(bus.label)} · {bus.destination}</strong>
                   <span>{bus.passenger_ids.length}명 / {bus.capacity}석</span>
                 </article>
               ))}
@@ -1025,7 +1241,7 @@ const AdminExactAllocationPage = () => {
                   className={styles.primary}
                   type="button"
                   onClick={() =>
-                    navigate(`/admin/allocation/workspace?id=${linkedWorkspaceId}`)
+                    navigate(`/admin/allocations/workspace?id=${linkedWorkspaceId}`)
                   }
                 >
                   완료된 임시 배차안으로 이동
@@ -1046,7 +1262,8 @@ const AdminExactAllocationPage = () => {
                     disabled={
                       creatingDraft ||
                       loadingLinkedWorkspace ||
-                      !allocationName.trim()
+                      !allocationName.trim() ||
+                      reservationsChanged
                     }
                     onClick={handleCreateDraft}
                   >
@@ -1083,6 +1300,7 @@ const AdminExactAllocationPage = () => {
                   {' · '}
                   {job.result_reused ? '즉시 재사용' : job.status} ·{' '}
                   {job.proven_bus_count ?? '-'}대
+                  {job.reservations_changed && ' · 예약 변동'}
                 </strong>
                 <div className={styles.historyMeta}>
                   <span>{new Date(job.requested_at).toLocaleString('ko-KR')}</span>
@@ -1096,6 +1314,7 @@ const AdminExactAllocationPage = () => {
             ))}
           </div>
         </section>
+        </div>
       </main>
     </div>
   );

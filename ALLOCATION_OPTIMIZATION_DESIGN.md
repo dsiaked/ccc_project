@@ -16,10 +16,12 @@ unless the solver status is `OPTIMAL`.
 - There is one bus type.
 - Every bus has the same capacity and price.
 - Every destination has the same per-bus price.
-- The available bus count is unlimited.
+- The total available bus count is limited by the configured bus option
+  `max_count`.
 - Administrators configure:
   - bus capacity,
   - estimated price per bus,
+  - maximum available bus count,
   - recommended minimum passengers, defaulting to 36.
 - One bus serves exactly one destination.
 

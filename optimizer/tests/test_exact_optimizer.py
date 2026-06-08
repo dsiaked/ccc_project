@@ -168,6 +168,25 @@ class ExactOptimizerTests(unittest.TestCase):
             ],
         )
 
+    def test_returns_infeasible_when_maximum_bus_count_is_insufficient(self) -> None:
+        data = OptimizationInput(
+            passengers=tuple(
+                passenger(f"p-{index}", "A", "B") for index in range(7)
+            ),
+            bus=BusConfiguration(
+                capacity=3,
+                price=100,
+                maximum_buses=2,
+            ),
+        )
+
+        result = optimize(data)
+
+        self.assertEqual(result.status, "INFEASIBLE")
+        self.assertEqual(result.diagnostics["maximum_buses"], 2)
+        self.assertEqual(result.diagnostics["minimum_capacity_buses"], 3)
+        self.assertEqual(result.diagnostics["seat_shortage"], 1)
+
     def test_runs_detailed_balance_phases_only_when_requested(self) -> None:
         data = OptimizationInput(
             passengers=tuple(
@@ -356,6 +375,7 @@ class ExactOptimizerTests(unittest.TestCase):
         }
 
         self.assertEqual(result.total_buses, 2)
+        self.assertEqual([bus.label for bus in result.buses], ["1호차", "2호차"])
         self.assertEqual(
             len({buses_by_passenger[f"a-{index}"] for index in range(4)}), 1
         )

@@ -13,6 +13,8 @@ def validate_input(data: OptimizationInput) -> list[str]:
         errors.append("Bus price cannot be negative.")
     if data.bus.recommended_minimum_passengers <= 0:
         errors.append("Recommended minimum passengers must be positive.")
+    if data.bus.maximum_buses is not None and data.bus.maximum_buses <= 0:
+        errors.append("Maximum bus count must be positive.")
 
     reservation_ids = [passenger.reservation_id for passenger in data.passengers]
     duplicates = sorted(
@@ -55,6 +57,11 @@ def validate_result(data: OptimizationInput, result: AllocationResult) -> list[s
         errors.append("Duplicate bus IDs exist.")
     if result.total_buses != len(result.buses):
         errors.append("Reported total bus count does not match physical buses.")
+    if (
+        data.bus.maximum_buses is not None
+        and result.total_buses > data.bus.maximum_buses
+    ):
+        errors.append("Reported total bus count exceeds the configured maximum.")
     if result.total_cost != result.total_buses * data.bus.price:
         errors.append("Reported total cost does not match bus count and price.")
 
@@ -116,4 +123,3 @@ def validate_result(data: OptimizationInput, result: AllocationResult) -> list[s
             errors.append(f"{bus.bus_id}: seat numbers must be contiguous and unique.")
 
     return sorted(set(errors))
-

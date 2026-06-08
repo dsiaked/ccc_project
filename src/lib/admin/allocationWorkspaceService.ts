@@ -27,6 +27,8 @@ export interface AllocationWorkspacePassenger {
   campus: string;
   team: string;
   preferences: string[];
+  source?: 'regular' | 'remaining_seat' | 'admin';
+  remainingSeatStatus?: 'pending_payment' | 'confirmed';
   busId: string | null;
   seatNumber: number | null;
 }
@@ -169,6 +171,12 @@ const uniqueId = (prefix: string) =>
   `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
 const ACTIVE_RESERVATION_PAGE_SIZE = 1000;
+export const isRemainingSeatPassenger = (
+  passenger: AllocationWorkspacePassenger
+) =>
+  passenger.source === 'remaining_seat' ||
+  passenger.remainingSeatStatus !== undefined;
+
 const getPreferences = (row: ReservationRow) => {
   const saved = row.data?.stationPreferences ?? row.station_preferences ?? [];
 
@@ -176,6 +184,13 @@ const getPreferences = (row: ReservationRow) => {
     .filter((preference) => preference.rank === 1 || preference.rank === 2)
     .sort((a, b) => a.rank - b.rank)
     .map((preference) => preference.station.name);
+};
+
+const getRemainingSeatStatus = (
+  row: ReservationRow
+): AllocationWorkspacePassenger['remainingSeatStatus'] => {
+  const status = row.data?.remainingSeatClaim?.status;
+  return status === 'confirmed' ? 'confirmed' : status ? 'pending_payment' : undefined;
 };
 
 const getActiveReservationRows = async () => {
@@ -209,16 +224,27 @@ const getActiveReservationRows = async () => {
 const reservationRowToWorkspacePassenger = (
   row: ReservationRow,
   existing?: AllocationWorkspacePassenger
-): AllocationWorkspacePassenger => ({
-  reservationId: row.id,
-  name: row.data?.name ?? row.name ?? '-',
-  phone: row.data?.phone ?? row.phone ?? '-',
-  campus: row.data?.campus ?? row.campus ?? '-',
-  team: row.data?.team ?? row.team ?? '-',
-  preferences: getPreferences(row),
-  busId: existing?.busId ?? null,
-  seatNumber: existing?.seatNumber ?? null,
-});
+): AllocationWorkspacePassenger => {
+  const remainingSeatStatus = getRemainingSeatStatus(row);
+  const remainingSeatDestination = row.data?.remainingSeatClaim?.destination;
+  const preferences = getPreferences(row);
+
+  return {
+    reservationId: row.id,
+    name: row.data?.name ?? row.name ?? '-',
+    phone: row.data?.phone ?? row.phone ?? '-',
+    campus: row.data?.campus ?? row.campus ?? '-',
+    team: row.data?.team ?? row.team ?? '-',
+    preferences:
+      remainingSeatStatus && remainingSeatDestination
+        ? [remainingSeatDestination]
+        : preferences,
+    source: remainingSeatStatus ? 'remaining_seat' : existing?.source ?? 'regular',
+    remainingSeatStatus,
+    busId: existing?.busId ?? null,
+    seatNumber: existing?.seatNumber ?? null,
+  };
+};
 
 const hasSamePassengers = (
   current: AllocationWorkspacePassenger[],
@@ -234,6 +260,8 @@ const hasSamePassengers = (
       passenger.phone === candidate.phone &&
       passenger.campus === candidate.campus &&
       passenger.team === candidate.team &&
+      passenger.source === candidate.source &&
+      passenger.remainingSeatStatus === candidate.remainingSeatStatus &&
       passenger.busId === candidate.busId &&
       passenger.seatNumber === candidate.seatNumber &&
       passenger.preferences.length === candidate.preferences.length &&
@@ -469,15 +497,18 @@ export const getWorkspaceTotals = (workspace: AllocationWorkspaceData) => ({
 });
 
 export const getFirstChoiceCoverage = (workspace: AllocationWorkspaceData) => {
-  if (workspace.passengers.length === 0) return 0;
+  const regularPassengers = workspace.passengers.filter(
+    (passenger) => !isRemainingSeatPassenger(passenger)
+  );
+  if (regularPassengers.length === 0) return 0;
   const busById = new Map(workspace.buses.map((bus) => [bus.id, bus]));
 
-  const firstChoiceCount = workspace.passengers.filter((passenger) => {
+  const firstChoiceCount = regularPassengers.filter((passenger) => {
     const bus = passenger.busId ? busById.get(passenger.busId) : undefined;
     return bus?.destination === passenger.preferences[0];
   }).length;
 
-  return (firstChoiceCount / workspace.passengers.length) * 100;
+  return (firstChoiceCount / regularPassengers.length) * 100;
 };
 
 export const getOutOfPreferencePassengerIds = (
@@ -486,6 +517,7 @@ export const getOutOfPreferencePassengerIds = (
   const busById = new Map(workspace.buses.map((bus) => [bus.id, bus]));
   return workspace.passengers
     .filter((passenger) => {
+      if (isRemainingSeatPassenger(passenger)) return false;
       const bus = passenger.busId ? busById.get(passenger.busId) : undefined;
       return Boolean(bus && !passenger.preferences.includes(bus.destination));
     })
@@ -555,7 +587,10 @@ export const validateWorkspace = (
     }
 
     passengers.forEach((passenger) => {
-      if (!passenger.preferences.includes(bus.destination)) {
+      if (
+        !isRemainingSeatPassenger(passenger) &&
+        !passenger.preferences.includes(bus.destination)
+      ) {
         warnings.push(
           `${passenger.name}: ${bus.destination}은 1·2지망 외 행선지입니다. 관리자 확인이 필요합니다.`
         );
@@ -603,7 +638,10 @@ export const validateWorkspace = (
     } else if (!busIds.has(passenger.busId)) {
       errors.push(`${passenger.name}: 존재하지 않는 버스에 배차되었습니다.`);
     }
-    if (passenger.preferences.length < 2) {
+    if (
+      !isRemainingSeatPassenger(passenger) &&
+      passenger.preferences.length < 2
+    ) {
       errors.push(`${passenger.name}: 1·2지망 행선지 정보가 필요합니다.`);
     }
   });
@@ -782,6 +820,8 @@ export const getAllocationWorkspaceVersionSnapshot = async (
 const throwAllocationRpcError = (error: {
   code?: string;
   message?: string;
+  details?: string;
+  hint?: string;
 }) => {
   if (
     error.code === 'PGRST202' ||
@@ -841,6 +881,10 @@ const throwAllocationRpcError = (error: {
       '신청 마감 후에만 배차를 진행할 수 있습니다.',
     'Cancel the existing confirmed allocation before confirming another.':
       '기존 확정 배차를 먼저 취소한 뒤 새 배차를 확정해주세요.',
+    'Cancel the confirmed allocation before using allocation planning.':
+      '확정 배차를 먼저 취소한 뒤 배차 운영 기능을 이용해주세요.',
+    'Confirmed allocation is locked until confirmation is cancelled.':
+      '확정 배차는 취소 전까지 수정할 수 없습니다.',
     'No-show status is available after bus departure.':
       '호차 출발 완료 이후에 미탑승 처리할 수 있습니다.',
   };
@@ -848,7 +892,12 @@ const throwAllocationRpcError = (error: {
     ? confirmationErrorMessages[error.message]
     : undefined;
   if (translatedMessage) throw new Error(translatedMessage);
-  throw error;
+  throw new Error(
+    error.message ||
+      error.details ||
+      error.hint ||
+      (error.code ? `배차 서버 오류 (${error.code})` : '알 수 없는 배차 서버 오류가 발생했습니다.')
+  );
 };
 
 export const validateAllocationWorkspaceConfirmation = async (

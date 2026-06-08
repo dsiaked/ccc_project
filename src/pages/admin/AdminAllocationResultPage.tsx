@@ -21,6 +21,7 @@ import type {
   ReturnBusReservation,
   StationPreference,
 } from '../../types/reservation';
+import { formatBusLabel } from '../../utils/busLabel';
 
 import styles from './AdminAllocationResultPage.module.css';
 
@@ -436,7 +437,7 @@ const AdminAllocationResultPage = () => {
       ['호차', '좌석', '이름', '캠퍼스', '연락처', '입금 상태', '행선지'],
       ...busGroups.flatMap((bus) =>
         bus.passengers.map((passenger) => [
-          bus.busNumber,
+          formatBusLabel(bus.busNumber),
           passenger.confirmedTicket?.seatNumber ?? '',
           passenger.name,
           passenger.isRemainingSeat ? '잔여좌석' : '일반 배정',
@@ -471,12 +472,12 @@ const AdminAllocationResultPage = () => {
             <button
               type="button"
               className={styles.backButton}
-              onClick={() => navigate('/admin/allocation')}
+              onClick={() => navigate('/admin/allocations')}
             >
               <ArrowLeft size={16} />
               배차 계산
             </button>
-            <h1>배차 결과</h1>
+            <h1>확정 배차 결과</h1>
             <p>확정된 호차별 좌석과 탑승 명단을 검토합니다.</p>
           </div>
           <div className={styles.titleActions}>
@@ -552,7 +553,7 @@ const AdminAllocationResultPage = () => {
                       setPassengerPage(1);
                     }}
                   >
-                    <strong>{bus.busNumber}</strong>
+                    <strong>{formatBusLabel(bus.busNumber)}</strong>
                     <span>
                       {bus.passengers.length}/{bus.capacity}명 · 빈 좌석{' '}
                       {bus.emptySeats}
@@ -568,7 +569,7 @@ const AdminAllocationResultPage = () => {
                 <section className={styles.busDetail}>
                   <div className={styles.sectionHeading}>
                     <Bus size={19} />
-                    <h2>{selectedBus.busNumber} 좌석 배치</h2>
+                    <h2>{formatBusLabel(selectedBus.busNumber)} 좌석 배치</h2>
                   </div>
                   <div className={styles.busMeta}>
                     <span>정원 {selectedBus.capacity}명</span>
@@ -623,7 +624,7 @@ const AdminAllocationResultPage = () => {
                 <section className={styles.listSection}>
                   <div className={styles.sectionHeading}>
                     <Users size={19} />
-                    <h2>{selectedBus.busNumber} 탑승자 명단</h2>
+                    <h2>{formatBusLabel(selectedBus.busNumber)} 탑승자 명단</h2>
                     <span>{filteredPassengers.length}명</span>
                   </div>
                   <div className={styles.filters}>
