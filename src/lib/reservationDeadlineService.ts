@@ -1,4 +1,9 @@
 import { supabase } from './supabase';
+import {
+  formatReservationDeadlineValue,
+  isReservationDeadlineClosed,
+  normalizeReservationDeadline,
+} from '../utils/reservationDeadline';
 
 const RESERVATION_DEADLINE_KEY = 'first_reservation_deadline';
 
@@ -26,23 +31,28 @@ export const getReservationDeadline = async (): Promise<ReservationDeadlineSetti
   }
 
   const setting = data as SettingRow | null;
-  const deadlineAt = setting?.value?.deadline_at || null;
-  const isClosed = deadlineAt ? new Date(deadlineAt).getTime() <= Date.now() : false;
+  const deadlineAt = normalizeReservationDeadline(setting?.value?.deadline_at);
 
   return {
     deadlineAt,
-    isClosed,
+    isClosed: isReservationDeadlineClosed(deadlineAt),
   };
 };
 
 export const updateReservationDeadline = async (
   deadlineAt: string | null
 ): Promise<ReservationDeadlineSetting> => {
+  const normalizedDeadlineAt = normalizeReservationDeadline(deadlineAt);
+
+  if (deadlineAt !== null && !normalizedDeadlineAt) {
+    throw new Error('신청 마감 일시가 올바르지 않습니다.');
+  }
+
   const { data, error } = await supabase.rpc(
     'update_app_setting_as_global_admin',
     {
       p_key: RESERVATION_DEADLINE_KEY,
-      p_value: { deadline_at: deadlineAt },
+      p_value: { deadline_at: normalizedDeadlineAt },
     }
   );
 
@@ -51,21 +61,14 @@ export const updateReservationDeadline = async (
   }
 
   const setting = data as SettingRow;
-  const savedDeadlineAt = setting.value?.deadline_at || null;
+  const savedDeadlineAt = normalizeReservationDeadline(
+    setting.value?.deadline_at
+  );
 
   return {
     deadlineAt: savedDeadlineAt,
-    isClosed: savedDeadlineAt
-      ? new Date(savedDeadlineAt).getTime() <= Date.now()
-      : false,
+    isClosed: isReservationDeadlineClosed(savedDeadlineAt),
   };
 };
 
-export const formatReservationDeadline = (deadlineAt: string | null) => {
-  if (!deadlineAt) return '미설정';
-
-  return new Intl.DateTimeFormat('ko-KR', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(new Date(deadlineAt));
-};
+export const formatReservationDeadline = formatReservationDeadlineValue;
