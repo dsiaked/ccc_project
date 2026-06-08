@@ -10,6 +10,38 @@ export const AppLoadingScreen = () => (
   </main>
 );
 
+interface AppSetupScreenProps {
+  missingKeys: string[];
+}
+
+export const AppSetupScreen = ({ missingKeys }: AppSetupScreenProps) => (
+  <main className={styles.screen} role="alert">
+    <h1>Supabase environment variables are missing.</h1>
+    <p>
+      Copy <code>.env.example</code> to <code>.env.local</code> and fill in the
+      missing values before starting the app again.
+    </p>
+    <div className={styles.setupCard}>
+      <p className={styles.setupLabel}>Missing keys</p>
+      <ul className={styles.setupList}>
+        {missingKeys.map((key) => (
+          <li key={key}>
+            <code>{key}</code>
+          </li>
+        ))}
+      </ul>
+      <p className={styles.setupLabel}>Expected file</p>
+      <pre className={styles.codeBlock}>
+        <code>{`VITE_SUPABASE_URL=https://your-project-ref.supabase.co
+VITE_SUPABASE_ANON_KEY=your-public-anon-key`}</code>
+      </pre>
+    </div>
+    <button type="button" onClick={() => window.location.reload()}>
+      Reload after setup
+    </button>
+  </main>
+);
+
 interface AppErrorBoundaryProps {
   children: ReactNode;
 }

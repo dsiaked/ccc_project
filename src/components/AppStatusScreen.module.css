@@ -20,12 +20,47 @@
   line-height: 1.6;
 }
 
+.screen code {
+  font-family: 'Courier New', Courier, monospace;
+}
+
 .screen button {
   padding: 10px 16px;
   border-radius: 8px;
   background: #1e40af;
   color: #ffffff;
   font-weight: 700;
+}
+
+.setupCard {
+  width: min(100%, 540px);
+  padding: 20px;
+  border: 1px solid #d0d5dd;
+  border-radius: 16px;
+  background: #ffffff;
+  text-align: left;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+}
+
+.setupLabel {
+  margin: 0 0 8px;
+  color: #101828;
+  font-weight: 700;
+}
+
+.setupList {
+  margin: 0 0 16px;
+  padding-left: 20px;
+  color: #344054;
+}
+
+.codeBlock {
+  margin: 0;
+  padding: 14px;
+  overflow-x: auto;
+  border-radius: 12px;
+  background: #0f172a;
+  color: #e2e8f0;
 }
 
 .spinner {
