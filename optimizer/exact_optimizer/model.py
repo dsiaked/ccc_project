@@ -307,6 +307,22 @@ def _solve_primary_objectives(
         cancellation_check=cancellation_check,
     )
     second_choice_count = objectives[-1].value
+    deterministic_terms = [
+        variable * (index + 1)
+        for index, (_, variable) in enumerate(
+            sorted(assigned_by_pair_and_destination.items())
+        )
+    ]
+    model.ClearHints()
+    solver = _solve_phase(
+        model=model,
+        expression=_sum(deterministic_terms),
+        name="primary_deterministic_tie_break",
+        objectives=[],
+        progress=None,
+        cancellation_check=cancellation_check,
+        search_workers=1,
+    )
 
     return (
         total_buses,

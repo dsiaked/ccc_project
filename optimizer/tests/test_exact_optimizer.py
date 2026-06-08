@@ -398,9 +398,10 @@ class ExactOptimizerTests(unittest.TestCase):
             bus=BusConfiguration(capacity=5, price=100),
         )
 
-        first = optimize(data)
-        second = optimize(data)
-        self.assertEqual(first, second)
+        results = [optimize(data) for _ in range(10)]
+
+        for result in results[1:]:
+            self.assertEqual(results[0], result)
 
     def test_rejects_invalid_input(self) -> None:
         result = optimize(
