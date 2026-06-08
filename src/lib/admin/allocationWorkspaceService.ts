@@ -885,6 +885,8 @@ const throwAllocationRpcError = (error: {
       '확정 배차를 먼저 취소한 뒤 배차 운영 기능을 이용해주세요.',
     'Confirmed allocation is locked until confirmation is cancelled.':
       '확정 배차는 취소 전까지 수정할 수 없습니다.',
+    'canceling statement due to statement timeout':
+      '서버 처리 시간이 초과되었습니다. 잠시 후 다시 시도해주세요.',
     'No-show status is available after bus departure.':
       '호차 출발 완료 이후에 미탑승 처리할 수 있습니다.',
   };

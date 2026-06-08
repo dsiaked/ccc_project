@@ -16850,8 +16850,12 @@ notify pgrst, 'reload schema';
 -- =========================================================
 
 -- =========================================================
--- Search all users regardless of affiliation while keeping the selected campus administrator first.
+-- Remove the obsolete overload and restore access to the all-user campus-admin search RPC.
 -- =========================================================
+
+drop function if exists public.get_campus_admin_manage_users_page(
+  text, text, text, integer, integer
+);
 
 create or replace function public.get_campus_admin_manage_users_page(
   p_district text default null,
@@ -16990,12 +16994,60 @@ end;
 $$;
 
 revoke all on function public.get_campus_admin_manage_users_page(text, text, text, text, integer, integer)
-from public, anon;
+from public, anon, authenticated, service_role;
 grant execute on function public.get_campus_admin_manage_users_page(text, text, text, text, integer, integer)
-to authenticated;
+to authenticated, service_role;
 
 notify pgrst, 'reload schema';
 
 -- =========================================================
 -- END sql/setup/122_fix_campus_admin_search_rpc_access.sql
+-- =========================================================
+
+-- =========================================================
+-- BEGIN sql/setup/123_avoid_confirmation_table_lock_timeout.sql
+-- =========================================================
+
+-- Serialize confirmation transactions without blocking unrelated table writes.
+
+do $$
+declare
+  v_function_definition text;
+  v_updated_definition text;
+begin
+  select pg_get_functiondef(
+    'public.save_confirmed_allocation_workspace(uuid,bigint,jsonb,integer,integer)'::regprocedure
+  )
+  into v_function_definition;
+
+  v_updated_definition := replace(
+    v_function_definition,
+    E'lock table public.bus_allocations in share row exclusive mode;\n  lock table public.reservations in share row exclusive mode;',
+    E'perform pg_advisory_xact_lock(hashtextextended(''allocation-confirmation'', 0));'
+  );
+
+  if v_updated_definition = v_function_definition then
+    if position(
+      'pg_advisory_xact_lock(hashtextextended(''allocation-confirmation'', 0))'
+      in v_function_definition
+    ) = 0 then
+      raise exception 'Could not replace allocation confirmation table locks.';
+    end if;
+  else
+    execute v_updated_definition;
+  end if;
+end;
+$$;
+
+revoke all on function public.save_confirmed_allocation_workspace(
+  uuid, bigint, jsonb, integer, integer
+) from public, anon;
+grant execute on function public.save_confirmed_allocation_workspace(
+  uuid, bigint, jsonb, integer, integer
+) to authenticated;
+
+notify pgrst, 'reload schema';
+
+-- =========================================================
+-- END sql/setup/123_avoid_confirmation_table_lock_timeout.sql
 -- =========================================================

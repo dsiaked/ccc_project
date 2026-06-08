@@ -655,8 +655,7 @@ begin
     raise exception 'Invalid confirmed allocation payload.';
   end if;
 
-  lock table public.bus_allocations in share row exclusive mode;
-  lock table public.reservations in share row exclusive mode;
+  perform pg_advisory_xact_lock(hashtextextended('allocation-confirmation', 0));
 
   select
     allocation_data ->> 'status',
@@ -916,8 +915,7 @@ begin
     raise exception 'Invalid draft allocation payload.';
   end if;
 
-  lock table public.bus_allocations in share row exclusive mode;
-  lock table public.reservations in share row exclusive mode;
+  perform pg_advisory_xact_lock(hashtextextended('allocation-confirmation', 0));
 
   select
     allocation_data ->> 'status',

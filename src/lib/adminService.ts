@@ -608,10 +608,7 @@ export async function searchUsersForCampusManager({
   );
 
   if (error) {
-    if (
-      error.code === 'PGRST202' ||
-      error.message.includes('get_campus_admin_manage_users_page')
-    ) {
+    if (error.code === 'PGRST202') {
       throw new Error(
         '캠퍼스 회계 순장님 검색 DB 함수가 설치되지 않았습니다. sql/setup/75_campus_admin_manage_users_page.sql을 적용해주세요.'
       );

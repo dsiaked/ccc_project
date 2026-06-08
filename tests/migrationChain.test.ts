@@ -318,6 +318,10 @@ for (const [setupFile, migrationFile] of [
     '122_fix_campus_admin_search_rpc_access.sql',
     '20260610050001_122_fix_campus_admin_search_rpc_access.sql',
   ],
+  [
+    '123_avoid_confirmation_table_lock_timeout.sql',
+    '20260610060001_123_avoid_confirmation_table_lock_timeout.sql',
+  ],
 ]) {
   test(`${setupFile} matches its migration`, () => {
     const setupSql = readFileSync(`sql/setup/${setupFile}`, 'utf8').replaceAll(
@@ -546,6 +550,30 @@ test('confirmation transactions can clean up stale allocation drafts', () => {
   assert.match(
     migration,
     /set_config\('app\.allocation_confirmation_write', 'on', true\)[\s\S]*save_confirmed_allocation_workspace_v3_unlocked/i
+  );
+});
+
+test('allocation confirmation avoids broad table locks that can time out', () => {
+  const baseMigration = readFileSync(
+    `${migrationDirectory}/20260607190005_55_atomic_allocation_confirmation.sql`,
+    'utf8'
+  );
+  const patchMigration = readFileSync(
+    `${migrationDirectory}/20260610060001_123_avoid_confirmation_table_lock_timeout.sql`,
+    'utf8'
+  );
+
+  assert.doesNotMatch(
+    baseMigration,
+    /lock table public\.(bus_allocations|reservations) in share row exclusive mode/i
+  );
+  assert.match(
+    baseMigration,
+    /pg_advisory_xact_lock\(hashtextextended\('allocation-confirmation', 0\)\)/i
+  );
+  assert.match(
+    patchMigration,
+    /pg_get_functiondef[\s\S]*replace\([\s\S]*lock table public\.bus_allocations[\s\S]*pg_advisory_xact_lock/i
   );
 });
 
@@ -832,6 +860,7 @@ test('combined setup includes the latest campus request workflow', () => {
     'BEGIN sql/setup/120_search_all_users_for_campus_admin.sql',
     'BEGIN sql/setup/121_fix_campus_payment_account_campus_id_ambiguity.sql',
     'BEGIN sql/setup/122_fix_campus_admin_search_rpc_access.sql',
+    'BEGIN sql/setup/123_avoid_confirmation_table_lock_timeout.sql',
   ];
   let previousMarkerIndex = -1;
   for (const marker of orderedMarkers) {
@@ -1109,4 +1138,25 @@ test('campus payment account upserts use an unambiguous conflict target', () => 
     /on conflict on constraint campus_payment_accounts_pkey do update/gi
   );
   assert.doesNotMatch(migration, /on conflict \(campus_id\) do update/i);
+});
+
+test('campus administrator search RPC removes the obsolete overload and restores access', () => {
+  const migration = readFileSync(
+    `${migrationDirectory}/20260610050001_122_fix_campus_admin_search_rpc_access.sql`,
+    'utf8'
+  );
+  const adminService = readFileSync('src/lib/adminService.ts', 'utf8');
+
+  assert.match(
+    migration,
+    /drop function if exists public\.get_campus_admin_manage_users_page\(\s*text, text, text, integer, integer\s*\)/i
+  );
+  assert.match(
+    migration,
+    /grant execute on function public\.get_campus_admin_manage_users_page\(text, text, text, text, integer, integer\)\s+to authenticated, service_role/i
+  );
+  assert.doesNotMatch(
+    adminService,
+    /error\.message\.includes\('get_campus_admin_manage_users_page'\)/
+  );
 });

@@ -1,6 +1,10 @@
 -- =========================================================
--- Search all users regardless of affiliation while keeping the selected campus administrator first.
+-- Remove the obsolete overload and restore access to the all-user campus-admin search RPC.
 -- =========================================================
+
+drop function if exists public.get_campus_admin_manage_users_page(
+  text, text, text, integer, integer
+);
 
 create or replace function public.get_campus_admin_manage_users_page(
   p_district text default null,
@@ -139,8 +143,8 @@ end;
 $$;
 
 revoke all on function public.get_campus_admin_manage_users_page(text, text, text, text, integer, integer)
-from public, anon;
+from public, anon, authenticated, service_role;
 grant execute on function public.get_campus_admin_manage_users_page(text, text, text, text, integer, integer)
-to authenticated;
+to authenticated, service_role;
 
 notify pgrst, 'reload schema';
