@@ -509,8 +509,8 @@ const AdminCampusAdminManagePage = () => {
               <span className={styles.eyebrow}>Campus Admin</span>
               <h1>캠퍼스 회계 순장님 권한 관리</h1>
               <p>
-                캠퍼스를 먼저 선택한 뒤 담당자를 검색해 관리자 권한을 등록하거나
-                변경할 수 있습니다.
+                전체 사용자를 먼저 검색하고, 관리 대상 캠퍼스를 선택해 관리자
+                권한을 등록하거나 변경할 수 있습니다.
               </p>
             </div>
           </div>
@@ -571,7 +571,7 @@ const AdminCampusAdminManagePage = () => {
             <div>
               <span className={styles.sectionLabel}>01. 캠퍼스 선택</span>
               <h2>관리 범위를 선택하세요</h2>
-              <p>지구부터 캠퍼스까지 순서대로 선택하면 담당자를 검색할 수 있습니다.</p>
+              <p>사용자 검색은 바로 가능하며, 관리자 지정 시에만 캠퍼스 선택이 필요합니다.</p>
             </div>
             <Building2 size={22} />
           </div>
@@ -629,7 +629,7 @@ const AdminCampusAdminManagePage = () => {
             <span>
               {selectedCampusName
                 ? `전체 사용자 중 ${selectedCampusName} 캠퍼스 관리자를 검색합니다`
-                : '캠퍼스를 선택하면 검색할 수 있습니다'}
+                : '관리 대상 캠퍼스를 선택하지 않아도 전체 사용자를 검색할 수 있습니다'}
             </span>
             <input
               className={styles.userSearchInput}
@@ -637,18 +637,18 @@ const AdminCampusAdminManagePage = () => {
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
               onKeyDown={(event) => {
-                if (event.key === 'Enter' && selectedCampusName) {
+                if (event.key === 'Enter') {
                   void handleSearchUsers(1);
                 }
               }}
               placeholder="이름, 이메일, 연락처, 소속 검색"
-              disabled={!selectedCampusName || searchingUsers}
+              disabled={searchingUsers}
             />
             <button
               type="button"
               className={styles.primaryButton}
               onClick={() => void handleSearchUsers(1)}
-              disabled={searchingUsers || !selectedCampusName}
+              disabled={searchingUsers}
             >
               <Search size={16} />
               {searchingUsers ? '검색 중...' : '사용자 검색'}
@@ -682,7 +682,7 @@ const AdminCampusAdminManagePage = () => {
             <div className={styles.emptyState}>
               <UserCog size={34} />
               <strong>검색 결과가 아직 없습니다</strong>
-              <p>지구, 팀, 캠퍼스를 선택한 뒤 사용자 검색을 눌러주세요.</p>
+              <p>검색어를 입력하거나 사용자 검색을 눌러 전체 사용자를 확인하세요.</p>
             </div>
           ) : (
             <div className={styles.userList}>
