@@ -56,11 +56,14 @@ The output is written to:
 outputs/windows-installer/CCC-Bus-Allocation-Optimizer-Setup.exe
 ```
 
-The setup executable includes Python, OR-Tools, and the local worker. Its guided
-console menu asks for the Supabase URL and service-role key, stores the key
-using Windows DPAPI, installs under the current user's Local AppData directory,
-and registers the worker in the current user's Startup folder. No separate
-Node.js or Python installation is required on the target computer.
+The setup executable includes Python, OR-Tools, and the local worker. Its GUI
+asks for the Supabase URL, service-role key, and install directory, stores the
+key using Windows DPAPI, and registers the worker in the current user's Startup
+folder. The recommended install directory is the default shown under the
+current user's Local AppData directory. Use a dedicated local folder that does
+not require administrator rights; avoid OneDrive, network, and removable
+drives. No separate Node.js or Python installation is required on the target
+computer.
 
 Enter the project URL in `https://<project-ref>.supabase.co` format without a
 dashboard or `/rest/v1` path. Both legacy JWT service-role keys and newer

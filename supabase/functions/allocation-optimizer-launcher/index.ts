@@ -43,12 +43,21 @@ const importPrivateKey = async (pem: string) => {
 };
 
 const getGoogleAccessToken = async (serviceAccountJson: string) => {
-  const serviceAccount = JSON.parse(serviceAccountJson) as {
+  let serviceAccount: {
     client_email?: string;
     private_key?: string;
   };
+  try {
+    serviceAccount = JSON.parse(serviceAccountJson);
+  } catch {
+    throw new Error(
+      'GCP_SERVICE_ACCOUNT_JSON must be valid service-account JSON.',
+    );
+  }
   if (!serviceAccount.client_email || !serviceAccount.private_key) {
-    throw new Error('Google Cloud service-account secret is invalid.');
+    throw new Error(
+      'GCP_SERVICE_ACCOUNT_JSON is missing client_email or private_key.',
+    );
   }
 
   const now = Math.floor(Date.now() / 1000);
@@ -221,22 +230,30 @@ Deno.serve(async (request) => {
       operationName: runBody?.name ?? null,
     });
   } catch (error) {
+    const errorMessage =
+      error instanceof Error
+        ? error.message
+        : 'Cloud Run Job 실행 요청에 실패했습니다.';
+
+    await serviceClient
+      .from('allocation_optimization_jobs')
+      .update({
+        status: 'FAILED',
+        completed_at: new Date().toISOString(),
+        current_phase: 'launcher_failed',
+        error_message: errorMessage,
+      })
+      .eq('id', jobId)
+      .eq('status', 'PENDING');
+
     await serviceClient.from('allocation_optimization_events').insert({
       job_id: jobId,
       event_type: 'CLOUD_RUN_EXECUTION_REQUEST_FAILED',
       detail: {
         requested_by: actor.id,
-        message: error instanceof Error ? error.message : String(error),
+        message: errorMessage,
       },
     });
-    return json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : 'Cloud Run Job 실행 요청에 실패했습니다.',
-      },
-      502,
-    );
+    return json({ error: errorMessage }, 502);
   }
 });

@@ -64,6 +64,20 @@ const ResetPasswordPage = () => {
         return;
       }
 
+      if (recoveryCode) {
+        void supabase.auth.exchangeCodeForSession(recoveryCode).then(({ data: exchangeData, error: exchangeError }) => {
+          if (!active) return;
+
+          if (exchangeError || !exchangeData.session) {
+            setRecoveryStatus('invalid');
+            return;
+          }
+
+          void verifyRecoverySession(exchangeData.session);
+        });
+        return;
+      }
+
       if (data.session) {
         if (
           recoveryAccessToken &&
@@ -80,21 +94,7 @@ const ResetPasswordPage = () => {
         return;
       }
 
-      if (!recoveryCode) {
-        setRecoveryStatus('invalid');
-        return;
-      }
-
-      void supabase.auth.exchangeCodeForSession(recoveryCode).then(({ data: exchangeData, error: exchangeError }) => {
-        if (!active) return;
-
-        if (exchangeError || !exchangeData.session) {
-          setRecoveryStatus('invalid');
-          return;
-        }
-
-        void verifyRecoverySession(exchangeData.session);
-      });
+      setRecoveryStatus('invalid');
     });
 
     return () => {

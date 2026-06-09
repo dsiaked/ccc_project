@@ -28,6 +28,15 @@ test('AI reports are anonymized and restricted to global administrators', () => 
   assert.match(edgeFunction, /\.eq\('role', 'global_admin'\)/);
   assert.doesNotMatch(edgeFunction, /\.from\('profiles'\)/);
   assert.match(edgeFunction, /anonymizedLogSummary/);
+  assert.match(edgeFunction, /status: 'failed',[\s\S]*input_summary: summary/);
+});
+
+test('AI reports use Gemini without exposing the API key in the request URL', () => {
+  assert.match(edgeFunction, /Deno\.env\.get\('GEMINI_API_KEY'\)/);
+  assert.match(edgeFunction, /gemini-2\.5-flash/);
+  assert.match(edgeFunction, /generativelanguage\.googleapis\.com\/v1beta\/models/);
+  assert.match(edgeFunction, /'x-goog-api-key': geminiApiKey/);
+  assert.doesNotMatch(edgeFunction, /api\.openai\.com|OPENAI_API_KEY/);
 });
 
 test('global administrators can open the AI operations report screen', () => {

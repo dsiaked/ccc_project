@@ -163,12 +163,15 @@ Deno.serve(async (request) => {
     });
 
   if (createError || !created.user) {
+    if (createError && !createError.message.includes('already')) {
+      console.error('Failed to create an administered user:', createError);
+    }
     return json(
       {
         error:
           createError?.message.includes('already')
             ? '이미 사용 중인 이메일입니다.'
-            : createError?.message || '사용자 계정을 생성하지 못했습니다.',
+            : '사용자 계정을 생성하지 못했습니다.',
       },
       400,
     );
@@ -183,11 +186,14 @@ Deno.serve(async (request) => {
   });
 
   if (profileError) {
-    await serviceClient.auth.admin.deleteUser(created.user.id);
-    return json(
-      { error: `프로필 저장에 실패했습니다: ${profileError.message}` },
-      500,
+    const { error: rollbackError } = await serviceClient.auth.admin.deleteUser(
+      created.user.id,
     );
+    console.error('Failed to persist an administered user profile:', profileError);
+    if (rollbackError) {
+      console.error('Failed to roll back an administered user:', rollbackError);
+    }
+    return json({ error: '프로필 저장에 실패했습니다.' }, 500);
   }
 
   return json({ userId: created.user.id, email });

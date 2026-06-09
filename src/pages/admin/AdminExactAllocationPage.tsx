@@ -134,6 +134,19 @@ const formatError = (error: unknown) =>
         : null
   );
 
+const formatResetError = (error: unknown) => {
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === 'string'
+        ? error
+        : null;
+  if (message?.includes('Allocation optimization reset failed [')) {
+    return message;
+  }
+  return formatExactAllocationErrorMessage(message);
+};
+
 const formatWarningMessage = (warning: ExactAllocationWarning) => {
   const destination = warning.destination ?? '일부 행선지';
 
@@ -590,7 +603,7 @@ const AdminExactAllocationPage = () => {
           : '리셋할 계산 기록이 없습니다.'
       );
     } catch (resetError) {
-      setResetDialogError(formatError(resetError));
+      setResetDialogError(formatResetError(resetError));
       await loadRecentJobs(currentJob?.id).catch(() => undefined);
     } finally {
       resetInFlightRef.current = false;

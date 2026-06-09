@@ -998,15 +998,18 @@ const throwAllocationRpcError = (error: {
 
 export const validateAllocationWorkspaceConfirmation = async (
   row: AllocationWorkspaceRow,
-  workspace: AllocationWorkspaceData
+  workspace: AllocationWorkspaceData,
+  signal?: AbortSignal
 ) => {
-  const { data, error } = await supabase.rpc(
+  let request = supabase.rpc(
     'validate_allocation_workspace_confirmation_v2',
     {
       p_allocation_id: row.id,
       p_allocation_data: workspace,
     }
   );
+  if (signal) request = request.abortSignal(signal);
+  const { data, error } = await request;
   if (error) throwAllocationRpcError(error);
   return data as AllocationConfirmationPreflight;
 };
@@ -1014,7 +1017,8 @@ export const validateAllocationWorkspaceConfirmation = async (
 export const confirmAllocationWorkspace = async (
   row: AllocationWorkspaceRow,
   workspace: AllocationWorkspaceData,
-  actorId: string
+  actorId: string,
+  signal?: AbortSignal
 ) => {
   const validation = validateWorkspace(workspace);
   const belowMinimumBusIds = getBelowMinimumBusIds(workspace);
@@ -1058,8 +1062,7 @@ export const confirmAllocationWorkspace = async (
     '확정 배차 상태를 저장했습니다.'
   );
   const totals = getWorkspaceTotals(prepared.workspace);
-  const { data, error } = await supabase
-    .rpc('save_confirmed_allocation_workspace_v3', {
+  let request = supabase.rpc('save_confirmed_allocation_workspace_v3', {
       p_allocation_id: row.id,
       p_expected_revision: row.revision,
       p_allocation_data: prepared.workspace,
@@ -1068,8 +1071,9 @@ export const confirmAllocationWorkspace = async (
       p_version_id: prepared.version.id,
       p_version_label: prepared.version.label,
       p_version_changes: prepared.version.changes,
-    })
-    .single();
+    });
+  if (signal) request = request.abortSignal(signal);
+  const { data, error } = await request.single();
 
   if (error) throwAllocationRpcError(error);
   return data as AllocationWorkspaceRow;

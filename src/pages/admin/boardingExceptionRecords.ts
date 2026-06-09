@@ -5,6 +5,7 @@ import type {
 } from '../../lib/admin/boardingManagementService.js';
 
 export type BoardingExceptionKind =
+  | 'manual'
   | 'walk_in'
   | 'bus_move'
   | 'no_show'

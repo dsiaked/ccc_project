@@ -35,6 +35,22 @@ test('boarding overview shows departed buses over the role-scoped bus total', ()
   );
 });
 
+test('boarding managers see their selected bus roster before supporting overview sections', () => {
+  const boardingStyles = readFileSync(
+    'src/pages/admin/AdminBoardingPage.module.css',
+    'utf8'
+  );
+
+  assert.match(
+    boardingPage,
+    /className=\{`\$\{styles\.boardingContent\} \$\{\s*!isGlobalAdmin \? styles\.boardingContentManager : ''\s*\}`\}/
+  );
+  assert.match(
+    boardingStyles,
+    /\.boardingContentManager \.roster\s*\{[^}]*order:\s*-1/i
+  );
+});
+
 test('full roster exports and sheet access remain global-admin only', () => {
   assert.match(
     boardingPage,
@@ -70,6 +86,41 @@ test('boarding roster renders passengers as compact cards without roster numbers
   assert.match(
     boardingPage,
     /a\.seatNumber\.localeCompare\(b\.seatNumber, 'ko', \{ numeric: true \}\)/
+  );
+});
+
+test('boarding roster prioritizes unchecked, no-show, and boarded passengers', () => {
+  assert.match(
+    boardingPage,
+    /const statusSortOrder: Record<BoardingStatus, number> = \{\s*unchecked: 0,\s*no_show: 1,\s*boarded: 2,\s*\}/
+  );
+  assert.match(
+    boardingPage,
+    /\.sort\(\s*\(a, b\) =>\s*statusSortOrder\[a\.boardingStatus\] - statusSortOrder\[b\.boardingStatus\]\s*\|\|\s*a\.busNumber\.localeCompare/
+  );
+});
+
+test('boarding roster cards expose only the one-way boarding confirmation action', () => {
+  const cardActionsStart = boardingPage.indexOf('<div className={styles.actions}>');
+  const cardActionsEnd = boardingPage.indexOf('</div>', cardActionsStart);
+  const cardActions = boardingPage.slice(cardActionsStart, cardActionsEnd);
+
+  assert.ok(cardActionsStart > -1);
+  assert.ok(cardActionsEnd > cardActionsStart);
+  assert.match(cardActions, /onClick=\{\(\) => handleStatus\(passenger, 'boarded'\)\}/);
+  assert.match(cardActions, /'탑승 확인됨'/);
+  assert.match(cardActions, /'탑승 확인'/);
+  assert.doesNotMatch(cardActions, /handleStatus\(passenger, 'no_show'\)/);
+  assert.doesNotMatch(cardActions, /handleStatus\(passenger, 'unchecked'\)/);
+  assert.doesNotMatch(cardActions, /type="checkbox"/);
+
+  assert.match(
+    boardingPage,
+    /className=\{`\$\{styles\.noShowButton\}[\s\S]*?handleStatus\(selectedPassenger, 'no_show'\)/
+  );
+  assert.match(
+    boardingPage,
+    /className=\{`\$\{styles\.resetButton\}[\s\S]*?handleStatus\(selectedPassenger, 'unchecked'\)/
   );
 });
 
@@ -168,11 +219,16 @@ test('boarding departure action appears after the passenger list', () => {
   const passengerListIndex = boardingPage.indexOf(
     '<div className={styles.passengerList}>'
   );
+  const fieldExceptionActionsIndex = boardingPage.indexOf(
+    '<div className={styles.fieldExceptionActions}>'
+  );
   const departureFooterIndex = boardingPage.indexOf(
     '<div className={styles.departureFooter}>'
   );
 
   assert.ok(passengerListIndex > -1);
+  assert.ok(fieldExceptionActionsIndex > passengerListIndex);
+  assert.ok(departureFooterIndex > fieldExceptionActionsIndex);
   assert.ok(departureFooterIndex > passengerListIndex);
   assert.match(boardingPage, /남은 미확인 전원 미탑승 처리 · 출발 완료/);
 });

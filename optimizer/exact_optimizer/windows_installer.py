@@ -173,16 +173,51 @@ def app_data() -> Path:
     return Path(os.environ["APPDATA"])
 
 
-def install_directory() -> Path:
+def default_install_directory() -> Path:
     return local_app_data() / "Programs" / INSTALL_DIRECTORY_NAME
 
 
-def installed_executable() -> Path:
-    return install_directory() / EXECUTABLE_NAME
+def normalize_install_directory(value: str | Path) -> Path:
+    raw_value = os.path.expandvars(os.path.expanduser(str(value).strip().strip('"')))
+    if not raw_value:
+        raise ValueError("설치 경로를 입력해주세요.")
+    path = Path(raw_value)
+    if not path.is_absolute():
+        raise ValueError("설치 경로는 드라이브 문자부터 시작하는 절대 경로로 입력해주세요.")
+    resolved = path.resolve()
+    if resolved == Path(resolved.anchor):
+        raise ValueError("드라이브 루트에는 설치할 수 없습니다. 전용 하위 폴더를 선택해주세요.")
+    if resolved.exists() and not resolved.is_dir():
+        raise ValueError("설치 경로로 폴더를 입력해주세요.")
+    return resolved
 
 
-def is_application_installed() -> bool:
-    return installed_executable().exists() and config_path().exists()
+def configured_install_directory() -> Path:
+    path = config_path()
+    if not path.exists():
+        return default_install_directory()
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        value = payload.get("install_directory")
+        return normalize_install_directory(value) if value else default_install_directory()
+    except (json.JSONDecodeError, OSError, TypeError, ValueError):
+        return default_install_directory()
+
+
+def install_directory(directory: str | Path | None = None) -> Path:
+    return (
+        normalize_install_directory(directory)
+        if directory is not None
+        else configured_install_directory()
+    )
+
+
+def installed_executable(directory: str | Path | None = None) -> Path:
+    return install_directory(directory) / EXECUTABLE_NAME
+
+
+def is_application_installed(directory: str | Path | None = None) -> bool:
+    return installed_executable(directory).exists() and config_path().exists()
 
 
 def config_path() -> Path:
@@ -215,12 +250,17 @@ def load_config() -> tuple[str, str]:
     )
 
 
-def save_config(supabase_url: str, service_role_key: str) -> None:
+def save_config(
+    supabase_url: str,
+    service_role_key: str,
+    directory: str | Path | None = None,
+) -> None:
     path = config_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "supabase_url": supabase_url.rstrip("/"),
         "service_role_key": protect_secret(service_role_key),
+        "install_directory": str(install_directory(directory)),
     }
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -276,10 +316,10 @@ def validate_connection(supabase_url: str, service_role_key: str) -> None:
             raise RuntimeError(f"Supabase 연결 실패: {error.reason}") from error
 
 
-def write_startup_file() -> None:
+def write_startup_file(directory: str | Path | None = None) -> None:
     path = startup_path()
     path.parent.mkdir(parents=True, exist_ok=True)
-    executable = installed_executable()
+    executable = installed_executable(directory)
     path.write_text(
         f'@echo off\r\nstart "" /min "{executable}" --worker\r\n',
         encoding="utf-8-sig",
@@ -296,20 +336,23 @@ def stop_installed_worker() -> None:
     )
 
 
-def install_application(supabase_url: str, service_role_key: str) -> None:
-    target = installed_executable()
+def install_application(
+    supabase_url: str,
+    service_role_key: str,
+    directory: str | Path | None = None,
+) -> None:
+    target = installed_executable(directory)
     target.parent.mkdir(parents=True, exist_ok=True)
     source = Path(sys.executable).resolve()
     if source != target.resolve():
-        if target.exists():
-            stop_installed_worker()
+        stop_installed_worker()
         shutil.copy2(source, target)
-    save_config(supabase_url, service_role_key)
-    write_startup_file()
+    save_config(supabase_url, service_role_key, target.parent)
+    write_startup_file(target.parent)
 
 
-def start_worker() -> None:
-    executable = installed_executable()
+def start_worker(directory: str | Path | None = None) -> None:
+    executable = installed_executable(directory)
     if not executable.exists():
         raise RuntimeError("먼저 설치를 완료해주세요.")
     flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) | getattr(
@@ -323,11 +366,11 @@ def start_worker() -> None:
     )
 
 
-def uninstall_application() -> None:
+def uninstall_application(directory: str | Path | None = None) -> None:
+    target = installed_executable(directory)
     startup_path().unlink(missing_ok=True)
     config_path().unlink(missing_ok=True)
     log_path().unlink(missing_ok=True)
-    target = installed_executable()
     if target.exists():
         cleanup_script = Path(os.environ["TEMP"]) / "ccc-bus-optimizer-cleanup.cmd"
         cleanup_script.write_text(
@@ -337,7 +380,7 @@ def uninstall_application() -> None:
                     f'taskkill /f /im "{EXECUTABLE_NAME}" > nul 2>&1',
                     "ping 127.0.0.1 -n 3 > nul",
                     f'del /f /q "{target}"',
-                    f'rmdir /s /q "{target.parent}"',
+                    f'rmdir "{target.parent}" > nul 2>&1',
                     'del /f /q "%~f0"',
                 ]
             ),
@@ -392,7 +435,7 @@ def self_test() -> int:
 
 def installer_gui() -> int:
     import tkinter as tk
-    from tkinter import messagebox, ttk
+    from tkinter import filedialog, messagebox, ttk
 
     try:
         saved_url, saved_key = load_config()
@@ -401,8 +444,8 @@ def installer_gui() -> int:
 
     root = tk.Tk()
     root.title("CCC 버스 배차 계산기 설치")
-    root.geometry("760x650")
-    root.minsize(720, 620)
+    root.geometry("780x790")
+    root.minsize(740, 740)
     root.option_add("*Font", ("Malgun Gothic", 10))
 
     style = ttk.Style(root)
@@ -417,6 +460,7 @@ def installer_gui() -> int:
 
     url_var = tk.StringVar(value=saved_url)
     key_var = tk.StringVar()
+    install_directory_var = tk.StringVar(value=str(configured_install_directory()))
     show_key_var = tk.BooleanVar(value=False)
     installation_status_var = tk.StringVar()
     status_message_var = tk.StringVar(value="연결 정보를 입력한 뒤 설치를 진행해주세요.")
@@ -490,32 +534,70 @@ def installer_gui() -> int:
         wraplength=620,
     ).grid(row=3, column=0, columnspan=3, sticky="w", pady=(8, 0))
 
+    paths_frame = ttk.LabelFrame(main, text="설치 경로", padding=16)
+    paths_frame.grid(row=4, column=0, sticky="ew", pady=(0, 14))
+    paths_frame.columnconfigure(0, weight=1)
+
+    path_entry = ttk.Entry(paths_frame, textvariable=install_directory_var)
+    path_entry.grid(row=0, column=0, sticky="ew", padx=(0, 8))
+
+    def browse_install_directory() -> None:
+        selected = filedialog.askdirectory(
+            parent=root,
+            title="로컬 최적화 워커 설치 폴더 선택",
+            initialdir=install_directory_var.get() or str(default_install_directory()),
+        )
+        if selected:
+            install_directory_var.set(selected)
+
+    browse_button = ttk.Button(
+        paths_frame, text="폴더 선택", command=browse_install_directory
+    )
+    browse_button.grid(row=0, column=1, sticky="ew")
+    ttk.Label(
+        paths_frame,
+        text=(
+            f"권장 경로: {default_install_directory()}\n"
+            "현재 Windows 사용자만 사용하는 로컬 디스크의 전용 폴더를 권장합니다. "
+            "관리자 권한이 필요한 Program Files, OneDrive, 네트워크 및 이동식 드라이브는 피해주세요."
+        ),
+        style="Subtitle.TLabel",
+        wraplength=680,
+        justify="left",
+    ).grid(row=1, column=0, columnspan=2, sticky="w", pady=(10, 0))
+
     action_frame = ttk.Frame(main)
-    action_frame.grid(row=4, column=0, sticky="ew")
+    action_frame.grid(row=5, column=0, sticky="ew")
     for column in range(4):
         action_frame.columnconfigure(column, weight=1)
 
     progress = ttk.Progressbar(main, mode="indeterminate")
-    progress.grid(row=5, column=0, sticky="ew", pady=(16, 8))
+    progress.grid(row=6, column=0, sticky="ew", pady=(16, 8))
     ttk.Label(
         main,
         textvariable=status_message_var,
         wraplength=680,
         justify="left",
-    ).grid(row=6, column=0, sticky="w")
+    ).grid(row=7, column=0, sticky="w")
 
-    paths_frame = ttk.LabelFrame(main, text="설치 정보", padding=12)
-    paths_frame.grid(row=7, column=0, sticky="ew", pady=(18, 0))
-    paths_frame.columnconfigure(0, weight=1)
+    info_frame = ttk.LabelFrame(main, text="설치 정보", padding=12)
+    info_frame.grid(row=8, column=0, sticky="ew", pady=(18, 0))
+    info_frame.columnconfigure(0, weight=1)
     ttk.Label(
-        paths_frame,
-        text=f"설치 위치: {install_directory()}\n로그 위치: {log_path()}",
+        info_frame,
+        text=f"로그 위치: {log_path()}",
         style="Subtitle.TLabel",
         wraplength=650,
     ).grid(row=0, column=0, sticky="w")
 
+    def current_install_directory() -> Path:
+        return normalize_install_directory(install_directory_var.get())
+
     def refresh_installation_status() -> None:
-        installed = is_application_installed()
+        try:
+            installed = is_application_installed(current_install_directory())
+        except ValueError:
+            installed = False
         installation_status_var.set(
             "설치됨 · Windows 로그인 시 자동 실행"
             if installed
@@ -534,6 +616,8 @@ def installer_gui() -> int:
             button.configure(state="disabled" if value else "normal")
         url_entry.configure(state="disabled" if value else "normal")
         key_entry.configure(state="disabled" if value else "normal")
+        path_entry.configure(state="disabled" if value else "normal")
+        browse_button.configure(state="disabled" if value else "normal")
         if value:
             progress.start(12)
         else:
@@ -593,19 +677,21 @@ def installer_gui() -> int:
     def install_clicked() -> None:
         try:
             url, key = current_connection()
+            directory = current_install_directory()
         except Exception as error:
             show_input_error(error)
             return
 
         def operation() -> None:
             validate_connection(url, key)
-            install_application(url, key)
-            start_worker()
+            install_application(url, key, directory)
+            start_worker(directory)
 
         def on_success() -> None:
             saved_key_holder["value"] = key
             url_var.set(url)
             key_var.set("")
+            install_directory_var.set(str(directory))
 
         run_task(
             "연결을 확인하고 로컬 최적화 워커를 설치하는 중입니다...",
@@ -615,16 +701,22 @@ def installer_gui() -> int:
         )
 
     def start_clicked() -> None:
+        try:
+            directory = current_install_directory()
+        except Exception as error:
+            show_input_error(error)
+            return
         run_task(
             "로컬 최적화 워커를 시작하는 중입니다...",
             "로컬 최적화 워커를 시작했습니다.",
-            start_worker,
+            lambda: start_worker(directory),
         )
 
     def remove_clicked() -> None:
+        directory = configured_install_directory()
         if not messagebox.askyesno(
             "설치 제거",
-            "설치된 워커와 저장된 연결 정보를 제거할까요?",
+            f"다음 위치에 설치된 워커와 저장된 연결 정보를 제거할까요?\n\n{directory}",
             parent=root,
         ):
             return
@@ -636,7 +728,7 @@ def installer_gui() -> int:
         run_task(
             "설치 제거를 준비하는 중입니다...",
             "제거 작업을 예약했습니다. 창을 닫으면 완료됩니다.",
-            uninstall_application,
+            lambda: uninstall_application(directory),
             on_success,
         )
 
@@ -661,6 +753,7 @@ def installer_gui() -> int:
     )
 
     refresh_installation_status()
+    install_directory_var.trace_add("write", lambda *_: refresh_installation_status())
     url_entry.focus_set()
     root.mainloop()
     return 0

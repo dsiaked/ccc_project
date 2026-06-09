@@ -1,7 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from '../types/database.types';
+import { getSupabaseClientConfig } from './supabaseConfig';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabaseConfig = getSupabaseClientConfig(
+  import.meta.env as Record<string, string | undefined>
+);
 
-export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient<Database>(
+  supabaseConfig.url,
+  supabaseConfig.anonKey
+);

@@ -14,6 +14,8 @@
 .allocationTitle > div:first-child { display: grid; gap: 4px; }
 .allocationTitle strong { color: #172554; font-size: 18px; }
 .allocationTitle span { color: #b45309; font-size: 12px; font-weight: 800; }
+.boardingContent { display: flex; flex-direction: column; }
+.boardingContentManager .roster { order: -1; margin-top: 0; margin-bottom: 18px; }
 .exportActions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px; }
 .exportActions button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 38px; padding: 0 11px; border: 1px solid #bfdbfe; border-radius: 8px; background: white; color: #1d4ed8; font-weight: 900; cursor: pointer; }
 .exportActions button:hover { background: #eff6ff; }
@@ -83,11 +85,11 @@
 .roster { margin-top: 18px; padding: 20px; border: 1px solid #dfe3e8; border-radius: 14px; background: white; }
 .rosterHeader { display: flex; justify-content: space-between; gap: 16px; padding-bottom: 18px; border-bottom: 1px solid #e5e7eb; }
 .rosterHeader span { color: #2563eb; font-size: 12px; font-weight: 900; }.rosterHeader h2 { margin: 4px 0; color: #172554; }.rosterHeader p { margin: 0; color: #64748b; }
-.fieldExceptionActions { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 10px 0; padding: 8px 10px; border: 1px solid #c4b5fd; border-radius: 9px; background: #f5f3ff; }
+.fieldExceptionActions { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 22px 0 10px; padding: 12px; border: 1px solid #c4b5fd; border-radius: 9px; background: #f5f3ff; }
 .fieldExceptionActions div { display: flex; align-items: baseline; gap: 8px; min-width: 0; }.fieldExceptionActions strong { flex: 0 0 auto; color: #5b21b6; font-size: 13px; }.fieldExceptionActions span { overflow: hidden; color: #6b7280; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .fieldExceptionActions button, .movePassengerButton { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; gap: 6px; min-height: 34px; padding: 0 10px; border: 1px solid #a78bfa; border-radius: 8px; background: white; color: #6d28d9; font-weight: 900; cursor: pointer; }
 .departure { background: #b91c1c; color: white; }.cancelDeparture { background: #fff1f2; color: #be123c; border: 1px solid #fecaca; }.clearSearch { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid #bfdbfe; background: #eff6ff; color: #1d4ed8; }
-.departureFooter { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 22px; padding: 18px; border: 1px solid #fecaca; border-radius: 12px; background: #fff7f7; }
+.departureFooter { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 0; padding: 18px; border: 1px solid #fecaca; border-radius: 12px; background: #fff7f7; }
 .departureFooter div { display: grid; gap: 4px; }
 .departureFooter strong { color: #7f1d1d; }
 .departureFooter span { color: #64748b; font-size: 12px; }
@@ -130,15 +132,13 @@
 .change_boarding_manager strong { background: #ede9fe; color: #6d28d9; }
 .change_automatic strong { background: #f1f5f9; color: #475569; }
 .change_unknown strong { background: #f8fafc; color: #64748b; }
-.actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px; padding: 0 5px 5px; }
+.actions { display: grid; grid-template-columns: minmax(0, 1fr); gap: 3px; padding: 0 5px 5px; }
 .actions button { display: flex; align-items: center; justify-content: center; gap: 2px; min-width: 0; min-height: 30px; padding: 0 3px; border-radius: 5px; font-size: 10px; font-weight: 800; cursor: pointer; }
 .actions button:disabled { opacity: .42; cursor: default; }
-.boardingCheck { position: relative; display: flex; align-items: center; justify-content: center; gap: 4px; min-width: 0; min-height: 30px; padding: 0 3px; border: 1px solid #86efac; border-radius: 5px; background: #f0fdf4; color: #166534; font-size: 10px; font-weight: 800; cursor: pointer; }
-.boardingCheck input { position: absolute; width: 1px; height: 1px; overflow: hidden; opacity: 0; pointer-events: none; }
-.boardingCheck span { display: grid; place-items: center; width: 16px; height: 16px; border: 2px solid #86efac; border-radius: 4px; background: white; color: transparent; font-size: 12px; line-height: 1; transition: background .15s ease, border-color .15s ease, color .15s ease; }
-.boardingCheckActive span { border-color: #16a34a; background: #16a34a; color: white; }
-.boardingCheck:has(input:focus-visible) { outline: 2px solid #2563eb; outline-offset: 2px; }
-.boardingCheck:has(input:disabled) { opacity: .42; cursor: default; }
+.boardingCheck { display: flex; align-items: center; justify-content: center; gap: 5px; min-width: 0; min-height: 30px; padding: 0 6px; border: 1px solid #86efac; border-radius: 5px; background: #f0fdf4; color: #166534; font-size: 10px; font-weight: 800; cursor: pointer; }
+.boardingCheckActive { border-color: #16a34a; background: #dcfce7; color: #166534; }
+.boardingCheck:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+.boardingCheck:disabled { opacity: .72; cursor: default; }
 .boardButton { border: 1px solid #86efac; background: #f0fdf4; color: #166534; }.noShowButton { border: 1px solid #fecaca; background: #fff1f2; color: #be123c; }.resetButton { border: 1px solid #cbd5e1; background: white; color: #475569; }
 .detailButton { display: flex; align-items: center; gap: 5px; width: 100%; min-width: 0; min-height: 38px; padding: 6px 8px; border: 0; border-top: 1px solid #e5e7eb; background: rgba(255, 255, 255, .8); color: #475569; font-size: 10px; font-weight: 900; text-align: left; cursor: pointer; }
 .detailButton:hover { background: #eff6ff; color: #1d4ed8; }

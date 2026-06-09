@@ -56,8 +56,8 @@ const statusLabels: Record<BoardingStatus, string> = {
 
 const statusSortOrder: Record<BoardingStatus, number> = {
   unchecked: 0,
-  boarded: 1,
-  no_show: 2,
+  no_show: 1,
+  boarded: 2,
 };
 
 const boardingRosterGoogleSheetUrl = String(
@@ -249,9 +249,9 @@ const AdminBoardingPage = () => {
       )
       .sort(
         (a, b) =>
+          statusSortOrder[a.boardingStatus] - statusSortOrder[b.boardingStatus] ||
           a.busNumber.localeCompare(b.busNumber, 'ko', { numeric: true }) ||
           a.seatNumber.localeCompare(b.seatNumber, 'ko', { numeric: true }) ||
-          statusSortOrder[a.boardingStatus] - statusSortOrder[b.boardingStatus] ||
           a.name.localeCompare(b.name, 'ko')
       );
   }, [
@@ -1022,6 +1022,11 @@ const AdminBoardingPage = () => {
               )}
             </div>
 
+            <div
+              className={`${styles.boardingContent} ${
+                !isGlobalAdmin ? styles.boardingContentManager : ''
+              }`}
+            >
             <section className={styles.overview} aria-label={`${boardingScopeLabel} 탑승 확인 현황`}>
               <div className={styles.overviewHeading}>
                 <div>
@@ -1266,18 +1271,6 @@ const AdminBoardingPage = () => {
                 </div>
 
                 {!isGlobalSearch && (
-                  <div className={styles.fieldExceptionActions}>
-                    <div>
-                      <strong>현장 예외 처리</strong>
-                      <span>담당 호차 범위에서 갑작스러운 호차 이동 또는 신규 탑승자를 기록합니다.</span>
-                    </div>
-                    <button type="button" onClick={openWalkIn}>
-                      <UserPlus size={15} /> 현장 탑승 추가
-                    </button>
-                  </div>
-                )}
-
-                {!isGlobalSearch && (
                   <div className={styles.checkInCodePanel}>
                     <div className={styles.checkInCodeCopy}>
                       <KeyRound size={22} aria-hidden="true" />
@@ -1391,24 +1384,25 @@ const AdminBoardingPage = () => {
                           <span className={styles.statusBadge}>{statusLabels[passenger.boardingStatus]}</span>
                         </div>
                         <div className={styles.actions}>
-                          <label className={`${styles.boardingCheck} ${passenger.boardingStatus === 'boarded' ? styles.boardingCheckActive : ''}`}>
-                            <input
-                              type="checkbox"
-                              checked={passenger.boardingStatus === 'boarded'}
-                              disabled={isPassengerPending}
-                              onChange={(event) =>
-                                handleStatus(
-                                  passenger,
-                                  event.currentTarget.checked ? 'boarded' : 'unchecked'
-                                )
-                              }
-                              aria-label={`${passenger.name} 탑승 상태`}
-                            />
-                            <span aria-hidden="true">✓</span>
-                            탑승
-                          </label>
-                          <button type="button" className={styles.noShowButton} title="미탑승 사유를 작성한 뒤 처리합니다." onClick={() => handleStatus(passenger, 'no_show')} disabled={isPassengerPending || passenger.boardingStatus === 'no_show'} aria-label={`${passenger.name} 미탑승 처리`}><UserX size={14} />미탑승</button>
-                          <button type="button" className={styles.resetButton} onClick={() => handleStatus(passenger, 'unchecked')} disabled={isPassengerPending || passenger.boardingStatus === 'unchecked'} aria-label={`${passenger.name} 탑승 미확인으로 변경`}><CircleHelp size={14} />미확인</button>
+                          <button
+                            type="button"
+                            className={`${styles.boardingCheck} ${
+                              passenger.boardingStatus === 'boarded'
+                                ? styles.boardingCheckActive
+                                : ''
+                            }`}
+                            onClick={() => handleStatus(passenger, 'boarded')}
+                            disabled={
+                              isPassengerPending ||
+                              passenger.boardingStatus === 'boarded'
+                            }
+                            aria-label={`${passenger.name} 탑승 확인`}
+                          >
+                            <CheckCircle2 size={15} />
+                            {passenger.boardingStatus === 'boarded'
+                              ? '탑승 확인됨'
+                              : '탑승 확인'}
+                          </button>
                         </div>
                         <button
                           type="button"
@@ -1428,6 +1422,18 @@ const AdminBoardingPage = () => {
                     );
                   })}
                 </div>
+
+                {!isGlobalSearch && (
+                  <div className={styles.fieldExceptionActions}>
+                    <div>
+                      <strong>현장 예외 처리</strong>
+                      <span>명단에 없는 신규 탑승자를 기록한 뒤 출발 전 최종 확인을 진행합니다.</span>
+                    </div>
+                    <button type="button" onClick={openWalkIn}>
+                      <UserPlus size={15} /> 현장 탑승 추가
+                    </button>
+                  </div>
+                )}
 
                 {!isGlobalSearch && (
                   <div className={styles.departureFooter}>
@@ -1454,6 +1460,7 @@ const AdminBoardingPage = () => {
                 )}
               </section>
             )}
+            </div>
           </>
         )}
       </main>

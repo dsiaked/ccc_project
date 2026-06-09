@@ -6,6 +6,8 @@ const corsHeaders = {
     'authorization, x-client-info, apikey, content-type',
 };
 
+const GOOGLE_REQUEST_TIMEOUT_MS = 15_000;
+
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
@@ -165,6 +167,7 @@ const getGoogleAccessToken = async (serviceAccountJson: string) => {
   const response = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    signal: AbortSignal.timeout(GOOGLE_REQUEST_TIMEOUT_MS),
     body: new URLSearchParams({
       grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
       assertion,
@@ -189,6 +192,7 @@ const googleRequest = async (
 ) => {
   const response = await fetch(url, {
     ...init,
+    signal: AbortSignal.timeout(GOOGLE_REQUEST_TIMEOUT_MS),
     headers: {
       Authorization: `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
@@ -390,22 +394,16 @@ Deno.serve(async (request) => {
     try {
       snapshot = await getServiceRoleSnapshot(serviceClient);
     } catch (snapshotError) {
-      return json(
-        {
-          error:
-            snapshotError instanceof Error
-              ? snapshotError.message
-              : '확정 배차 명단을 불러오지 못했습니다.',
-        },
-        400,
-      );
+      console.error('Failed to load the boarding snapshot:', snapshotError);
+      return json({ error: '확정 배차 명단을 불러오지 못했습니다.' }, 500);
     }
   } else {
     const { data, error: snapshotError } = await userClient.rpc(
       'get_boarding_management_snapshot',
     );
     if (snapshotError) {
-      return json({ error: snapshotError.message }, 400);
+      console.error('Failed to load the boarding snapshot:', snapshotError);
+      return json({ error: '확정 배차 명단을 불러오지 못했습니다.' }, 500);
     }
     snapshot = data as BoardingSnapshot | null;
   }
@@ -642,14 +640,7 @@ Deno.serve(async (request) => {
       syncedAt,
     });
   } catch (syncError) {
-    return json(
-      {
-        error:
-          syncError instanceof Error
-            ? syncError.message
-            : 'Google Sheet 동기화에 실패했습니다.',
-      },
-      500,
-    );
+    console.error('Failed to sync the boarding roster to Google Sheets:', syncError);
+    return json({ error: 'Google Sheet 동기화에 실패했습니다.' }, 500);
   }
 });

@@ -77,6 +77,8 @@ import styles from './AdminAllocationWorkspacePage.module.css';
 type EditorTab = 'buses' | 'passengers';
 type ConfirmationAction = 'confirm' | 'cancel';
 type CompletionNotice = 'confirmed' | 'cancelled';
+const SLOW_CONFIRMATION_PROMPT_MS = 30_000;
+
 interface ConfirmationFailure {
   title: string;
   reasons: string[];
@@ -121,10 +123,15 @@ const AdminAllocationWorkspacePage = () => {
     useState<ConfirmationFailure | null>(null);
   const [preflightChecking, setPreflightChecking] = useState(false);
   const confirmationInFlightRef = useRef(false);
+  const confirmationAbortControllerRef = useRef<AbortController | null>(null);
+  const confirmationStopRequestedRef = useRef(false);
+  const slowConfirmationTimerRef = useRef<number | null>(null);
   const cancellationInFlightRef = useRef(false);
   const workspaceDeletionInFlightRef = useRef(false);
   const versionRestoreInFlightRef = useRef(false);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [slowConfirmationDialogOpen, setSlowConfirmationDialogOpen] =
+    useState(false);
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [deleteWorkspaceDialogOpen, setDeleteWorkspaceDialogOpen] =
     useState(false);
@@ -835,6 +842,14 @@ const AdminAllocationWorkspacePage = () => {
     }
 
     confirmationInFlightRef.current = true;
+    confirmationStopRequestedRef.current = false;
+    const abortController = new AbortController();
+    confirmationAbortControllerRef.current = abortController;
+    slowConfirmationTimerRef.current = window.setTimeout(() => {
+      if (confirmationInFlightRef.current) {
+        setSlowConfirmationDialogOpen(true);
+      }
+    }, SLOW_CONFIRMATION_PROMPT_MS);
     setSaving(true);
     setConfirmationAction('confirm');
     setCompletionNotice(null);
@@ -847,7 +862,8 @@ const AdminAllocationWorkspacePage = () => {
       if (!session) throw new Error('로그인이 필요합니다.');
       const preflight = await validateAllocationWorkspaceConfirmation(
         row,
-        workspace
+        workspace,
+        abortController.signal
       );
       setConfirmationPreflight(preflight);
       if (!preflight.valid) {
@@ -870,7 +886,12 @@ const AdminAllocationWorkspacePage = () => {
         setError('배차 확정에 실패했습니다. 확정 영역의 실패 이유를 확인해주세요.');
         return;
       }
-      const saved = await confirmAllocationWorkspace(row, workspace, session.user.id);
+      const saved = await confirmAllocationWorkspace(
+        row,
+        workspace,
+        session.user.id,
+        abortController.signal
+      );
       setRow(saved);
       setWorkspace(saved.allocation_data);
       void getAllocationWorkspaceVersions(saved.id)
@@ -881,6 +902,7 @@ const AdminAllocationWorkspacePage = () => {
       setCompletionNotice('confirmed');
       setConfirmDialogOpen(false);
     } catch (confirmError) {
+      if (confirmationStopRequestedRef.current) return;
       const reason =
         confirmError instanceof Error
           ? confirmError.message
@@ -893,10 +915,30 @@ const AdminAllocationWorkspacePage = () => {
         '배차 확정에 실패했습니다. 확정 영역의 실패 이유를 확인해주세요.'
       );
     } finally {
+      if (slowConfirmationTimerRef.current !== null) {
+        window.clearTimeout(slowConfirmationTimerRef.current);
+        slowConfirmationTimerRef.current = null;
+      }
+      confirmationAbortControllerRef.current = null;
       confirmationInFlightRef.current = false;
+      setSlowConfirmationDialogOpen(false);
       setSaving(false);
       setConfirmationAction(null);
     }
+  };
+
+  const stopWaitingForConfirmation = () => {
+    confirmationStopRequestedRef.current = true;
+    confirmationAbortControllerRef.current?.abort();
+    setSlowConfirmationDialogOpen(false);
+    setConfirmDialogOpen(false);
+    setConfirmationFailure({
+      title: '배차 확정 대기를 중단했습니다.',
+      reasons: [
+        '서버 처리가 이미 완료되었을 수 있습니다. 잠시 후 배차 목록을 새로고침해 확정 상태를 확인해주세요.',
+      ],
+    });
+    setError('배차 확정 대기를 중단했습니다. 서버의 최종 상태를 다시 확인해주세요.');
   };
 
   useEffect(() => {
@@ -2245,6 +2287,45 @@ const AdminAllocationWorkspacePage = () => {
                     <BadgeCheck size={18} /> 전체 배차 확정
                   </>
                 )}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {slowConfirmationDialogOpen && (
+        <div className={styles.confirmBackdrop}>
+          <section
+            className={styles.confirmDialog}
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="slow-confirmation-title"
+            aria-describedby="slow-confirmation-description"
+          >
+            <span className={styles.confirmDialogIcon} aria-hidden="true">
+              <LoaderCircle className={styles.spin} size={26} />
+            </span>
+            <p className={styles.confirmDialogEyebrow}>배차 확정 처리 중</p>
+            <h2 id="slow-confirmation-title">서버 처리가 평소보다 오래 걸리고 있습니다.</h2>
+            <p id="slow-confirmation-description">
+              서버에서는 배차 확정을 계속 처리하고 있습니다. 계속 기다리거나 현재
+              화면의 대기를 그만둘 수 있습니다.
+            </p>
+            <div className={styles.confirmDialogActions}>
+              <button
+                type="button"
+                className={styles.confirmDialogCancel}
+                onClick={stopWaitingForConfirmation}
+              >
+                대기 그만두기
+              </button>
+              <button
+                type="button"
+                className={styles.confirmDialogSubmit}
+                onClick={() => setSlowConfirmationDialogOpen(false)}
+                autoFocus
+              >
+                계속 기다리기
               </button>
             </div>
           </section>

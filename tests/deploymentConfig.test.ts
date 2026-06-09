@@ -98,3 +98,21 @@ test('Edge Functions pin Supabase JS to the package-lock version', () => {
 
   assert.ok(checkedImports > 0, 'No Supabase JS Edge Function imports were found.');
 });
+
+test('allocation optimizer launcher validates and documents its service-account secret', () => {
+  const source = readFileSync(
+    'supabase/functions/allocation-optimizer-launcher/index.ts',
+    'utf8'
+  );
+  const readme = readFileSync(
+    'supabase/functions/allocation-optimizer-launcher/README.md',
+    'utf8'
+  );
+
+  assert.match(
+    source,
+    /GCP_SERVICE_ACCOUNT_JSON must be valid service-account JSON/
+  );
+  assert.match(readme, /supabase secrets set --env-file/);
+  assert.match(readme, /roles\/run\.jobsExecutorWithOverrides/);
+});

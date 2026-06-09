@@ -4,12 +4,9 @@
 name: Deploy to Firebase Hosting on PR
 on: pull_request
 permissions:
-  checks: write
   contents: read
-  pull-requests: write
 jobs:
-  build_and_preview:
-    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+  validate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -20,7 +17,37 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Build
+      - name: Validate
+        env:
+          VITE_SUPABASE_URL: https://example.supabase.co
+          VITE_SUPABASE_ANON_KEY: ci-placeholder-anon-key
+          VITE_KAKAO_JAVASCRIPT_KEY: ci-placeholder-kakao-key
+          VITE_SIMULATION_PROJECT_ID: ci-placeholder-project
+        run: |
+          npm ci
+          npm run lint
+          npm run test:unit
+          python -m pip install -r optimizer/requirements-dev.txt
+          cd optimizer
+          python -m pytest tests -q
+          cd ..
+          npm run build
+
+  build_and_preview:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      checks: write
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Build preview
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
@@ -32,12 +59,6 @@ jobs:
           test -n "$VITE_KAKAO_JAVASCRIPT_KEY"
           test -n "$VITE_SIMULATION_PROJECT_ID"
           npm ci
-          npm run lint
-          npm run test:unit
-          python -m pip install -r optimizer/requirements-dev.txt
-          cd optimizer
-          python -m pytest tests -q
-          cd ..
           npm run build
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:

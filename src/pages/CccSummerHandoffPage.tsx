@@ -49,15 +49,16 @@ const CccSummerHandoffPage = () => {
 
   useEffect(() => {
     let active = true;
+    const code = callbackRequest.code;
     const redirectUri = `${window.location.origin}/handoff/callback`;
 
     window.history.replaceState({}, document.title, '/handoff/callback');
 
-    if (!callbackRequest.code) return;
+    if (!code) return;
 
     const exchange = async () => {
       try {
-        const result = await exchangeCccSummerCode(callbackRequest.code, redirectUri);
+        const result = await exchangeCccSummerCode(code, redirectUri);
         if (!active) return;
 
         setProfile(result.profile);

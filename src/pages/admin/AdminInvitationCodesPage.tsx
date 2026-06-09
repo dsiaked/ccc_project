@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  AlertTriangle,
   ArrowLeft,
   Clipboard,
   KeyRound,
+  LoaderCircle,
   Plus,
   RefreshCw,
   Trash2,
@@ -69,6 +71,14 @@ const AdminInvitationCodesPage = () => {
   const [actionId, setActionId] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const invitationActionInFlightRef = useRef(false);
+  const [pendingAction, setPendingAction] = useState<
+    | { mode: 'cancel'; invitation: AdminInvitationCode }
+    | { mode: 'cleanup' }
+    | null
+  >(null);
+  const [actionDialogError, setActionDialogError] = useState('');
+  const [cleanupReferenceTime] = useState(() => Date.now());
 
   const campusNames = useMemo(
     () =>
@@ -159,7 +169,9 @@ const AdminInvitationCodesPage = () => {
   };
 
   const handleCancel = async (invitation: AdminInvitationCode) => {
-    if (!window.confirm(`${invitation.code ?? invitation.codeHint} 권한 등록 코드를 취소할까요?`)) return;
+    setActionDialogError('');
+    setPendingAction({ mode: 'cancel', invitation });
+    return;
 
     setActionId(invitation.id);
     setError('');
@@ -179,13 +191,9 @@ const AdminInvitationCodesPage = () => {
   };
 
   const handleCleanup = async () => {
-    if (
-      !window.confirm(
-        '취소·만료된 코드와 사용 후 30일이 지난 코드를 삭제하고, 1년이 지난 권한 등록 코드 감사 로그를 정리할까요?'
-      )
-    ) {
-      return;
-    }
+    setActionDialogError('');
+    setPendingAction({ mode: 'cleanup' });
+    return;
 
     setActionId('cleanup');
     setError('');
@@ -208,6 +216,67 @@ const AdminInvitationCodesPage = () => {
       setActionId('');
     }
   };
+
+  const cleanupCandidateCount = useMemo(() => {
+    const thirtyDaysAgo = cleanupReferenceTime - 30 * 24 * 60 * 60 * 1000;
+
+    return invitations.filter(
+      (invitation) =>
+        invitation.status === 'cancelled' ||
+        invitation.status === 'expired' ||
+        (invitation.usedAt !== null &&
+          new Date(invitation.usedAt).getTime() <= thirtyDaysAgo)
+    ).length;
+  }, [cleanupReferenceTime, invitations]);
+
+  const confirmPendingAction = async () => {
+    if (!pendingAction || actionId || invitationActionInFlightRef.current) return;
+
+    const action = pendingAction;
+    invitationActionInFlightRef.current = true;
+    setActionId(action.mode === 'cancel' ? action.invitation.id : 'cleanup');
+    setError('');
+    setMessage('');
+    setActionDialogError('');
+
+    try {
+      if (action.mode === 'cancel') {
+        const cancelled = await cancelAdminInvitationCode(action.invitation.id);
+        if (!cancelled) throw new Error('이미 사용하였거나 만료된 코드입니다.');
+        setMessage('권한 등록 코드를 취소했습니다.');
+      } else {
+        const result = await cleanupAdminInvitationCodes();
+        setMessage(
+          `권한 등록 코드 ${result.deletedInvitations.toLocaleString()}개와 감사 로그 ${result.deletedAuditLogs.toLocaleString()}개를 정리했습니다.`
+        );
+      }
+      await loadData();
+      setPendingAction(null);
+    } catch (actionError) {
+      setActionDialogError(
+        getErrorMessage(
+          actionError,
+          action.mode === 'cancel'
+            ? '권한 등록 코드를 취소하지 못했습니다.'
+            : '지난 권한 등록 코드 기록을 정리하지 못했습니다.'
+        )
+      );
+    } finally {
+      invitationActionInFlightRef.current = false;
+      setActionId('');
+    }
+  };
+
+  useEffect(() => {
+    if (!pendingAction) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !actionId) setPendingAction(null);
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [actionId, pendingAction]);
 
   return (
     <div className={styles.page}>
@@ -393,6 +462,125 @@ const AdminInvitationCodesPage = () => {
           )}
         </section>
       </main>
+      {pendingAction && (
+        <div
+          className={styles.actionBackdrop}
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !actionId) {
+              setPendingAction(null);
+            }
+          }}
+        >
+          <section
+            className={styles.actionDialog}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="invitation-action-dialog-title"
+            aria-describedby="invitation-action-dialog-description"
+          >
+            <span className={styles.actionDialogIcon} aria-hidden="true">
+              {pendingAction.mode === 'cancel' ? (
+                <XCircle size={25} />
+              ) : (
+                <Trash2 size={25} />
+              )}
+            </span>
+            <p className={styles.actionDialogEyebrow}>
+              {pendingAction.mode === 'cancel'
+                ? '활성 코드 취소'
+                : '지난 기록 영구 정리'}
+            </p>
+            <h2 id="invitation-action-dialog-title">
+              {pendingAction.mode === 'cancel'
+                ? `${pendingAction.invitation.code ?? pendingAction.invitation.codeHint} 코드를 취소할까요?`
+                : '지난 권한 등록 코드 기록을 정리할까요?'}
+            </h2>
+            <p id="invitation-action-dialog-description">
+              {pendingAction.mode === 'cancel'
+                ? '취소 즉시 이 코드는 권한 등록에 사용할 수 없게 됩니다. 코드 발급 기록은 목록과 감사 기록에 유지됩니다.'
+                : '취소·만료된 코드, 사용 후 30일이 지난 코드와 1년이 지난 권한 등록 코드 감사 로그를 영구 삭제합니다.'}
+            </p>
+            {pendingAction.mode === 'cancel' ? (
+              <div className={styles.actionSummary}>
+                <div>
+                  <span>등록 권한</span>
+                  <strong>{roleLabels[pendingAction.invitation.role]}</strong>
+                </div>
+                <div>
+                  <span>대상</span>
+                  <strong>
+                    {pendingAction.invitation.campusId
+                      ? campusNames.get(pendingAction.invitation.campusId) ??
+                        '캠퍼스 정보 없음'
+                      : '전체 탑승 관리'}
+                  </strong>
+                </div>
+                <div>
+                  <span>만료 예정</span>
+                  <strong>
+                    {formatDateTime(pendingAction.invitation.expiresAt)}
+                  </strong>
+                </div>
+              </div>
+            ) : (
+              <div className={styles.actionSummary}>
+                <div>
+                  <span>현재 목록 기준 삭제 예상</span>
+                  <strong>{cleanupCandidateCount.toLocaleString()}개 코드</strong>
+                </div>
+                <div>
+                  <span>삭제 대상 코드</span>
+                  <strong>취소·만료 또는 사용 후 30일 경과</strong>
+                </div>
+                <div>
+                  <span>감사 로그 보존</span>
+                  <strong>최근 1년 기록 유지</strong>
+                </div>
+              </div>
+            )}
+            <div className={styles.actionNotice}>
+              <AlertTriangle size={18} aria-hidden="true" />
+              <span>
+                {pendingAction.mode === 'cancel'
+                  ? '취소한 코드는 다시 활성화할 수 없습니다. 필요하면 새 코드를 발급해야 합니다.'
+                  : '정리된 코드와 1년이 지난 감사 로그는 복구할 수 없습니다. 실제 삭제 건수는 서버 실행 시점에 결정됩니다.'}
+              </span>
+            </div>
+            {actionDialogError && (
+              <p className={styles.actionDialogError} role="alert">
+                {actionDialogError}
+              </p>
+            )}
+            <footer className={styles.actionDialogActions}>
+              <button
+                type="button"
+                autoFocus
+                onClick={() => setPendingAction(null)}
+                disabled={Boolean(actionId)}
+              >
+                현재 상태 유지
+              </button>
+              <button
+                type="button"
+                className={styles.actionSubmit}
+                onClick={() => void confirmPendingAction()}
+                disabled={Boolean(actionId)}
+              >
+                {actionId ? (
+                  <>
+                    <LoaderCircle className={styles.spinning} size={17} />
+                    처리 중...
+                  </>
+                ) : pendingAction.mode === 'cancel' ? (
+                  '코드 취소'
+                ) : (
+                  '지난 기록 영구 정리'
+                )}
+              </button>
+            </footer>
+          </section>
+        </div>
+      )}
     </div>
   );
 };

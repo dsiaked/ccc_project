@@ -24,6 +24,32 @@ test('allocation reset serializes job creation and explicitly clears dependencie
   );
 });
 
+test('latest allocation reset relies on cascade cleanup and exposes unexpected database errors', () => {
+  const migration = readFileSync(
+    'supabase/migrations/20260610230025_161_diagnose_allocation_optimization_reset.sql',
+    'utf8'
+  );
+
+  assert.doesNotMatch(migration, /delete from public\.allocation_optimization_events/i);
+  assert.match(migration, /delete from public\.allocation_optimization_jobs/i);
+  assert.match(
+    migration,
+    /Allocation optimization reset failed \[%\]: %[\s\S]*sqlstate, sqlerrm/i
+  );
+});
+
+test('guarded allocation reset uses an explicit full-history predicate', () => {
+  const migration = readFileSync(
+    'supabase/migrations/20260610230027_163_fix_guarded_allocation_optimization_reset.sql',
+    'utf8'
+  );
+
+  assert.match(
+    migration,
+    /delete from public\.allocation_optimization_jobs\s+where id is not null/i
+  );
+});
+
 test('allocation page prioritizes an active job and explains reset results', () => {
   const page = readFileSync(
     'src/pages/admin/AdminExactAllocationPage.tsx',
@@ -64,7 +90,7 @@ test('successful allocation reset restores the calculation-ready view', () => {
   );
   assert.match(
     page,
-    /catch \(resetError\) \{[\s\S]*setResetDialogError\(formatError\(resetError\)\);[\s\S]*await loadRecentJobs\(currentJob\?\.id\)\.catch\(\(\) => undefined\);/
+    /catch \(resetError\) \{[\s\S]*setResetDialogError\(formatResetError\(resetError\)\);[\s\S]*await loadRecentJobs\(currentJob\?\.id\)\.catch\(\(\) => undefined\);/
   );
   assert.match(
     page,

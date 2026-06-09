@@ -52,6 +52,25 @@
 .rowActions button:first-child { border: 1px solid #bfdbfe; background: #eff6ff; color: #1d4ed8; }
 .rowActions button:last-child { border: 1px solid #fecaca; background: #fff1f2; color: #be123c; }
 .rowActions button:disabled, .hero button:disabled, .issueCard > button:disabled { cursor: not-allowed; opacity: .5; }
+.actionBackdrop { position: fixed; inset: 0; z-index: 1400; display: grid; place-items: center; padding: 18px; background: rgba(15, 23, 42, .66); backdrop-filter: blur(4px); }
+.actionDialog { width: min(590px, 100%); max-height: calc(100dvh - 36px); overflow-y: auto; padding: 22px; border: 1px solid #fca5a5; border-radius: 14px; background: #fff; box-shadow: 0 24px 70px rgba(15, 23, 42, .32); }
+.actionDialogIcon { display: grid; place-items: center; width: 48px; height: 48px; margin-bottom: 13px; border-radius: 50%; background: #fee2e2; color: #b42318; }
+.actionDialogEyebrow { margin: 0 0 5px; color: #b42318; font-size: 11px; font-weight: 950; }
+.actionDialog h2 { margin: 0; color: #7f1d1d; font-size: 22px; line-height: 1.4; }
+.actionDialog > p:not(.actionDialogEyebrow):not(.actionDialogError) { margin: 9px 0 0; color: #64748b; font-size: 12px; line-height: 1.6; }
+.actionSummary { display: grid; gap: 7px; margin: 17px 0; }
+.actionSummary > div { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 10px; padding: 10px 11px; border: 1px solid #fecaca; border-radius: 8px; background: #fff7f7; }
+.actionSummary span { color: #64748b; font-size: 10px; font-weight: 900; }
+.actionSummary strong { overflow-wrap: anywhere; color: #991b1b; font-size: 12px; line-height: 1.5; }
+.actionNotice { display: flex; align-items: flex-start; gap: 8px; padding: 11px; border: 1px solid #f7c66c; border-radius: 8px; background: #fffbeb; color: #92400e; font-size: 11px; font-weight: 800; line-height: 1.5; }
+.actionNotice svg { flex: 0 0 auto; }
+.actionDialogError { margin: 11px 0 0; color: #b42318; font-size: 11px; font-weight: 900; line-height: 1.5; }
+.actionDialogActions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 18px; }
+.actionDialogActions button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 42px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; color: #475569; font: inherit; font-size: 11px; font-weight: 900; cursor: pointer; }
+.actionDialogActions .actionSubmit { border-color: #b42318; background: #b42318; color: #fff; }
+.actionDialogActions button:disabled { cursor: not-allowed; opacity: .5; }
+.spinning { animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
 @media (max-width: 1050px) {
   .issueCard { grid-template-columns: 1fr 1fr; }
 }
@@ -65,4 +84,7 @@
   .meta { justify-content: space-between; }
   .listHeader { align-items: flex-start; gap: 12px; flex-direction: column; }
   .listHeaderActions { width: 100%; justify-content: space-between; }
+  .actionBackdrop { align-items: end; padding: 0; }
+  .actionDialog { max-height: 92dvh; padding: 19px 15px calc(18px + env(safe-area-inset-bottom)); border-radius: 14px 14px 0 0; }
+  .actionSummary > div, .actionDialogActions { grid-template-columns: 1fr; }
 }

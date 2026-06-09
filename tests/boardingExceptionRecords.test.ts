@@ -32,6 +32,14 @@ const reasonEditMigration = readFileSync(
   'supabase/migrations/20260610230019_155_boarding_exception_reason_edits.sql',
   'utf8'
 );
+const manualRecordSetup = readFileSync(
+  'sql/setup/160_manual_boarding_exception_records.sql',
+  'utf8'
+);
+const manualRecordMigration = readFileSync(
+  'supabase/migrations/20260610230024_160_manual_boarding_exception_records.sql',
+  'utf8'
+);
 
 test('special situation records combine the required field exception types', () => {
   assert.match(model, /passenger\.passengerKind !== 'walk_in'/);
@@ -118,4 +126,30 @@ test('boarding managers only receive and edit reasons for assigned buses', () =>
   assert.match(page, /처리 사유 수정/);
   assert.match(archiveService, /get_boarding_exception_reason_edit_snapshot/);
   assert.match(archiveService, /update_boarding_exception_reason/);
+});
+
+test('boarding managers can create manual records only for their assigned buses', () => {
+  assert.equal(manualRecordSetup, manualRecordMigration);
+  assert.match(
+    manualRecordMigration,
+    /create table if not exists public\.manual_boarding_exception_records/i
+  );
+  assert.match(
+    manualRecordMigration,
+    /where public\.can_manage_boarding_bus\(record\.allocation_id, record\.bus_id\)/i
+  );
+  assert.match(
+    manualRecordMigration,
+    /if not public\.can_manage_boarding_bus\(p_allocation_id, p_bus_id\)[\s\S]*You are not assigned to this bus/i
+  );
+  assert.match(
+    manualRecordMigration,
+    /The selected passenger does not belong to this bus/i
+  );
+  assert.match(manualRecordMigration, /p_record_key like p_allocation_id::text \|\| ':manual:%'/i);
+  assert.match(page, /createManualBoardingExceptionRecord/);
+  assert.match(page, /새 기록 추가/);
+  assert.match(page, /관련 탑승자 \(선택\)/);
+  assert.match(archiveService, /get_manual_boarding_exception_records/);
+  assert.match(archiveService, /create_manual_boarding_exception_record/);
 });

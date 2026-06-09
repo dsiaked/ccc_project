@@ -1,5 +1,11 @@
-import { useEffect, useState } from 'react';
-import { ArrowLeft, CalendarClock, Zap } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import {
+  AlertTriangle,
+  ArrowLeft,
+  CalendarClock,
+  LoaderCircle,
+  Zap,
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 import AdminHeader from './AdminHeader';
@@ -60,6 +66,15 @@ const AdminReservationDeadlinePage = () => {
   const [deadlineInput, setDeadlineInput] = useState('');
   const [saving, setSaving] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const deadlineActionInFlightRef = useRef(false);
+  const [pendingAction, setPendingAction] = useState<
+    | { mode: 'set'; deadlineIso: string }
+    | { mode: 'clear' }
+    | { mode: 'immediate' }
+    | null
+  >(null);
+  const [dialogError, setDialogError] = useState('');
+  const [message, setMessage] = useState('');
 
   useEffect(() => {
     let isMounted = true;
@@ -105,60 +120,67 @@ const AdminReservationDeadlinePage = () => {
       return;
     }
 
-    const confirmMessage = deadlineIso
-      ? `신청 마감 일시를 ${formatReservationDeadline(
-          deadlineIso
-        )}(으)로 설정할까요?`
-      : '신청 마감 일시를 해제할까요?';
+    setDialogError('');
+    if (deadlineIso) {
+      setPendingAction({ mode: 'set', deadlineIso });
+    } else {
+      setPendingAction({ mode: 'clear' });
+    }
+  };
 
-    const ok = window.confirm(confirmMessage);
+  const handleCloseImmediately = () => {
+    setDialogError('');
+    setPendingAction({ mode: 'immediate' });
+  };
 
-    if (!ok) return;
+  const confirmDeadlineAction = async () => {
+    if (!pendingAction || saving || deadlineActionInFlightRef.current) return;
 
+    const action = pendingAction;
+    const nextDeadline =
+      action.mode === 'set'
+        ? action.deadlineIso
+        : action.mode === 'immediate'
+          ? new Date().toISOString()
+          : null;
+    deadlineActionInFlightRef.current = true;
     setSaving(true);
+    setDialogError('');
+    setMessage('');
 
     try {
-      const savedDeadline = await updateReservationDeadline(deadlineIso);
+      const savedDeadline = await updateReservationDeadline(nextDeadline);
 
       setDeadlineAt(savedDeadline.deadlineAt);
       setDeadlineInput(formatDateTimeLocal(savedDeadline.deadlineAt));
       setNowMs(Date.now());
-
-      alert('신청 마감 일시를 저장했습니다.');
-    } catch (error) {
-      console.error('신청 마감 저장 실패:', error);
-      alert(
-        `신청 마감 저장 중 오류가 발생했습니다: ${getErrorMessage(error)}`
+      setPendingAction(null);
+      setMessage(
+        action.mode === 'clear'
+          ? '신청 마감 일시를 해제했습니다.'
+          : action.mode === 'immediate'
+            ? '신청을 즉시 마감했습니다.'
+            : '신청 마감 일시를 저장했습니다.'
       );
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleCloseImmediately = async () => {
-    const ok = window.confirm(
-      '지금 즉시 신청을 마감할까요? 마감 후에는 사용자가 신청 정보를 저장하거나 수정할 수 없습니다.'
-    );
-
-    if (!ok) return;
-
-    setSaving(true);
-
-    try {
-      const savedDeadline = await updateReservationDeadline(new Date().toISOString());
-
-      setDeadlineAt(savedDeadline.deadlineAt);
-      setDeadlineInput(formatDateTimeLocal(savedDeadline.deadlineAt));
-      setNowMs(Date.now());
-
-      alert('신청을 즉시 마감했습니다.');
     } catch (error) {
-      console.error('신청 즉시 마감 실패:', error);
-      alert(`신청 즉시 마감 중 오류가 발생했습니다: ${getErrorMessage(error)}`);
+      console.error('신청 마감 변경 실패:', error);
+      setDialogError(`신청 마감 변경 중 오류가 발생했습니다: ${getErrorMessage(error)}`);
     } finally {
+      deadlineActionInFlightRef.current = false;
       setSaving(false);
     }
   };
+
+  useEffect(() => {
+    if (!pendingAction) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !saving) setPendingAction(null);
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [pendingAction, saving]);
 
   if (loading) {
     return (
@@ -215,6 +237,11 @@ const AdminReservationDeadlinePage = () => {
         </section>
 
         <section className={styles.formPanel}>
+          {message && (
+            <p className={styles.successMessage} role="status">
+              {message}
+            </p>
+          )}
           <div className={styles.formGrid}>
             <label className={styles.field}>
               <span>신청 마감 일시</span>
@@ -269,6 +296,111 @@ const AdminReservationDeadlinePage = () => {
           </div>
         </section>
       </main>
+      {pendingAction && (
+        <div
+          className={styles.actionBackdrop}
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !saving) {
+              setPendingAction(null);
+            }
+          }}
+        >
+          <section
+            className={styles.actionDialog}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="deadline-action-dialog-title"
+            aria-describedby="deadline-action-dialog-description"
+          >
+            <span className={styles.actionDialogIcon} aria-hidden="true">
+              {pendingAction.mode === 'immediate' ? (
+                <Zap size={25} />
+              ) : (
+                <CalendarClock size={25} />
+              )}
+            </span>
+            <p className={styles.actionDialogEyebrow}>
+              {pendingAction.mode === 'clear'
+                ? '신청 마감 해제'
+                : pendingAction.mode === 'immediate'
+                  ? '신청 즉시 마감'
+                  : '신청 마감 일시 변경'}
+            </p>
+            <h2 id="deadline-action-dialog-title">
+              {pendingAction.mode === 'clear'
+                ? '신청을 다시 열까요?'
+                : pendingAction.mode === 'immediate'
+                  ? '지금 즉시 신청을 마감할까요?'
+                  : `${formatReservationDeadline(pendingAction.deadlineIso)}에 마감할까요?`}
+            </h2>
+            <p id="deadline-action-dialog-description">
+              {pendingAction.mode === 'clear'
+                ? '마감 제한을 해제해 사용자가 신청 정보를 다시 저장하고 수정할 수 있게 합니다.'
+                : pendingAction.mode === 'immediate'
+                  ? '확정 즉시 사용자는 신청 정보를 저장하거나 수정할 수 없게 됩니다.'
+                  : '지정한 시각부터 사용자는 신청 정보를 저장하거나 수정할 수 없게 됩니다.'}
+            </p>
+            <div className={styles.actionSummary}>
+              <div>
+                <span>현재 마감 일시</span>
+                <strong>{formatReservationDeadline(deadlineAt)}</strong>
+              </div>
+              <div>
+                <span>변경 후</span>
+                <strong>
+                  {pendingAction.mode === 'clear'
+                    ? '마감 제한 없음 · 신청 가능'
+                    : pendingAction.mode === 'immediate'
+                      ? '즉시 마감'
+                      : formatReservationDeadline(pendingAction.deadlineIso)}
+                </strong>
+              </div>
+            </div>
+            <div className={styles.actionNotice}>
+              <AlertTriangle size={18} aria-hidden="true" />
+              <span>
+                {pendingAction.mode === 'clear'
+                  ? '신청을 다시 열면 마감 후에만 가능한 배차 계산, 잔여 좌석 신청, 캠퍼스 송금 보고가 다시 제한됩니다.'
+                  : '마감 후에는 배차 계산, 잔여 좌석 신청, 캠퍼스 송금 보고 등 후속 운영 단계를 진행할 수 있습니다.'}
+              </span>
+            </div>
+            {dialogError && (
+              <p className={styles.actionDialogError} role="alert">
+                {dialogError}
+              </p>
+            )}
+            <footer className={styles.actionDialogActions}>
+              <button
+                type="button"
+                autoFocus
+                onClick={() => setPendingAction(null)}
+                disabled={saving}
+              >
+                현재 설정 유지
+              </button>
+              <button
+                type="button"
+                className={styles.actionSubmit}
+                onClick={() => void confirmDeadlineAction()}
+                disabled={saving}
+              >
+                {saving ? (
+                  <>
+                    <LoaderCircle className={styles.spinning} size={17} />
+                    저장 중...
+                  </>
+                ) : pendingAction.mode === 'clear' ? (
+                  '신청 다시 열기'
+                ) : pendingAction.mode === 'immediate' ? (
+                  '지금 즉시 마감'
+                ) : (
+                  '마감 일시 저장'
+                )}
+              </button>
+            </footer>
+          </section>
+        </div>
+      )}
     </div>
   );
 };

@@ -100,6 +100,18 @@ const exactMessages = new Map<string, string>([
 
 const dynamicMessages: Array<[RegExp, string]> = [
   [
+    /GCP_SERVICE_ACCOUNT_JSON must be valid service-account JSON/i,
+    'Cloud Run Launcher의 GCP_SERVICE_ACCOUNT_JSON 설정이 올바른 JSON이 아닙니다. Supabase Edge Function secret을 다시 등록해주세요.',
+  ],
+  [
+    /GCP_SERVICE_ACCOUNT_JSON is missing client_email or private_key/i,
+    'Cloud Run Launcher의 서비스 계정 JSON에 client_email 또는 private_key가 없습니다. Supabase Edge Function secret을 다시 등록해주세요.',
+  ],
+  [
+    /Allocation optimization reset failed \[([A-Z0-9]+)\]: (.+)/i,
+    '계산 기록 리셋 중 서버 오류가 발생했습니다. 표시된 오류 내용을 관리자에게 전달해주세요.',
+  ],
+  [
     /No API key found in request/i,
     'Supabase API 키가 요청에 포함되지 않았습니다. 배포 환경의 VITE_SUPABASE_ANON_KEY와 배차 Worker의 SUPABASE_SERVICE_ROLE_KEY 설정을 확인해주세요.',
   ],

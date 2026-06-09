@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
   Building2,
@@ -72,6 +72,8 @@ const AdminCampusAdminManagePage = () => {
   const [searching, setSearching] = useState(false);
   const [actionId, setActionId] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const searchRequestIdRef = useRef(0);
+  const actionInFlightRef = useRef(false);
 
   const assignmentMap = useMemo(
     () => new Map(assignments.map((assignment) => [scopeKey(assignment), assignment])),
@@ -116,6 +118,7 @@ const AdminCampusAdminManagePage = () => {
 
   const searchUsers = async (page = 1, campus = target, query = searchQuery) => {
     if (!campus) return;
+    const requestId = ++searchRequestIdRef.current;
     setSearching(true);
     try {
       const searchParams = {
@@ -127,13 +130,15 @@ const AdminCampusAdminManagePage = () => {
         pageSize: USER_PAGE_SIZE,
       };
       const result = await searchUsersForCampusManager(searchParams);
+      if (requestId !== searchRequestIdRef.current) return;
       setUsers(result.users);
       setUserPage(result.page);
       setUserTotal(result.totalCount);
     } catch (error) {
+      if (requestId !== searchRequestIdRef.current) return;
       setMessage({ type: 'error', text: `사용자 검색 중 오류가 발생했습니다: ${getErrorMessage(error)}` });
     } finally {
-      setSearching(false);
+      if (requestId === searchRequestIdRef.current) setSearching(false);
     }
   };
 
@@ -150,13 +155,14 @@ const AdminCampusAdminManagePage = () => {
   const openAllUsersModal = () => openModal(ALL_USERS_SCOPE);
 
   const assignUser = async (user: AdminUserSearchResult) => {
-    if (!target || user.role === 'global_admin') return;
+    if (!target || user.role === 'global_admin' || actionInFlightRef.current) return;
     const changing = Boolean(currentTargetAdmin && currentTargetAdmin.userId !== user.userId);
     if (!window.confirm(changing
       ? `${target.campus} 캠퍼스 회계 순장님을 ${user.name}님으로 변경할까요?`
       : `${user.name}님을 ${target.campus} 캠퍼스 회계 순장님으로 지정할까요?`
     )) return;
 
+    actionInFlightRef.current = true;
     setActionId(user.userId);
     try {
       await registerCampusAdmin({ userId: user.userId, district: target.district, team: target.team, campus: target.campus });
@@ -166,12 +172,15 @@ const AdminCampusAdminManagePage = () => {
     } catch (error) {
       setMessage({ type: 'error', text: `관리자 지정 중 오류가 발생했습니다: ${getErrorMessage(error)}` });
     } finally {
+      actionInFlightRef.current = false;
       setActionId(null);
     }
   };
 
   const removeAssignment = async (assignment: CampusAdminAssignment) => {
+    if (actionInFlightRef.current) return;
     if (!window.confirm(`${assignment.campus} 캠퍼스의 ${assignment.name}님 관리자 권한을 해제할까요?`)) return;
+    actionInFlightRef.current = true;
     setActionId(assignment.adminRoleId);
     try {
       await cancelCampusAdmin(assignment.adminRoleId);
@@ -180,6 +189,7 @@ const AdminCampusAdminManagePage = () => {
     } catch (error) {
       setMessage({ type: 'error', text: `관리자 해제 중 오류가 발생했습니다: ${getErrorMessage(error)}` });
     } finally {
+      actionInFlightRef.current = false;
       setActionId(null);
     }
   };
@@ -232,8 +242,8 @@ const AdminCampusAdminManagePage = () => {
                     {assignment ? <><span className={styles.assignedBadge}>지정 완료</span><strong>{assignment.name}</strong><small>{assignment.phone || assignment.email || '연락처 없음'}</small></> : <><span className={styles.unassignedBadge}>미지정</span><strong>등록된 관리자가 없습니다</strong></>}
                   </div>
                   <div className={styles.rowActions}>
-                    {assignment && <button type="button" className={styles.dangerButton} disabled={actionId === assignment.adminRoleId} onClick={() => void removeAssignment(assignment)}>해제</button>}
-                    <button type="button" className={styles.primaryButton} onClick={() => openModal(campus)}>{assignment ? '관리자 변경' : '관리자 지정'}</button>
+                    {assignment && <button type="button" className={styles.dangerButton} disabled={Boolean(actionId)} onClick={() => void removeAssignment(assignment)}>해제</button>}
+                    <button type="button" className={styles.primaryButton} disabled={Boolean(actionId)} onClick={() => openModal(campus)}>{assignment ? '관리자 변경' : '관리자 지정'}</button>
                   </div>
                 </article>
               );
@@ -264,7 +274,7 @@ const AdminCampusAdminManagePage = () => {
                   <article className={`${styles.userCard} ${isCurrent ? styles.currentAdminCard : ''}`} key={user.userId}>
                     <div className={styles.userAvatar}>{user.name.trim().slice(0, 1) || '?'}</div>
                     <div className={styles.userInfo}><div className={styles.userTitleRow}><strong>{user.name}</strong>{isCurrent && <span className={styles.assignedBadge}>현재 관리자</span>}{isGlobal && <span className={styles.globalBadge}>전체 관리자</span>}</div><div className={styles.userMeta}><span>{user.district || '지구 미등록'} / {user.team || '팀 미등록'} / {user.campus || '캠퍼스 미등록'}</span>{user.phone && <span>{user.phone}</span>}{user.email && <span>{user.email}</span>}</div>{user.managedCampuses && user.managedCampuses.length > 0 && <small className={styles.managedText}>현재 관리 캠퍼스 {user.managedCampuses.length}개</small>}</div>
-                    {target.campus && <button type="button" className={isCurrent ? styles.mutedButton : styles.primaryButton} disabled={isCurrent || isGlobal || actionId === user.userId} onClick={() => void assignUser(user)}>{isCurrent ? '현재 관리자' : '선택'}</button>}
+                    {target.campus && <button type="button" className={isCurrent ? styles.mutedButton : styles.primaryButton} disabled={isCurrent || isGlobal || Boolean(actionId)} onClick={() => void assignUser(user)}>{isCurrent ? '현재 관리자' : '선택'}</button>}
                   </article>
                 );
               })}

@@ -56,6 +56,12 @@ test('allocation calculation errors are displayed beside the calculation control
     allocationPage,
     /catch \(cancelError\) \{[\s\S]*?setCalculationError\(formatError\(cancelError\)\)/
   );
+  assert.equal(
+    formatExactAllocationErrorMessage(
+      'GCP_SERVICE_ACCOUNT_JSON must be valid service-account JSON.'
+    ),
+    'Cloud Run Launcher의 GCP_SERVICE_ACCOUNT_JSON 설정이 올바른 JSON이 아닙니다. Supabase Edge Function secret을 다시 등록해주세요.'
+  );
 });
 
 test('allocation calculation errors are translated to Korean', () => {

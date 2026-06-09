@@ -11,6 +11,7 @@ import {
   LoaderCircle,
   Pencil,
   Phone,
+  Plus,
   RefreshCw,
   Search,
   UserPlus,
@@ -21,12 +22,15 @@ import { useNavigate } from 'react-router-dom';
 import { useAdminAuth } from '../../components/AdminAuthProvider';
 import {
   archiveBoardingException,
+  createManualBoardingExceptionRecord,
   getBoardingExceptionArchiveSnapshot,
   getBoardingExceptionReasonEdits,
+  getManualBoardingExceptionRecords,
   restoreBoardingException,
   updateBoardingExceptionReason,
   type BoardingExceptionArchiveSnapshot,
   type BoardingExceptionReasonEdit,
+  type ManualBoardingExceptionRecord,
 } from '../../lib/admin/boardingExceptionArchiveService';
 import { getBoardingManagementSnapshot } from '../../lib/admin/boardingManagementService';
 import { supabase } from '../../lib/supabase';
@@ -44,6 +48,11 @@ const kindDetails: Record<
   BoardingExceptionKind,
   { label: string; description: string; icon: typeof Bus }
 > = {
+  manual: {
+    label: '수동 기록',
+    description: '탑승 관리자가 담당 호차의 특수상황을 직접 기록했습니다.',
+    icon: ClipboardList,
+  },
   walk_in: {
     label: '현장 추가 탑승',
     description: '기존 확정 명단에 없던 탑승자를 현장에서 추가했습니다.',
@@ -89,6 +98,13 @@ const AdminBoardingExceptionsPage = () => {
   const [reasonEdits, setReasonEdits] = useState<BoardingExceptionReasonEdit[]>(
     []
   );
+  const [manualRecords, setManualRecords] = useState<
+    ManualBoardingExceptionRecord[]
+  >([]);
+  const [creatingRecord, setCreatingRecord] = useState(false);
+  const [createBusId, setCreateBusId] = useState('');
+  const [createReservationId, setCreateReservationId] = useState('');
+  const [createReason, setCreateReason] = useState('');
   const [editingRecord, setEditingRecord] =
     useState<BoardingExceptionRecord | null>(null);
   const [editingReason, setEditingReason] = useState('');
@@ -114,15 +130,22 @@ const AdminBoardingExceptionsPage = () => {
     else setLoading(true);
 
     try {
-      const [nextSnapshot, nextArchiveSnapshot, nextReasonEdits] =
+      const [
+        nextSnapshot,
+        nextArchiveSnapshot,
+        nextReasonEdits,
+        nextManualRecords,
+      ] =
         await Promise.all([
         getBoardingManagementSnapshot(),
         getBoardingExceptionArchiveSnapshot(),
         getBoardingExceptionReasonEdits(),
+        getManualBoardingExceptionRecords(),
       ]);
       setSnapshot(nextSnapshot);
       setArchiveSnapshot(nextArchiveSnapshot);
       setReasonEdits(nextReasonEdits);
+      setManualRecords(nextManualRecords);
       setError('');
     } catch (loadError) {
       setError(
@@ -182,6 +205,15 @@ const AdminBoardingExceptionsPage = () => {
         },
         scheduleRefresh
       )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'manual_boarding_exception_records',
+        },
+        scheduleRefresh
+      )
       .subscribe();
 
     return () => {
@@ -197,7 +229,31 @@ const AdminBoardingExceptionsPage = () => {
     const editsByRecordKey = new Map(
       reasonEdits.map((edit) => [edit.recordKey, edit])
     );
-    return buildBoardingExceptionRecords(snapshot).map((record) => {
+    const automaticRecords = buildBoardingExceptionRecords(snapshot);
+    const manualExceptionRecords: BoardingExceptionRecord[] = manualRecords.map(
+      (record) => {
+        const bus = snapshot?.buses.find((item) => item.id === record.busId);
+        return {
+          id: `${record.allocationId}:manual:${record.id}`,
+          allocationId: record.allocationId,
+          allocationName: snapshot?.allocationName ?? '',
+          kind: 'manual',
+          passengerId: record.reservationId ?? '',
+          passengerName: record.passengerName ?? '호차 운영 기록',
+          passengerPhone: record.passengerPhone ?? '',
+          campus: record.campus ?? '',
+          busId: record.busId,
+          busNumber: bus?.label ?? record.busId,
+          seatNumber: record.seatNumber ?? '-',
+          actorName: record.createdByName,
+          createdAt: record.createdAt,
+          reason: record.reason,
+          isAutomatic: false,
+        };
+      }
+    );
+    return [...automaticRecords, ...manualExceptionRecords]
+      .map((record) => {
       const edit = editsByRecordKey.get(record.id);
       return edit
         ? {
@@ -207,8 +263,11 @@ const AdminBoardingExceptionsPage = () => {
             reasonUpdatedByName: edit.updatedByName,
           }
         : record;
-    });
-  }, [reasonEdits, snapshot]);
+      })
+      .sort((left, right) =>
+        (right.createdAt ?? '').localeCompare(left.createdAt ?? '')
+      );
+  }, [manualRecords, reasonEdits, snapshot]);
   const archivedKeys = useMemo(
     () => new Set(archiveSnapshot.archivedKeys),
     [archiveSnapshot.archivedKeys]
@@ -237,6 +296,7 @@ const AdminBoardingExceptionsPage = () => {
           bus_move: 0,
           no_show: 0,
           no_show_reversed: 0,
+          manual: 0,
         } as Record<BoardingExceptionKind, number>
       ),
     [sourceRecords]
@@ -368,6 +428,50 @@ const AdminBoardingExceptionsPage = () => {
         actionError instanceof Error
           ? actionError.message
           : '처리 사유를 수정하지 못했습니다.'
+      );
+    } finally {
+      setProcessingRecordId('');
+    }
+  };
+
+  const createPassengers =
+    snapshot?.passengers.filter(
+      (passenger) =>
+        passenger.busId === createBusId &&
+        passenger.passengerKind !== 'walk_in'
+    ) ?? [];
+
+  const openRecordCreator = () => {
+    setCreateBusId(snapshot?.buses[0]?.id ?? '');
+    setCreateReservationId('');
+    setCreateReason('');
+    setCreatingRecord(true);
+  };
+
+  const handleRecordCreate = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!snapshot || !createBusId || !createReason.trim() || processingRecordId) {
+      return;
+    }
+
+    setProcessingRecordId('manual-create');
+    setError('');
+    try {
+      await createManualBoardingExceptionRecord({
+        allocationId: snapshot.allocationId,
+        busId: createBusId,
+        reservationId: createReservationId || undefined,
+        reason: createReason.trim(),
+      });
+      setCreatingRecord(false);
+      setCreateReason('');
+      setCreateReservationId('');
+      await loadSnapshot(true);
+    } catch (actionError) {
+      setError(
+        actionError instanceof Error
+          ? actionError.message
+          : '특수상황 기록을 생성하지 못했습니다.'
       );
     } finally {
       setProcessingRecordId('');
@@ -529,6 +633,16 @@ const AdminBoardingExceptionsPage = () => {
                 {filteredRecords.length.toLocaleString()}건 표시
               </p>
             </div>
+            {view === 'unresolved' && (
+              <button
+                type="button"
+                onClick={openRecordCreator}
+                disabled={!snapshot}
+              >
+                <Plus size={15} />
+                기록 추가
+              </button>
+            )}
             <button type="button" onClick={() => navigate('/admin/boarding')}>
               탑승 관리에서 처리
             </button>
@@ -746,6 +860,94 @@ const AdminBoardingExceptionsPage = () => {
               </button>
             </footer>
           </section>
+        </div>
+      )}
+      {creatingRecord && snapshot && (
+        <div
+          className={styles.modalBackdrop}
+          onMouseDown={() => setCreatingRecord(false)}
+        >
+          <form
+            className={styles.reasonModal}
+            onSubmit={(event) => void handleRecordCreate(event)}
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <header>
+              <div>
+                <span>담당 호차 특수상황</span>
+                <h2>새 기록 추가</h2>
+              </div>
+              <button type="button" onClick={() => setCreatingRecord(false)}>
+                닫기
+              </button>
+            </header>
+            <label>
+              <span>호차</span>
+              <select
+                value={createBusId}
+                onChange={(event) => {
+                  setCreateBusId(event.target.value);
+                  setCreateReservationId('');
+                }}
+                required
+              >
+                {snapshot.buses.map((bus) => (
+                  <option key={bus.id} value={bus.id}>
+                    {formatBusLabel(bus.label)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>관련 탑승자 (선택)</span>
+              <select
+                value={createReservationId}
+                onChange={(event) => setCreateReservationId(event.target.value)}
+              >
+                <option value="">호차 전체 또는 탑승자 미지정</option>
+                {createPassengers.map((passenger) => (
+                  <option
+                    key={passenger.reservationId}
+                    value={passenger.reservationId}
+                  >
+                    {passenger.name} · 좌석 {passenger.seatNumber}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>상황 및 처리 내용</span>
+              <textarea
+                value={createReason}
+                onChange={(event) => setCreateReason(event.target.value)}
+                rows={5}
+                placeholder="발생한 상황과 조치 내용을 구체적으로 입력해주세요."
+                autoFocus
+                required
+              />
+            </label>
+            <small>
+              담당 호차에만 기록할 수 있으며, 생성자와 생성 시각이 함께
+              보존됩니다.
+            </small>
+            <footer>
+              <button type="button" onClick={() => setCreatingRecord(false)}>
+                취소
+              </button>
+              <button
+                type="submit"
+                disabled={
+                  !createBusId ||
+                  !createReason.trim() ||
+                  Boolean(processingRecordId)
+                }
+              >
+                {processingRecordId === 'manual-create'
+                  ? '생성 중'
+                  : '기록 생성'}
+              </button>
+            </footer>
+          </form>
         </div>
       )}
       {editingRecord && (

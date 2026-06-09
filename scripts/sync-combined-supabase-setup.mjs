@@ -93,6 +93,11 @@ const setupFiles = [
   '157_ccc_summer_user_links.sql',
   '158_allow_allocation_confirmation_cancel_before_deadline.sql',
   '159_personal_notification_audit_reasons.sql',
+  '160_manual_boarding_exception_records.sql',
+  '161_diagnose_allocation_optimization_reset.sql',
+  '162_ccc_summer_campus_mapping.sql',
+  '163_fix_guarded_allocation_optimization_reset.sql',
+  '164_extend_allocation_confirmation_timeout.sql',
 ];
 
 let combined = readFileSync(combinedPath, 'utf8').replaceAll('\r\n', '\n');

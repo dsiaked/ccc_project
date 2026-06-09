@@ -12,6 +12,20 @@ export interface BoardingExceptionReasonEdit {
   updatedByName: string;
 }
 
+export interface ManualBoardingExceptionRecord {
+  id: string;
+  allocationId: string;
+  busId: string;
+  reservationId: string | null;
+  passengerName: string | null;
+  passengerPhone: string | null;
+  campus: string | null;
+  seatNumber: string | null;
+  reason: string;
+  createdAt: string;
+  createdByName: string;
+}
+
 const isMissingArchiveRpc = (error: { code?: string; message?: string }) =>
   error.code === 'PGRST202' ||
   error.code === '42883' ||
@@ -100,6 +114,42 @@ export const updateBoardingExceptionReason = async (input: {
     if (isMissingArchiveRpc(error)) {
       throw new Error(
         '처리 사유 수정 DB 기능이 설치되지 않았습니다. Supabase에 sql/setup/155_boarding_exception_reason_edits.sql을 적용해주세요.'
+      );
+    }
+    throw new Error(error.message);
+  }
+};
+
+export const getManualBoardingExceptionRecords = async () => {
+  const { data, error } = await supabase.rpc(
+    'get_manual_boarding_exception_records'
+  );
+  if (error) {
+    if (isMissingArchiveRpc(error)) return [] as ManualBoardingExceptionRecord[];
+    throw new Error(error.message);
+  }
+  return (Array.isArray(data) ? data : []) as ManualBoardingExceptionRecord[];
+};
+
+export const createManualBoardingExceptionRecord = async (input: {
+  allocationId: string;
+  busId: string;
+  reservationId?: string;
+  reason: string;
+}) => {
+  const { error } = await supabase.rpc(
+    'create_manual_boarding_exception_record',
+    {
+      p_allocation_id: input.allocationId,
+      p_bus_id: input.busId,
+      p_reservation_id: input.reservationId || null,
+      p_reason: input.reason,
+    }
+  );
+  if (error) {
+    if (isMissingArchiveRpc(error)) {
+      throw new Error(
+        '수동 특수상황 기록 DB 기능이 설치되지 않았습니다. Supabase에 sql/setup/160_manual_boarding_exception_records.sql을 적용해주세요.'
       );
     }
     throw new Error(error.message);

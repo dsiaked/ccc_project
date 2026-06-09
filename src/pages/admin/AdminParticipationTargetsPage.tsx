@@ -9,6 +9,7 @@ import {
   type ClipboardEvent,
   type KeyboardEvent,
 } from 'react';
+import { AlertTriangle, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import AdminHeader from './AdminHeader';
 import { supabase } from '../../lib/supabase';
@@ -51,6 +52,7 @@ interface ParticipationSnapshot {
 }
 
 type SaveStatus = 'saving' | 'saved' | 'error';
+type RowDeletionMode = 'selected' | 'filtered';
 
 const SPREADSHEET_COLUMNS: SpreadsheetColumn[] = [
   'district',
@@ -185,6 +187,11 @@ const AdminParticipationTargetsPage = () => {
   const [participationTargets, setParticipationTargets] = useState<
     Record<string, number>
   >({});
+  const rowDeletionInFlightRef = useRef(false);
+  const [pendingRowDeletion, setPendingRowDeletion] = useState<{
+    mode: RowDeletionMode;
+    rows: CampusTargetRow[];
+  } | null>(null);
 
   useEffect(() => {
     const loadCampuses = async () => {
@@ -493,22 +500,7 @@ const AdminParticipationTargetsPage = () => {
       return;
     }
 
-    const confirmed = window.confirm(
-      `선택한 ${targetRows.length.toLocaleString()}개 행을 삭제할까요?`
-    );
-
-    if (!confirmed) return;
-
-    const targetKeys = new Set(targetRows.map((row) => row.key));
-    const nextTargets = { ...participationTargets };
-
-    targetKeys.forEach((key) => delete nextTargets[key]);
-    pushUndoSnapshot();
-    saveParticipationTargets(nextTargets);
-    saveCampuses(campuses.filter((row) => !targetKeys.has(row.key)));
-    setCellSelection(null);
-    setMessage(`${targetRows.length.toLocaleString()}개 행을 삭제했습니다.`);
-    setError(null);
+    setPendingRowDeletion({ mode: 'selected', rows: [...targetRows] });
   };
 
   const handleDeleteFilteredCampusRows = () => {
@@ -520,12 +512,14 @@ const AdminParticipationTargetsPage = () => {
       return;
     }
 
-    const confirmed = window.confirm(
-      `현재 표시된 ${targetRows.length.toLocaleString()}개 행을 모두 삭제할까요?`
-    );
+    setPendingRowDeletion({ mode: 'filtered', rows: [...targetRows] });
+  };
 
-    if (!confirmed) return;
+  const confirmRowDeletion = () => {
+    if (!pendingRowDeletion || rowDeletionInFlightRef.current) return;
 
+    rowDeletionInFlightRef.current = true;
+    const targetRows = pendingRowDeletion.rows;
     const targetKeys = new Set(targetRows.map((row) => row.key));
     const nextTargets = { ...participationTargets };
 
@@ -533,8 +527,11 @@ const AdminParticipationTargetsPage = () => {
     pushUndoSnapshot();
     saveParticipationTargets(nextTargets);
     saveCampuses(campuses.filter((row) => !targetKeys.has(row.key)));
+    setCellSelection(null);
+    setPendingRowDeletion(null);
     setMessage(`${targetRows.length.toLocaleString()}개 행을 삭제했습니다.`);
     setError(null);
+    rowDeletionInFlightRef.current = false;
   };
 
   const handleReloadCampusRows = async () => {
@@ -970,6 +967,27 @@ const AdminParticipationTargetsPage = () => {
         .length,
     [campuses, participationTargets]
   );
+  const pendingDeletionTargetTotal = useMemo(
+    () =>
+      pendingRowDeletion?.rows.reduce(
+        (sum, row) => sum + (participationTargets[row.key] || 0),
+        0
+      ) ?? 0,
+    [participationTargets, pendingRowDeletion]
+  );
+
+  useEffect(() => {
+    if (!pendingRowDeletion) return;
+
+    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === 'Escape' && !rowDeletionInFlightRef.current) {
+        setPendingRowDeletion(null);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [pendingRowDeletion]);
 
   const getSelectionBounds = () => {
     if (!cellSelection) return null;
@@ -1457,6 +1475,98 @@ const AdminParticipationTargetsPage = () => {
         </section>
 
       </main>
+      {pendingRowDeletion && (
+        <div
+          className={styles.deletionBackdrop}
+          onMouseDown={(event) => {
+            if (
+              event.target === event.currentTarget &&
+              !rowDeletionInFlightRef.current
+            ) {
+              setPendingRowDeletion(null);
+            }
+          }}
+        >
+          <section
+            className={styles.deletionDialog}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="row-deletion-dialog-title"
+            aria-describedby="row-deletion-dialog-description"
+          >
+            <span className={styles.deletionDialogIcon} aria-hidden="true">
+              <Trash2 size={25} />
+            </span>
+            <p className={styles.deletionDialogEyebrow}>
+              {pendingRowDeletion.mode === 'selected'
+                ? '선택 행 삭제'
+                : '필터 결과 전체 삭제'}
+            </p>
+            <h2 id="row-deletion-dialog-title">
+              {pendingRowDeletion.rows.length.toLocaleString()}개 설정 행을
+              삭제할까요?
+            </h2>
+            <p id="row-deletion-dialog-description">
+              이 설정표에서 행과 연결된 참여 목표값을 제거하고 자동 저장합니다.
+              DB의 실제 지구·팀·캠퍼스 조직 구조는 삭제되지 않습니다.
+            </p>
+            <div className={styles.deletionSummary}>
+              <div>
+                <span>삭제 대상</span>
+                <strong>
+                  {pendingRowDeletion.rows.length.toLocaleString()}개 행
+                </strong>
+              </div>
+              <div>
+                <span>제거되는 참여 목표 합계</span>
+                <strong>{pendingDeletionTargetTotal.toLocaleString()}명</strong>
+              </div>
+            </div>
+            <div className={styles.deletionPreview}>
+              {pendingRowDeletion.rows.slice(0, 5).map((row) => (
+                <div key={row.rowId || row.key}>
+                  <strong>{row.campus}</strong>
+                  <span>
+                    {row.district} · {row.team} ·{' '}
+                    {(participationTargets[row.key] || 0).toLocaleString()}명
+                  </span>
+                </div>
+              ))}
+              {pendingRowDeletion.rows.length > 5 && (
+                <p>
+                  외 {(pendingRowDeletion.rows.length - 5).toLocaleString()}개
+                  행
+                </p>
+              )}
+            </div>
+            <div className={styles.deletionNotice}>
+              <AlertTriangle size={18} aria-hidden="true" />
+              <span>
+                삭제 직후 실행 취소로 되돌릴 수 있습니다. 필터 결과 삭제는 현재
+                화면에 표시된 행만 대상으로 고정되어 있습니다.
+              </span>
+            </div>
+            <footer className={styles.deletionDialogActions}>
+              <button
+                type="button"
+                autoFocus
+                onClick={() => setPendingRowDeletion(null)}
+              >
+                설정 행 유지
+              </button>
+              <button
+                type="button"
+                className={styles.deletionSubmit}
+                onClick={confirmRowDeletion}
+              >
+                {pendingRowDeletion.mode === 'selected'
+                  ? '선택 행 삭제'
+                  : '필터 결과 삭제'}
+              </button>
+            </footer>
+          </section>
+        </div>
+      )}
     </div>
   );
 };

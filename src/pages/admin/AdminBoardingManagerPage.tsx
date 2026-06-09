@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  AlertTriangle,
   ArrowLeft,
   Bus,
   ChevronDown,
   ChevronUp,
+  LoaderCircle,
   Save,
   Search,
   ShieldCheck,
@@ -27,8 +29,13 @@ import { formatBusLabel } from '../../utils/busLabel';
 import AdminHeader from './AdminHeader';
 import styles from './AdminBoardingManagerPage.module.css';
 
+type PendingRoleAction =
+  | { mode: 'cancel'; user: BoardingManagerUser }
+  | { mode: 'assign'; users: BoardingManagerUser[] };
+
 const AdminBoardingManagerPage = () => {
   const navigate = useNavigate();
+  const roleActionInFlightRef = useRef(false);
   const [search, setSearch] = useState('');
   const [users, setUsers] = useState<BoardingManagerUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -46,6 +53,8 @@ const AdminBoardingManagerPage = () => {
   const [assignmentDrafts, setAssignmentDrafts] = useState<Record<string, string[]>>({});
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState<'error' | 'success'>('error');
+  const [pendingRoleAction, setPendingRoleAction] = useState<PendingRoleAction | null>(null);
+  const [roleActionDialogError, setRoleActionDialogError] = useState('');
 
   const managers = useMemo(
     () => users.filter((user) => user.isBoardingManager),
@@ -111,72 +120,133 @@ const AdminBoardingManagerPage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleCancelManager = async (user: BoardingManagerUser) => {
-    if (!window.confirm(`${user.name}님의 탑승 관리 간사님 권한을 해제할까요?`)) return;
+  useEffect(() => {
+    if (!pendingRoleAction) return;
 
-    setActionUserId(user.userId);
-    setMessage('');
-    try {
-      await cancelBoardingManager(user.userId);
-      setUsers((current) =>
-        current.map((item) =>
-          item.userId === user.userId
-            ? { ...item, isBoardingManager: false, assignedBusIds: [] }
-            : item
-        )
-      );
-      setAssignmentDrafts((current) => ({ ...current, [user.userId]: [] }));
-      setEditingUserId((current) => (current === user.userId ? '' : current));
-      setMessageType('success');
-      setMessage(`${user.name}님의 탑승 관리 간사님 권한을 해제했습니다.`);
-    } catch (error) {
-      setMessageType('error');
-      setMessage(error instanceof Error ? error.message : '권한을 변경하지 못했습니다.');
-    } finally {
-      setActionUserId('');
-    }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !actionUserId) {
+        setPendingRoleAction(null);
+        setRoleActionDialogError('');
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [actionUserId, pendingRoleAction]);
+
+  const closeRoleActionDialog = () => {
+    if (actionUserId) return;
+    setPendingRoleAction(null);
+    setRoleActionDialogError('');
   };
 
-  const handleAssignSelected = async () => {
+  const handleCancelManager = (user: BoardingManagerUser) => {
+    if (actionUserId) return;
+    setRoleActionDialogError('');
+    setPendingRoleAction({ mode: 'cancel', user });
+  };
+
+  const handleAssignSelected = () => {
+    if (actionUserId) return;
     const selectedUsers = candidates.filter((user) =>
       selectedCandidateIds.includes(user.userId)
     );
     if (selectedUsers.length === 0) return;
-    if (!window.confirm(`선택한 ${selectedUsers.length.toLocaleString()}명을 탑승 관리 간사님으로 지정할까요?`)) {
-      return;
-    }
+    setRoleActionDialogError('');
+    setPendingRoleAction({ mode: 'assign', users: selectedUsers });
+  };
 
-    setActionUserId('selected-candidates');
+  const confirmRoleAction = async () => {
+    if (!pendingRoleAction || actionUserId || roleActionInFlightRef.current) return;
+
+    roleActionInFlightRef.current = true;
+    setActionUserId(
+      pendingRoleAction.mode === 'cancel'
+        ? pendingRoleAction.user.userId
+        : 'selected-candidates'
+    );
     setMessage('');
-    const results = await Promise.allSettled(
-      selectedUsers.map((user) => assignBoardingManager(user.userId))
-    );
-    const succeededIds = selectedUsers
-      .filter((_, index) => results[index].status === 'fulfilled')
-      .map((user) => user.userId);
-    const failedResults = results.filter((result) => result.status === 'rejected');
+    setRoleActionDialogError('');
 
-    setUsers((current) =>
-      current.map((user) =>
-        succeededIds.includes(user.userId)
-          ? { ...user, isBoardingManager: true }
-          : user
-      )
-    );
-    setSelectedCandidateIds((current) =>
-      current.filter((userId) => !succeededIds.includes(userId))
-    );
+    try {
+      if (pendingRoleAction.mode === 'cancel') {
+        const { user } = pendingRoleAction;
+        await cancelBoardingManager(user.userId);
+        setUsers((current) =>
+          current.map((item) =>
+            item.userId === user.userId
+              ? { ...item, isBoardingManager: false, assignedBusIds: [] }
+              : item
+          )
+        );
+        setAssignmentDrafts((current) => ({ ...current, [user.userId]: [] }));
+        setEditingUserId((current) => (current === user.userId ? '' : current));
+        setPendingRoleAction(null);
+        setMessageType('success');
+        setMessage(`${user.name}님의 탑승 관리 간사님 권한을 해제했습니다.`);
+        return;
+      }
 
-    if (failedResults.length === 0) {
-      setMessageType('success');
-      setMessage(`${selectedUsers.length.toLocaleString()}명을 탑승 관리 간사님으로 지정했습니다.`);
-    } else {
-      setMessageType('error');
-      setMessage(
-        `${succeededIds.length.toLocaleString()}명 지정 완료, ${failedResults.length.toLocaleString()}명 지정 실패했습니다. 실패한 사용자를 다시 확인해주세요.`
+      const selectedUsers = pendingRoleAction.users;
+      const results = await Promise.allSettled(
+        selectedUsers.map((user) => assignBoardingManager(user.userId))
       );
+      const succeededIds = selectedUsers
+        .filter((_, index) => results[index].status === 'fulfilled')
+        .map((user) => user.userId);
+      const failedUsers = selectedUsers.filter(
+        (_, index) => results[index].status === 'rejected'
+      );
+
+      setUsers((current) =>
+        current.map((user) =>
+          succeededIds.includes(user.userId)
+            ? { ...user, isBoardingManager: true }
+            : user
+        )
+      );
+      setSelectedCandidateIds((current) =>
+        current.filter((userId) => !succeededIds.includes(userId))
+      );
+
+      if (failedUsers.length === 0) {
+        setPendingRoleAction(null);
+        setMessageType('success');
+        setMessage(`${selectedUsers.length.toLocaleString()}명을 탑승 관리 간사님으로 지정했습니다.`);
+      } else {
+        setPendingRoleAction({ mode: 'assign', users: failedUsers });
+        setRoleActionDialogError(
+          `${succeededIds.length.toLocaleString()}명은 지정되었고 ${failedUsers.length.toLocaleString()}명은 실패했습니다. 아래 실패 대상만 다시 시도할 수 있습니다.`
+        );
+      }
+    } catch (error) {
+      setRoleActionDialogError(
+        error instanceof Error ? error.message : '권한을 변경하지 못했습니다.'
+      );
+    } finally {
+      roleActionInFlightRef.current = false;
+      setActionUserId('');
     }
-    setActionUserId('');
+  };
+
+  const getAffiliation = (user: BoardingManagerUser) =>
+    [user.district, user.team, user.campus].filter(Boolean).join(' / ') || '소속 미등록';
+
+  const getRoleActionTitle = () => {
+    if (pendingRoleAction?.mode === 'cancel') {
+      return `${pendingRoleAction.user.name}님의 권한을 해제할까요?`;
+    }
+    if (pendingRoleAction?.mode === 'assign') {
+      return `선택한 ${pendingRoleAction.users.length.toLocaleString()}명을 지정할까요?`;
+    }
+    return '';
+  };
+
+  const getRoleActionConfirmLabel = () => {
+    if (actionUserId) {
+      return pendingRoleAction?.mode === 'cancel' ? '권한 해제 중...' : '지정 중...';
+    }
+    return pendingRoleAction?.mode === 'cancel' ? '권한 해제' : '선택 사용자 지정';
   };
 
   const handleAssignmentToggle = (userId: string, busId: string) => {
@@ -291,7 +361,7 @@ const AdminBoardingManagerPage = () => {
                             <strong>{user.name}</strong>
                             <span>{user.assignedBusIds.length.toLocaleString()}대 담당</span>
                           </div>
-                          <p>{[user.district, user.team, user.campus].filter(Boolean).join(' / ') || '소속 미등록'}</p>
+                          <p>{getAffiliation(user)}</p>
                         </div>
                         <div className={styles.busSummary}>
                           {busLabels.length > 0 ? (
@@ -316,7 +386,7 @@ const AdminBoardingManagerPage = () => {
                           <button
                             type="button"
                             className={styles.cancel}
-                            onClick={() => void handleCancelManager(user)}
+                            onClick={() => handleCancelManager(user)}
                             disabled={Boolean(actionUserId)}
                           >
                             <UserX size={15} /> 해제
@@ -423,7 +493,7 @@ const AdminBoardingManagerPage = () => {
                 <button
                   type="button"
                   className={styles.assignSelected}
-                  onClick={() => void handleAssignSelected()}
+                  onClick={handleAssignSelected}
                   disabled={Boolean(actionUserId) || selectedCandidateIds.length === 0}
                 >
                   <UserPlus size={15} />
@@ -455,7 +525,7 @@ const AdminBoardingManagerPage = () => {
                       <div className={styles.avatar}>{user.name.slice(0, 1)}</div>
                       <div className={styles.userInfo}>
                         <strong>{user.name}</strong>
-                        <p>{[user.district, user.team, user.campus].filter(Boolean).join(' / ') || '소속 미등록'}</p>
+                        <p>{getAffiliation(user)}</p>
                         <small>{user.phone || '연락처 없음'} · {user.email || '이메일 없음'}</small>
                       </div>
                     </label>
@@ -466,6 +536,118 @@ const AdminBoardingManagerPage = () => {
           )}
         </section>
       </main>
+
+      {pendingRoleAction && (
+        <div
+          className={styles.modalBackdrop}
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closeRoleActionDialog();
+          }}
+        >
+          <section
+            className={styles.roleActionModal}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="role-action-title"
+            aria-describedby="role-action-description"
+          >
+            <div
+              className={`${styles.modalIcon} ${
+                pendingRoleAction.mode === 'cancel' ? styles.dangerIcon : ''
+              }`}
+            >
+              {pendingRoleAction.mode === 'cancel'
+                ? <AlertTriangle size={24} />
+                : <ShieldCheck size={24} />}
+            </div>
+
+            <div className={styles.modalHeading}>
+              <span>
+                {pendingRoleAction.mode === 'cancel' ? '권한 해제 검토' : '권한 지정 검토'}
+              </span>
+              <h2 id="role-action-title">{getRoleActionTitle()}</h2>
+              <p id="role-action-description">
+                {pendingRoleAction.mode === 'cancel'
+                  ? '탑승 관리 권한과 현재 담당 호차가 함께 해제됩니다.'
+                  : '선택한 사용자에게 탑승 관리 권한을 부여합니다.'}
+              </p>
+            </div>
+
+            {pendingRoleAction.mode === 'cancel' ? (
+              <>
+                <div className={styles.reviewCard}>
+                  <strong>{pendingRoleAction.user.name}</strong>
+                  <span>{getAffiliation(pendingRoleAction.user)}</span>
+                  <small>
+                    현재 담당 호차 {pendingRoleAction.user.assignedBusIds.length.toLocaleString()}대
+                  </small>
+                </div>
+                <div className={styles.impactBox}>
+                  <strong><AlertTriangle size={16} /> 해제 시 적용되는 변경</strong>
+                  <p>탑승 관리 화면 접근 권한을 잃고, 현재 담당 호차 지정이 모두 삭제됩니다.</p>
+                  {getAssignedBusLabels(pendingRoleAction.user).length > 0 && (
+                    <div className={styles.modalBusList}>
+                      {getAssignedBusLabels(pendingRoleAction.user).map((label) => (
+                        <span key={label}>{label}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className={styles.userPreviewList}>
+                  {pendingRoleAction.users.slice(0, 5).map((user) => (
+                    <div key={user.userId} className={styles.userPreview}>
+                      <span>{user.name.slice(0, 1)}</span>
+                      <div>
+                        <strong>{user.name}</strong>
+                        <small>{getAffiliation(user)}</small>
+                      </div>
+                    </div>
+                  ))}
+                  {pendingRoleAction.users.length > 5 && (
+                    <p>외 {(pendingRoleAction.users.length - 5).toLocaleString()}명</p>
+                  )}
+                </div>
+                <div className={styles.noticeBox}>
+                  <strong>지정 후 담당 호차를 별도로 선택해야 합니다.</strong>
+                  <p>여러 사용자를 지정하면 일부 사용자만 먼저 완료될 수 있습니다. 실패 대상은 모달에서 다시 시도할 수 있습니다.</p>
+                </div>
+              </>
+            )}
+
+            {roleActionDialogError && (
+              <p className={styles.modalError} role="alert">{roleActionDialogError}</p>
+            )}
+
+            <div className={styles.modalActions}>
+              <button
+                type="button"
+                className={styles.keepButton}
+                onClick={closeRoleActionDialog}
+                disabled={Boolean(actionUserId)}
+                autoFocus
+              >
+                {pendingRoleAction.mode === 'cancel' ? '현재 권한 유지' : '지정 취소'}
+              </button>
+              <button
+                type="button"
+                className={
+                  pendingRoleAction.mode === 'cancel'
+                    ? styles.dangerButton
+                    : styles.confirmButton
+                }
+                onClick={() => void confirmRoleAction()}
+                disabled={Boolean(actionUserId)}
+              >
+                {actionUserId && <LoaderCircle size={16} className={styles.spinner} />}
+                {getRoleActionConfirmLabel()}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
     </div>
   );
 };

@@ -29,11 +29,11 @@ included in the AI input.
 3. Set server-side secrets:
 
    ```bash
-   supabase secrets set OPENAI_API_KEY=...
-   supabase secrets set AI_REPORT_MODEL=gpt-5-mini
+   supabase secrets set GEMINI_API_KEY=...
+   supabase secrets set AI_REPORT_MODEL=gemini-2.5-flash
    ```
 
-`AI_REPORT_MODEL` is optional. The function defaults to `gpt-5-mini`.
+`AI_REPORT_MODEL` is optional. The function defaults to `gemini-2.5-flash`.
 
 ## Access and retention
 

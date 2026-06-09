@@ -223,6 +223,18 @@ export const createDetailedBalanceJob = async (
   return data as unknown as string;
 };
 
+const getFunctionErrorMessage = async (error: unknown) => {
+  if (!error || typeof error !== 'object' || !('context' in error)) return null;
+
+  const context = (error as { context?: unknown }).context;
+  if (!(context instanceof Response)) return null;
+
+  const body = (await context.clone().json().catch(() => null)) as {
+    error?: unknown;
+  } | null;
+  return typeof body?.error === 'string' ? body.error : null;
+};
+
 export const launchExactAllocationJob = async (
   jobId: string,
   executionMode: ExactAllocationExecutionMode
@@ -238,7 +250,12 @@ export const launchExactAllocationJob = async (
       headers: { Authorization: `Bearer ${accessToken}` },
     }
   );
-  if (error) throw error;
+  if (error) {
+    const functionErrorMessage = await getFunctionErrorMessage(error);
+    if (functionErrorMessage) throw new Error(functionErrorMessage);
+    throw error;
+  }
+  if (data?.error) throw new Error(String(data.error));
   return data as { jobId: string; workerId: string; operationName: string | null };
 };
 

@@ -40,6 +40,11 @@ test('allocation launcher and reset validate the session before authenticated ca
     source,
     /resetExactAllocationJobs[\s\S]*await requireAllocationAdminSession\(\);[\s\S]*reset_allocation_optimization_jobs/
   );
+  assert.match(
+    source,
+    /getFunctionErrorMessage[\s\S]*context instanceof Response[\s\S]*context\.clone\(\)\.json\(\)[\s\S]*if \(functionErrorMessage\) throw new Error\(functionErrorMessage\)/
+  );
+  assert.match(source, /if \(data\?\.error\) throw new Error\(String\(data\.error\)\)/);
 });
 
 test('allocation job creation exposes unexpected PostgREST error details', () => {

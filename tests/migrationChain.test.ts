@@ -98,6 +98,41 @@ test('migration chain contains RPCs required by high-risk administrator flows', 
   }
 });
 
+test('recent managed setup patches match their migrations', () => {
+  const migrationBySetupFile = new Map<string, string>();
+  for (const migrationFile of migrationFiles) {
+    const setupFile = migrationFile.replace(/^\d+_/, '');
+    migrationBySetupFile.set(setupFile, migrationFile);
+  }
+  migrationBySetupFile.set(
+    '147_personal_user_management.sql',
+    '20260610230010_149_personal_user_management.sql'
+  );
+
+  const setupFiles = readdirSync('sql/setup')
+    .filter((file) => {
+      const sequence = Number.parseInt(file.match(/^(\d+)_/)?.[1] ?? '', 10);
+      return file.endsWith('.sql') && sequence >= 130;
+    })
+    .sort();
+
+  for (const setupFile of setupFiles) {
+    const migrationFile = migrationBySetupFile.get(setupFile);
+    assert.ok(migrationFile, `${setupFile} has no matching migration`);
+
+    const setupSql = readFileSync(`sql/setup/${setupFile}`, 'utf8').replaceAll(
+      '\r\n',
+      '\n'
+    );
+    const migration = readFileSync(
+      `${migrationDirectory}/${migrationFile}`,
+      'utf8'
+    ).replaceAll('\r\n', '\n');
+
+    assert.equal(migration, setupSql, `${setupFile} differs from ${migrationFile}`);
+  }
+});
+
 test('campus administrator paging setup SQL matches its migration', () => {
   const setupSql = readFileSync(
     'sql/setup/75_campus_admin_manage_users_page.sql',
@@ -401,6 +436,14 @@ for (const [setupFile, migrationFile] of [
     '20260610230019_155_boarding_exception_reason_edits.sql',
   ],
   [
+    '160_manual_boarding_exception_records.sql',
+    '20260610230024_160_manual_boarding_exception_records.sql',
+  ],
+  [
+    '164_extend_allocation_confirmation_timeout.sql',
+    '20260610230028_164_extend_allocation_confirmation_timeout.sql',
+  ],
+  [
     '158_allow_allocation_confirmation_cancel_before_deadline.sql',
     '20260610230020_158_allow_allocation_confirmation_cancel_before_deadline.sql',
   ],
@@ -480,6 +523,26 @@ test('boarding managers are limited to their assigned buses', () => {
   assert.match(
     migration,
     /create policy "Boarding managers can view reservations"[\s\S]*public\.can_manage_current_boarding_bus_label/i
+  );
+});
+
+test('manual boarding exception records stay within the selected allocation', () => {
+  const migration = readFileSync(
+    `${migrationDirectory}/20260610230024_160_manual_boarding_exception_records.sql`,
+    'utf8'
+  );
+
+  assert.match(
+    migration,
+    /create_manual_boarding_exception_record[\s\S]*allocation\.id = p_allocation_id[\s\S]*passenger ->> 'reservationId' = reservation\.id::text[\s\S]*passenger ->> 'busId' = p_bus_id/i
+  );
+  assert.match(
+    migration,
+    /:event:%'[\s\S]*allocation\.id = p_allocation_id[\s\S]*passenger ->> 'reservationId' = reservation\.id::text[\s\S]*passenger ->> 'busId' = p_bus_id/i
+  );
+  assert.match(
+    migration,
+    /:current-no-show:%'[\s\S]*allocation\.id = p_allocation_id[\s\S]*passenger ->> 'reservationId' = reservation\.id::text[\s\S]*passenger ->> 'busId' = p_bus_id/i
   );
 });
 
@@ -688,6 +751,22 @@ test('allocation confirmation avoids broad table locks that can time out', () =>
   assert.match(
     patchMigration,
     /pg_get_functiondef[\s\S]*regexp_replace\([\s\S]*lock table[\s\S]*bus_allocations[\s\S]*pg_advisory_xact_lock/i
+  );
+});
+
+test('allocation confirmation allows long-running server processing', () => {
+  const migration = readFileSync(
+    `${migrationDirectory}/20260610230028_164_extend_allocation_confirmation_timeout.sql`,
+    'utf8'
+  );
+
+  assert.match(
+    migration,
+    /validate_allocation_workspace_confirmation_v2[\s\S]*set statement_timeout = '5min'/i
+  );
+  assert.match(
+    migration,
+    /save_confirmed_allocation_workspace_v3[\s\S]*set statement_timeout = '5min'/i
   );
 });
 
@@ -1099,6 +1178,7 @@ test('combined setup includes the latest campus request workflow', () => {
     'BEGIN sql/setup/153_boarding_move_requests.sql',
     'BEGIN sql/setup/155_boarding_exception_reason_edits.sql',
     'BEGIN sql/setup/158_allow_allocation_confirmation_cancel_before_deadline.sql',
+    'BEGIN sql/setup/160_manual_boarding_exception_records.sql',
   ];
   let previousMarkerIndex = -1;
   for (const marker of orderedMarkers) {

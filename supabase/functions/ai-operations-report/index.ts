@@ -6,6 +6,8 @@ const corsHeaders = {
     'authorization, x-client-info, apikey, content-type',
 };
 
+const GEMINI_REQUEST_TIMEOUT_MS = 30_000;
+
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
@@ -102,27 +104,30 @@ const aggregateLogs = (
   };
 };
 
-const readOutputText = (body: Record<string, unknown>) => {
-  if (typeof body.output_text === 'string') return body.output_text;
+const readGeminiOutputText = (body: Record<string, unknown>) => {
+  const candidates = Array.isArray(body.candidates) ? body.candidates : [];
+  const texts: string[] = [];
 
-  const output = Array.isArray(body.output) ? body.output : [];
-  for (const item of output) {
-    if (!item || typeof item !== 'object') continue;
-    const content = Array.isArray((item as { content?: unknown }).content)
-      ? (item as { content: unknown[] }).content
+  for (const candidate of candidates) {
+    if (!candidate || typeof candidate !== 'object') continue;
+    const content = (candidate as { content?: unknown }).content;
+    if (!content || typeof content !== 'object') continue;
+    const parts = Array.isArray((content as { parts?: unknown }).parts)
+      ? (content as { parts: unknown[] }).parts
       : [];
-    for (const part of content) {
+
+    for (const part of parts) {
       if (
         part &&
         typeof part === 'object' &&
         typeof (part as { text?: unknown }).text === 'string'
       ) {
-        return (part as { text: string }).text;
+        texts.push((part as { text: string }).text);
       }
     }
   }
 
-  return '';
+  return texts.join('\n').trim();
 };
 
 Deno.serve(async (request) => {
@@ -136,8 +141,8 @@ Deno.serve(async (request) => {
   const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-  const openAiApiKey = Deno.env.get('OPENAI_API_KEY') ?? '';
-  const model = Deno.env.get('AI_REPORT_MODEL') ?? 'gpt-5-mini';
+  const geminiApiKey = Deno.env.get('GEMINI_API_KEY') ?? '';
+  const model = Deno.env.get('AI_REPORT_MODEL') ?? 'gemini-2.5-flash';
   const authorization = request.headers.get('Authorization') ?? '';
 
   if (!supabaseUrl || !anonKey || !serviceRoleKey || !authorization) {
@@ -200,8 +205,8 @@ Deno.serve(async (request) => {
   let summary: Record<string, unknown> = {};
 
   try {
-    if (!openAiApiKey) {
-      throw new Error('OPENAI_API_KEY 서버 비밀값이 설정되지 않았습니다.');
+    if (!geminiApiKey) {
+      throw new Error('GEMINI_API_KEY 서버 비밀값이 설정되지 않았습니다.');
     }
 
     const start = periodStart.toISOString();
@@ -228,42 +233,50 @@ Deno.serve(async (request) => {
     if (auditError) throw auditError;
 
     summary = aggregateLogs(activityRows ?? [], auditRows ?? []);
-    const aiResponse = await fetch('https://api.openai.com/v1/responses', {
+    const prompt = JSON.stringify({
+      task:
+        '운영 현황을 평가하고 이상 징후, 운영 개선, 코드 수정 제안, 우선순위별 실행 계획을 작성한다.',
+      requiredSections: [
+        '요약',
+        '운영 현황과 주요 지표',
+        '이상 징후 및 위험',
+        '운영 프로세스 개선 제안',
+        '코드 수정 및 구조 개선 제안',
+        '우선순위별 실행 계획',
+        '분석 한계',
+      ],
+      period: { start, end },
+      projectContext,
+      anonymizedLogSummary: summary,
+    });
+    const aiResponse = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
+      {
       method: 'POST',
+      signal: AbortSignal.timeout(GEMINI_REQUEST_TIMEOUT_MS),
       headers: {
-        Authorization: `Bearer ${openAiApiKey}`,
+        'x-goog-api-key': geminiApiKey,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model,
-        instructions:
-          '당신은 운영 데이터와 코드 구조를 함께 검토하는 시니어 소프트웨어 운영 감사자입니다. 한국어 Markdown으로 간결하지만 실행 가능한 최종보고서를 작성하세요.',
-        input: JSON.stringify({
-          task:
-            '운영 현황을 평가하고 이상 징후, 운영 개선, 코드 수정 제안, 우선순위별 실행 계획을 작성한다.',
-          requiredSections: [
-            '요약',
-            '운영 현황과 주요 지표',
-            '이상 징후 및 위험',
-            '운영 프로세스 개선 제안',
-            '코드 수정 및 구조 개선 제안',
-            '우선순위별 실행 계획',
-            '분석 한계',
-          ],
-          period: { start, end },
-          projectContext,
-          anonymizedLogSummary: summary,
-        }),
+        system_instruction: {
+          parts: [{
+            text:
+              '당신은 운영 데이터와 코드 구조를 함께 검토하는 시니어 소프트웨어 운영 감사자입니다. 한국어 Markdown으로 간결하지만 실행 가능한 최종보고서를 작성하세요.',
+          }],
+        },
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: { maxOutputTokens: 8192 },
       }),
     });
     const aiBody = await aiResponse.json().catch(() => ({})) as Record<string, unknown>;
-    const reportMarkdown = readOutputText(aiBody);
+    const reportMarkdown = readGeminiOutputText(aiBody);
 
     if (!aiResponse.ok || !reportMarkdown) {
       const message =
         typeof aiBody.error === 'object' && aiBody.error
-          ? String((aiBody.error as { message?: unknown }).message ?? 'AI 요청 실패')
-          : 'AI가 보고서 본문을 반환하지 않았습니다.';
+          ? String((aiBody.error as { message?: unknown }).message ?? 'Gemini 요청 실패')
+          : 'Gemini가 보고서 본문을 반환하지 않았습니다.';
       throw new Error(message);
     }
 
@@ -283,6 +296,7 @@ Deno.serve(async (request) => {
     return json({ reportId: report.id });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    console.error('Failed to generate an AI operations report:', error);
     await serviceClient
       .from('ai_operations_reports')
       .update({
@@ -293,6 +307,9 @@ Deno.serve(async (request) => {
         completed_at: new Date().toISOString(),
       })
       .eq('id', report.id);
-    return json({ error: message, reportId: report.id }, 500);
+    return json(
+      { error: 'AI 운영 보고서를 생성하지 못했습니다.', reportId: report.id },
+      500,
+    );
   }
 });

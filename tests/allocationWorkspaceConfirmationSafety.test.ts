@@ -31,6 +31,22 @@ test('allocation confirmation modal preserves server preflight and blocks duplic
   );
 });
 
+test('slow allocation confirmation asks whether to keep waiting or stop', () => {
+  assert.match(page, /const SLOW_CONFIRMATION_PROMPT_MS = 30_000/);
+  assert.match(page, /confirmationAbortControllerRef = useRef<AbortController \| null>/);
+  assert.match(
+    page,
+    /setSlowConfirmationDialogOpen\(true\)[\s\S]*서버 처리가 평소보다 오래 걸리고 있습니다/
+  );
+  assert.match(page, /계속 기다리기/);
+  assert.match(page, /대기 그만두기/);
+  assert.match(page, /confirmationAbortControllerRef\.current\?\.abort\(\)/);
+  assert.match(
+    page,
+    /validateAllocationWorkspaceConfirmation\([\s\S]*abortController\.signal[\s\S]*confirmAllocationWorkspace/
+  );
+});
+
 test('allocation confirmation cancellation explains ticket visibility and draft transition', () => {
   assert.match(page, /setCancelDialogOpen\(true\)/);
   assert.match(page, /탑승자에게 공개된 확정 버스표가 즉시 숨겨지고/);
