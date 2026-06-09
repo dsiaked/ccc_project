@@ -206,10 +206,6 @@ const AdminBoardingPage = () => {
   const selectedBus = snapshot?.buses.find((bus) => bus.id === selectedBusId);
   const normalizedSearch = search.trim().toLocaleLowerCase('ko');
   const isGlobalSearch = Boolean(normalizedSearch);
-  const busesByLabel = useMemo(
-    () => new Map(snapshot?.buses.map((bus) => [bus.label, bus]) ?? []),
-    [snapshot?.buses]
-  );
   const matchingPassengers = useMemo(() => {
     const busLabel = selectedBus?.label;
 
