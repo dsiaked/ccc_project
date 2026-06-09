@@ -9,6 +9,7 @@ const ReservationPage = lazy(() => import('../pages/ReservationPage'));
 const TicketPage = lazy(() => import('../pages/TicketPage'));
 const RemainingSeatPage = lazy(() => import('../pages/RemainingSeatPage'));
 const AuthCallbackPage = lazy(() => import('../pages/AuthCallbackPage'));
+const CccSummerHandoffPage = lazy(() => import('../pages/CccSummerHandoffPage'));
 const ForgotPasswordPage = lazy(() => import('../pages/ForgotPasswordPage'));
 const ResetPasswordPage = lazy(() => import('../pages/ResetPasswordPage'));
 const InvitationCodePage = lazy(() => import('../pages/InvitationCodePage'));
@@ -18,6 +19,7 @@ export const publicRoutes = [
   { path: '/login', element: <LoginPage /> },
   { path: '/signup', element: <SignupPage /> },
   { path: '/auth/callback', element: <AuthCallbackPage /> },
+  { path: '/handoff/callback', element: <CccSummerHandoffPage /> },
   { path: '/forgot-password', element: <ForgotPasswordPage /> },
   { path: '/reset-password', element: <ResetPasswordPage /> },
   { path: '/reservation', element: <ReservationPage /> },
