@@ -9,6 +9,7 @@
   display: flex;
   flex-direction: column;
   gap: 20px;
+  overflow-x: hidden;
   box-shadow: 1px 0 0 rgba(255, 255, 255, 0.08);
   transition:
     width 180ms ease,
@@ -39,6 +40,7 @@
 
 .logo,
 .nav button,
+.homeButton,
 .logoutButton,
 .collapseButton,
 .navGroupToggle {
@@ -124,6 +126,7 @@
   flex: 1;
   flex-direction: column;
   gap: 20px;
+  overflow-x: hidden;
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: #4b5563 transparent;
@@ -132,6 +135,7 @@
 .navGroup {
   display: grid;
   gap: 7px;
+  min-width: 0;
 }
 
 .simpleNav,
@@ -172,6 +176,7 @@
 .navGroupItems {
   display: grid;
   gap: 3px;
+  min-width: 0;
 }
 
 .navGroupItemsCollapsed {
@@ -179,9 +184,11 @@
 }
 
 .navGroupItems button,
+.homeButton,
 .logoutButton {
   position: relative;
   width: 100%;
+  min-width: 0;
   min-height: 42px;
   border-radius: 8px;
   background: transparent;
@@ -189,11 +196,22 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 0 11px;
+  padding: 8px 11px;
   font-size: 14px;
   font-weight: 700;
   text-align: left;
-  white-space: nowrap;
+  white-space: normal;
+}
+
+.homeButton {
+  color: #bfdbfe;
+}
+
+.navItemLabel {
+  min-width: 0;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .header.collapsed .sidebarTop {
@@ -208,6 +226,7 @@
 .header.collapsed .logoLabel,
 .header.collapsed .navGroupToggle,
 .header.collapsed .navItemLabel,
+.header.collapsed .homeLabel,
 .header.collapsed .logoutLabel,
 .header.collapsed .campusSwitcher,
 .header.collapsed .viewSwitcher span {
@@ -228,6 +247,7 @@
 }
 
 .header.collapsed .navGroupItems button,
+.header.collapsed .homeButton,
 .header.collapsed .logoutButton {
   justify-content: center;
   min-height: 44px;
@@ -288,6 +308,7 @@
 }
 
 .navGroupItems button:hover,
+.homeButton:hover,
 .logoutButton:hover {
   background: #1f2937;
   color: #ffffff;
@@ -323,6 +344,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex: 0 0 auto;
   min-width: 20px;
   height: 20px;
   margin-left: auto;
@@ -372,6 +394,7 @@
 .navGroupToggle:focus-visible,
 .viewSwitcher button:focus-visible,
 .navGroupItems button:focus-visible,
+.homeButton:focus-visible,
 .logoutButton:focus-visible,
 .campusSwitcher select:focus-visible {
   outline: 3px solid rgba(96, 165, 250, 0.45);
@@ -465,6 +488,7 @@
 
   .navGroup {
     display: flex;
+    flex: 0 0 auto;
   }
 
   .navGroupToggle {
@@ -473,6 +497,7 @@
 
   .navGroupItems {
     display: flex;
+    flex: 0 0 auto;
     gap: 4px;
   }
 
@@ -481,9 +506,15 @@
   }
 
   .navGroupItems button {
+    flex: 0 0 auto;
     width: auto;
     padding: 0 10px;
     scroll-snap-align: start;
+  }
+
+  .navItemLabel {
+    overflow-wrap: normal;
+    white-space: nowrap;
   }
 
   .nav .activeNavItem::before {
@@ -494,6 +525,7 @@
 
   .header.collapsed .logoLabel,
   .header.collapsed .navItemLabel,
+  .header.collapsed .homeLabel,
   .header.collapsed .logoutLabel {
     display: inline;
   }
@@ -507,6 +539,7 @@
   }
 
   .header.collapsed .navGroupItems button,
+  .header.collapsed .homeButton,
   .header.collapsed .logoutButton {
     justify-content: flex-start;
     min-height: 42px;
@@ -543,6 +576,7 @@
     max-width: 160px;
   }
 
+  .homeButton,
   .logoutButton {
     width: auto;
   }
@@ -563,8 +597,10 @@
   }
 
   .logoLabel,
+  .homeLabel,
   .logoutLabel,
   .header.collapsed .logoLabel,
+  .header.collapsed .homeLabel,
   .header.collapsed .logoutLabel {
     display: none;
   }
@@ -574,6 +610,7 @@
     padding: 0;
   }
 
+  .homeButton,
   .logoutButton {
     width: 44px;
     min-height: 44px;

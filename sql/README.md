@@ -57,17 +57,17 @@ are intentionally patching an older DB.
    - 전체 관리자만 집계 RPC 실행 가능
 
 5c. `55_atomic_allocation_confirmation.sql`
-   - 임시 배차안 확정과 확정 취소를 단일 DB 트랜잭션 RPC로 처리
+   - 배차 초안 확정과 확정 취소를 단일 DB 트랜잭션 RPC로 처리
    - 활성 승객 명단과 버스·좌석 배정을 DB에서 다시 검증
    - 확정 중 일부 승객만 반영되는 부분 성공 상태 방지
 
 5d. `56_post_deadline_remaining_seat_claim.sql`
    - 신청 마감 후 미신청자가 확정 배차안의 잔여 좌석을 직접 선택
-   - 동시 신청 시 좌석 중복 판매를 막고 예약·버스표·배차안을 한 트랜잭션으로 갱신
+   - 동시 신청 시 좌석 중복 배정을 막고 신청·버스표·배차안을 한 트랜잭션으로 갱신
 
 5e. `57_atomic_admin_remaining_seat_sale.sql`
-   - 전체 관리자의 잔여좌석 판매를 단일 DB 트랜잭션으로 처리
-   - 동시 판매 시 잔여좌석, 신청 상태, 좌석번호 중복을 잠금 후 다시 검증
+   - 전체 관리자의 잔여 좌석 신청 처리를 단일 DB 트랜잭션으로 처리
+   - 동시 신청 시 잔여 좌석, 신청 상태, 좌석번호 중복을 잠금 후 다시 검증
 
 6. `30_campus_transfer_settlement.sql`
    - 캠퍼스별 본부 송금 보고/확인
@@ -89,11 +89,11 @@ are intentionally patching an older DB.
    - 사용자별 캠퍼스 공지 읽음 상태 저장 및 기기 간 동기화
 
 9. `50_home_announcements.sql`
-   - 홈 공지 관리
+   - 홈 화면 공지 관리
 
 10. `60_reset_reservation_data.sql`
    - Step 0 세팅 확인 화면의 선택형 DB 정보 초기화 RPC
-   - 운영 데이터와 행선지/버스 옵션/앱 설정/홈 공지/캠퍼스 회계 순장님/조직 구조/유저 계정을 선택적으로 초기화
+   - 운영 데이터와 행선지/버스 옵션/앱 설정/홈 화면 공지/캠퍼스 회계 순장님/조직 구조/유저 계정을 선택적으로 초기화
    - 유저 계정 삭제 시 현재 로그인한 전체 관리자 계정과 프로필은 항상 보호
 
 10a. `63_admin_delete_user_account.sql`

@@ -188,7 +188,7 @@
 
 .toolbarPrimary {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) minmax(170px, 210px) minmax(160px, 200px) auto;
+  grid-template-columns: minmax(220px, 1fr) repeat(3, minmax(150px, 190px)) auto;
   gap: 10px;
 }
 
@@ -277,20 +277,58 @@
   background: #f8fbff;
 }
 
-.advancedFilters label {
-  display: grid;
-  gap: 6px;
+.filterGroup {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid #dbeafe;
+  border-radius: 8px;
+  background: #ffffff;
 }
 
-.advancedFilters label > span {
+.filterGroup legend {
+  padding: 0 5px;
   color: #475467;
   font-size: 11px;
   font-weight: 900;
 }
 
-.advancedFilters select {
-  height: 40px;
+.checkboxOptions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.checkboxOption {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
   padding: 0 10px;
+  border: 1px solid #d0d5dd;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #475467;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.checkboxOption:hover,
+.checkboxOptionActive {
+  border-color: #93c5fd;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.checkboxOption input {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: #2563eb;
+}
+
+.checkboxOption span {
+  white-space: nowrap;
 }
 
 .filterChips {

@@ -28,9 +28,9 @@ jobs:
           npm ci
           npm run lint
           npm run test:unit
-          python -m pip install -r optimizer/requirements.txt
+          python -m pip install -r optimizer/requirements-dev.txt
           cd optimizer
-          python -m unittest discover -s tests -v
+          python -m pytest tests -q
           cd ..
           npm run build
       - uses: FirebaseExtended/action-hosting-deploy@v0

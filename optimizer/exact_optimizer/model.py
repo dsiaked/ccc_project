@@ -133,8 +133,6 @@ def _solve_phase(
     solver.parameters.num_search_workers = search_workers or _search_worker_count()
     solver.parameters.random_seed = 0
     solver.parameters.randomize_search = False
-    if solver.parameters.num_search_workers == 1:
-        solver.parameters.search_branching = cp_model.FIXED_SEARCH
     if max_time_seconds is not None:
         solver.parameters.max_time_in_seconds = max_time_seconds
     monitor_stopped = Event()
@@ -744,6 +742,10 @@ def optimize(
     }
     assignment: dict[tuple[int, tuple[str, int]], cp_model.IntVar] = {}
     assignment_slot_keys_by_cohort: dict[int, list[tuple[str, int]]] = defaultdict(list)
+    assignment_variables_by_slot: dict[
+        tuple[str, int], list[cp_model.IntVar]
+    ] = defaultdict(list)
+    second_choice_variables = []
     for cohort_index, (cohort, passenger_indexes) in enumerate(cohorts):
         _, _, first_choice, second_choice = cohort
         cohort_size = len(passenger_indexes)
@@ -757,19 +759,17 @@ def optimize(
                 )
                 assignment[(cohort_index, slot.key)] = variable
                 assignment_slot_keys_by_cohort[cohort_index].append(slot.key)
+                assignment_variables_by_slot[slot.key].append(variable)
                 cohort_variables.append(variable)
+                if destination == second_choice:
+                    second_choice_variables.append(variable)
                 model.Add(variable <= cohort_size * active[slot.key])
         model.Add(_sum(cohort_variables) == cohort_size)
 
     occupancy: dict[tuple[str, int], cp_model.IntVar] = {}
     for slot in slots:
-        assigned = [
-            variable
-            for (cohort_index, slot_key), variable in assignment.items()
-            if slot_key == slot.key
-        ]
         count = model.NewIntVar(0, data.bus.capacity, f"occupancy_{slot.destination_index}_{slot.slot_index}")
-        model.Add(count == _sum(assigned))
+        model.Add(count == _sum(assignment_variables_by_slot[slot.key]))
         model.Add(count <= data.bus.capacity * active[slot.key])
         model.Add(count >= active[slot.key])
         occupancy[slot.key] = count
@@ -780,22 +780,49 @@ def optimize(
             model.Add(occupancy[previous.key] >= occupancy[current.key])
 
     total_buses = _sum(active.values())
-    second_choice_variables = [
-        variable
-        for (cohort_index, slot_key), variable in assignment.items()
-        if slot_key[0] == cohorts[cohort_index][0][3]
-    ]
+    unused_seats_by_destination = {}
+    first_choice_overflow_by_destination = {}
+    first_choice_demand = Counter(
+        passenger.first_choice for passenger in passengers
+    )
     model.Add(total_buses == optimal_total_buses)
     model.Add(_sum(second_choice_variables) == optimal_second_choices)
-    for destination_slots in slots_by_destination.values():
-        model.Add(
-            _sum(occupancy[slot.key] for slot in destination_slots)
-            >= (
-                data.bus.capacity
-                * _sum(active[slot.key] for slot in destination_slots)
-                - maximum_unused_seats
-            )
+    for destination, destination_slots in slots_by_destination.items():
+        destination_assigned = _sum(
+            occupancy[slot.key] for slot in destination_slots
         )
+        destination_buses = _sum(
+            active[slot.key] for slot in destination_slots
+        )
+        unused_seats = model.NewIntVar(
+            0,
+            maximum_unused_seats,
+            f"destination_{destination_index[destination]}_unused_seats",
+        )
+        model.Add(
+            destination_assigned + unused_seats
+            == data.bus.capacity * destination_buses
+        )
+        unused_seats_by_destination[destination] = unused_seats
+
+        first_choice_overflow = model.NewIntVar(
+            0,
+            first_choice_demand[destination],
+            f"destination_{destination_index[destination]}_first_choice_overflow",
+        )
+        model.Add(
+            first_choice_overflow
+            >= first_choice_demand[destination]
+            - data.bus.capacity * destination_buses
+        )
+        first_choice_overflow_by_destination[destination] = first_choice_overflow
+    model.Add(
+        _sum(unused_seats_by_destination.values()) == maximum_unused_seats
+    )
+    model.Add(
+        _sum(second_choice_variables)
+        >= _sum(first_choice_overflow_by_destination.values())
+    )
 
     _add_detailed_solution_hints(
         model,
@@ -860,19 +887,18 @@ def optimize(
         group_name: str,
         group_values: tuple[str, ...],
         member_sizes: tuple[int, ...],
-        *,
-        include_isolated: bool,
-        include_odd: bool,
     ) -> tuple[
         cp_model.LinearExpr,
-        cp_model.LinearExpr,
-        cp_model.LinearExpr,
-        cp_model.LinearExpr,
+        list[
+            tuple[
+                int,
+                int,
+                list[tuple[int, cp_model.IntVar, cp_model.IntVar]],
+            ]
+        ],
     ]:
         use_variables = []
-        imbalances = []
-        isolated_variables = []
-        odd_variables = []
+        count_variables_by_group = []
         members_by_group: dict[str, list[int]] = defaultdict(list)
         for index, group in enumerate(group_values):
             members_by_group[group].append(index)
@@ -884,6 +910,7 @@ def optimize(
             maximum_count_per_bus = min(group_size, data.bus.capacity)
             group_counts = []
             group_uses = []
+            group_count_variables = []
             possible_slot_keys = {
                 slot_key
                 for member_index in member_indexes
@@ -911,30 +938,35 @@ def optimize(
                 use_variables.append(used)
                 group_counts.append(count)
                 group_uses.append(used)
-
-                if include_isolated:
-                    one = model.NewBoolVar(
-                        f"{group_name}_one_g{group_index}_b{slot_number}"
-                    )
-                    two = model.NewBoolVar(
-                        f"{group_name}_two_g{group_index}_b{slot_number}"
-                    )
-                    model.Add(count == 1).OnlyEnforceIf(one)
-                    model.Add(count != 1).OnlyEnforceIf(one.Not())
-                    model.Add(count == 2).OnlyEnforceIf(two)
-                    model.Add(count != 2).OnlyEnforceIf(two.Not())
-                    isolated_variables.extend((one, two))
-
-                if include_odd:
-                    remainder = model.NewIntVar(
-                        0, 1, f"{group_name}_odd_g{group_index}_b{slot_number}"
-                    )
-                    model.AddModuloEquality(remainder, count, 2)
-                    odd_variables.append(remainder)
+                group_count_variables.append((slot_number, count, used))
+                model.Add(used <= active[slot.key])
 
             model.Add(
                 _sum(group_uses) >= ceil(group_size / data.bus.capacity)
             )
+            count_variables_by_group.append(
+                (group_index, maximum_count_per_bus, group_count_variables)
+            )
+
+        return (
+            _sum(use_variables),
+            count_variables_by_group,
+        )
+
+    def add_distribution_imbalance_metric(
+        group_name: str,
+        count_variables_by_group: list[
+            tuple[
+                int,
+                int,
+                list[tuple[int, cp_model.IntVar, cp_model.IntVar]],
+            ]
+        ],
+    ) -> cp_model.LinearExpr:
+        imbalances = []
+        for group_index, maximum_count_per_bus, count_variables in (
+            count_variables_by_group
+        ):
             maximum = model.NewIntVar(
                 0,
                 maximum_count_per_bus,
@@ -945,12 +977,23 @@ def optimize(
                 maximum_count_per_bus,
                 f"{group_name}_min_g{group_index}",
             )
-            for count, used in zip(group_counts, group_uses):
-                model.Add(maximum >= count)
-                model.Add(
-                    minimum
-                    <= count + maximum_count_per_bus * (1 - used)
+            model.AddMaxEquality(
+                maximum,
+                [count for _, count, _ in count_variables],
+            )
+            adjusted_counts = []
+            for slot_number, count, used in count_variables:
+                adjusted_count = model.NewIntVar(
+                    0,
+                    maximum_count_per_bus,
+                    f"{group_name}_adjusted_g{group_index}_b{slot_number}",
                 )
+                model.Add(
+                    adjusted_count
+                    == count + maximum_count_per_bus * (1 - used)
+                )
+                adjusted_counts.append(adjusted_count)
+            model.AddMinEquality(minimum, adjusted_counts)
             imbalance = model.NewIntVar(
                 0,
                 maximum_count_per_bus,
@@ -958,38 +1001,98 @@ def optimize(
             )
             model.Add(imbalance == maximum - minimum)
             imbalances.append(imbalance)
+        return _sum(imbalances)
 
-        return (
-            _sum(use_variables),
-            _sum(imbalances),
-            _sum(isolated_variables),
-            _sum(odd_variables),
-        )
+    def add_isolated_group_metric(
+        group_name: str,
+        count_variables_by_group: list[
+            tuple[
+                int,
+                int,
+                list[tuple[int, cp_model.IntVar, cp_model.IntVar]],
+            ]
+        ],
+    ) -> cp_model.LinearExpr:
+        isolated_variables = []
+        for group_index, _, count_variables in count_variables_by_group:
+            for slot_number, count, _ in count_variables:
+                one = model.NewBoolVar(
+                    f"{group_name}_one_g{group_index}_b{slot_number}"
+                )
+                two = model.NewBoolVar(
+                    f"{group_name}_two_g{group_index}_b{slot_number}"
+                )
+                model.Add(count == 1).OnlyEnforceIf(one)
+                model.Add(count != 1).OnlyEnforceIf(one.Not())
+                model.Add(count == 2).OnlyEnforceIf(two)
+                model.Add(count != 2).OnlyEnforceIf(two.Not())
+                isolated_variables.extend((one, two))
+        return _sum(isolated_variables)
 
-    campus_metrics = add_group_metrics(
+    def add_odd_group_metric(
+        group_name: str,
+        count_variables_by_group: list[
+            tuple[
+                int,
+                int,
+                list[tuple[int, cp_model.IntVar, cp_model.IntVar]],
+            ]
+        ],
+    ) -> cp_model.LinearExpr:
+        odd_variables = []
+        for group_index, _, count_variables in count_variables_by_group:
+            for slot_number, count, _ in count_variables:
+                remainder = model.NewIntVar(
+                    0, 1, f"{group_name}_odd_g{group_index}_b{slot_number}"
+                )
+                model.AddModuloEquality(remainder, count, 2)
+                odd_variables.append(remainder)
+        return _sum(odd_variables)
+
+    campus_bus_uses, campus_count_variables = add_group_metrics(
         "campus",
         tuple(cohort[0] for cohort, _ in cohorts),
         cohort_sizes,
-        include_isolated=True,
-        include_odd=True,
     )
-    for name, expression in zip(
-        (
+    try:
+        next_solver = solve_or_skip(
             "campus_bus_uses",
-            "campus_distribution_imbalance",
-            "campus_isolated_groups",
-            "campus_odd_groups",
-        ),
-        campus_metrics,
-    ):
+            campus_bus_uses,
+            primary_secondary_phase=True,
+        )
+        if next_solver is not None:
+            solver = next_solver
+    except PhaseSolveError as error:
+        return AllocationResult(status="FAILED", error_message=str(error))
+
+    if "campus_distribution_imbalance" in skipped_detailed_phases:
+        if progress:
+            progress("campus_distribution_imbalance", None)
+    else:
         try:
-            next_solver = solve_or_skip(
-                name,
-                expression,
-                primary_secondary_phase=name == "campus_bus_uses",
+            solver = solve_secondary(
+                "campus_distribution_imbalance",
+                add_distribution_imbalance_metric(
+                    "campus",
+                    campus_count_variables,
+                ),
             )
-            if next_solver is not None:
-                solver = next_solver
+        except PhaseSolveError as error:
+            return AllocationResult(status="FAILED", error_message=str(error))
+
+    for name, add_metric in (
+        ("campus_isolated_groups", add_isolated_group_metric),
+        ("campus_odd_groups", add_odd_group_metric),
+    ):
+        if name in skipped_detailed_phases:
+            if progress:
+                progress(name, None)
+            continue
+        try:
+            solver = solve_secondary(
+                name,
+                add_metric("campus", campus_count_variables),
+            )
         except PhaseSolveError as error:
             return AllocationResult(status="FAILED", error_message=str(error))
 
@@ -1012,20 +1115,25 @@ def optimize(
                 if progress:
                     progress(team_name, value)
     else:
-        team_metrics = add_group_metrics(
+        team_bus_uses, team_count_variables = add_group_metrics(
             "team",
             team_values,
             cohort_sizes,
-            include_isolated=False,
-            include_odd=False,
         )
-        for name, expression in zip(
-            ("team_bus_uses", "team_distribution_imbalance"),
-            team_metrics[:2],
-        ):
-            next_solver = solve_or_skip(name, expression)
-            if next_solver is not None:
-                solver = next_solver
+        next_solver = solve_or_skip("team_bus_uses", team_bus_uses)
+        if next_solver is not None:
+            solver = next_solver
+        if "team_distribution_imbalance" in skipped_detailed_phases:
+            if progress:
+                progress("team_distribution_imbalance", None)
+        else:
+            solver = solve_secondary(
+                "team_distribution_imbalance",
+                add_distribution_imbalance_metric(
+                    "team",
+                    team_count_variables,
+                ),
+            )
 
     destination_imbalances = []
     for destination, destination_slots in sorted(slots_by_destination.items()):

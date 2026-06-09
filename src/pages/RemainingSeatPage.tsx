@@ -11,6 +11,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 
 import Header from '../components/Header';
+import LoginRequiredModal from '../components/LoginRequiredModal';
 import { getReservationDeadline } from '../lib/reservationDeadlineService';
 import { getReservation } from '../lib/reservationService';
 import {
@@ -19,6 +20,7 @@ import {
   type RemainingSeatOption,
 } from '../lib/remainingSeatService';
 import { supabase } from '../lib/supabase';
+import { createLoginRequiredRedirectState } from '../utils/redirect';
 import { formatBusLabel } from '../utils/busLabel';
 
 import styles from './RemainingSeatPage.module.css';
@@ -38,6 +40,8 @@ const RemainingSeatPage = () => {
   const [depositorName, setDepositorName] = useState('');
   const [hasActiveReservation, setHasActiveReservation] = useState(false);
   const [isPaymentConfirmOpen, setIsPaymentConfirmOpen] = useState(false);
+  const [isLoginRequiredModalOpen, setIsLoginRequiredModalOpen] =
+    useState(false);
 
   const loadOptions = async () => {
     setLoading(true);
@@ -50,7 +54,7 @@ const RemainingSeatPage = () => {
       } = await supabase.auth.getSession();
 
       if (!session) {
-        navigate('/login', { state: { from: '/remaining-seats' } });
+        setIsLoginRequiredModalOpen(true);
         return;
       }
 
@@ -157,7 +161,7 @@ const RemainingSeatPage = () => {
             <span>POST-DEADLINE SEATS</span>
             <h1>잔여 좌석 신청</h1>
             <p>
-              신청 마감 후 남은 좌석을 임시 확보합니다. 서울지구 계좌 입금 후
+              신청 마감 후 잔여 좌석을 임시 확보합니다. 서울지구 계좌 입금 후
               전체 관리자가 확인하면 버스표가 확정됩니다.
             </p>
           </div>
@@ -175,7 +179,7 @@ const RemainingSeatPage = () => {
           <section className={styles.emptyState}>
             <strong>이미 확정되었거나 진행 중인 버스 신청이 있습니다.</strong>
             <p>
-              잔여좌석 임시확보는 버스 신청이 없는 사용자만 가능합니다.
+              잔여 좌석 임시 확보는 버스 신청이 없는 사용자만 가능합니다.
               기존 버스표를 확인해주세요.
             </p>
             <button type="button" onClick={() => navigate('/ticket')}>
@@ -356,6 +360,18 @@ const RemainingSeatPage = () => {
             </div>
           </section>
         </div>
+      )}
+
+      {isLoginRequiredModalOpen && (
+        <LoginRequiredModal
+          onClose={() => navigate('/', { replace: true })}
+          onConfirm={() =>
+            navigate('/login', {
+              replace: true,
+              state: createLoginRequiredRedirectState('/remaining-seats'),
+            })
+          }
+        />
       )}
     </div>
   );

@@ -42,8 +42,13 @@ export interface AdminAuditLogFilters {
   actorKeyword?: string;
   dateFrom?: string;
   dateTo?: string;
-  page?: number;
   pageSize?: number;
+  cursor?: AdminAuditLogCursor | null;
+}
+
+export interface AdminAuditLogCursor {
+  createdAt: string;
+  id: string;
 }
 
 interface AdminAuditLogRow {
@@ -126,41 +131,48 @@ export const getAdminAuditLogs = async ({
   actorKeyword = '',
   dateFrom = '',
   dateTo = '',
-  page = 1,
   pageSize = 30,
+  cursor = null,
 }: AdminAuditLogFilters = {}) => {
-  const normalizedPage = Math.max(1, Math.floor(page));
   const normalizedPageSize = Math.min(100, Math.max(1, Math.floor(pageSize)));
   const matchingActorIds = await getMatchingActorIds(actorKeyword);
 
   if (matchingActorIds?.length === 0) {
-    return { items: [], totalCount: 0, page: normalizedPage, pageSize: normalizedPageSize };
+    return { items: [], nextCursor: null, hasNext: false };
   }
 
   let query = supabase
     .from('admin_action_audit_logs')
-    .select('*', { count: 'exact' })
+    .select('*')
     .order('created_at', { ascending: false })
-    .range(
-      (normalizedPage - 1) * normalizedPageSize,
-      normalizedPage * normalizedPageSize - 1
-    );
+    .order('id', { ascending: false })
+    .limit(normalizedPageSize + 1);
 
   if (action !== 'all') query = query.eq('action', action);
   if (resourceType) query = query.eq('resource_type', resourceType);
   if (matchingActorIds) query = query.in('actor_id', matchingActorIds);
   if (dateFrom) query = query.gte('created_at', `${dateFrom}T00:00:00`);
   if (dateTo) query = query.lte('created_at', `${dateTo}T23:59:59.999`);
+  if (cursor) {
+    query = query.or(
+      `created_at.lt.${cursor.createdAt},and(created_at.eq.${cursor.createdAt},id.lt.${cursor.id})`
+    );
+  }
 
-  const { data, error, count } = await query;
+  const { data, error } = await query;
 
   if (error) throwAdminAuditLogError(error);
 
+  const rows = (data ?? []) as AdminAuditLogRow[];
+  const pageRows = rows.slice(0, normalizedPageSize);
+  const lastRow = pageRows[pageRows.length - 1];
+
   return {
-    items: await mapAuditLogs((data ?? []) as AdminAuditLogRow[]),
-    totalCount: count ?? 0,
-    page: normalizedPage,
-    pageSize: normalizedPageSize,
+    items: await mapAuditLogs(pageRows),
+    nextCursor: lastRow
+      ? { createdAt: lastRow.created_at, id: lastRow.id }
+      : null,
+    hasNext: rows.length > normalizedPageSize,
   };
 };
 

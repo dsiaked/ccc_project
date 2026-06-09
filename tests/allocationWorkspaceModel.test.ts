@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  createManualAllocationWorkspace,
   getBelowMinimumBusIds,
   getFirstChoiceCoverage,
   getOutOfPreferencePassengerIds,
@@ -69,6 +70,46 @@ const workspace = (
   ...overrides,
 });
 
+test('manual draft starts with no buses and every passenger unassigned', () => {
+  const createdAt = '2026-06-09T00:00:00.000Z';
+  const originalPassengers = [
+    passenger('p-1', 'Alpha', ['North', 'South'], {
+      busId: 'old-bus',
+      seatNumber: 3,
+    }),
+    passenger('p-2', 'Bravo', ['South', 'North']),
+  ];
+
+  const manual = createManualAllocationWorkspace(
+    originalPassengers,
+    'admin-1',
+    createdAt,
+    {
+      optionId: 'standard',
+      capacity: 45,
+      price: 500000,
+      maxAvailableCount: 10,
+      minimumPassengers: 36,
+    }
+  );
+
+  assert.equal(manual.status, 'draft');
+  assert.deepEqual(manual.buses, []);
+  assert.equal(manual.sourceAllocation.mode, 'manual');
+  assert.equal(manual.optimization.mode, 'manual');
+  assert.equal(manual.manualBusTemplate?.capacity, 45);
+  assert.equal(manual.passengers.length, 2);
+  assert.ok(
+    manual.passengers.every(
+      (current) => current.busId === null && current.seatNumber === null
+    )
+  );
+  assert.equal(manual.history[0].action, 'manual_draft_created');
+  assert.equal(manual.history[0].actorId, 'admin-1');
+  assert.equal(manual.history[0].at, createdAt);
+  assert.equal(originalPassengers[0].busId, 'old-bus');
+});
+
 test('refresh keeps existing passenger order and avoids false-positive changes', () => {
   const current = workspace({
     passengers: [
@@ -127,6 +168,52 @@ test('refresh adds a new bus when no preferred seat remains for new passengers',
   assert.equal(refreshed.passengers[1].busId, refreshed.buses[1].id);
   assert.equal(refreshed.passengers[1].seatNumber, 1);
   assert.equal(refreshed.history.at(-1)?.action, 'active_reservations_refreshed');
+});
+
+test('refresh reuses a cancelled passenger seat without mutating the current draft', () => {
+  const current = workspace({
+    buses: [bus('bus-1', 'North 1', 'North')],
+    passengers: [
+      passenger('cancelled', 'Cancelled', ['North', 'South'], {
+        busId: 'bus-1',
+        seatNumber: 1,
+      }),
+      passenger('existing', 'Existing', ['North', 'South'], {
+        busId: 'bus-1',
+        seatNumber: 2,
+      }),
+    ],
+  });
+  const original = structuredClone(current);
+
+  const refreshed = mergeActivePassengersIntoDraft(current, [
+    passenger('existing', 'Existing', ['North', 'South']),
+    passenger('new', 'New', ['North', 'South']),
+  ]);
+
+  assert.deepEqual(current, original);
+  assert.equal(refreshed.buses.length, 1);
+  assert.deepEqual(
+    refreshed.passengers.map(({ reservationId, seatNumber }) => ({
+      reservationId,
+      seatNumber,
+    })),
+    [
+      { reservationId: 'existing', seatNumber: 2 },
+      { reservationId: 'new', seatNumber: 1 },
+    ]
+  );
+});
+
+test('refresh leaves confirmed workspaces untouched', () => {
+  const current = workspace({ status: 'confirmed' });
+
+  assert.strictEqual(
+    mergeActivePassengersIntoDraft(current, [
+      passenger('new', 'New', ['North', 'South']),
+    ]),
+    current
+  );
 });
 
 test('workspace metrics ignore remaining-seat overrides but keep operational warnings', () => {
@@ -214,4 +301,50 @@ test('workspace validation reports invalid assignments, duplicate seats, and bel
   assert.ok(
     validation.warnings.some((message) => message.includes('최소 탑승 인원 1명'))
   );
+});
+
+test('workspace validation blocks empty and malformed confirmation payloads', () => {
+  const emptyValidation = validateWorkspace(workspace());
+
+  assert.ok(emptyValidation.errors.includes('At least one bus is required.'));
+  assert.ok(
+    emptyValidation.errors.includes('At least one passenger is required.')
+  );
+
+  const malformed = workspace({
+    buses: [
+      bus('duplicate', 'Broken 1', 'North', {
+        capacity: 0,
+        price: -1,
+        minimumPassengers: -1,
+      }),
+      bus('duplicate', 'Broken 2', 'South'),
+    ],
+    passengers: [
+      passenger('p-1', 'Alpha', ['North', 'South'], {
+        busId: 'duplicate',
+        seatNumber: 1.5,
+      }),
+    ],
+  });
+
+  const validation = validateWorkspace(malformed);
+
+  assert.ok(validation.errors.includes('Duplicate bus ID: duplicate'));
+  assert.ok(
+    validation.errors.includes(
+      'Broken 1: bus capacity must be a positive integer.'
+    )
+  );
+  assert.ok(
+    validation.errors.includes(
+      'Broken 1: bus price must be a non-negative integer.'
+    )
+  );
+  assert.ok(
+    validation.errors.includes(
+      'Broken 1: minimum passengers must be a non-negative integer.'
+    )
+  );
+  assert.ok(validation.errors.some((message) => message.includes('Alpha')));
 });

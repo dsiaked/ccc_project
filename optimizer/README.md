@@ -7,9 +7,15 @@ can be tested before infrastructure is added.
 ## Run tests
 
 ```bash
-python -m pip install -r optimizer/requirements.txt
+python -m pip install -r optimizer/requirements-dev.txt
 cd optimizer
-python -m unittest discover -s tests -v
+python -m pytest tests -q
+```
+
+On Windows, after setting up the local optimizer environment:
+
+```powershell
+npm run optimizer:test
 ```
 
 The optimizer accepts anonymized passenger data only. A result is usable by the

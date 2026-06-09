@@ -14,6 +14,7 @@ import {
   adminAuditResourceLabels,
   getAdminAuditLogs,
   type AdminAuditAction,
+  type AdminAuditLogCursor,
   type AdminAuditLog,
 } from '../../lib/admin/adminAuditLogService';
 import styles from './AdminAuditLogsPage.module.css';
@@ -23,7 +24,7 @@ const PAGE_SIZE = 30;
 const fieldLabels: Record<string, string> = {
   id: '대상 ID',
   user_id: '사용자 ID',
-  reservation_id: '예약 ID',
+  reservation_id: '신청 ID',
   district_id: '지구 ID',
   team_id: '팀 ID',
   campus_id: '캠퍼스 ID',
@@ -137,8 +138,12 @@ const getActionDescription = (log: AdminAuditLog, changedFieldCount: number) => 
 const AdminAuditLogsPage = () => {
   const navigate = useNavigate();
   const [logs, setLogs] = useState<AdminAuditLog[]>([]);
-  const [totalCount, setTotalCount] = useState(0);
-  const [page, setPage] = useState(1);
+  const [cursorHistory, setCursorHistory] = useState<
+    Array<AdminAuditLogCursor | null>
+  >([null]);
+  const [cursorIndex, setCursorIndex] = useState(0);
+  const [nextCursor, setNextCursor] = useState<AdminAuditLogCursor | null>(null);
+  const [hasNext, setHasNext] = useState(false);
   const [action, setAction] = useState<AdminAuditAction | 'all'>('all');
   const [resourceType, setResourceType] = useState('');
   const [actorKeyword, setActorKeyword] = useState('');
@@ -146,6 +151,7 @@ const AdminAuditLogsPage = () => {
   const [dateTo, setDateTo] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const currentCursor = cursorHistory[cursorIndex] ?? null;
 
   const loadLogs = useCallback(async () => {
     setLoading(true);
@@ -158,11 +164,12 @@ const AdminAuditLogsPage = () => {
         actorKeyword,
         dateFrom,
         dateTo,
-        page,
         pageSize: PAGE_SIZE,
+        cursor: currentCursor,
       });
       setLogs(result.items);
-      setTotalCount(result.totalCount);
+      setNextCursor(result.nextCursor);
+      setHasNext(result.hasNext);
     } catch (loadError) {
       console.error('Failed to load admin audit logs:', loadError);
       setError(
@@ -173,7 +180,7 @@ const AdminAuditLogsPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [action, actorKeyword, dateFrom, dateTo, page, resourceType]);
+  }, [action, actorKeyword, currentCursor, dateFrom, dateTo, resourceType]);
 
   useEffect(() => {
     const timerId = window.setTimeout(() => {
@@ -183,7 +190,19 @@ const AdminAuditLogsPage = () => {
     return () => window.clearTimeout(timerId);
   }, [loadLogs]);
 
-  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const resetCursorPagination = () => {
+    setCursorHistory([null]);
+    setCursorIndex(0);
+  };
+
+  const showNextPage = () => {
+    if (!nextCursor || !hasNext) return;
+    setCursorHistory((current) => [
+      ...current.slice(0, cursorIndex + 1),
+      nextCursor,
+    ]);
+    setCursorIndex((current) => current + 1);
+  };
 
   return (
     <div className={styles.pageContainer}>
@@ -219,7 +238,7 @@ const AdminAuditLogsPage = () => {
               value={action}
               onChange={(event) => {
                 setAction(event.target.value as AdminAuditAction | 'all');
-                setPage(1);
+                resetCursorPagination();
               }}
             >
               <option value="all">전체</option>
@@ -234,7 +253,7 @@ const AdminAuditLogsPage = () => {
               value={resourceType}
               onChange={(event) => {
                 setResourceType(event.target.value);
-                setPage(1);
+                resetCursorPagination();
               }}
             >
               <option value="">전체</option>
@@ -250,7 +269,7 @@ const AdminAuditLogsPage = () => {
                 value={actorKeyword}
                 onChange={(event) => {
                   setActorKeyword(event.target.value);
-                  setPage(1);
+                  resetCursorPagination();
                 }}
                 placeholder="이름 또는 이메일"
               />
@@ -263,7 +282,7 @@ const AdminAuditLogsPage = () => {
               value={dateFrom}
               onChange={(event) => {
                 setDateFrom(event.target.value);
-                setPage(1);
+                resetCursorPagination();
               }}
             />
           </label>
@@ -274,7 +293,7 @@ const AdminAuditLogsPage = () => {
               value={dateTo}
               onChange={(event) => {
                 setDateTo(event.target.value);
-                setPage(1);
+                resetCursorPagination();
               }}
             />
           </label>
@@ -294,7 +313,9 @@ const AdminAuditLogsPage = () => {
           <div className={styles.panelHeader}>
             <div>
               <h2>전체 기록</h2>
-              <p>총 {totalCount.toLocaleString()}건</p>
+              <p>
+                {cursorIndex + 1}페이지 · 현재 {logs.length.toLocaleString()}건
+              </p>
             </div>
             <button
               type="button"
@@ -431,18 +452,18 @@ const AdminAuditLogsPage = () => {
           <div className={styles.pagination}>
             <button
               type="button"
-              onClick={() => setPage((current) => current - 1)}
-              disabled={page <= 1 || loading}
+              onClick={() => setCursorIndex((current) => Math.max(0, current - 1))}
+              disabled={cursorIndex === 0 || loading}
             >
               <ChevronLeft size={16} /> 이전
             </button>
             <span>
-              {page} / {totalPages}
+              {cursorIndex + 1}페이지
             </span>
             <button
               type="button"
-              onClick={() => setPage((current) => current + 1)}
-              disabled={page >= totalPages || loading}
+              onClick={showNextPage}
+              disabled={!hasNext || !nextCursor || loading}
             >
               다음 <ChevronRight size={16} />
             </button>

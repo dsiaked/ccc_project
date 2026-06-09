@@ -1,12 +1,11 @@
 import { supabase } from '../supabase';
 import type { AllocationWorkspaceRow } from './allocationWorkspaceService';
+import {
+  normalizeExactAllocationOptimizerConfig,
+  type ExactAllocationOptimizerConfig,
+} from './exactAllocationOptimizerConfig';
 
-export interface ExactAllocationOptimizerConfig {
-  capacity: number;
-  price: number;
-  recommended_minimum_passengers: number;
-  maximum_buses: number;
-}
+export type { ExactAllocationOptimizerConfig } from './exactAllocationOptimizerConfig';
 
 export interface ExactAllocationBusOption {
   id: string;
@@ -80,7 +79,20 @@ export interface ExactAllocationJob {
 const single = <T,>(data: T[] | T | null): T | null =>
   Array.isArray(data) ? (data[0] ?? null) : data;
 
-const throwAllocationWriteError = (error: { message?: string }) => {
+const requireAllocationAdminSession = async () => {
+  const { data, error } = await supabase.auth.getSession();
+
+  if (error || !data.session) {
+    throw new Error('관리자 로그인 세션이 만료되었습니다. 다시 로그인해주세요.');
+  }
+};
+
+const throwAllocationWriteError = (error: {
+  code?: string;
+  details?: string;
+  hint?: string;
+  message?: string;
+}) => {
   if (
     error.message?.includes(
       'Allocation is available only after the reservation deadline.'
@@ -95,13 +107,59 @@ const throwAllocationWriteError = (error: { message?: string }) => {
   ) {
     throw new Error('확정 배차를 먼저 취소한 뒤 최적해 계산을 진행해주세요.');
   }
+  if (
+    error.message?.includes(
+      'Only global admins can create allocation optimization jobs.'
+    ) ||
+    error.message?.includes('Only global admins can create detailed allocation jobs.')
+  ) {
+    throw new Error('전체 관리자 권한을 확인할 수 없습니다. 다시 로그인해주세요.');
+  }
+  if (
+    error.message?.includes(
+      'record "new" has no field "allocation_data"'
+    )
+  ) {
+    throw new Error(
+      '배차 계산용 DB 트리거 업데이트가 필요합니다. 최신 Supabase 마이그레이션을 적용해주세요.'
+    );
+  }
+  const detail = [error.message, error.details, error.hint]
+    .filter((value): value is string => Boolean(value))
+    .join(' ');
+  throw new Error(detail || error.code || '배차 계산 요청에 실패했습니다.');
+};
+
+const throwAllocationResetError = (error: {
+  code?: string;
+  details?: string;
+  hint?: string;
+  message?: string;
+}) => {
+  const detail = [error.message, error.details, error.hint]
+    .filter((value): value is string => Boolean(value))
+    .join(' ');
+
+  if (detail.includes('Cancel the active allocation optimization job')) {
+    throw new Error('진행 중인 계산을 먼저 취소한 뒤 다시 리셋해주세요.');
+  }
+  if (detail.includes('Only global admins can reset allocation optimization jobs')) {
+    throw new Error('계산 기록은 전체 관리자만 리셋할 수 있습니다. 다시 로그인해 권한을 확인해주세요.');
+  }
+  if (error.code === 'PGRST202') {
+    throw new Error('계산 리셋 DB 업데이트가 적용되지 않았습니다. 최신 Supabase 마이그레이션을 적용해주세요.');
+  }
+  if (detail.includes('violates foreign key constraint')) {
+    throw new Error('연결된 계산 기록을 정리하지 못했습니다. 최신 Supabase 마이그레이션을 적용해주세요.');
+  }
+
   throw error;
 };
 
 export const getExactAllocationOptimizerConfig = async () => {
   const { data, error } = await supabase.rpc('get_allocation_optimizer_config');
   if (error) throw error;
-  return data as unknown as ExactAllocationOptimizerConfig;
+  return normalizeExactAllocationOptimizerConfig(data);
 };
 
 export const getExactAllocationBusOptions = async () => {
@@ -123,12 +181,13 @@ export const saveExactAllocationOptimizerConfig = async (
       config.recommended_minimum_passengers,
   });
   if (error) throw error;
-  return data as unknown as ExactAllocationOptimizerConfig;
+  return normalizeExactAllocationOptimizerConfig(data, config);
 };
 
 export const createExactAllocationJob = async (
   executionMode: ExactAllocationExecutionMode
 ) => {
+  await requireAllocationAdminSession();
   const { data, error } = await supabase.rpc(
     'create_allocation_optimization_job_for_execution',
     { p_execution_mode: executionMode }
@@ -143,6 +202,7 @@ export const createDetailedBalanceJob = async (
   resumeFromJobId: string | null,
   executionMode: ExactAllocationExecutionMode
 ) => {
+  await requireAllocationAdminSession();
   const { data, error } = await supabase.rpc(
     'create_detailed_allocation_optimization_job_for_execution',
     {
@@ -201,7 +261,7 @@ export const resetExactAllocationJobs = async () => {
   const { data, error } = await supabase.rpc(
     'reset_allocation_optimization_jobs'
   );
-  if (error) throw error;
+  if (error) throwAllocationResetError(error);
   return data as unknown as number;
 };
 

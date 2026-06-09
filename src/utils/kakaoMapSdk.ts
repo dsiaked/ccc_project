@@ -63,27 +63,40 @@ export const loadKakaoMapSdk = () => {
       KAKAO_MAP_SDK_ID
     ) as HTMLScriptElement | null;
     const script = currentScript ?? document.createElement('script');
-    const timeoutId = window.setTimeout(() => {
-      reject(new Error('Kakao Maps SDK loading timed out.'));
+    let timeoutId: number | null = null;
+    const clearHandlers = () => {
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+      script.onload = null;
+      script.onerror = null;
+    };
+    const rejectWithCleanup = (error: Error) => {
+      clearHandlers();
+      script.remove();
+      reject(error);
+    };
+    timeoutId = window.setTimeout(() => {
+      rejectWithCleanup(new Error('Kakao Maps SDK loading timed out.'));
     }, 10000);
 
     script.id = KAKAO_MAP_SDK_ID;
     script.src = scriptSrc;
     script.async = true;
     script.onload = () => {
-      window.clearTimeout(timeoutId);
-
       if (!window.kakao?.maps) {
-        reject(new Error('Kakao Maps SDK loaded without the maps object.'));
+        rejectWithCleanup(
+          new Error('Kakao Maps SDK loaded without the maps object.')
+        );
         return;
       }
 
+      clearHandlers();
       window.kakao.maps.load(resolve);
     };
     script.onerror = () => {
-      window.clearTimeout(timeoutId);
-      script.remove();
-      reject(new Error('Kakao Maps SDK could not be loaded.'));
+      rejectWithCleanup(new Error('Kakao Maps SDK could not be loaded.'));
     };
 
     if (!currentScript) {

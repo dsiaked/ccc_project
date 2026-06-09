@@ -187,7 +187,7 @@ const AdminReservationDeadlinePage = () => {
 
         <div className={styles.header}>
           <div>
-            <span className={styles.overline}>운영 시나리오 4단계</span>
+            <span className={styles.overline}>운영 시나리오 2단계</span>
             <h1>신청 마감 설정</h1>
             <p>
               설정한 기한 이후에는 사용자가 버스 신청이나 수정을 저장할 수

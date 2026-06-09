@@ -6,20 +6,13 @@ import {
   CheckCircle2,
   CircleHelp,
   CreditCard,
-  Goal,
   MessageSquare,
   History,
   Timer,
-  UserCheck,
   Users,
 } from 'lucide-react';
 
 import { supabase } from '../../lib/supabase';
-import {
-  getBusTicketPrice,
-  getCampusTransferStats,
-  type CampusTransferStat,
-} from '../../lib/adminService';
 import {
   formatReservationDeadline,
   getReservationDeadline,
@@ -48,57 +41,56 @@ const operationScenarioSteps = [
     id: 'initial-setup',
     title: '운영 초기값 설정',
     description: '조직, 예상 참여 인원, 캠퍼스 회계 순장님 권한을 먼저 점검합니다.',
+    timing: '수련회 전',
     actionLabel: '운영 초기값 설정하기',
     actionPath: '/admin/settings',
   },
   {
     id: 'post-deadline-operations',
-    title: '공지-신청시작-신청 마감',
-    description: '신청 마감 일시를 설정하고, 각 팀과 캠퍼스에 공지를 전달한 뒤 신청을 시작합니다.',
-    checks: ['신청 마감 일시 설정', '팀·캠퍼스별 공지 전달', '신청 시작'],
-    actionLabel: '신청 마감 일시 설정하기',
-    actionPath: '/admin/settings/reservation-deadline',
-    actionLinks: [
-      { label: '가입·신청 현황 확인하기', path: '/admin/applications' },
-    ],
-  },
-  {
-    id: 'payment-and-request-management',
-    title: '입금 집계 및 문의 처리',
-    description: '캠퍼스별 입금 현황을 집계하고 접수된 문의를 확인하여 처리합니다.',
-    checks: ['입금 집계 확인', '문의 처리'],
-    actionLabel: '입금 집계 확인하기',
-    actionPath: '/admin/payments/final-review',
-    actionLinks: [
-      { label: '개별 사용자 관리', path: '/admin/users' },
-      { label: '문의', path: '/admin/communications' },
-    ],
+    title: '전체 공지 및 신청 시작',
+    description: '각 팀과 캠퍼스에 전체 공지를 전달하고 귀가 버스 신청을 시작합니다.',
+    timing: '수련회 2일차',
+    checks: ['팀·캠퍼스별 전체 공지 전달', '신청 시작'],
+    actionLabel: '가입 신청 현황 확인하기',
+    actionPath: '/admin/applications',
   },
   {
     id: 'allocation-planning',
-    title: '배차 계획 산출',
+    title: '신청 마감 및 배차 계획 산출·검토',
     description: '신청 인원과 행선지별 수요를 바탕으로 배차 계획을 산출하고 결과를 검토합니다.',
+    timing: '수련회 3일차 24:00',
     actionLabel: '배차 계획 산출하기',
     actionPath: '/admin/allocations',
+    actionLinks: [
+      { label: '신청마감하기', path: '/admin/settings/reservation-deadline' },
+    ],
   },
   {
     id: 'remaining-seat-sales',
-    title: '배차 확정 이후 잔여 좌석 판매',
-    description: '배차 확정 후 잔여 좌석을 추가 판매하고 관리합니다.',
+    title: '배차 확정 및 잔여 좌석 신청',
+    description: '검토한 배차 계획을 확정하고 잔여 좌석 신청을 관리합니다.',
+    timing: '수련회 4일차',
     actionLabel: '잔여 좌석 관리하기',
     actionPath: '/admin/payments/remaining-seats',
   },
-  {
-    id: 'final-check',
-    title: '출발 전 최종 점검',
-    description: '탑승 명단, 입금 상태, 탑승 장소, 안내 사항을 마지막으로 확인합니다.',
-    actionLabel: '최종 명단 확인하기',
-    actionPath: '/admin/applications',
-  },
 ] as const;
 
+const continuousOperationStep = {
+  id: 'payment-and-request-management',
+  title: '입금 집계 및 문의 처리',
+  description: '캠퍼스별 입금 현황을 집계하고 접수된 문의를 확인하여 처리합니다.',
+  timing: '신청 기간 동안 상시 · 수련회 4일차 24:00 최종 확인',
+  checks: ['입금 집계 확인', '문의 처리'],
+  actionLabel: '입금 집계 확인하기',
+  actionPath: '/admin/payments/final-review',
+  actionLinks: [
+    { label: '개별 사용자 관리', path: '/admin/users' },
+    { label: '문의', path: '/admin/communications' },
+  ],
+} as const;
+
 const operationScenarioStepIds = new Set<string>(
-  operationScenarioSteps.map((step) => step.id)
+  [...operationScenarioSteps.map((step) => step.id), continuousOperationStep.id]
 );
 
 const quickActions = [
@@ -110,7 +102,7 @@ const quickActions = [
   },
   {
     title: '공지·문의 관리',
-    description: '캠퍼스 문의와 캠퍼스 공지, 홈화면 공지를 함께 관리합니다.',
+    description: '캠퍼스 문의와 캠퍼스 공지, 홈 화면 공지를 함께 관리합니다.',
     path: '/admin/communications',
     icon: CircleHelp,
   },
@@ -128,9 +120,12 @@ const quickActions = [
   },
 ] as const;
 
-const formatCurrency = (amount: number) => `${amount.toLocaleString()}원`;
-
 const formatPercent = (value: number) => `${value.toFixed(1)}%`;
+
+const getRate = (value: number, baseline: number) =>
+  baseline > 0 ? (value / baseline) * 100 : 0;
+
+const clampProgress = (value: number) => Math.min(Math.max(value, 0), 100);
 
 const getDeadlineRemainingText = (deadlineAt: string | null, nowMs: number) => {
   if (!deadlineAt) return '신청 마감 일시를 설정해주세요.';
@@ -155,14 +150,10 @@ const AdminGlobalPage = () => {
 
   const [subscriberCount, setSubscriberCount] = useState(0);
   const [reservationCount, setReservationCount] = useState(0);
-  const [busTicketPrice, setBusTicketPrice] = useState(0);
+  const [paidReservationCount, setPaidReservationCount] = useState(0);
+  const [confirmedReservationCount, setConfirmedReservationCount] = useState(0);
   const [participationTarget, setParticipationTarget] = useState(0);
   const [unresolvedRequestCount, setUnresolvedRequestCount] = useState(0);
-  const [draftAllocationCount, setDraftAllocationCount] = useState(0);
-  const [confirmedAllocationCount, setConfirmedAllocationCount] = useState(0);
-  const [campusTransfers, setCampusTransfers] = useState<CampusTransferStat[]>(
-    []
-  );
   const [reservationDeadline, setReservationDeadline] =
     useState<ReservationDeadlineSetting>({
       deadlineAt: null,
@@ -196,20 +187,17 @@ const AdminGlobalPage = () => {
 
     try {
       const [
-        transfers,
         subscriberCountResult,
         reservationCountResult,
-        ticketPrice,
+        paidReservationCountResult,
+        confirmedReservationCountResult,
         deadline,
         participationSetting,
         scenarioChecklist,
         unresolvedRequestResult,
-        draftAllocationResult,
-        confirmedAllocationResult,
         recentAuditLogsResult,
       ] =
         await Promise.all([
-          getCampusTransferStats(),
           supabase
             .from('profiles')
             .select('id', { count: 'exact', head: true }),
@@ -217,7 +205,16 @@ const AdminGlobalPage = () => {
             .from('reservations')
             .select('id', { count: 'exact', head: true })
             .neq('status', 'cancelled'),
-          getBusTicketPrice(),
+          supabase
+            .from('reservations')
+            .select('id, payments!inner(status)', { count: 'exact', head: true })
+            .neq('status', 'cancelled')
+            .eq('payments.status', 'completed'),
+          supabase
+            .from('reservations')
+            .select('id', { count: 'exact', head: true })
+            .neq('status', 'cancelled')
+            .not('confirmed_ticket', 'is', null),
           getReservationDeadline(),
           getParticipationTargetsSetting(),
           getGlobalScenarioChecklist(operationScenarioStepIds),
@@ -226,14 +223,6 @@ const AdminGlobalPage = () => {
             .select('id', { count: 'exact', head: true })
             .neq('status', 'resolved')
             .eq('is_global_notice', false),
-          supabase
-            .from('bus_allocations')
-            .select('id', { count: 'exact', head: true })
-            .filter('allocation_data->>status', 'eq', 'draft'),
-          supabase
-            .from('bus_allocations')
-            .select('id', { count: 'exact', head: true })
-            .filter('allocation_data->>status', 'eq', 'confirmed'),
           getRecentAdminAuditLogs(5).catch((error) => {
             console.warn('Failed to load recent admin audit logs:', error);
             return [];
@@ -243,22 +232,21 @@ const AdminGlobalPage = () => {
       const dashboardError =
         reservationCountResult.error ??
         subscriberCountResult.error ??
+        paidReservationCountResult.error ??
+        confirmedReservationCountResult.error ??
         unresolvedRequestResult.error ??
-        draftAllocationResult.error ??
-        confirmedAllocationResult.error;
+        null;
 
       if (dashboardError) throw dashboardError;
 
-      setCampusTransfers(transfers);
       setSubscriberCount(subscriberCountResult.count ?? 0);
       setReservationCount(reservationCountResult.count ?? 0);
-      setBusTicketPrice(ticketPrice);
+      setPaidReservationCount(paidReservationCountResult.count ?? 0);
+      setConfirmedReservationCount(confirmedReservationCountResult.count ?? 0);
       setReservationDeadline(deadline);
       setParticipationTarget(getTotalParticipationTarget(participationSetting));
       setCheckedScenarioStepIds(scenarioChecklist);
       setUnresolvedRequestCount(unresolvedRequestResult.count ?? 0);
-      setDraftAllocationCount(draftAllocationResult.count ?? 0);
-      setConfirmedAllocationCount(confirmedAllocationResult.count ?? 0);
       setRecentAuditLogs(recentAuditLogsResult);
     } catch (error) {
       console.error('Failed to load data:', error);
@@ -288,23 +276,83 @@ const AdminGlobalPage = () => {
     };
   }, []);
 
-  const totalPeople = reservationCount;
-  const totalCompletedAmount = campusTransfers.reduce(
-    (sum, transfer) => sum + (transfer.actualConfirmedAmount ?? 0),
+  const registrationRate = getRate(subscriberCount, participationTarget);
+  const applicationRate = getRate(reservationCount, subscriberCount);
+  const paymentCompletionRate = getRate(paidReservationCount, reservationCount);
+  const allocationRate = getRate(confirmedReservationCount, reservationCount);
+  const unpaidReservationCount = Math.max(
+    reservationCount - paidReservationCount,
     0
   );
-  const expectedPaymentAmount = reservationCount * busTicketPrice;
-  const paymentCollectionRate =
-    expectedPaymentAmount > 0
-      ? (totalCompletedAmount / expectedPaymentAmount) * 100
-      : 0;
+  const unallocatedReservationCount = Math.max(
+    reservationCount - confirmedReservationCount,
+    0
+  );
+  const journeyMetrics = [
+    {
+      id: 'target',
+      label: '참여 목표',
+      badge: '기준 인원',
+      value: participationTarget,
+      note: '등록된 예상 참여 인원',
+      progress: participationTarget > 0 ? 100 : 0,
+      path: '/admin/settings/participation-targets',
+      className: styles.journeyTarget,
+    },
+    {
+      id: 'registration',
+      label: '가입',
+      badge: `가입률 ${formatPercent(registrationRate)}`,
+      value: subscriberCount,
+      note: '참여 목표 대비 가입 완료',
+      progress: clampProgress(registrationRate),
+      path: '/admin/users',
+      className: styles.journeyRegistration,
+    },
+    {
+      id: 'application',
+      label: '신청',
+      badge: `신청률 ${formatPercent(applicationRate)}`,
+      value: reservationCount,
+      note: '가입 인원 대비 · 취소 제외',
+      progress: clampProgress(applicationRate),
+      path: '/admin/applications',
+      className: styles.journeyApplication,
+    },
+    {
+      id: 'payment',
+      label: '입금 완료',
+      badge: `입금률 ${formatPercent(paymentCompletionRate)}`,
+      value: paidReservationCount,
+      note: `미입금 ${unpaidReservationCount.toLocaleString()}명`,
+      progress: clampProgress(paymentCompletionRate),
+      path: '/admin/payments/final-review',
+      className: styles.journeyPayment,
+    },
+    {
+      id: 'allocation',
+      label: '배차 확정',
+      badge: `배차율 ${formatPercent(allocationRate)}`,
+      value: confirmedReservationCount,
+      note: `미배차 ${unallocatedReservationCount.toLocaleString()}명`,
+      progress: clampProgress(allocationRate),
+      path: '/admin/allocations',
+      className: styles.journeyAllocation,
+    },
+  ] as const;
+  const completedScenarioStepCount = operationScenarioSteps.filter((step) =>
+    checkedScenarioStepIds.includes(step.id)
+  ).length;
   const scenarioProgress =
-    (checkedScenarioStepIds.length / operationScenarioSteps.length) * 100;
+    (completedScenarioStepCount / operationScenarioSteps.length) * 100;
   const currentScenarioIndex = operationScenarioSteps.findIndex(
     (step) => !checkedScenarioStepIds.includes(step.id)
   );
   const currentScenarioStep =
     currentScenarioIndex >= 0 ? operationScenarioSteps[currentScenarioIndex] : null;
+  const isContinuousOperationChecked = checkedScenarioStepIds.includes(
+    continuousOperationStep.id
+  );
   const isReservationClosed = Boolean(
     reservationDeadline.deadlineAt &&
       new Date(reservationDeadline.deadlineAt).getTime() <= nowMs
@@ -314,19 +362,6 @@ const AdminGlobalPage = () => {
     : isReservationClosed
       ? '마감됨'
       : '신청 가능';
-  const allocationStatus =
-    confirmedAllocationCount > 0
-      ? '확정 완료'
-      : draftAllocationCount > 0
-        ? '임시안 검토 중'
-        : '배차안 미생성';
-  const allocationDescription =
-    confirmedAllocationCount > 0
-      ? `확정 배차안 ${confirmedAllocationCount.toLocaleString()}개`
-      : draftAllocationCount > 0
-        ? `임시 배차안 ${draftAllocationCount.toLocaleString()}개`
-        : '배차 계산을 시작해주세요.';
-
   if (loading) {
     return (
       <div className={styles.pageContainer}>
@@ -404,151 +439,76 @@ const AdminGlobalPage = () => {
           )}
         </section>
 
-        <section className={styles.metricsGrid} aria-label="핵심 지표">
-          <button
-            type="button"
-            className={styles.metric}
-            onClick={() => navigate('/admin/applications')}
-            aria-label={`신청자 ${totalPeople}명, 가입·신청 현황으로 이동`}
-          >
-            <div className={styles.metricIconSlate}>
-              <Users size={22} />
+        <section
+          className={styles.journeyOverview}
+          aria-labelledby="journey-overview-title"
+        >
+          <div className={styles.journeyHeader}>
+            <div>
+              <span>운영 흐름</span>
+              <h2 id="journey-overview-title">참여부터 배차까지 한눈에 보기</h2>
             </div>
-            <span>신청자</span>
-            <strong>{totalPeople.toLocaleString()}명</strong>
-            <p>가입·신청 현황 확인</p>
-          </button>
+            <p>입금률과 배차율은 신청 인원을 기준으로 계산합니다.</p>
+          </div>
 
+          <div className={styles.journeyGrid}>
+            {journeyMetrics.map((metric) => (
+              <button
+                key={metric.id}
+                type="button"
+                className={`${styles.journeyCard} ${metric.className}`}
+                onClick={() => navigate(metric.path)}
+                aria-label={`${metric.label} ${metric.value}명, 관련 관리 화면으로 이동`}
+              >
+                <span className={styles.journeyCardTop}>
+                  <strong>{metric.label}</strong>
+                  <small>{metric.badge}</small>
+                </span>
+                <span className={styles.journeyValue}>
+                  <strong>{metric.value.toLocaleString()}</strong>
+                  <small>명</small>
+                </span>
+                <span
+                  className={styles.journeyProgressTrack}
+                  role="progressbar"
+                  aria-label={`${metric.label} 진행률`}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={Math.round(metric.progress)}
+                >
+                  <span
+                    className={styles.journeyProgressBar}
+                    style={{ width: `${metric.progress}%` }}
+                  />
+                </span>
+                <span className={styles.journeyNote}>{metric.note}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <section className={styles.statusStrip} aria-label="운영 알림">
           <button
             type="button"
-            className={styles.metric}
-            onClick={() => navigate('/admin/users')}
-            aria-label={`가입자 ${subscriberCount}명, 개별 사용자 관리로 이동`}
-          >
-            <div className={styles.metricIconBlue}>
-              <UserCheck size={22} />
-            </div>
-            <span>가입자</span>
-            <strong>{subscriberCount.toLocaleString()}명</strong>
-            <p>개별 사용자 관리</p>
-          </button>
-
-          <button
-            type="button"
-            className={styles.metric}
-            onClick={() => navigate('/admin/settings/participation-targets')}
-            aria-label={`예상 인원 ${participationTarget}명, 예상 참여 인원 관리로 이동`}
-          >
-            <div className={styles.metricIconSlate}>
-              <Goal size={22} />
-            </div>
-            <span>예상 인원</span>
-            <strong>{participationTarget.toLocaleString()}명</strong>
-            <p>캠퍼스별 목표 확인</p>
-          </button>
-
-          <button
-            type="button"
-            className={styles.metric}
-            onClick={() => navigate('/admin/payments/final-review')}
-            aria-label={`입금률 ${formatPercent(paymentCollectionRate)}, 입금 관리로 이동`}
-          >
-              <div className={styles.metricIconGreen}>
-                <CreditCard size={22} />
-              </div>
-              <span>입금률</span>
-              <strong>{formatPercent(paymentCollectionRate)}</strong>
-              <p>
-                {formatCurrency(totalCompletedAmount)} /{' '}
-                {formatCurrency(expectedPaymentAmount)}
-              </p>
-              <p className={styles.metricFormula}>
-                신청자 {reservationCount.toLocaleString()}명 × 버스표{' '}
-                {formatCurrency(busTicketPrice)}
-              </p>
-          </button>
-
-          <button
-            type="button"
-            className={`${styles.metric} ${
-              unresolvedRequestCount > 0 ? styles.attentionMetric : ''
-            }`}
+            className={unresolvedRequestCount > 0 ? styles.statusAttention : ''}
             onClick={() => navigate('/admin/communications')}
-            aria-label={`미처리 문의 ${unresolvedRequestCount}건, 문의 관리로 이동`}
           >
-            <div className={styles.metricIconAmber}>
-              <MessageSquare size={22} />
-            </div>
+            <MessageSquare size={17} />
             <span>미처리 문의</span>
             <strong>{unresolvedRequestCount.toLocaleString()}건</strong>
-            <p>
-              {unresolvedRequestCount > 0
-                ? '확인이 필요한 문의가 있습니다.'
-                : '모든 문의를 처리했습니다.'}
-            </p>
           </button>
-
           <button
             type="button"
-            className={`${styles.metric} ${styles.deadlineMetric} ${
-              !reservationDeadline.deadlineAt
-                ? styles.deadlineMetricUnset
-                : isReservationClosed
-                  ? styles.deadlineMetricClosed
-                  : styles.deadlineMetricOpen
-            }`}
             onClick={() => navigate('/admin/settings/reservation-deadline')}
-            aria-label={`신청 마감 설정, 현재 상태 ${deadlineStatus}`}
           >
-            <div
-              className={
-                !reservationDeadline.deadlineAt
-                  ? styles.metricIconAmber
-                  : isReservationClosed
-                    ? styles.metricIconSlate
-                    : styles.metricIconBlue
-              }
-            >
-              <Timer size={22} />
-            </div>
+            <Timer size={17} />
             <span>신청 마감</span>
             <strong>{deadlineStatus}</strong>
-            <p>
-              {getDeadlineRemainingText(reservationDeadline.deadlineAt, nowMs)}
-            </p>
-            {reservationDeadline.deadlineAt && (
-              <p className={styles.metricFormula}>
-                {formatReservationDeadline(reservationDeadline.deadlineAt)}
-              </p>
-            )}
-          </button>
-
-          <button
-            type="button"
-            className={`${styles.metric} ${
-              confirmedAllocationCount > 0
-                ? styles.successMetric
-                : draftAllocationCount > 0
-                  ? styles.progressMetric
-                  : styles.attentionMetric
-            }`}
-            onClick={() => navigate('/admin/allocations')}
-            aria-label={`배차 상태 ${allocationStatus}, 배차 관리로 이동`}
-          >
-            <div
-              className={
-                confirmedAllocationCount > 0
-                  ? styles.metricIconGreen
-                  : draftAllocationCount > 0
-                    ? styles.metricIconBlue
-                    : styles.metricIconAmber
-              }
-            >
-              <Bus size={22} />
-            </div>
-            <span>배차 상태</span>
-            <strong>{allocationStatus}</strong>
-            <p>{allocationDescription}</p>
+            <small>
+              {reservationDeadline.deadlineAt
+                ? formatReservationDeadline(reservationDeadline.deadlineAt)
+                : getDeadlineRemainingText(reservationDeadline.deadlineAt, nowMs)}
+            </small>
           </button>
         </section>
 
@@ -560,7 +520,7 @@ const AdminGlobalPage = () => {
             </div>
 
             <div className={styles.progressBox}>
-              <strong>{checkedScenarioStepIds.length}개 완료</strong>
+              <strong>{completedScenarioStepCount}개 완료</strong>
               <span>
                 {currentScenarioStep
                   ? `${currentScenarioIndex + 1}단계 진행 중`
@@ -572,7 +532,7 @@ const AdminGlobalPage = () => {
                 aria-label="운영 체크리스트 완료율"
                 aria-valuemin={0}
                 aria-valuemax={operationScenarioSteps.length}
-                aria-valuenow={checkedScenarioStepIds.length}
+                aria-valuenow={completedScenarioStepCount}
               >
                 <div
                   className={styles.progressBar}
@@ -625,6 +585,11 @@ const AdminGlobalPage = () => {
                       </span>
                       <h3>{step.title}</h3>
                     </div>
+                    <div className={styles.scenarioTiming}>
+                      <Timer size={14} aria-hidden="true" />
+                      <strong>운영 시기</strong>
+                      <span>{step.timing}</span>
+                    </div>
                     <p>{step.description}</p>
 
                     {'actionLinks' in step && step.actionLinks && isCurrent && (
@@ -657,6 +622,81 @@ const AdminGlobalPage = () => {
                 </article>
               );
             })}
+          </div>
+
+          <div className={styles.continuousOperationBlock}>
+            <div className={styles.continuousOperationLabel}>
+              <span>상시 운영</span>
+              <p>번호 순서와 관계없이 신청 기간 동안 계속 확인하는 항목입니다.</p>
+            </div>
+
+            <article
+              className={`${styles.scenarioItem} ${styles.continuousOperationItem} ${
+                isContinuousOperationChecked ? styles.scenarioItemDone : ''
+              }`}
+            >
+              <button
+                type="button"
+                className={styles.scenarioRail}
+                onClick={() => handleToggleScenarioStep(continuousOperationStep.id)}
+                aria-label={`${continuousOperationStep.title}, ${
+                  isContinuousOperationChecked ? '완료 취소' : '완료로 표시'
+                }`}
+                aria-pressed={isContinuousOperationChecked}
+              >
+                <span className={styles.scenarioDot}>
+                  {isContinuousOperationChecked ? (
+                    <CheckCircle2 size={18} />
+                  ) : (
+                    <CreditCard size={17} />
+                  )}
+                </span>
+              </button>
+
+              <div className={styles.scenarioContent}>
+                <div className={styles.scenarioTitleRow}>
+                  <span>
+                    {isContinuousOperationChecked ? '최종 확인 완료' : '상시 확인'}
+                  </span>
+                  <h3>{continuousOperationStep.title}</h3>
+                </div>
+                <div className={styles.scenarioTiming}>
+                  <Timer size={14} aria-hidden="true" />
+                  <strong>운영 시기</strong>
+                  <span>{continuousOperationStep.timing}</span>
+                </div>
+                <p>{continuousOperationStep.description}</p>
+
+                <div className={styles.relatedActions}>
+                  <strong>관련 작업</strong>
+                  <div className={styles.subActionButtons}>
+                    {continuousOperationStep.actionLinks.map((action) => (
+                      <button
+                        key={action.path}
+                        type="button"
+                        onClick={() => navigate(action.path)}
+                      >
+                        <span>{action.label}</span>
+                        <ArrowRight size={14} />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                className={styles.linkButton}
+                onClick={() => navigate(continuousOperationStep.actionPath)}
+              >
+                <span>
+                  {isContinuousOperationChecked
+                    ? '확인 및 수정'
+                    : continuousOperationStep.actionLabel}
+                </span>
+                <ArrowRight size={16} />
+              </button>
+            </article>
           </div>
         </section>
 

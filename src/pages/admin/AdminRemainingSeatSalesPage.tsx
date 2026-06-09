@@ -141,7 +141,7 @@ const AdminRemainingSeatSalesPage = () => {
         price: Number(paymentSettings.bus_ticket_price?.price ?? 0),
       });
     } catch (error) {
-      console.error('잔여좌석 관리 데이터 조회 실패:', error);
+      console.error('잔여 좌석 관리 데이터 조회 실패:', error);
       if (showLoading) {
         setLoadError(getErrorMessage(error));
       }
@@ -201,7 +201,7 @@ const AdminRemainingSeatSalesPage = () => {
       await updateRemainingSeatSalesSettings(nextSettings);
       setSettings(nextSettings);
     } catch (error) {
-      alert(`판매 설정을 변경하지 못했습니다: ${getErrorMessage(error)}`);
+      alert(`신청 설정을 변경하지 못했습니다: ${getErrorMessage(error)}`);
     } finally {
       setSavingKey('');
     }
@@ -255,7 +255,7 @@ const AdminRemainingSeatSalesPage = () => {
     return (
       <div className={styles.pageContainer}>
         <AdminHeader />
-        <main className={styles.main}>잔여좌석 현황을 불러오는 중...</main>
+        <main className={styles.main}>잔여 좌석 현황을 불러오는 중...</main>
       </div>
     );
   }
@@ -279,7 +279,7 @@ const AdminRemainingSeatSalesPage = () => {
             <Ticket size={28} />
           </div>
           <div>
-            <h1>잔여좌석 신청·입금 관리</h1>
+            <h1>잔여 좌석 신청·입금 관리</h1>
             <p>
               미신청자가 임시 확보한 좌석의 서울지구 입금을 확인하고 버스표를
               확정합니다.
@@ -290,7 +290,7 @@ const AdminRemainingSeatSalesPage = () => {
         {loadError && (
           <section className={styles.loadErrorBox}>
             <div>
-              <strong>잔여좌석 관리 데이터를 불러올 수 없습니다.</strong>
+              <strong>잔여 좌석 관리 데이터를 불러올 수 없습니다.</strong>
               <p>{loadError}</p>
               <small>
                 새 워크플로를 사용하려면 Supabase에서
@@ -305,13 +305,12 @@ const AdminRemainingSeatSalesPage = () => {
 
         <section className={styles.operationPanel}>
           <div>
-            <span>전체 잔여좌석 신청</span>
+            <span>전체 잔여 좌석 신청</span>
             <strong>{settings.enabled ? '신청 가능' : '신청 마감'}</strong>
             <p>
               서울지구 계좌 {paymentInfo.account || '설정 필요'} · 좌석 가격{' '}
               {paymentInfo.price.toLocaleString()}원
             </p>
-            <p>전체 마감 후에도 입금 대기 신청은 계속 확인하거나 취소할 수 있습니다.</p>
           </div>
           <button
             type="button"
@@ -332,7 +331,7 @@ const AdminRemainingSeatSalesPage = () => {
 
         <section className={styles.summaryGrid}>
           <div>
-            <span>현재 남은 좌석 / 최초 잔여석</span>
+            <span>현재 잔여 좌석 / 최초 잔여 좌석</span>
             <strong>{totalAvailable}석 / {totalInitialAvailable}석</strong>
           </div>
           <div className={pendingClaims.length > 0 ? styles.attentionSummary : ''}>
@@ -414,13 +413,13 @@ const AdminRemainingSeatSalesPage = () => {
           <div className={styles.panelHeader}>
             <div>
               <span>공개 범위</span>
-              <h2>버스별 잔여좌석 공개</h2>
+              <h2>버스별 잔여 좌석 공개</h2>
             </div>
             <strong>{allocation?.allocation_name ?? '확정 배차안 없음'}</strong>
           </div>
 
           {busesWithRemainingSeats.length === 0 ? (
-            <p className={styles.emptyText}>현재 잔여좌석이 있는 버스가 없습니다.</p>
+            <p className={styles.emptyText}>현재 잔여 좌석이 있는 버스가 없습니다.</p>
           ) : (
             <div className={styles.busGrid}>
               {busesWithRemainingSeats.map((item) => (
@@ -473,7 +472,7 @@ const AdminRemainingSeatSalesPage = () => {
           {completedOpen && (
             <div className={styles.completedList}>
               {completedClaims.length === 0 ? (
-                <p className={styles.emptyText}>완료된 잔여좌석 입금 확인이 없습니다.</p>
+                <p className={styles.emptyText}>완료된 잔여 좌석 입금 확인이 없습니다.</p>
               ) : (
                 completedClaims.map((item) => (
                   <div key={item.reservationId}>

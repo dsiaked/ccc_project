@@ -34,8 +34,8 @@ const PassengerRow = memo(function PassengerRow({
   const remainingSeat = isRemainingSeatPassenger(passenger);
   const remainingSeatLabel =
     passenger.remainingSeatStatus === 'pending_payment'
-      ? '잔여좌석 · 입금 대기'
-      : '잔여좌석 · 입금 완료';
+      ? '잔여 좌석 · 입금 대기'
+      : '잔여 좌석 · 입금 완료';
 
   return (
     <tr
@@ -55,7 +55,7 @@ const PassengerRow = memo(function PassengerRow({
           className={styles.dragHandle}
           title={
             remainingSeat
-              ? '잔여좌석 승객의 배차는 이 화면에서 직접 변경할 수 없습니다.'
+              ? '잔여 좌석 승객의 배차는 이 화면에서 직접 변경할 수 없습니다.'
               : '끌어서 다른 버스로 이동'
           }
         >
@@ -99,7 +99,7 @@ const PassengerRow = memo(function PassengerRow({
           disabled={remainingSeat}
           title={
             remainingSeat
-              ? '잔여좌석 승객의 배차는 이 화면에서 직접 변경할 수 없습니다.'
+              ? '잔여 좌석 승객의 배차는 이 화면에서 직접 변경할 수 없습니다.'
               : undefined
           }
           className={
@@ -132,7 +132,7 @@ const PassengerRow = memo(function PassengerRow({
         <input
           title={
             remainingSeat
-              ? '잔여좌석 승객의 좌석은 이 화면에서 직접 변경할 수 없습니다.'
+              ? '잔여 좌석 승객의 좌석은 이 화면에서 직접 변경할 수 없습니다.'
               : undefined
           }
           className={

@@ -196,13 +196,13 @@ const AdminAllocationWorkspacePage = () => {
         );
         setError(
           loadWarnings.length > 0
-            ? `배차 작업안은 불러왔지만 일부 정보 조회에 실패했습니다.\n${loadWarnings.join('\n')}`
+            ? `배차 초안은 불러왔지만 일부 정보 조회에 실패했습니다.\n${loadWarnings.join('\n')}`
             : null
         );
       } catch (loadError) {
         console.error(loadError);
         setError(
-          `배차 작업안을 불러오지 못했습니다.\n${getErrorMessage(
+          `배차 초안을 불러오지 못했습니다.\n${getErrorMessage(
             loadError,
             '알 수 없는 조회 오류가 발생했습니다.'
           )}`
@@ -246,6 +246,15 @@ const AdminAllocationWorkspacePage = () => {
     });
     return counts;
   }, [workspace]);
+  const remainingSeatPassengerCountByBus = useMemo(() => {
+    const counts = new Map<string, number>();
+    workspace?.passengers.forEach((passenger) => {
+      if (passenger.busId && isRemainingSeatPassenger(passenger)) {
+        counts.set(passenger.busId, (counts.get(passenger.busId) ?? 0) + 1);
+      }
+    });
+    return counts;
+  }, [workspace]);
   const issueTargets = useMemo(
     () => getWorkspaceIssueTargets(deferredWorkspace),
     [deferredWorkspace]
@@ -267,7 +276,7 @@ const AdminAllocationWorkspacePage = () => {
           passenger.campus,
           passenger.team,
           passenger.preferences.join(' '),
-          isRemainingSeatPassenger(passenger) ? '잔여좌석' : '일반 신청',
+          isRemainingSeatPassenger(passenger) ? '잔여 좌석' : '일반 신청',
           passenger.remainingSeatStatus === 'pending_payment'
             ? '입금 대기'
             : passenger.remainingSeatStatus === 'confirmed'
@@ -474,16 +483,29 @@ const AdminAllocationWorkspacePage = () => {
   const addBus = () => {
     updateWorkspace((current) => {
       const template = current.buses[0];
-      if (!template) return current;
       const busNumber = current.buses.length + 1;
-      const bus: AllocationWorkspaceBus = {
-        ...clone(template),
-        id: `bus-${Date.now()}-${busNumber}`,
-        optionId: undefined,
-        label: `${busNumber}호차`,
-        maxAvailableCount: undefined,
-        destination: '',
-      };
+      const bus = template
+        ? {
+            ...clone(template),
+            id: `bus-${Date.now()}-${busNumber}`,
+            optionId: current.manualBusTemplate ? template.optionId : undefined,
+            label: `${busNumber}호차`,
+            maxAvailableCount: current.manualBusTemplate
+              ? template.maxAvailableCount
+              : undefined,
+            destination: '',
+          }
+        : current.manualBusTemplate
+          ? {
+              ...clone(current.manualBusTemplate),
+              id: `bus-${Date.now()}-${busNumber}`,
+              label: `${busNumber}호차`,
+              destination: '',
+              departureTime: '',
+              boardingPlace: '',
+            }
+          : null;
+      if (!bus) return current;
       setSelectedBusId(bus.id);
       return { ...current, buses: [...current.buses, bus] };
     });
@@ -537,7 +559,7 @@ const AdminAllocationWorkspacePage = () => {
       !workspace ||
       workspace.status !== 'draft' ||
       !window.confirm(
-        `"${row.allocation_name}" 임시 배차안을 삭제할까요? 저장하지 않은 변경사항과 배차안 기록이 모두 삭제됩니다.`
+        `"${row.allocation_name}" 배차 초안을 삭제할까요? 저장하지 않은 변경사항과 배차안 기록이 모두 삭제됩니다.`
       )
     ) {
       return;
@@ -552,7 +574,7 @@ const AdminAllocationWorkspacePage = () => {
       setError(
         deleteError instanceof Error
           ? deleteError.message
-          : '임시 배차안을 삭제하지 못했습니다.'
+          : '배차 초안을 삭제하지 못했습니다.'
       );
       setSaving(false);
     }
@@ -781,7 +803,7 @@ const AdminAllocationWorkspacePage = () => {
         <main className={styles.main}>
           {error ? (
             <div className={styles.loadFailure}>
-              <strong>배차 작업안을 열지 못했습니다.</strong>
+              <strong>배차 초안을 열지 못했습니다.</strong>
               <p>{error}</p>
               <div>
                 <button type="button" onClick={() => window.location.reload()}>
@@ -793,7 +815,7 @@ const AdminAllocationWorkspacePage = () => {
               </div>
             </div>
           ) : (
-            '배차 작업안을 불러오는 중입니다.'
+            '배차 초안을 불러오는 중입니다.'
           )}
         </main>
       </div>
@@ -1022,7 +1044,7 @@ const AdminAllocationWorkspacePage = () => {
             </button>
             <h1>{row.allocation_name}</h1>
             <p>
-              {workspace.status === 'confirmed' ? '확정 배차' : '임시 배차안'} ·
+              {workspace.status === 'confirmed' ? '확정 배차' : '배차 초안'} ·
               저장 버튼을 눌러야 변경사항이 반영됩니다.
             </p>
           </div>
@@ -1094,7 +1116,7 @@ const AdminAllocationWorkspacePage = () => {
               <span>
                 {completionNotice === 'confirmed'
                   ? '승객 버스표에 확정 배차가 반영되었습니다.'
-                  : '승객 버스표가 숨겨지고 임시 배차안으로 전환되었습니다.'}
+                  : '승객 버스표가 숨겨지고 배차 초안으로 전환되었습니다.'}
               </span>
             </div>
             <button
@@ -1115,7 +1137,7 @@ const AdminAllocationWorkspacePage = () => {
         )}
         {exceedsOptimalBaseline && workspace.optimalBaseline && (
           <div className={styles.readOnlyBanner}>
-            예약 변경 또는 관리자 조정으로 기존 최적해보다 버스가 늘었습니다. 현재{' '}
+            신청 변경 또는 관리자 조정으로 기존 최적해보다 버스가 늘었습니다. 현재{' '}
             {workspace.buses.length}대 / 기준 {workspace.optimalBaseline.totalBuses}대이며,
             확정 전에 추가 버스와 승객 배정을 확인해주세요.
           </div>
@@ -1128,20 +1150,6 @@ const AdminAllocationWorkspacePage = () => {
           <article><strong>{totals.totalCost.toLocaleString()}원</strong><span>총비용</span></article>
           <article className={validation.errors.length ? styles.metricError : undefined}>
             <AlertTriangle size={20} /><strong>{validation.errors.length}건</strong><span>확정 차단 오류</span>
-            {validation.errors.length > 0 && (
-              <div className={styles.metricErrorDetails}>
-                {validation.errors.slice(0, 1).map((item) => (
-                  <button type="button" key={item} onClick={() => goToIssue(item)}>
-                    {item}
-                  </button>
-                ))}
-                {validation.errors.length > 1 && (
-                  <button type="button" onClick={() => document.getElementById('validation-review')?.scrollIntoView({ behavior: 'smooth' })}>
-                    외 {validation.errors.length - 1}건 모두 보기
-                  </button>
-                )}
-              </div>
-            )}
           </article>
         </section>
 
@@ -1206,10 +1214,14 @@ const AdminAllocationWorkspacePage = () => {
               <button
                 type="button"
                 className={styles.addBusButton}
-                disabled={readOnly || workspace.buses.length === 0}
+                disabled={
+                  readOnly ||
+                  (workspace.buses.length === 0 && !workspace.manualBusTemplate)
+                }
                 onClick={addBus}
               >
-                <Plus size={16} /> 같은 규격 버스 추가
+                <Plus size={16} />{' '}
+                {workspace.buses.length === 0 ? '첫 버스 추가' : '같은 규격 버스 추가'}
               </button>
             </div>
             <div className={styles.busFilterSection}>
@@ -1242,6 +1254,8 @@ const AdminAllocationWorkspacePage = () => {
             <div className={styles.busList}>
               {visibleBuses.map((bus) => {
                 const count = passengerCountByBus.get(bus.id) ?? 0;
+                const remainingSeatPassengerCount =
+                  remainingSeatPassengerCountByBus.get(bus.id) ?? 0;
                 const passengerIssueCount = workspace.passengers.filter(
                   (passenger) =>
                     passenger.busId === bus.id &&
@@ -1266,6 +1280,9 @@ const AdminAllocationWorkspacePage = () => {
                       remainingSeats > 0 ? styles.busHasSeats : '',
                       remainingSeats === 0 ? styles.busFull : '',
                       remainingSeats < 0 ? styles.busOverCapacity : '',
+                      remainingSeatPassengerCount > 0
+                        ? styles.busWithRemainingSeatPassengers
+                        : '',
                     ].filter(Boolean).join(' ')}
                     onClick={() => {
                       setSelectedBusId(bus.id);
@@ -1284,6 +1301,11 @@ const AdminAllocationWorkspacePage = () => {
                     {remainingSeats !== 0 && (
                       <span className={styles.busOccupancyTrack}>
                         <span style={{ width: `${occupancyPercent}%` }} />
+                      </span>
+                    )}
+                    {remainingSeatPassengerCount > 0 && (
+                      <span className={styles.busRemainingSeatBadge}>
+                        잔여 좌석 신청 <strong>+{remainingSeatPassengerCount}명</strong>
                       </span>
                     )}
                     <span className={styles.busCardBadges}>
@@ -1520,13 +1542,13 @@ const AdminAllocationWorkspacePage = () => {
                 </div>
                 {remainingSeatPassengers.length > 0 && (
                   <div className={styles.remainingSeatSummary}>
-                    <strong>잔여좌석 승객 {remainingSeatPassengers.length}명</strong>
+                    <strong>잔여 좌석 승객 {remainingSeatPassengers.length}명</strong>
                     <span>
                       입금 대기 {pendingRemainingSeatCount}명 · 입금 완료{' '}
                       {remainingSeatPassengers.length - pendingRemainingSeatCount}명
                     </span>
                     <small>
-                      잔여좌석 승객은 직접 선택한 버스와 좌석을 사용하며 1·2지망
+                      잔여 좌석 승객은 직접 선택한 버스와 좌석을 사용하며 1·2지망
                       검증에서 제외됩니다.
                     </small>
                   </div>
@@ -1874,7 +1896,7 @@ const AdminAllocationWorkspacePage = () => {
                 <div>
                   <strong>확정 상태를 되돌려야 하나요?</strong>
                   <span>
-                    취소하면 승객 버스표가 즉시 숨겨지고 임시 배차안으로 돌아갑니다.
+                    취소하면 승객 버스표가 즉시 숨겨지고 배차 초안으로 돌아갑니다.
                   </span>
                 </div>
                 <div className={styles.cancelConfirmationControls}>
@@ -1902,12 +1924,12 @@ const AdminAllocationWorkspacePage = () => {
               <span>
                 <Trash2 size={17} />
                 <strong>위험 작업</strong>
-                <small>임시 배차안 삭제</small>
+                <small>배차 초안 삭제</small>
               </span>
             </summary>
             <div className={styles.dangerZone}>
               <div>
-                <strong>임시 배차안 삭제</strong>
+                <strong>배차 초안 삭제</strong>
                 <span>저장하지 않은 변경사항, 배차안 기록, 복원 가능한 버전이 모두 삭제됩니다.</span>
               </div>
               <button
@@ -1916,7 +1938,7 @@ const AdminAllocationWorkspacePage = () => {
                 disabled={saving || readOnly}
                 onClick={deleteWorkspace}
               >
-                <Trash2 size={17} /> 임시 배차안 삭제
+                <Trash2 size={17} /> 배차 초안 삭제
               </button>
             </div>
           </details>

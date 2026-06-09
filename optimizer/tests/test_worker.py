@@ -9,6 +9,7 @@ from exact_optimizer.worker import (
     normalize_service_role_key,
     run_job,
 )
+from exact_optimizer.schema import AllocationResult
 
 
 class FakeRepository:
@@ -48,6 +49,8 @@ class FakeRepository:
         self.events: list[str] = []
         self.cancel_before_completion = False
         self.reusable_job: dict[str, object] | None = None
+        self.job_result: dict[str, object] | None = None
+        self.status_reads = 0
 
     def claim_job(
         self, job_id: str, worker_id: str, execution_mode: str | None = None
@@ -56,6 +59,7 @@ class FakeRepository:
         return self.job
 
     def get_job_status(self, job_id: str) -> str:
+        self.status_reads += 1
         return self.status
 
     def get_reusable_optimal_job(
@@ -74,7 +78,7 @@ class FakeRepository:
         return self.reusable_job
 
     def get_job_result(self, job_id: str) -> dict[str, object] | None:
-        return None
+        return self.job_result
 
     def update_job(
         self,
@@ -169,6 +173,32 @@ class WorkerTests(unittest.TestCase):
 
         self.assertIn("execution_mode=eq.cloud", request.call_args.args[1])
 
+    def test_reusable_job_lookup_uses_server_side_exact_match_rpc(self) -> None:
+        repository = SupabaseRepository("https://example.supabase.co", "sb_secret_test")
+        snapshot = {"passengers": [{"reservation_id": "p1"}]}
+        settings = {"skipped_phases": ["campus_odd_groups"]}
+
+        with patch.object(
+            repository,
+            "_request",
+            return_value={"id": "job-previous"},
+        ) as request:
+            result = repository.get_reusable_optimal_job(
+                "job-current",
+                "input-hash",
+                snapshot,
+                "DETAILED",
+                settings,
+            )
+
+        self.assertEqual(result, {"id": "job-previous"})
+        self.assertEqual(request.call_args.args[:2], (
+            "POST",
+            "/rest/v1/rpc/get_reusable_allocation_optimization_job",
+        ))
+        self.assertEqual(request.call_args.kwargs["body"]["p_input_snapshot"], snapshot)
+        self.assertEqual(request.call_args.kwargs["body"]["p_detailed_settings"], settings)
+
     def test_completes_optimal_job(self) -> None:
         repository = FakeRepository()
 
@@ -188,6 +218,22 @@ class WorkerTests(unittest.TestCase):
             ],
             ["total_buses", "second_choice_passengers", "completed"],
         )
+
+    def test_throttles_repeated_cancellation_status_reads(self) -> None:
+        repository = FakeRepository()
+
+        def fake_optimize(*args: object, **kwargs: object) -> AllocationResult:
+            cancellation_check = args[2]
+            assert callable(cancellation_check)
+            for _ in range(5):
+                self.assertFalse(cancellation_check())
+            return AllocationResult(status="INFEASIBLE")
+
+        with patch("exact_optimizer.worker.optimize", side_effect=fake_optimize):
+            exit_code = run_job(repository, "job-1", "worker-1")  # type: ignore[arg-type]
+
+        self.assertEqual(exit_code, 2)
+        self.assertEqual(repository.status_reads, 1)
 
     def test_reuses_previous_optimal_result_for_unchanged_input(self) -> None:
         repository = FakeRepository()
@@ -280,6 +326,64 @@ class WorkerTests(unittest.TestCase):
         self.assertIn("JOB_RESULT_REUSE_REJECTED", repository.events)
         self.assertIn("JOB_OPTIMAL", repository.events)
         self.assertNotIn("JOB_RESULT_REUSED", repository.events)
+
+    def test_recalculates_when_reusable_result_validation_raises(self) -> None:
+        repository = FakeRepository()
+        repository.reusable_job = {
+            "id": "job-previous",
+            "input_snapshot": repository.job["input_snapshot"],
+            "result": {
+                "status": "OPTIMAL",
+                "total_buses": 1,
+                "total_cost": 100,
+                "second_choice_count": 0,
+                "buses": [
+                    {
+                        "bus_id": "bus-001",
+                        "label": "1호차",
+                        "destination": "A",
+                        "capacity": 3,
+                        "price": 100,
+                        "passenger_ids": None,
+                    }
+                ],
+                "assignments": [],
+            },
+        }
+
+        exit_code = run_job(repository, "job-1", "worker-1")  # type: ignore[arg-type]
+
+        self.assertEqual(exit_code, 0)
+        self.assertIn("JOB_RESULT_REUSE_REJECTED", repository.events)
+        self.assertIn("JOB_OPTIMAL", repository.events)
+
+    def test_ignores_invalid_resume_result(self) -> None:
+        repository = FakeRepository()
+        repository.job["optimization_scope"] = "DETAILED"
+        repository.job["resume_from_job_id"] = "job-previous"
+        repository.job_result = {
+            "status": "OPTIMAL",
+            "total_buses": 1,
+            "total_cost": 100,
+            "second_choice_count": 0,
+            "buses": [
+                {
+                    "bus_id": "bus-001",
+                    "label": "1호차",
+                    "destination": [],
+                    "capacity": 3,
+                    "price": 100,
+                    "passenger_ids": ["p1", "p2"],
+                }
+            ],
+            "assignments": [],
+        }
+
+        exit_code = run_job(repository, "job-1", "worker-1")  # type: ignore[arg-type]
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(repository.status, "OPTIMAL")
+        self.assertIn("JOB_OPTIMAL", repository.events)
 
     def test_runs_detailed_phases_only_for_detailed_job(self) -> None:
         repository = FakeRepository()

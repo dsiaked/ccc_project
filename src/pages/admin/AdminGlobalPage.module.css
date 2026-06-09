@@ -153,180 +153,219 @@
   background: #1d4ed8;
 }
 
-.metricsGrid {
+.journeyOverview {
+  margin-bottom: 12px;
+  padding: 20px;
+  border: 1px solid #e4e7ec;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 8px 24px rgba(16, 24, 40, 0.05);
+}
+
+.journeyHeader {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 16px;
+}
+
+.journeyHeader > div > span {
+  color: #6366f1;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.journeyHeader h2 {
+  margin: 6px 0 0;
+  color: #101828;
+  font-size: 20px;
+  font-weight: 900;
+}
+
+.journeyHeader p {
+  margin: 0;
+  color: #667085;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.journeyGrid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.journeyCard {
+  --journey-color: #64748b;
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid #e4e7ec;
+  border-top: 4px solid var(--journey-color);
+  border-radius: 12px;
+  background: #ffffff;
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    transform 160ms ease;
+}
+
+.journeyCard:hover {
+  border-color: var(--journey-color);
+  background: #fbfcfe;
+  transform: translateY(-1px);
+}
+
+.journeyTarget {
+  --journey-color: #f59e0b;
+}
+
+.journeyRegistration {
+  --journey-color: #0ea5e9;
+}
+
+.journeyApplication {
+  --journey-color: #6366f1;
+}
+
+.journeyPayment {
+  --journey-color: #16a34a;
+}
+
+.journeyAllocation {
+  --journey-color: #7c3aed;
+}
+
+.journeyCardTop,
+.journeyValue {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.journeyCardTop > strong {
+  color: #344054;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.journeyCardTop > small {
+  flex-shrink: 0;
+  padding: 4px 7px;
+  border-radius: 999px;
+  background: #f2f4f7;
+  color: #475467;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.journeyValue {
+  justify-content: flex-start;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.journeyValue > strong {
+  color: #101828;
+  font-size: 30px;
+  font-weight: 900;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+
+.journeyValue > small {
+  color: #667085;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.journeyProgressTrack {
+  display: block;
+  height: 5px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #eaecf0;
+}
+
+.journeyProgressBar {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--journey-color);
+}
+
+.journeyNote {
+  color: #98a2b3;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.statusStrip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   margin-bottom: 18px;
 }
 
-.metric,
+.statusStrip button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid #e4e7ec;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #667085;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.statusStrip button:hover {
+  border-color: #93c5fd;
+  background: #f8fbff;
+}
+
+.statusStrip span,
+.statusStrip small {
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.statusStrip strong {
+  color: #101828;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.statusStrip small {
+  color: #98a2b3;
+}
+
+.statusStrip .statusAttention {
+  border-color: #fde68a;
+  background: #fffbeb;
+  color: #b45309;
+}
+
+.statusStrip .statusAttention strong {
+  color: #b45309;
+}
+
 .section,
 .operationSection {
   border: 1px solid #e4e7ec;
   border-radius: 8px;
   background: #ffffff;
   box-shadow: 0 8px 24px rgba(16, 24, 40, 0.05);
-}
-
-.metric {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 8px 12px;
-  padding: 18px;
-}
-
-button.metric {
-  width: 100%;
-  color: inherit;
-  font-family: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-button.metric:hover {
-  border-color: #93c5fd;
-  background: #f8fbff;
-}
-
-.attentionMetric {
-  border-color: #fde68a;
-  background: #fffbeb;
-}
-
-.attentionMetric strong {
-  color: #b45309;
-}
-
-.progressMetric {
-  border-color: #bfdbfe;
-  background: #eff6ff;
-}
-
-.progressMetric strong {
-  color: #1d4ed8;
-}
-
-.successMetric {
-  border-color: #bbf7d0;
-  background: #f0fdf4;
-}
-
-.successMetric strong {
-  color: #15803d;
-}
-
-.deadlineMetric {
-  transition:
-    border-color 160ms ease,
-    background-color 160ms ease;
-}
-
-.deadlineMetricOpen {
-  border-color: #bbf7d0;
-  background: #f0fdf4;
-}
-
-.deadlineMetricOpen strong {
-  color: #15803d;
-}
-
-.deadlineMetricOpen:hover {
-  border-color: #86efac;
-  background: #ecfdf3;
-}
-
-.deadlineMetricClosed {
-  border-color: #fecaca;
-  background: #fff7f7;
-}
-
-.deadlineMetricClosed strong {
-  color: #b42318;
-}
-
-.deadlineMetricClosed:hover {
-  border-color: #fca5a5;
-  background: #fff1f1;
-}
-
-.deadlineMetricUnset {
-  border-color: #fde68a;
-  background: #fffbeb;
-}
-
-.deadlineMetricUnset strong {
-  color: #b45309;
-}
-
-.deadlineMetricUnset:hover {
-  border-color: #fcd34d;
-  background: #fff8dc;
-}
-
-.metric div:first-child {
-  grid-row: span 3;
-}
-
-.metric span {
-  color: #667085;
-  font-size: 12px;
-  font-weight: 900;
-}
-
-.metric strong {
-  min-width: 0;
-  color: #101828;
-  font-size: 24px;
-  font-weight: 900;
-  line-height: 1.2;
-  overflow-wrap: anywhere;
-}
-
-.metric p {
-  margin: 0;
-  color: #667085;
-  font-size: 13px;
-  line-height: 1.4;
-}
-
-.metricFormula {
-  grid-column: 2;
-  color: #98a2b3 !important;
-  font-size: 12px !important;
-  font-weight: 800;
-}
-
-.metricIconBlue,
-.metricIconGreen,
-.metricIconAmber,
-.metricIconSlate {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 8px;
-}
-
-.metricIconBlue {
-  background: #dbeafe;
-  color: #1d4ed8;
-}
-
-.metricIconGreen {
-  background: #dcfce7;
-  color: #15803d;
-}
-
-.metricIconAmber {
-  background: #fef3c7;
-  color: #b45309;
-}
-
-.metricIconSlate {
-  background: #e2e8f0;
-  color: #334155;
 }
 
 .operationSection,
@@ -419,6 +458,40 @@ button.metric:hover {
   background: #ffffff;
 }
 
+.continuousOperationBlock {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px dashed #cbd5e1;
+}
+
+.continuousOperationLabel {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.continuousOperationLabel span {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: #ede9fe;
+  color: #6d28d9;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.continuousOperationLabel p {
+  margin: 0;
+  color: #667085;
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .scenarioItem {
   display: grid;
   grid-template-columns: 42px minmax(0, 1fr) auto;
@@ -448,6 +521,59 @@ button.metric:hover {
 
 .scenarioItemCurrent:hover {
   background: #eaf3ff;
+}
+
+.continuousOperationItem {
+  border: 1px solid #ddd6fe;
+  border-radius: 8px;
+  background: #faf9ff;
+  box-shadow: inset 4px 0 0 #7c3aed;
+}
+
+.continuousOperationItem:hover {
+  background: #f7f5ff;
+}
+
+.continuousOperationItem .scenarioRail::after {
+  display: none;
+}
+
+.continuousOperationItem .scenarioDot {
+  border-color: #7c3aed;
+  background: #7c3aed;
+  color: #ffffff;
+}
+
+.continuousOperationItem .scenarioRail:hover .scenarioDot {
+  border-color: #6d28d9;
+  background: #6d28d9;
+  box-shadow: 0 0 0 4px #ede9fe;
+}
+
+.continuousOperationItem .scenarioTitleRow span {
+  background: #ede9fe;
+  color: #6d28d9;
+}
+
+.continuousOperationItem .scenarioTiming {
+  border-color: #ddd6fe;
+  background: #f5f3ff;
+  color: #6d28d9;
+}
+
+.continuousOperationItem.scenarioItemDone {
+  background: #fbfffd;
+  box-shadow: inset 4px 0 0 #16a34a;
+}
+
+.continuousOperationItem.scenarioItemDone .scenarioDot {
+  border-color: #16a34a;
+  background: #16a34a;
+}
+
+.continuousOperationItem.scenarioItemDone .scenarioTitleRow span {
+  background: #dcfce7;
+  color: #15803d;
 }
 
 .scenarioRail {
@@ -562,6 +688,43 @@ button.metric:hover {
   color: #101828;
   font-size: 15px;
   font-weight: 900;
+}
+
+.scenarioTiming {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 0 8px;
+  padding: 5px 9px;
+  border: 1px solid #c7d7fe;
+  border-radius: 7px;
+  background: #eef4ff;
+  color: #3448a3;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.scenarioTiming strong {
+  font-weight: 900;
+}
+
+.scenarioTiming span {
+  color: #475467;
+  font-weight: 800;
+}
+
+.scenarioItemCurrent .scenarioTiming {
+  border-color: #93c5fd;
+  background: #dbeafe;
+}
+
+.scenarioItemDone .scenarioTiming {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+  color: #15803d;
 }
 
 .scenarioContent p {
@@ -686,7 +849,8 @@ button.metric:hover {
 
 .errorState button:focus-visible,
 .nextActionButton:focus-visible,
-button.metric:focus-visible,
+.journeyCard:focus-visible,
+.statusStrip button:focus-visible,
 .scenarioRail:focus-visible,
 .subActionButtons button:focus-visible,
 .linkButton:focus-visible,
@@ -711,7 +875,10 @@ button.metric:focus-visible,
 }
 
 @media (max-width: 1100px) {
-  .metricsGrid,
+  .journeyGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
   .actionGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -819,8 +986,13 @@ button.metric:focus-visible,
     padding: 88px 16px 40px;
   }
 
+  .journeyGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .hero,
   .sectionHeader,
+  .journeyHeader,
   .nextActionPanel {
     align-items: stretch;
     flex-direction: column;
@@ -846,10 +1018,6 @@ button.metric:focus-visible,
 
   .scenarioContent {
     grid-column: 2;
-  }
-
-  .metricFormula {
-    grid-column: 1 / -1;
   }
 
   .linkButton {
@@ -892,7 +1060,27 @@ button.metric:focus-visible,
     font-size: 28px;
   }
 
-  .metricsGrid,
+  .journeyOverview {
+    padding: 16px;
+  }
+
+  .journeyGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .statusStrip {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .statusStrip button {
+    justify-content: flex-start;
+  }
+
+  .statusStrip small {
+    margin-left: auto;
+  }
+
   .actionGrid {
     grid-template-columns: 1fr;
   }
@@ -919,5 +1107,10 @@ button.metric:focus-visible,
   .scenarioContent p {
     font-size: 14px;
     line-height: 1.55;
+  }
+
+  .continuousOperationLabel {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }

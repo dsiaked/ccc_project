@@ -43,7 +43,7 @@ const detailedObjectives = [
 ];
 
 const safetyChecks = [
-  '계산 이후 활성 예약자가 바뀌지 않았는지 확인',
+  '계산 이후 활성 신청자가 바뀌지 않았는지 확인',
   '모든 승객이 정확히 한 번 배정됐는지 확인',
   '모든 배정이 승객의 1지망 또는 2지망인지 확인',
   '버스 정원 초과와 중복 좌석이 없는지 확인',
@@ -111,16 +111,16 @@ const AdminAllocationLogicPage = () => {
             </div>
             <div>
               <h2>계산이 진행되는 순서</h2>
-              <p>작업 생성부터 검증된 임시 배차안 생성까지의 흐름입니다.</p>
+              <p>작업 생성부터 검증된 배차 초안 생성까지의 흐름입니다.</p>
             </div>
           </div>
           <ol className={styles.flowList}>
             <li>
               <span>1</span>
               <div>
-                <strong>활성 예약 스냅샷 생성</strong>
+                <strong>활성 신청 스냅샷 생성</strong>
                 <p>
-                  취소되지 않은 예약자의 익명 ID, 캠퍼스, 팀, 1지망,
+                  취소되지 않은 신청자의 익명 ID, 캠퍼스, 팀, 1지망,
                   2지망과 버스 설정을 고정합니다.
                 </p>
               </div>
@@ -148,9 +148,9 @@ const AdminAllocationLogicPage = () => {
             <li>
               <span>4</span>
               <div>
-                <strong>DB 재검증 후 임시 배차안 생성</strong>
+                <strong>DB 재검증 후 배차 초안 생성</strong>
                 <p>
-                  예약 변경, 지망 위반, 중복 좌석, 정원 초과, 비용 조작이
+                  신청 변경, 지망 위반, 중복 좌석, 정원 초과, 비용 조작이
                   없는 결과만 배차안으로 저장합니다.
                 </p>
               </div>
@@ -310,7 +310,7 @@ const AdminAllocationLogicPage = () => {
                 <ShieldCheck size={21} />
               </div>
               <div>
-                <h2>임시 배차안 생성 전 검증</h2>
+                <h2>배차 초안 생성 전 검증</h2>
                 <p>최적화 결과를 그대로 신뢰하지 않고 DB에서 다시 검사합니다.</p>
               </div>
             </div>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Archive, Edit2, Eye, EyeOff, Megaphone, Pin, RefreshCw, Save, X } from 'lucide-react';
 
 import { useAdminAuth } from '../../components/AdminAuthProvider';
@@ -23,12 +23,17 @@ const formatDateTime = (value: string) =>
 const toDateTimeLocal = (value: string | null) =>
   value ? new Date(value).toISOString().slice(0, 16) : '';
 
+let cachedHomeAnnouncements: HomeAnnouncement[] | null = null;
+
 const HomeAnnouncementManager = () => {
   const { session } = useAdminAuth();
-  const [announcements, setAnnouncements] = useState<HomeAnnouncement[]>([]);
+  const [announcements, setAnnouncements] = useState<HomeAnnouncement[]>(
+    () => cachedHomeAnnouncements ?? []
+  );
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => cachedHomeAnnouncements === null);
+  const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [editing, setEditing] = useState<HomeAnnouncement | null>(null);
@@ -37,16 +42,28 @@ const HomeAnnouncementManager = () => {
   const [editStartAt, setEditStartAt] = useState('');
   const [editEndAt, setEditEndAt] = useState('');
 
+  const updateAnnouncements = useCallback(
+    (updater: (current: HomeAnnouncement[]) => HomeAnnouncement[]) => {
+      setAnnouncements((current) => {
+        const next = updater(current);
+        cachedHomeAnnouncements = next;
+        return next;
+      });
+    },
+    []
+  );
+
   const loadAnnouncements = async () => {
-    setLoading(true);
+    setRefreshing(true);
 
     try {
-      setAnnouncements(await getHomeAnnouncements());
+      const items = await getHomeAnnouncements();
+      updateAnnouncements(() => items);
     } catch (error) {
-      console.error('홈화면 공지 조회 실패:', error);
-      alert(`홈화면 공지를 불러오지 못했습니다: ${getErrorMessage(error)}`);
+      console.error('홈 화면 공지 조회 실패:', error);
+      alert(`홈 화면 공지를 불러오지 못했습니다: ${getErrorMessage(error)}`);
     } finally {
-      setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -55,11 +72,11 @@ const HomeAnnouncementManager = () => {
 
     getHomeAnnouncements()
       .then((items) => {
-        if (isMounted) setAnnouncements(items);
+        if (isMounted) updateAnnouncements(() => items);
       })
       .catch((error) => {
-        console.error('홈화면 공지 조회 실패:', error);
-        alert(`홈화면 공지를 불러오지 못했습니다: ${getErrorMessage(error)}`);
+        console.error('홈 화면 공지 조회 실패:', error);
+        alert(`홈 화면 공지를 불러오지 못했습니다: ${getErrorMessage(error)}`);
       })
       .finally(() => {
         if (isMounted) setLoading(false);
@@ -68,7 +85,7 @@ const HomeAnnouncementManager = () => {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [updateAnnouncements]);
 
   const handleCreate = async () => {
     const normalizedTitle = title.trim();
@@ -93,21 +110,21 @@ const HomeAnnouncementManager = () => {
         createdBy: session.user.id,
       });
 
-      setAnnouncements((current) => [created, ...current]);
+      updateAnnouncements((current) => [created, ...current]);
       setTitle('');
       setContent('');
       setIsComposerOpen(false);
-      alert('홈화면 공지를 등록했습니다.');
+      alert('홈 화면 공지를 등록했습니다.');
     } catch (error) {
-      console.error('홈화면 공지 등록 실패:', error);
-      alert(`홈화면 공지를 등록하지 못했습니다: ${getErrorMessage(error)}`);
+      console.error('홈 화면 공지 등록 실패:', error);
+      alert(`홈 화면 공지를 등록하지 못했습니다: ${getErrorMessage(error)}`);
     } finally {
       setSaving(false);
     }
   };
 
   const replaceAnnouncement = (next: HomeAnnouncement) => {
-    setAnnouncements((current) =>
+    updateAnnouncements((current) =>
       current.map((item) => (item.id === next.id ? next : item))
     );
   };
@@ -153,7 +170,7 @@ const HomeAnnouncementManager = () => {
       replaceAnnouncement(updated);
       setEditing(null);
     } catch (error) {
-      alert(`홈화면 공지를 저장하지 못했습니다: ${getErrorMessage(error)}`);
+      alert(`홈 화면 공지를 저장하지 못했습니다: ${getErrorMessage(error)}`);
     } finally {
       setSaving(false);
     }
@@ -164,8 +181,8 @@ const HomeAnnouncementManager = () => {
       <section className={styles.composer}>
         <div className={styles.composerHeader}>
           <div>
-            <h2>홈화면 공지</h2>
-            <p>일반 사용자 홈화면에 노출할 안내를 작성하고 확인합니다.</p>
+            <h2>홈 화면 공지</h2>
+            <p>일반 사용자 홈 화면에 노출할 안내를 작성하고 확인합니다.</p>
           </div>
           <div className={styles.headerActions}>
             <span>등록된 공지 {announcements.length}건</span>
@@ -175,7 +192,7 @@ const HomeAnnouncementManager = () => {
               onClick={() => setIsComposerOpen((current) => !current)}
             >
               <Megaphone size={16} />
-              {isComposerOpen ? '작성 닫기' : '홈화면 공지 작성'}
+              {isComposerOpen ? '작성 닫기' : '홈 화면 공지 작성'}
             </button>
           </div>
         </div>
@@ -196,7 +213,7 @@ const HomeAnnouncementManager = () => {
               <textarea
                 value={content}
                 onChange={(event) => setContent(event.target.value)}
-                placeholder="홈화면에 표시할 공지 내용을 입력해 주세요."
+                placeholder="홈 화면에 표시할 공지 내용을 입력해 주세요."
                 rows={6}
                 maxLength={1000}
               />
@@ -218,14 +235,14 @@ const HomeAnnouncementManager = () => {
 
       <div className={styles.listHeader}>
         <div>
-          <h2>홈화면 공지 목록</h2>
+          <h2>홈 화면 공지 목록</h2>
           <p>최근 등록된 공지부터 표시됩니다.</p>
         </div>
         <button
           type="button"
           className={styles.secondaryButton}
           onClick={() => void loadAnnouncements()}
-          disabled={loading}
+          disabled={refreshing}
         >
           <RefreshCw size={16} />
           새로고침
@@ -236,7 +253,7 @@ const HomeAnnouncementManager = () => {
         {loading ? (
           <div className={styles.empty}>불러오는 중...</div>
         ) : announcements.length === 0 ? (
-          <div className={styles.empty}>등록된 홈화면 공지가 없습니다.</div>
+          <div className={styles.empty}>등록된 홈 화면 공지가 없습니다.</div>
         ) : (
           announcements.map((announcement) => (
             <article key={announcement.id} className={styles.card}>

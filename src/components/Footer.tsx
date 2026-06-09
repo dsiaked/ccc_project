@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import styles from './Footer.module.css';
 
 const Footer = () => {
@@ -15,9 +16,9 @@ const Footer = () => {
         <div className={styles.section}>
           <h4 className={styles.subtitle}>바로가기</h4>
           <ul className={styles.linkList}>
-            <li><a href="#" className={styles.link}>버스 신청</a></li>
-            <li><a href="#" className={styles.link}>버스표</a></li>
-            <li><a href="#" className={styles.link}>문의하기</a></li>
+            <li><Link to="/reservation" className={styles.link}>버스 신청</Link></li>
+            <li><Link to="/ticket" className={styles.link}>버스표</Link></li>
+            <li><a href="mailto:info@ccc-bus.org" className={styles.link}>문의하기</a></li>
           </ul>
         </div>
 

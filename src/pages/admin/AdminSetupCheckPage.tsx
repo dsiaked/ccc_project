@@ -204,7 +204,7 @@ const AdminSetupCheckPage = () => {
           ? '설정 완료'
           : `${summary.campusCount.toLocaleString()}개 중 ${summary.missingAdminCount.toLocaleString()}개 캠퍼스 회계 순장님 미등록`,
       actionLabel: '관리자 현황 및 설정',
-      actionPath: '/admin/users',
+      actionPath: '/admin/access/campus-admins',
       isReady: summary.campusCount > 0 && summary.missingAdminCount === 0,
     },
     {
@@ -361,7 +361,7 @@ const AdminSetupCheckPage = () => {
     {
       id: 'homeAnnouncements',
       stage: 'reference',
-      label: '홈 공지',
+      label: '홈 화면 공지',
       count: resetStats.homeAnnouncements,
       detail: '홈 화면 공지 전체',
       danger: true,
@@ -1609,7 +1609,7 @@ const AdminSetupCheckPage = () => {
                 <button
                   type="button"
                   className={styles.secondaryButton}
-                  onClick={() => navigate('/admin/users')}
+                  onClick={() => navigate('/admin/access/campus-admins')}
                 >
                   관리자 권한 설정
                   <ArrowRight size={16} />

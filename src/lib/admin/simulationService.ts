@@ -5,12 +5,16 @@ import {
 import { supabase } from '../supabase';
 
 const MINIMUM_GENERAL_USER_COUNT = 2000;
+const EXTERNAL_USER_RATIO = 0.05;
 
 interface CampusOptionRow {
   campus_id: string;
   district: string | null;
   team: string | null;
   campus: string | null;
+  district_sort_order: number | null;
+  team_sort_order: number | null;
+  campus_sort_order: number | null;
 }
 
 export interface SimulationCampusPreview {
@@ -57,6 +61,7 @@ export interface SimulationPreview {
   campuses: SimulationCampusPreview[];
   stations: SimulationStationPreview[];
   generalUserCount: number;
+  externalUserCount: number;
   campusAdminCount: number;
   totalAccountCount: number;
   existingSimulationProfileCount: number;
@@ -178,15 +183,18 @@ const getCampusDistributionFactor = (key: string) => {
   return tierFactor * jitter;
 };
 
+const getExternalUserCount = (totalGeneralUsers: number) =>
+  Math.max(1, Math.floor(totalGeneralUsers * EXTERNAL_USER_RATIO));
+
 const allocateGeneralUsers = (
   campuses: CampusOptionRow[],
-  targets: Record<string, number>
+  targets: Record<string, number>,
+  total: number
 ) => {
   const configuredTotal = campuses.reduce(
     (sum, campus) => sum + Math.max(0, targets[getCampusKey(campus)] ?? 0),
     0
   );
-  const total = Math.max(MINIMUM_GENERAL_USER_COUNT, configuredTotal);
   const hasConfiguredTargets = configuredTotal > 0;
   const weights = campuses.map((campus) => {
     const key = getCampusKey(campus);
@@ -222,6 +230,8 @@ export async function getSimulationPreview(): Promise<SimulationPreview> {
     targetSetting,
     enabledResult,
     simulationProfileResult,
+    simulationCampusAdminProfileResult,
+    campusAdminRoleResult,
     activeStationResult,
     simulationBusOptionResult,
     setupSettingResult,
@@ -248,9 +258,10 @@ export async function getSimulationPreview(): Promise<SimulationPreview> {
   ] = await Promise.all([
     supabase
       .from('campus_options')
-      .select('campus_id, district, team, campus')
-      .order('district', { ascending: true })
-      .order('team', { ascending: true })
+      .select('campus_id, district, team, campus, district_sort_order, team_sort_order, campus_sort_order')
+      .order('district_sort_order', { ascending: true })
+      .order('team_sort_order', { ascending: true })
+      .order('campus_sort_order', { ascending: true })
       .order('campus', { ascending: true }),
     getParticipationTargetsSetting(),
     supabase
@@ -262,6 +273,14 @@ export async function getSimulationPreview(): Promise<SimulationPreview> {
       .from('profiles')
       .select('id', { count: 'exact', head: true })
       .like('email', 'sim-%@ccc-bus.test'),
+    supabase
+      .from('profiles')
+      .select('id')
+      .like('email', 'sim-admin-campus-%@ccc-bus.test'),
+    supabase
+      .from('admin_roles')
+      .select('user_id,campus_id')
+      .eq('role', 'campus_admin'),
     supabase
       .from('stations')
       .select('id,name,line,address', { count: 'exact' })
@@ -309,6 +328,10 @@ export async function getSimulationPreview(): Promise<SimulationPreview> {
     throw enabledResult.error;
   }
   if (simulationProfileResult.error) throw simulationProfileResult.error;
+  if (simulationCampusAdminProfileResult.error) {
+    throw simulationCampusAdminProfileResult.error;
+  }
+  if (campusAdminRoleResult.error) throw campusAdminRoleResult.error;
   if (activeStationResult.error) throw activeStationResult.error;
   if (simulationBusOptionResult.error) throw simulationBusOptionResult.error;
   if (setupSettingResult.error) throw setupSettingResult.error;
@@ -337,7 +360,11 @@ export async function getSimulationPreview(): Promise<SimulationPreview> {
   if (operationErrors.length > 0) throw operationErrors[0];
 
   const campuses = (campusResult.data ?? []) as CampusOptionRow[];
-  const allocations = allocateGeneralUsers(campuses, targetSetting.targets);
+  const generalUserCount = Math.max(
+    MINIMUM_GENERAL_USER_COUNT,
+    getTotalParticipationTarget(targetSetting)
+  );
+  const externalUserCount = getExternalUserCount(generalUserCount);
   const currentProjectId = getProjectId(import.meta.env.VITE_SUPABASE_URL);
   const allowedProjectId =
     String(import.meta.env.VITE_SIMULATION_PROJECT_ID ?? '').trim() || null;
@@ -367,11 +394,30 @@ export async function getSimulationPreview(): Promise<SimulationPreview> {
     setupSettings.get('simulation_reference_scope')
   );
   const selectedCampusIds = Array.isArray(referenceScope.campus_ids)
-    ? referenceScope.campus_ids
+    ? referenceScope.campus_ids.filter(
+        (campusId): campusId is string => typeof campusId === 'string'
+      )
     : [];
   const selectedStationIds = Array.isArray(referenceScope.station_ids)
-    ? referenceScope.station_ids
+    ? referenceScope.station_ids.filter(
+        (stationId): stationId is string => typeof stationId === 'string'
+      )
     : [];
+  const selectedCampusIdSet = new Set(selectedCampusIds);
+  const allocationCampuses = selectedCampusIdSet.size > 0
+    ? campuses.filter((campus) => selectedCampusIdSet.has(campus.campus_id))
+    : campuses;
+  const scopedAllocations = allocateGeneralUsers(
+    allocationCampuses,
+    targetSetting.targets,
+    generalUserCount - externalUserCount
+  );
+  const allocationByCampusId = new Map(
+    allocationCampuses.map((campus, index) => [
+      campus.campus_id,
+      scopedAllocations[index] ?? 0,
+    ])
+  );
   const configuredBusOptions = (simulationBusOptionResult.data ?? []).map((option) => ({
     capacity: Number(option.capacity),
     estimatedPrice: Number(option.estimated_price),
@@ -399,21 +445,34 @@ export async function getSimulationPreview(): Promise<SimulationPreview> {
   ]
     .filter(({ ready }) => !ready)
     .map(({ label }) => label);
-  const previewCampuses = campuses.map((campus, index) => ({
+  const simulationCampusAdminIds = new Set(
+    (simulationCampusAdminProfileResult.data ?? []).map((profile) => profile.id)
+  );
+  const coveredCampusIds = new Set(
+    (campusAdminRoleResult.data ?? []).flatMap((role) =>
+      typeof role.campus_id === 'string' &&
+      !simulationCampusAdminIds.has(role.user_id)
+        ? [role.campus_id]
+        : []
+    )
+  );
+  const previewCampuses = campuses.map((campus) => ({
     key: getCampusKey(campus),
     campusId: campus.campus_id,
     district: campus.district ?? '미등록 지구',
     team: campus.team ?? '미등록 팀',
     campus: campus.campus ?? '미등록 캠퍼스',
-    generalUserCount: allocations[index] ?? 0,
-    campusAdminCount: 1,
+    generalUserCount: allocationByCampusId.get(campus.campus_id) ?? 0,
+    campusAdminCount: coveredCampusIds.has(campus.campus_id) ? 0 : 1,
   }));
-  const generalUserCount = previewCampuses.reduce(
-    (sum, campus) => sum + campus.generalUserCount,
-    0
-  );
-  const multiCampusAdminCount = Math.min(5, Math.floor(previewCampuses.length / 2));
-  const campusAdminCount = previewCampuses.length - multiCampusAdminCount;
+  const targetPreviewCampuses = selectedCampusIdSet.size > 0
+    ? previewCampuses.filter((campus) => selectedCampusIdSet.has(campus.campusId))
+    : previewCampuses;
+  const uncoveredCampusCount = targetPreviewCampuses.filter(
+    (campus) => campus.campusAdminCount > 0
+  ).length;
+  const multiCampusAdminCount = Math.min(5, Math.floor(uncoveredCampusCount / 2));
+  const campusAdminCount = uncoveredCampusCount - multiCampusAdminCount;
   const confirmedAllocations = confirmedAllocationResult.data ?? [];
   const confirmedAllocationTotals = confirmedAllocations.reduce(
     (totals, row) => {
@@ -456,12 +515,12 @@ export async function getSimulationPreview(): Promise<SimulationPreview> {
           : DEFAULT_SIMULATION_REFERENCE_CONFIG.busTicketPrice,
       campusCount: selectedCampusIds.length || Math.max(1, campuses.length),
       selectedCampusIds: selectedCampusIds.length
-        ? selectedCampusIds.filter((campusId): campusId is string => typeof campusId === 'string')
+        ? selectedCampusIds
         : campuses.map((campus) => campus.campus_id),
       stationCount:
         selectedStationIds.length || Math.max(1, activeStationResult.count ?? 0),
       selectedStationIds: selectedStationIds.length
-        ? selectedStationIds.filter((stationId): stationId is string => typeof stationId === 'string')
+        ? selectedStationIds
         : (activeStationResult.data ?? []).map((station) => station.id),
       busOptions: configuredBusOptions.length
         ? configuredBusOptions
@@ -475,6 +534,7 @@ export async function getSimulationPreview(): Promise<SimulationPreview> {
       address: station.address,
     })),
     generalUserCount,
+    externalUserCount,
     campusAdminCount,
     totalAccountCount: generalUserCount + campusAdminCount,
     existingSimulationProfileCount: simulationProfileResult.count ?? 0,
@@ -553,14 +613,27 @@ export interface SimulationStageResponse extends SimulationStageRun {
   next_offset: number | null;
 }
 
+const getFunctionErrorMessage = async (error: unknown) => {
+  if (!error || typeof error !== 'object' || !('context' in error)) return null;
+
+  const context = (error as { context?: unknown }).context;
+  if (!(context instanceof Response)) return null;
+
+  const body = (await context.clone().json().catch(() => null)) as {
+    error?: unknown;
+  } | null;
+  return typeof body?.error === 'string' ? body.error : null;
+};
+
 export async function runSimulationStage(
-  stage: 'cleanup' | 'reference' | 'accounts' | 'reservations' | 'payments' | 'transfers' | 'boarding',
+  stage: 'cleanup' | 'reference' | 'accounts' | 'reservations' | 'deadline' | 'payments' | 'transfers' | 'boarding',
   options: {
     runId?: string;
     offset?: number;
     batchSize?: number;
     userCount?: number;
     referenceConfig?: SimulationReferenceConfig;
+    paymentMode?: 'random' | 'all';
   } = {}
 ): Promise<SimulationStageResponse> {
   const { data, error } = await supabase.functions.invoke('simulation-runner', {
@@ -571,10 +644,15 @@ export async function runSimulationStage(
       batch_size: options.batchSize,
       user_count: options.userCount,
       reference_config: options.referenceConfig,
+      payment_mode: options.paymentMode,
     },
   });
 
-  if (error) throw error;
+  if (error) {
+    const functionErrorMessage = await getFunctionErrorMessage(error);
+    if (functionErrorMessage) throw new Error(functionErrorMessage);
+    throw error;
+  }
   if (data?.error) throw new Error(String(data.error));
 
   return {

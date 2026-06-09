@@ -50,10 +50,10 @@ const throwRemainingSeatError = (error: { code?: string; message?: string }) => 
     throw new Error('선택한 버스의 잔여 좌석이 방금 마감되었습니다.');
   }
   if (message.includes('Remaining seat sales are closed')) {
-    throw new Error('잔여좌석 신청이 현재 마감되었습니다.');
+    throw new Error('잔여 좌석 신청이 현재 마감되었습니다.');
   }
   if (message.includes('not open for remaining seat sales')) {
-    throw new Error('선택한 버스의 잔여좌석 신청이 중단되었습니다.');
+    throw new Error('선택한 버스의 잔여 좌석 신청이 중단되었습니다.');
   }
   if (message.includes('Depositor name is required')) {
     throw new Error('입금자명을 입력해주세요.');

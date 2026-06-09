@@ -29,7 +29,7 @@ const ProcessSection = () => {
     <section className={styles.section}>
       <div className={styles.container}>
         <div className={styles.header}>
-          <p>버스 예약 절차</p>
+          <p>버스 신청 절차</p>
           <h2>귀가 버스 이용 순서</h2>
         </div>
 

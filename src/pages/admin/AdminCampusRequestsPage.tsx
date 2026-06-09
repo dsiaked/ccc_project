@@ -286,7 +286,6 @@ const AdminCampusRequestsPage = () => {
   };
 
   const loadRequests = async (role: AdminRole, targetPage = page) => {
-    setLoading(true);
     const [pageResult, noticeResult] = await Promise.all([
       getCampusRequestsPage(role, {
         page: targetPage,
@@ -325,7 +324,8 @@ const AdminCampusRequestsPage = () => {
   };
 
   const loadSummary = async (role: AdminRole) => {
-    setSummary(await getCampusRequestSummary(role));
+    if (role.role !== 'global_admin') return;
+    setSummary(await getCampusRequestSummary());
   };
 
   const loadUnreadRequests = async () => {
@@ -388,6 +388,22 @@ const AdminCampusRequestsPage = () => {
       console.error('읽지 않은 문의 조회 실패:', error);
     });
 
+    let realtimeSyncTimerId: number | null = null;
+    let shouldLoadSummary = false;
+    const scheduleRealtimeSync = (includeSummary: boolean) => {
+      shouldLoadSummary ||= includeSummary;
+      if (realtimeSyncTimerId !== null) {
+        window.clearTimeout(realtimeSyncTimerId);
+      }
+      realtimeSyncTimerId = window.setTimeout(() => {
+        realtimeSyncTimerId = null;
+        void loadRequests(adminRole);
+        void loadUnreadRequests();
+        if (shouldLoadSummary) void loadSummary(adminRole);
+        shouldLoadSummary = false;
+      }, 250);
+    };
+
     const channel = supabase
       .channel(`campus-request-board-${adminRole.id}`)
       .on(
@@ -400,9 +416,7 @@ const AdminCampusRequestsPage = () => {
             submitting ||
             hasUnsavedBoardDrafts
           ) return;
-          void loadRequests(adminRole);
-          void loadUnreadRequests();
-          if (adminRole.role === 'global_admin') void loadSummary(adminRole);
+          scheduleRealtimeSync(adminRole.role === 'global_admin');
         }
       )
       .on(
@@ -416,13 +430,15 @@ const AdminCampusRequestsPage = () => {
             editingMessageId ||
             hasUnsavedBoardDrafts
           ) return;
-          void loadRequests(adminRole);
-          void loadUnreadRequests();
+          scheduleRealtimeSync(false);
         }
       )
       .subscribe();
 
     return () => {
+      if (realtimeSyncTimerId !== null) {
+        window.clearTimeout(realtimeSyncTimerId);
+      }
       void supabase.removeChannel(channel);
     };
     // The current board state is intentionally read by realtime callbacks.
@@ -946,9 +962,9 @@ const AdminCampusRequestsPage = () => {
     },
     home: {
       eyebrow: '사용자 커뮤니케이션',
-      title: '홈화면 공지',
+      title: '홈 화면 공지',
       description:
-        '일반 사용자의 홈화면에 표시되는 안내와 중요 공지를 관리합니다.',
+        '일반 사용자의 홈 화면에 표시되는 안내와 중요 공지를 관리합니다.',
     },
   } satisfies Record<
     GlobalAdminTab,
@@ -1002,7 +1018,7 @@ const AdminCampusRequestsPage = () => {
           <House size={18} />
         </span>
         <span className={styles.globalSectionCopy}>
-          <strong>홈화면 공지</strong>
+          <strong>홈 화면 공지</strong>
           <small>일반 사용자 대상 공지를 관리합니다.</small>
         </span>
       </button>

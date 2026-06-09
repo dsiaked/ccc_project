@@ -23,7 +23,7 @@ $env:PYTHONPATH = Join-Path $root 'optimizer'
 & $python -m PyInstaller `
   --noconfirm `
   --onefile `
-  --console `
+  --windowed `
   --name 'CCC-Bus-Allocation-Optimizer-Setup' `
   --distpath $output `
   --workpath (Join-Path $work 'work') `

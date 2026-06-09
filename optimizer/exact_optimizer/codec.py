@@ -22,6 +22,13 @@ def _required_string(item: dict[str, Any], field: str, index: int) -> str:
     return value
 
 
+def _required_integer(item: dict[str, Any], field: str) -> int:
+    value = item.get(field)
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError(f"Bus field {field} must be an integer.")
+    return value
+
+
 def input_from_snapshot(snapshot: dict[str, Any]) -> OptimizationInput:
     if snapshot.get("schema_version") != 1:
         raise ValueError("Unsupported optimization input schema version.")
@@ -47,13 +54,13 @@ def input_from_snapshot(snapshot: dict[str, Any]) -> OptimizationInput:
     return OptimizationInput(
         passengers=tuple(parsed_passengers),
         bus=BusConfiguration(
-            capacity=int(bus["capacity"]),
-            price=int(bus["price"]),
-            recommended_minimum_passengers=int(
-                bus["recommended_minimum_passengers"]
+            capacity=_required_integer(bus, "capacity"),
+            price=_required_integer(bus, "price"),
+            recommended_minimum_passengers=_required_integer(
+                bus, "recommended_minimum_passengers"
             ),
             maximum_buses=(
-                int(bus["maximum_buses"])
+                _required_integer(bus, "maximum_buses")
                 if bus.get("maximum_buses") is not None
                 else None
             ),

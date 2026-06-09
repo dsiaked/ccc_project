@@ -1,8 +1,6 @@
 .page {
   min-height: 100vh;
-  background:
-    radial-gradient(circle at 50% 0, rgba(219, 234, 254, 0.75), transparent 360px),
-    #f4f6f8;
+  background: #f6f7f9;
 }
 
 .main {
@@ -13,11 +11,10 @@
 
 .hero {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
   gap: 24px;
   margin-bottom: 20px;
-  padding: 4px 2px;
 }
 
 .hero h1,
@@ -28,24 +25,10 @@
 }
 
 .hero h1 {
-  margin-top: 10px;
   color: #101828;
-  font-size: clamp(30px, 4vw, 40px);
+  font-size: clamp(28px, 4vw, 34px);
   font-weight: 900;
   letter-spacing: -0.045em;
-}
-
-.eyebrow {
-  display: inline-flex;
-  align-items: center;
-  min-height: 27px;
-  padding: 0 10px;
-  border: 1px solid #bfdbfe;
-  border-radius: 999px;
-  background: rgba(239, 246, 255, 0.88);
-  color: #1d4ed8;
-  font-size: 12px;
-  font-weight: 900;
 }
 
 .hero p,
@@ -54,18 +37,6 @@
   color: #667085;
   font-size: 14px;
   line-height: 1.6;
-}
-
-.proofBadge {
-  align-self: flex-start;
-  padding: 9px 13px;
-  border: 1px solid #a6f4c5;
-  border-radius: 999px;
-  background: #ecfdf3;
-  color: #067647;
-  font-size: 13px;
-  font-weight: 800;
-  white-space: nowrap;
 }
 
 .confirmedWorkspaceTop {
@@ -163,165 +134,84 @@
   gap: 9px;
 }
 
-.workflow {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-  margin-bottom: 20px;
-  padding: 8px;
-  border: 1px solid rgba(208, 213, 221, 0.9);
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.78);
-  box-shadow: 0 10px 32px rgba(16, 24, 40, 0.07);
-  backdrop-filter: blur(12px);
-}
-
-.workflowItem {
-  position: relative;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-  padding: 13px;
-  border: 1px solid transparent;
-  border-radius: 11px;
-  color: #475467;
-  text-decoration: none;
-  transition:
-    border-color 0.18s ease,
-    background 0.18s ease,
-    transform 0.18s ease;
-}
-
-.workflowItem:hover {
-  border-color: #b2ccff;
-  background: #f5f8ff;
-  transform: translateY(-1px);
-}
-
-.workflowStep {
-  position: absolute;
-  top: 7px;
-  right: 9px;
-  color: #d0d5dd;
-  font-size: 10px;
-  font-weight: 900;
-}
-
-.workflowIcon {
-  display: grid;
-  width: 38px;
-  height: 38px;
-  place-items: center;
-  border-radius: 10px;
-  background: #eff4ff;
-  color: #155eef;
-}
-
-.workflowContent {
-  display: grid;
-  min-width: 0;
-  gap: 2px;
-}
-
-.workflowContent small,
-.workflowContent strong,
-.workflowContent em {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.workflowContent small {
-  color: #667085;
-  font-size: 10px;
-  font-weight: 800;
-}
-
-.workflowContent strong {
-  color: #1d2939;
-  font-size: 14px;
-}
-
-.workflowContent em {
-  color: #475467;
-  font-size: 11px;
-  font-style: normal;
-}
-
 .section {
   scroll-margin-top: 88px;
-  margin-bottom: 20px;
-  padding: 24px;
+  margin-bottom: 16px;
+  padding: 20px;
   border: 1px solid #e4e7ec;
-  border-radius: 16px;
+  border-radius: 12px;
   background: #fff;
-  box-shadow: 0 8px 28px rgba(16, 24, 40, 0.055);
 }
 
 .executionModePanel {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 18px;
+  gap: 14px;
   margin-bottom: 20px;
-  padding: 14px;
-  border: 1px solid #d1e0ff;
-  border-radius: 12px;
-  background: #f5f8ff;
+  padding: 12px;
+  border: 1px solid #eaecf0;
+  border-radius: 10px;
+  background: #f9fafb;
 }
 
 .executionModePanel > div:first-child {
-  min-width: 170px;
+  min-width: 88px;
 }
 
 .executionModePanel > div:first-child > strong {
-  color: #1849a9;
-  font-size: 14px;
+  color: #344054;
+  font-size: 13px;
 }
 
 .executionModeOptions {
   display: grid;
+  align-items: start;
   flex: 1;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
 
-.executionModeOptions label {
+.executionModeOption {
+  overflow: hidden;
+  border: 1px solid #d0d5dd;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.executionModeOption.selectedMode {
+  border-color: #528bff;
+  background: #f5f8ff;
+}
+
+.executionModeChoice {
   display: flex;
   align-items: center;
   gap: 9px;
-  padding: 10px 12px;
-  border: 1px solid #d0d5dd;
-  border-radius: 9px;
-  background: #fff;
+  width: 100%;
+  padding: 9px 10px;
   cursor: pointer;
 }
 
-.executionModeOptions label.selectedMode {
-  border-color: #528bff;
-  background: #eff4ff;
-}
-
-.executionModeOptions input {
+.executionModeChoice input {
   width: 16px;
   height: 16px;
+  flex: 0 0 auto;
   accent-color: #155eef;
 }
 
-.executionModeOptions span,
-.executionModeOptions strong,
-.executionModeOptions small {
+.executionModeChoice span,
+.executionModeChoice strong,
+.executionModeChoice small {
   display: block;
 }
 
-.executionModeOptions strong {
+.executionModeChoice strong {
   color: #344054;
   font-size: 13px;
 }
 
-.executionModeOptions small {
+.executionModeChoice small {
   margin-top: 3px;
   color: #667085;
   font-size: 11px;
@@ -340,6 +230,149 @@
 
 .sectionHeader {
   margin-bottom: 18px;
+}
+
+.calculationActions {
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+}
+
+.calculationError {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  max-width: 420px;
+  padding: 9px 11px;
+  border: 1px solid #fda29b;
+  border-radius: 8px;
+  background: #fffbfa;
+  color: #b42318;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.calculationError svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.calculationReady {
+  border-color: #b2ccff;
+  background: linear-gradient(180deg, #f8faff 0, #fff 190px);
+}
+
+.calculationRunning {
+  border-color: #84adff;
+  background: linear-gradient(180deg, #eef4ff 0, #fff 220px);
+  box-shadow: 0 8px 24px rgba(21, 94, 239, 0.08);
+}
+
+.calculationCompleted {
+  border-color: #75e0a7;
+  background: linear-gradient(180deg, #ecfdf3 0, #fff 220px);
+}
+
+.calculationReady .sectionHeader h2,
+.calculationRunning .sectionHeader h2,
+.calculationCompleted .sectionHeader h2 {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 7px;
+  font-size: 21px;
+}
+
+.calculationStateBadge {
+  display: inline-flex;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #d1e0ff;
+  color: #1849a9;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.calculationRunning .calculationStateBadge {
+  background: #155eef;
+  color: #fff;
+}
+
+.calculationCompleted .calculationStateBadge {
+  background: #d1fadf;
+  color: #067647;
+}
+
+.calculationReadiness {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+  margin-top: 14px;
+}
+
+.calculationReadiness article,
+.calculationDetailGrid article {
+  padding: 12px;
+  border: 1px solid #eaecf0;
+  border-radius: 9px;
+  background: #fff;
+}
+
+.calculationReadiness span,
+.calculationReadiness strong,
+.calculationDetailGrid span,
+.calculationDetailGrid strong {
+  display: block;
+}
+
+.calculationReadiness span,
+.calculationDetailGrid span {
+  color: #667085;
+  font-size: 11px;
+}
+
+.calculationReadiness strong,
+.calculationDetailGrid strong {
+  margin-top: 4px;
+  color: #344054;
+  font-size: 14px;
+}
+
+.calculationStartArea {
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #d1e0ff;
+}
+
+.calculationStartArea .primary {
+  min-width: 220px;
+  min-height: 46px;
+}
+
+.actionDisabledReason {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  max-width: 520px;
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid #fedf89;
+  border-radius: 8px;
+  background: #fffaeb;
+  color: #7a2e0e;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.actionDisabledReason svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  color: #dc6803;
 }
 
 .section h2 {
@@ -365,6 +398,12 @@
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+.savedAllocationActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .confirmedCount {
@@ -519,103 +558,44 @@
   font-size: 13px;
 }
 
-.metricGrid,
-.busGrid {
+.metricGrid {
   display: grid;
   gap: 12px;
 }
 
-.busSettingLayout {
-  display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(300px, 0.9fr);
-  gap: 14px;
-}
-
-.currentBusSettings,
 .recommendedSetting {
-  padding: 16px;
-  border: 1px solid #e4e7ec;
-  border-radius: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+  padding: 12px;
+  border: 1px solid #eaecf0;
+  border-radius: 10px;
   background: #f9fafb;
 }
 
-.recommendedSetting {
-  border-color: #b2ccff;
-  background: #f5f8ff;
+.recommendedSetting > div:first-child {
+  min-width: 0;
 }
 
-.settingGroupHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 12px;
-}
-
-.settingGroupHeader strong {
+.recommendedSetting strong {
   color: #344054;
   font-size: 13px;
 }
 
-.settingGroupHeader span {
-  color: #667085;
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.settingGroupHeader .editableBadge {
-  padding: 4px 7px;
-  border-radius: 999px;
-  background: #d1e0ff;
-  color: #3538cd;
-  font-weight: 900;
-}
-
-.configSummaryGrid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.configSummaryCard {
-  display: grid;
-  gap: 7px;
-  min-width: 0;
-  padding: 13px;
-  border: 1px solid #eaecf0;
-  border-radius: 9px;
-  background: #fff;
-}
-
-.configSummaryCard span {
-  color: #667085;
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.configSummaryCard strong {
-  overflow-wrap: anywhere;
-  color: #101828;
-  font-size: 19px;
-  letter-spacing: -0.03em;
-}
-
-.configSummaryCard small {
-  margin-left: 3px;
-  color: #667085;
-  font-size: 11px;
-}
-
 .recommendedSetting p {
-  margin: 0 0 13px;
+  margin: 3px 0 0;
   color: #475467;
   font-size: 12px;
   line-height: 1.55;
 }
 
-.recommendedSettingControls {
-  display: grid;
-  grid-template-columns: minmax(120px, 1fr) auto;
+.recommendedSettingEditor {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: stretch;
   gap: 8px;
 }
 
@@ -626,7 +606,6 @@
   border: 1px solid #84adff;
   border-radius: 9px;
   background: #fff;
-  box-shadow: 0 0 0 3px rgba(21, 94, 239, 0.08);
 }
 
 .numberInput:focus-within {
@@ -635,8 +614,7 @@
 }
 
 .numberInput input {
-  width: 100%;
-  min-width: 0;
+  width: 72px;
   padding: 10px 12px;
   border: 0;
   outline: 0;
@@ -664,7 +642,8 @@
   display: flex;
   align-items: center;
   gap: 5px;
-  margin-top: 9px;
+  flex: 0 0 100%;
+  margin: -7px 0 0;
   font-size: 11px;
   font-weight: 800;
 }
@@ -786,6 +765,137 @@ button:disabled {
   font-weight: 700;
 }
 
+.success {
+  margin-bottom: 20px;
+  padding: 14px 16px;
+  border: 1px solid #abefc6;
+  border-radius: 10px;
+  background: #ecfdf3;
+  color: #067647;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.modalBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(16, 24, 40, 0.48);
+}
+
+.manualDraftModal {
+  width: min(520px, 100%);
+  overflow: hidden;
+  border: 1px solid #d0d5dd;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 24px 60px rgba(16, 24, 40, 0.24);
+}
+
+.modalHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px;
+  border-bottom: 1px solid #eaecf0;
+}
+
+.modalHeader > div {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.modalHeader h2,
+.modalHeader p {
+  margin: 0;
+}
+
+.modalHeader h2 {
+  color: #101828;
+  font-size: 19px;
+}
+
+.modalHeader p {
+  margin-top: 5px;
+  color: #667085;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.modalHeader > button {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  padding: 6px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #667085;
+  cursor: pointer;
+}
+
+.modalIcon {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 10px;
+  background: #eff4ff;
+  color: #155eef;
+}
+
+.manualDraftForm {
+  display: grid;
+  gap: 16px;
+  padding: 20px;
+}
+
+.manualDraftForm label {
+  display: grid;
+  gap: 7px;
+  color: #344054;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.manualDraftForm input {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid #d0d5dd;
+  border-radius: 8px;
+  color: #101828;
+  font: inherit;
+  outline: none;
+}
+
+.manualDraftForm input:focus {
+  border-color: #84adff;
+  box-shadow: 0 0 0 3px rgba(21, 94, 239, 0.12);
+}
+
+.modalError {
+  padding: 10px 12px;
+  border: 1px solid #fda29b;
+  border-radius: 8px;
+  background: #fffbfa;
+  color: #b42318;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.modalFooter {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .installGuide {
   margin-bottom: 20px;
   border: 1px solid #b2ccff;
@@ -904,6 +1014,23 @@ button:disabled {
 
 .installFootnote {
   color: #475467;
+}
+
+.embeddedInstallGuide {
+  margin: 0;
+  border: 0;
+  border-top: 1px solid #d1e0ff;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.embeddedInstallGuide summary {
+  padding: 10px;
+}
+
+.embeddedInstallGuide .installGuideBody {
+  padding: 12px 10px 10px;
 }
 
 .progressTrack {
@@ -1130,8 +1257,7 @@ button:disabled {
   margin-top: 18px;
 }
 
-.metricGrid article,
-.busCard {
+.metricGrid article {
   padding: 14px;
   border: 1px solid #eaecf0;
   border-radius: 10px;
@@ -1161,6 +1287,12 @@ button:disabled {
   margin-top: 16px;
 }
 
+.historyList {
+  max-height: 360px;
+  overflow-y: auto;
+  padding-right: 6px;
+}
+
 .warning {
   padding: 12px 14px;
   border: 1px solid #fedf89;
@@ -1169,22 +1301,6 @@ button:disabled {
   color: #93370d;
   font-size: 13px;
   font-weight: 700;
-}
-
-.busGrid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  margin-top: 18px;
-}
-
-.busCard strong,
-.busCard span {
-  display: block;
-}
-
-.busCard span {
-  margin-top: 5px;
-  color: #667085;
-  font-size: 12px;
 }
 
 .historyItem {
@@ -1227,6 +1343,7 @@ button:disabled {
 .draftCreator {
   display: flex;
   align-items: end;
+  flex-wrap: wrap;
   gap: 12px;
   margin-top: 20px;
   padding-top: 20px;
@@ -1247,6 +1364,38 @@ button:disabled {
   border: 1px solid #d0d5dd;
   border-radius: 9px;
   font: inherit;
+}
+
+.draftDisabledReason {
+  display: flex;
+  flex: 0 0 100%;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 0;
+  padding: 9px 11px;
+  border: 1px solid #fedf89;
+  border-radius: 8px;
+  background: #fffaeb;
+  color: #7a2e0e;
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: left;
+}
+
+.draftDisabledReason svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  color: #dc6803;
+}
+
+.draftDisabledReason span,
+.draftDisabledReason strong {
+  display: block;
+}
+
+.draftDisabledReason strong {
+  margin-bottom: 2px;
+  color: #b54708;
 }
 
 .detailedBalancePanel {
@@ -1273,6 +1422,42 @@ button:disabled {
 
 .detailedBalancePanel button {
   flex: 0 0 auto;
+}
+
+.balanceSettings,
+.calculationDetails {
+  margin-top: 14px;
+  border: 1px solid #d0d5dd;
+  border-radius: 9px;
+  background: #fff;
+}
+
+.balanceSettings summary,
+.calculationDetails summary {
+  padding: 10px 12px;
+  color: #344054;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.balanceSettings[open] {
+  padding: 0 12px 12px;
+}
+
+.calculationDetails {
+  border-color: #a6f4c5;
+}
+
+.calculationDetails[open] {
+  padding-bottom: 12px;
+}
+
+.calculationDetailGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+  padding: 0 12px;
 }
 
 .resumeOption {
@@ -1356,8 +1541,22 @@ button:disabled {
     flex-direction: column;
   }
 
-  .workflow {
-    grid-template-columns: 1fr;
+  .savedAllocationActions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .savedAllocationActions .secondary {
+    width: 100%;
+  }
+
+  .calculationActions {
+    width: 100%;
+    justify-items: stretch;
+  }
+
+  .calculationError {
+    max-width: none;
   }
 
   .draftList {
@@ -1393,15 +1592,32 @@ button:disabled {
   }
 
   .metricGrid,
-  .busGrid,
-  .phaseList {
+  .phaseList,
+  .calculationReadiness,
+  .calculationDetailGrid {
     grid-template-columns: 1fr;
   }
 
-  .busSettingLayout,
-  .configSummaryGrid,
-  .recommendedSettingControls {
-    grid-template-columns: 1fr;
+  .calculationStartArea {
+    justify-items: stretch;
+  }
+
+  .calculationStartArea .primary {
+    width: 100%;
+  }
+
+  .recommendedSetting {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .recommendedSettingEditor {
+    display: grid;
+    grid-template-columns: 1fr auto;
+  }
+
+  .numberInput input {
+    width: 100%;
   }
 
   .busOptionWarning {

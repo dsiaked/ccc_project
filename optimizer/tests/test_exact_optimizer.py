@@ -413,6 +413,17 @@ class ExactOptimizerTests(unittest.TestCase):
         )
         self.assertEqual(result.status, "FAILED")
 
+    def test_rejects_empty_passenger_input(self) -> None:
+        result = optimize(
+            OptimizationInput(
+                passengers=(),
+                bus=BusConfiguration(capacity=3, price=100),
+            )
+        )
+
+        self.assertEqual(result.status, "FAILED")
+        self.assertIn("At least one passenger is required.", result.error_message or "")
+
     def test_rejects_result_with_mismatched_bus_configuration(self) -> None:
         data = OptimizationInput(
             passengers=(passenger("p1", "A", "B"),),

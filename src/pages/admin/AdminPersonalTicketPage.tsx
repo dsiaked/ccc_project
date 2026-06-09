@@ -55,13 +55,12 @@ import type {
 import styles from './AdminPersonalTicketPage.module.css';
 
 type ReservationStatusFilter =
-  | 'all'
   | 'not_applied'
   | 'requested'
   | 'confirmed'
   | 'cancelled';
 type TicketStatusFilter = 'all' | 'confirmed' | 'pending' | 'not_applied';
-type AdminRoleFilter = 'all' | 'general' | 'campus_admin' | 'global_admin';
+type AdminRoleFilter = 'general' | 'campus_admin' | 'global_admin';
 
 type ReservationItem = PersonalTicketItem;
 type AdminRoleRow = PersonalTicketAdminRole;
@@ -106,6 +105,20 @@ const removeUndefinedValues = <T,>(value: T): T =>
   JSON.parse(JSON.stringify(value)) as T;
 
 const PAGE_SIZE = 25;
+const reservationStatusOptions: Array<{
+  value: ReservationStatusFilter;
+  label: string;
+}> = [
+  { value: 'requested', label: '신청 접수' },
+  { value: 'confirmed', label: '배차 확정' },
+  { value: 'cancelled', label: '신청 취소' },
+  { value: 'not_applied', label: '미신청' },
+];
+const adminRoleOptions: Array<{ value: AdminRoleFilter; label: string }> = [
+  { value: 'general', label: '일반 사용자' },
+  { value: 'campus_admin', label: '캠퍼스 회계 순장님' },
+  { value: 'global_admin', label: '전체 관리자' },
+];
 const emptySummary: PersonalTicketSummary = {
   total: 0,
   applied: 0,
@@ -126,6 +139,11 @@ const getStationNameByRank = (
 ) =>
   reservation.stationPreferences.find((preference) => preference.rank === rank)
     ?.station?.name || '';
+
+const toggleFilterValue = <T extends string>(values: T[], value: T) =>
+  values.includes(value)
+    ? values.filter((current) => current !== value)
+    : [...values, value];
 
 const ticketToDraft = (
   ticket?: ConfirmedTicket,
@@ -152,6 +170,9 @@ const AdminPersonalTicketPage = () => {
   const [totalReservations, setTotalReservations] = useState(0);
   const [filteredTotal, setFilteredTotal] = useState(0);
   const [summary, setSummary] = useState<PersonalTicketSummary>(emptySummary);
+  const [districtOptions, setDistrictOptions] = useState<Array<{ name: string }>>(
+    []
+  );
   const [campusOptions, setCampusOptions] = useState<Array<{ name: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -167,15 +188,19 @@ const AdminPersonalTicketPage = () => {
   >(null);
   const [draft, setDraft] = useState<TicketDraft>(emptyDraft);
   const [searchKeyword, setSearchKeyword] = useState('');
-  const [statusFilter, setStatusFilter] =
-    useState<ReservationStatusFilter>('all');
+  const [statusFilters, setStatusFilters] = useState<ReservationStatusFilter[]>(
+    []
+  );
   const [ticketFilter, setTicketFilter] = useState<TicketStatusFilter>('all');
-  const [adminRoleFilter, setAdminRoleFilter] =
-    useState<AdminRoleFilter>('all');
+  const [adminRoleFilters, setAdminRoleFilters] = useState<AdminRoleFilter[]>([]);
+  const [districtFilter, setDistrictFilter] = useState(
+    () => searchParams.get('district') || 'all'
+  );
   const [campusFilter, setCampusFilter] = useState(
     () => searchParams.get('campus') || 'all'
   );
   const [page, setPage] = useState(1);
+  const [hasCompletedInitialLoad, setHasCompletedInitialLoad] = useState(false);
   const [roleDistricts, setRoleDistricts] = useState<SelectOption[]>([]);
   const [roleTeams, setRoleTeams] = useState<SelectOption[]>([]);
   const [roleCampuses, setRoleCampuses] = useState<SelectOption[]>([]);
@@ -200,9 +225,10 @@ const AdminPersonalTicketPage = () => {
           page,
           pageSize: PAGE_SIZE,
           search: deferredSearchKeyword,
-          status: statusFilter,
+          status: statusFilters,
           ticket: ticketFilter,
-          adminRole: adminRoleFilter,
+          adminRole: adminRoleFilters,
+          district: districtFilter,
           campus: campusFilter,
         }),
         !roleDistrictsLoadedRef.current
@@ -222,6 +248,7 @@ const AdminPersonalTicketPage = () => {
       setTotalReservations(result.total);
       setFilteredTotal(result.filteredTotal);
       setSummary(result.summary);
+      setDistrictOptions(result.districts);
       setCampusOptions(result.campuses);
       if (districts) {
         roleDistrictsLoadedRef.current = true;
@@ -243,14 +270,18 @@ const AdminPersonalTicketPage = () => {
       console.error('개인 버스표 목록 조회 실패:', error);
       alert('개인 버스표 목록을 불러올 수 없습니다.');
     } finally {
-      if (requestId === loadRequestId.current) setLoading(false);
+      if (requestId === loadRequestId.current) {
+        setHasCompletedInitialLoad(true);
+        setLoading(false);
+      }
     }
   }, [
-    adminRoleFilter,
+    adminRoleFilters,
     campusFilter,
     deferredSearchKeyword,
+    districtFilter,
     page,
-    statusFilter,
+    statusFilters,
     ticketFilter,
   ]);
 
@@ -309,23 +340,23 @@ const AdminPersonalTicketPage = () => {
   };
 
   const campuses = campusOptions.map((campus) => campus.name);
+  const districts = districtOptions.map((district) => district.name);
 
   const hasActiveFilters =
     Boolean(searchKeyword.trim()) ||
     ticketFilter !== 'all' ||
-    statusFilter !== 'all' ||
-    adminRoleFilter !== 'all' ||
+    statusFilters.length > 0 ||
+    adminRoleFilters.length > 0 ||
+    districtFilter !== 'all' ||
     campusFilter !== 'all';
-  const advancedFilterCount = [
-    statusFilter !== 'all',
-    adminRoleFilter !== 'all',
-  ].filter(Boolean).length;
+  const advancedFilterCount = statusFilters.length + adminRoleFilters.length;
 
   const resetFilters = () => {
     setSearchKeyword('');
     setTicketFilter('all');
-    setStatusFilter('all');
-    setAdminRoleFilter('all');
+    setStatusFilters([]);
+    setAdminRoleFilters([]);
+    setDistrictFilter('all');
     setCampusFilter('all');
     setSearchParams({});
     setPage(1);
@@ -371,6 +402,19 @@ const AdminPersonalTicketPage = () => {
     if (firstReservation) {
       selectReservation(firstReservation);
     }
+  };
+
+  const selectDistrict = (district: string) => {
+    setDistrictFilter(district);
+    setPage(1);
+
+    const next = new URLSearchParams(searchParams);
+    if (district === 'all') {
+      next.delete('district');
+    } else {
+      next.set('district', district);
+    }
+    setSearchParams(next, { replace: true });
   };
 
   const updateDraft = (key: keyof TicketDraft, value: string) => {
@@ -723,7 +767,7 @@ const AdminPersonalTicketPage = () => {
     }
   };
 
-  if (loading) {
+  if (loading && !hasCompletedInitialLoad) {
     return (
       <div className={styles.pageContainer}>
         <AdminHeader />
@@ -738,7 +782,7 @@ const AdminPersonalTicketPage = () => {
     <div className={styles.pageContainer}>
       <AdminHeader />
 
-      <main className={styles.main}>
+      <main className={styles.main} aria-busy={loading}>
         <button
           type="button"
           className={styles.backButton}
@@ -837,6 +881,21 @@ const AdminPersonalTicketPage = () => {
             </select>
 
             <select
+              className={districtFilter !== 'all' ? styles.activeFilter : undefined}
+              value={districtFilter}
+              aria-label="지구"
+              onChange={(event) => selectDistrict(event.target.value)}
+            >
+              <option value="all">지구 · 전체</option>
+              <option value="outside_seoul">서울지구 외 · 전체</option>
+              {districts.map((district) => (
+                <option key={district} value={district}>
+                  {district}
+                </option>
+              ))}
+            </select>
+
+            <select
               className={campusFilter !== 'all' ? styles.activeFilter : undefined}
               value={campusFilter}
               aria-label="캠퍼스"
@@ -877,40 +936,99 @@ const AdminPersonalTicketPage = () => {
               id="personal-ticket-advanced-filters"
               className={styles.advancedFilters}
             >
-              <label>
-                <span>신청 상태</span>
-                <select
-                  className={statusFilter !== 'all' ? styles.activeFilter : undefined}
-                  value={statusFilter}
-                  onChange={(event) => {
-                    setStatusFilter(event.target.value as ReservationStatusFilter);
-                    setPage(1);
-                  }}
-                >
-                  <option value="all">전체</option>
-                  <option value="requested">신청 접수</option>
-                  <option value="confirmed">배차 확정</option>
-                  <option value="cancelled">신청 취소</option>
-                  <option value="not_applied">미신청</option>
-                </select>
-              </label>
+              <fieldset className={styles.filterGroup}>
+                <legend>신청 상태</legend>
+                <div className={styles.checkboxOptions}>
+                  <label
+                    className={`${styles.checkboxOption} ${
+                      statusFilters.length === 0
+                        ? styles.checkboxOptionActive
+                        : ''
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={statusFilters.length === 0}
+                      onChange={() => {
+                        setStatusFilters([]);
+                        setPage(1);
+                      }}
+                    />
+                    <span>전체</span>
+                  </label>
+                  {reservationStatusOptions.map((option) => {
+                    const checked = statusFilters.includes(option.value);
 
-              <label>
-                <span>관리자 권한</span>
-                <select
-                  className={adminRoleFilter !== 'all' ? styles.activeFilter : undefined}
-                  value={adminRoleFilter}
-                  onChange={(event) => {
-                    setAdminRoleFilter(event.target.value as AdminRoleFilter);
-                    setPage(1);
-                  }}
-                >
-                  <option value="all">전체</option>
-                  <option value="general">일반 사용자</option>
-                  <option value="campus_admin">캠퍼스 회계 순장님</option>
-                  <option value="global_admin">전체 관리자</option>
-                </select>
-              </label>
+                    return (
+                      <label
+                        key={option.value}
+                        className={`${styles.checkboxOption} ${
+                          checked ? styles.checkboxOptionActive : ''
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => {
+                            setStatusFilters((current) =>
+                              toggleFilterValue(current, option.value)
+                            );
+                            setPage(1);
+                          }}
+                        />
+                        <span>{option.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </fieldset>
+
+              <fieldset className={styles.filterGroup}>
+                <legend>관리자 권한</legend>
+                <div className={styles.checkboxOptions}>
+                  <label
+                    className={`${styles.checkboxOption} ${
+                      adminRoleFilters.length === 0
+                        ? styles.checkboxOptionActive
+                        : ''
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={adminRoleFilters.length === 0}
+                      onChange={() => {
+                        setAdminRoleFilters([]);
+                        setPage(1);
+                      }}
+                    />
+                    <span>전체</span>
+                  </label>
+                  {adminRoleOptions.map((option) => {
+                    const checked = adminRoleFilters.includes(option.value);
+
+                    return (
+                      <label
+                        key={option.value}
+                        className={`${styles.checkboxOption} ${
+                          checked ? styles.checkboxOptionActive : ''
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => {
+                            setAdminRoleFilters((current) =>
+                              toggleFilterValue(current, option.value)
+                            );
+                            setPage(1);
+                          }}
+                        />
+                        <span>{option.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </fieldset>
             </div>
           )}
 
@@ -932,25 +1050,53 @@ const AdminPersonalTicketPage = () => {
                   버스표: {ticketFilter === 'confirmed' ? '확정 완료' : ticketFilter === 'pending' ? '미확정' : '미신청'} <X size={13} />
                 </button>
               )}
-              {statusFilter !== 'all' && (
-                <button type="button" onClick={() => {
-                  setStatusFilter('all');
-                  setPage(1);
-                }}>
-                  신청: {statusFilter === 'requested' ? '접수' : statusFilter === 'confirmed' ? '배차 확정' : statusFilter === 'cancelled' ? '취소' : '미신청'} <X size={13} />
+              {statusFilters.map((status) => (
+                <button
+                  key={status}
+                  type="button"
+                  onClick={() => {
+                    setStatusFilters((current) =>
+                      current.filter((value) => value !== status)
+                    );
+                    setPage(1);
+                  }}
+                >
+                  신청:{' '}
+                  {reservationStatusOptions.find(
+                    (option) => option.value === status
+                  )?.label || status}{' '}
+                  <X size={13} />
                 </button>
-              )}
-              {adminRoleFilter !== 'all' && (
-                <button type="button" onClick={() => {
-                  setAdminRoleFilter('all');
-                  setPage(1);
-                }}>
-                  권한: {adminRoleFilter === 'general' ? '일반 사용자' : adminRoleFilter === 'campus_admin' ? '캠퍼스 회계 순장님' : '전체 관리자'} <X size={13} />
+              ))}
+              {adminRoleFilters.map((role) => (
+                <button
+                  key={role}
+                  type="button"
+                  onClick={() => {
+                    setAdminRoleFilters((current) =>
+                      current.filter((value) => value !== role)
+                    );
+                    setPage(1);
+                  }}
+                >
+                  권한:{' '}
+                  {adminRoleOptions.find((option) => option.value === role)
+                    ?.label || role}{' '}
+                  <X size={13} />
                 </button>
-              )}
+              ))}
               {campusFilter !== 'all' && (
                 <button type="button" onClick={() => selectCampus('all')}>
                   캠퍼스: {campusFilter} <X size={13} />
+                </button>
+              )}
+              {districtFilter !== 'all' && (
+                <button type="button" onClick={() => selectDistrict('all')}>
+                  지구:{' '}
+                  {districtFilter === 'outside_seoul'
+                    ? '서울지구 외'
+                    : districtFilter}{' '}
+                  <X size={13} />
                 </button>
               )}
             </div>
@@ -958,8 +1104,14 @@ const AdminPersonalTicketPage = () => {
 
           <div className={styles.filterSummary}>
             <span>
-              전체 {totalReservations.toLocaleString()}명 중{' '}
-              <strong>{filteredTotal.toLocaleString()}명</strong>
+              {loading ? (
+                '필터 적용 중...'
+              ) : (
+                <>
+                  전체 {totalReservations.toLocaleString()}명 중{' '}
+                  <strong>{filteredTotal.toLocaleString()}명</strong>
+                </>
+              )}
             </span>
             <button
               type="button"

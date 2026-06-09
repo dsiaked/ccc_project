@@ -802,7 +802,7 @@ export async function updatePersonalTicketAsAdmin(
     const messages: Record<string, string> = {
       'Only global admins can manage personal tickets.':
         '전체 관리자 권한이 있어야 개인 버스표를 관리할 수 있습니다.',
-      'Reservation not found.': '예약을 찾을 수 없습니다.',
+      'Reservation not found.': '신청 정보를 찾을 수 없습니다.',
       'A valid bus and seat number are required.':
         '확정 배차안에 있는 버스와 올바른 좌석 번호를 입력해주세요.',
       'The selected bus does not exist in the confirmed allocation.':
@@ -1389,23 +1389,36 @@ async function getGlobalCampusNoticeRows() {
 async function getCampusRequestIdsMatchingMessages(search: string) {
   const requestIds = new Set<string>();
   const pageSize = 1000;
-  let from = 0;
+  let cursor: { created_at: string; id: string } | null = null;
 
   while (true) {
-    const { data, error } = await supabase
+    let query = supabase
       .from('campus_request_messages')
-      .select('request_id')
+      .select('id, request_id, created_at')
       .ilike('message', `%${search}%`)
       .order('created_at', { ascending: false })
-      .range(from, from + pageSize - 1);
+      .order('id', { ascending: false })
+      .limit(pageSize);
+
+    if (cursor) {
+      query = query.or(
+        `created_at.lt.${cursor.created_at},and(created_at.eq.${cursor.created_at},id.lt.${cursor.id})`
+      );
+    }
+
+    const { data, error } = await query;
 
     if (error) throw new Error(error.message);
 
-    const rows = (data ?? []) as Array<{ request_id: string }>;
+    const rows = (data ?? []) as Array<{
+      id: string;
+      request_id: string;
+      created_at: string;
+    }>;
     rows.forEach((row) => requestIds.add(row.request_id));
 
     if (rows.length < pageSize) break;
-    from += pageSize;
+    cursor = rows[rows.length - 1];
   }
 
   return [...requestIds];
@@ -1428,6 +1441,7 @@ export async function getCampusRequestsPage(
     .from('campus_requests')
     .select('*', { count: 'exact' })
     .order('created_at', { ascending: false })
+    .order('id', { ascending: false })
     .range(from, to);
 
   if (adminRole.role === 'campus_admin') {
@@ -1523,56 +1537,29 @@ export async function getCampusRequestsPage(
   };
 }
 
-export async function getCampusRequestSummary(
-  adminRole: AdminRole
-): Promise<CampusRequestSummary> {
-  const countRequests = async (status?: CampusRequestStatus) => {
-    let query = supabase
-      .from('campus_requests')
-      .select('id', { count: 'exact', head: true })
-      .eq('is_global_notice', false);
+export async function getCampusRequestSummary(): Promise<CampusRequestSummary> {
+  const { data, error } = await supabase.rpc('get_campus_request_summary');
+  if (error) throw new Error(error.message);
 
-    if (adminRole.role === 'campus_admin') {
-      query = query
-        .eq('district', adminRole.district)
-        .eq('team', adminRole.team)
-        .eq('campus', adminRole.campus);
-    }
-
-    if (status) query = query.eq('status', status);
-
-    const { count, error } = await query;
-    if (error) throw new Error(error.message);
-    return count ?? 0;
-  };
-
-  const countNotices = async () => {
-    const { count, error } = await supabase
-      .from('campus_requests')
-      .select('id', { count: 'exact', head: true })
-      .eq('is_global_notice', true);
-
-    if (error) throw new Error(error.message);
-    return count ?? 0;
-  };
-
-  const [total, notices, open, inProgress, resolved, onHold] = await Promise.all([
-    countRequests(),
-    countNotices(),
-    countRequests('open'),
-    countRequests('in_progress'),
-    countRequests('resolved'),
-    countRequests('on_hold'),
-  ]);
+  const [row] = (data ?? []) as Array<{
+    total: number;
+    notices: number;
+    open: number;
+    in_progress: number;
+    resolved: number;
+    on_hold: number;
+  }>;
+  const total = Number(row?.total ?? 0);
+  const resolved = Number(row?.resolved ?? 0);
 
   return {
     total,
-    notices,
+    notices: Number(row?.notices ?? 0),
     unresolved: Math.max(0, total - resolved),
-    open,
-    inProgress,
+    open: Number(row?.open ?? 0),
+    inProgress: Number(row?.in_progress ?? 0),
     resolved,
-    onHold,
+    onHold: Number(row?.on_hold ?? 0),
   };
 }
 
@@ -1623,12 +1610,14 @@ export async function getGlobalCampusNotices() {
     return { data: null, error };
   }
 
+  const rows = data ?? [];
+  const targetsByNotice = await getCampusNoticeTargets(
+    rows.map((row) => row.id)
+  );
+
   return {
-    data: await Promise.all(
-      (data ?? []).map(async (row) => {
-        const targets = await getCampusNoticeTargets([row.id]);
-        return mapCampusRequest(row, [], targets.get(row.id) ?? []);
-      })
+    data: rows.map((row) =>
+      mapCampusRequest(row, [], targetsByNotice.get(row.id) ?? [])
     ),
     error: null,
   };
@@ -1908,7 +1897,8 @@ export async function getReservationsWithPaymentByTeamCampus(
           updated_at
         )
       `)
-      .eq('campus', campus);
+      .eq('campus', campus)
+      .neq('status', 'cancelled');
 
     if (team && team.trim()) {
       query = query.eq('team', team.trim());

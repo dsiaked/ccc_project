@@ -122,7 +122,12 @@ const LoginPage = () => {
   return (
     <div className={styles.pageContainer}>
       <header className={styles.header}>
-        <button className={styles.backButton} onClick={() => navigate(-1)}>
+        <button
+          type="button"
+          className={styles.backButton}
+          onClick={() => navigate('/')}
+          aria-label="홈으로 이동"
+        >
           <ChevronLeft size={24} color="#101828" />
         </button>
         <h1 className={styles.headerTitle}>로그인</h1>

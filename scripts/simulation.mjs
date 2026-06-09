@@ -450,13 +450,21 @@ async function fetchAllAuthUsers() {
 async function fetchAllRows(table, columns, applyFilters = (query) => query) {
   const client = getClient();
   const rows = [];
-  for (let from = 0; ; from += PAGE_SIZE) {
-    let query = client.from(table).select(columns).range(from, from + PAGE_SIZE - 1);
+  let cursorId = null;
+
+  while (true) {
+    let query = client
+      .from(table)
+      .select(columns)
+      .order('id', { ascending: true })
+      .limit(PAGE_SIZE);
+    if (cursorId) query = query.gt('id', cursorId);
     query = applyFilters(query);
     const { data, error } = await query;
     if (error) throw new Error(`${table} 조회 실패: ${error.message}`);
     rows.push(...data);
     if (data.length < PAGE_SIZE) return rows;
+    cursorId = data[data.length - 1].id;
   }
 }
 
@@ -1098,7 +1106,7 @@ async function seedProfiles() {
 
   const existingRoles = await fetchAllRows(
     'admin_roles',
-    'user_id,role,district_id,district,team_id,team,campus_id,campus',
+    'id,user_id,role,district_id,district,team_id,team,campus_id,campus',
     (query) => query.eq('role', 'campus_admin'),
   );
   const adminIds = new Set(admins.map((admin) => admin.userId));
@@ -1763,7 +1771,7 @@ async function cleanup() {
 
   const globalAdminRoles = await fetchAllRows(
     'admin_roles',
-    'user_id',
+    'id,user_id',
     (query) => query.eq('role', 'global_admin'),
   );
   const globalAdminUserIds = [

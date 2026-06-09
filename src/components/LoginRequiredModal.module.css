@@ -1,0 +1,100 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1400;
+  display: grid;
+  place-items: center;
+  padding: max(20px, env(safe-area-inset-top)) 20px max(20px, env(safe-area-inset-bottom));
+  background: rgba(15, 23, 42, 0.48);
+}
+
+.modal {
+  position: relative;
+  width: min(400px, 100%);
+  padding: 30px 24px 24px;
+  border: 1px solid #dfe3e8;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.24);
+  text-align: center;
+}
+
+.closeButton {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  color: #667085;
+}
+
+.closeButton:hover {
+  background: #f2f4f7;
+}
+
+.icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 54px;
+  height: 54px;
+  margin-bottom: 14px;
+  border-radius: 16px;
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.modal h2 {
+  color: #101828;
+  font-size: 21px;
+  letter-spacing: -0.02em;
+}
+
+.modal p {
+  margin-top: 9px;
+  color: #667085;
+  font-size: 14px;
+  line-height: 1.65;
+  white-space: pre-line;
+}
+
+.loginButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 48px;
+  margin-top: 22px;
+  padding: 0 18px;
+  border-radius: 10px;
+  background: var(--color-primary);
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.loginButton:hover {
+  background: var(--color-primary-dark);
+}
+
+.closeButton:focus-visible,
+.loginButton:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+@media (max-width: 420px) {
+  .backdrop {
+    align-items: end;
+    padding: 10px 10px max(10px, env(safe-area-inset-bottom));
+  }
+
+  .modal {
+    padding: 28px 18px calc(18px + env(safe-area-inset-bottom));
+    border-radius: 18px;
+  }
+}

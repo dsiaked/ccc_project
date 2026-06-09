@@ -57,6 +57,19 @@ const setupFiles = [
   '121_fix_campus_payment_account_campus_id_ambiguity.sql',
   '122_fix_campus_admin_search_rpc_access.sql',
   '123_avoid_confirmation_table_lock_timeout.sql',
+  '124_protect_initial_campus_request_message.sql',
+  '125_secure_campus_transfer_reports.sql',
+  '126_allow_campus_request_cascade_delete.sql',
+  '127_keyset_pagination_indexes.sql',
+  '128_admin_audit_log_keyset_index.sql',
+  '129_campus_transfer_reports_require_closed_deadline.sql',
+  '130_personal_ticket_district_filter.sql',
+  '131_return_complete_optimizer_config_after_save.sql',
+  '132_performance_lookup_indexes.sql',
+  '133_prevent_stale_optimizer_result_reuse.sql',
+  '134_safe_reset_allocation_optimization_jobs.sql',
+  '135_split_allocation_deadline_triggers.sql',
+  '136_allow_external_reservations_without_team.sql',
 ];
 
 let combined = readFileSync(combinedPath, 'utf8').replaceAll('\r\n', '\n');

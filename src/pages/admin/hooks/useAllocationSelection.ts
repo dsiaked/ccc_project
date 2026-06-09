@@ -19,7 +19,7 @@ export const useAllocationSelection = <T,>() => {
     setSelectedAllocation(allocation);
     setSelectedAllocationLabel(label);
     setSelectionFeedback(
-      `${label}을 선택했습니다. 임시 배차안 생성과 추천안 보관은 이 안으로 진행됩니다.`
+      `${label}을 선택했습니다. 배차 초안 생성과 추천안 보관은 이 안으로 진행됩니다.`
     );
   };
 

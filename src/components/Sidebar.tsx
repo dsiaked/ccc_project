@@ -23,6 +23,8 @@ import {
   getUnreadCampusNotices,
 } from '../lib/adminNoticeReadState';
 import { getReservationDeadline } from '../lib/reservationDeadlineService';
+import { createLoginRequiredRedirectState } from '../utils/redirect';
+import LoginRequiredModal from './LoginRequiredModal';
 import LogoutModal from './LogoutModal';
 import styles from './Sidebar.module.css';
 
@@ -46,6 +48,9 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
 
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
+  const [loginRequiredPath, setLoginRequiredPath] = useState<string | null>(
+    null
+  );
   const [profile, setProfile] = useState<Profile | null>(null);
   const [adminRole, setAdminRole] = useState<AdminRole | null>(null);
   const [adminRoles, setAdminRoles] = useState<AdminRole[]>([]);
@@ -58,6 +63,16 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
   const handleMenuClick = (path: string) => {
     navigate(path);
     onClose();
+  };
+
+  const handleProtectedMenuClick = (path: string) => {
+    if (!isLoggedIn) {
+      setLoginRequiredPath(path);
+      onClose();
+      return;
+    }
+
+    handleMenuClick(path);
   };
 
   const loadUser = async () => {
@@ -369,7 +384,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
                 <button
                   type="button"
                   className={navItemClassName('/reservation')}
-                  onClick={() => handleMenuClick('/reservation')}
+                  onClick={() => handleProtectedMenuClick('/reservation')}
                   aria-current={
                     location.pathname === '/reservation' ? 'page' : undefined
                   }
@@ -382,7 +397,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
                 <button
                   type="button"
                   className={navItemClassName('/ticket')}
-                  onClick={() => handleMenuClick('/ticket')}
+                  onClick={() => handleProtectedMenuClick('/ticket')}
                   aria-current={
                     location.pathname === '/ticket' ? 'page' : undefined
                   }
@@ -396,7 +411,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
                   <button
                     type="button"
                     className={navItemClassName('/remaining-seats')}
-                    onClick={() => handleMenuClick('/remaining-seats')}
+                    onClick={() => handleProtectedMenuClick('/remaining-seats')}
                     aria-current={
                       location.pathname === '/remaining-seats'
                         ? 'page'
@@ -404,7 +419,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
                     }
                   >
                     <Ticket size={20} className={styles.navIcon} />
-                    마감 후 잔여좌석
+                    마감 후 잔여 좌석
                   </button>
                 </li>
               )}
@@ -439,7 +454,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
                       }
                     >
                       <ShieldCheck size={20} className={styles.navIcon} />
-                      <span className={styles.navLabel}>캠퍼스 회계 관리</span>
+                      <span className={styles.navLabel}>캠퍼스 회계 순장님 페이지</span>
                       {campusNoticeCount > 0 && (
                         <span className={styles.navBadge}>
                           공지 {campusNoticeCount}
@@ -479,6 +494,17 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
         <LogoutModal
           onClose={() => setIsLogoutModalOpen(false)}
           onConfirm={handleLogout}
+        />
+      )}
+
+      {loginRequiredPath && (
+        <LoginRequiredModal
+          onClose={() => setLoginRequiredPath(null)}
+          onConfirm={() =>
+            navigate('/login', {
+              state: createLoginRequiredRedirectState(loginRequiredPath),
+            })
+          }
         />
       )}
     </>

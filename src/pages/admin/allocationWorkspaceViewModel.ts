@@ -43,7 +43,7 @@ export const PASSENGER_QUICK_FILTERS: Array<{
   { id: 'all', label: '전체' },
   { id: 'unassigned', label: '미배차' },
   { id: 'errors', label: '오류 있음' },
-  { id: 'remaining-seat', label: '잔여좌석' },
+  { id: 'remaining-seat', label: '잔여 좌석' },
   { id: 'remaining-seat-pending', label: '입금 대기' },
   { id: 'first-choice-missed', label: '1지망 미반영' },
   { id: 'seat-missing', label: '좌석 미지정' },

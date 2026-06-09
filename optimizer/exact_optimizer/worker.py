@@ -162,32 +162,16 @@ class SupabaseRepository:
         optimization_scope: str,
         detailed_settings: dict[str, Any],
     ) -> dict[str, Any] | None:
-        encoded_id = urllib.parse.quote(job_id)
-        encoded_hash = urllib.parse.quote(input_hash)
-        encoded_scope = urllib.parse.quote(optimization_scope)
-        rows = self._request(
-            "GET",
-            (
-                "/rest/v1/allocation_optimization_jobs"
-                f"?id=neq.{encoded_id}"
-                "&status=eq.OPTIMAL"
-                f"&input_hash=eq.{encoded_hash}"
-                f"&optimization_scope=eq.{encoded_scope}"
-                "&result=not.is.null"
-                "&select=id,input_snapshot,detailed_settings,result,diagnostics,"
-                "best_known_bus_count,proven_bus_count"
-                "&order=completed_at.desc"
-                "&limit=20"
-            ),
-        )
-        return next(
-            (
-                row
-                for row in rows or []
-                if row.get("input_snapshot") == input_snapshot
-                and (row.get("detailed_settings") or {}) == detailed_settings
-            ),
-            None,
+        return self._request(
+            "POST",
+            "/rest/v1/rpc/get_reusable_allocation_optimization_job",
+            body={
+                "p_job_id": job_id,
+                "p_input_hash": input_hash,
+                "p_input_snapshot": input_snapshot,
+                "p_optimization_scope": optimization_scope,
+                "p_detailed_settings": detailed_settings,
+            },
         )
 
     def get_job_result(self, job_id: str) -> dict[str, Any] | None:
@@ -257,6 +241,9 @@ PHASE_PROGRESS = {
     "deterministic_tie_break": 95,
 }
 
+STATUS_POLL_INTERVAL_SECONDS = 2.0
+HEARTBEAT_INTERVAL_SECONDS = 5.0
+
 
 def _validated_reusable_result(
     input_snapshot: dict[str, Any],
@@ -265,10 +252,9 @@ def _validated_reusable_result(
     try:
         optimization_input = input_from_snapshot(input_snapshot)
         result = result_from_dict(result_payload)
+        if result is None or validate_result(optimization_input, result):
+            return None
     except (KeyError, TypeError, ValueError):
-        return None
-
-    if result is None or validate_result(optimization_input, result):
         return None
 
     return result
@@ -293,6 +279,8 @@ def run_job(
 
     started = time.monotonic()
     last_heartbeat = 0.0
+    last_status_check = -STATUS_POLL_INTERVAL_SECONDS
+    cached_status = "RUNNING"
     repository.add_event(job_id, "WORKER_CLAIMED", {"worker_id": worker_id})
 
     reusable_job = repository.get_reusable_optimal_job(
@@ -343,16 +331,25 @@ def run_job(
             raise RuntimeError(f"Optimization job entered unexpected status: {status}")
 
     def check_cancellation() -> bool:
-        nonlocal last_heartbeat
-        status = repository.get_job_status(job_id)
+        nonlocal cached_status, last_heartbeat, last_status_check
         elapsed = time.monotonic() - started
-        if status == "RUNNING" and elapsed - last_heartbeat >= 1:
+        if elapsed - last_status_check >= STATUS_POLL_INTERVAL_SECONDS:
+            cached_status = repository.get_job_status(job_id)
+            last_status_check = elapsed
+        if (
+            cached_status == "RUNNING"
+            and elapsed - last_heartbeat >= HEARTBEAT_INTERVAL_SECONDS
+        ):
             repository.update_job(job_id, {"elapsed_seconds": round(elapsed)})
             last_heartbeat = elapsed
-        return status in ("CANCEL_REQUESTED", "CANCELLED")
+        return cached_status in ("CANCEL_REQUESTED", "CANCELLED")
 
     def report_progress(phase: str, value: int | None) -> None:
+        nonlocal cached_status, last_heartbeat, last_status_check
         status = repository.get_job_status(job_id)
+        elapsed = time.monotonic() - started
+        cached_status = status
+        last_status_check = elapsed
         if status in ("CANCEL_REQUESTED", "CANCELLED"):
             raise JobCancelled()
         if status != "RUNNING":
@@ -361,12 +358,13 @@ def run_job(
         values: dict[str, Any] = {
             "progress": PHASE_PROGRESS.get(phase, 0),
             "current_phase": phase,
-            "elapsed_seconds": round(time.monotonic() - started),
+            "elapsed_seconds": round(elapsed),
         }
         if phase == "total_buses":
             values["best_known_bus_count"] = value
             values["proven_bus_count"] = value
         repository.update_job(job_id, values)
+        last_heartbeat = elapsed
         repository.add_event(
             job_id,
             "PHASE_SKIPPED" if value is None else "PHASE_OPTIMAL",
@@ -376,7 +374,10 @@ def run_job(
     try:
         optimization_input = input_from_snapshot(job["input_snapshot"])
         resume_result = (
-            result_from_dict(repository.get_job_result(str(job["resume_from_job_id"])))
+            _validated_reusable_result(
+                job["input_snapshot"],
+                repository.get_job_result(str(job["resume_from_job_id"])),
+            )
             if job.get("resume_from_job_id")
             else None
         )

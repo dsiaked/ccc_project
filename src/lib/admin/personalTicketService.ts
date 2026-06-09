@@ -57,13 +57,18 @@ export interface PersonalTicketCampus {
   name: string;
 }
 
+export interface PersonalTicketDistrict {
+  name: string;
+}
+
 export interface PersonalTicketPageParams {
   page: number;
   pageSize: number;
   search: string;
-  status: string;
+  status: string[];
   ticket: string;
-  adminRole: string;
+  adminRole: string[];
+  district: string;
   campus: string;
 }
 
@@ -72,6 +77,7 @@ export interface PersonalTicketPageResult {
   total: number;
   filteredTotal: number;
   summary: PersonalTicketSummary;
+  districts: PersonalTicketDistrict[];
   campuses: PersonalTicketCampus[];
 }
 
@@ -112,6 +118,19 @@ type PersonalTicketRpcResponse = {
   campuses?: Array<{
     name?: string;
   }>;
+  districts?: Array<{
+    name?: string;
+  }>;
+};
+
+const emptySummary: PersonalTicketSummary = {
+  total: 0,
+  applied: 0,
+  confirmed: 0,
+  pending: 0,
+  paid: 0,
+  cancelled: 0,
+  notApplied: 0,
 };
 
 const mapItem = (row: PersonalTicketRpcItem): PersonalTicketItem => ({
@@ -135,57 +154,182 @@ const mapItem = (row: PersonalTicketRpcItem): PersonalTicketItem => ({
   adminRoles: row.admin_roles ?? [],
 });
 
-export async function getPersonalTicketPage(
+const mapSummary = (
+  summary: PersonalTicketRpcResponse['summary']
+): PersonalTicketSummary => ({
+  total: Number(summary?.total ?? 0),
+  applied: Number(summary?.applied ?? 0),
+  confirmed: Number(summary?.confirmed ?? 0),
+  pending: Number(summary?.pending ?? 0),
+  paid: Number(summary?.paid ?? 0),
+  cancelled: Number(summary?.cancelled ?? 0),
+  notApplied: Number(summary?.not_applied ?? 0),
+});
+
+const mapNamedOptions = (options?: Array<{ name?: string }>) =>
+  (options ?? [])
+    .filter((option): option is { name: string } => Boolean(option.name))
+    .map((option) => ({ name: option.name }));
+
+const isMissingPersonalTicketRpcSignature = (error: {
+  code?: string;
+  message?: string;
+}) =>
+  error.code === 'PGRST202' ||
+  Boolean(error.message?.includes('get_admin_personal_ticket_page'));
+
+let personalTicketRpcVersion: 'current' | 'legacy' | null = null;
+
+const matchesLegacyFilters = (
+  item: PersonalTicketItem,
+  params: PersonalTicketPageParams
+) => {
+  const matchesStatus =
+    params.status.length === 0 || params.status.includes(item.status);
+  const matchesAdminRole =
+    params.adminRole.length === 0 ||
+    (params.adminRole.includes('general') && item.adminRoles.length === 0) ||
+    item.adminRoles.some((role) => params.adminRole.includes(role.role));
+  const matchesDistrict =
+    params.district === 'all' ||
+    (params.district === 'outside_seoul'
+      ? Boolean(item.district) && item.district !== '서울지구'
+      : item.district === params.district);
+
+  return matchesStatus && matchesAdminRole && matchesDistrict;
+};
+
+async function getLegacyCompatiblePersonalTicketPage(
+  params: PersonalTicketPageParams
+): Promise<PersonalTicketPageResult> {
+  const pageSize = 100;
+  const items: PersonalTicketItem[] = [];
+  let page = 1;
+  let total = 0;
+  let summary = emptySummary;
+  let campuses: PersonalTicketCampus[] = [];
+
+  while (true) {
+    const { data, error } = await supabase.rpc('get_admin_personal_ticket_page', {
+      p_page: page,
+      p_page_size: pageSize,
+      p_search: params.search.trim(),
+      p_status: 'all',
+      p_ticket: params.ticket,
+      p_admin_role: 'all',
+      p_campus_issue: 'all',
+      p_campus: params.campus,
+    });
+
+    if (error) throw error;
+
+    const response = (data ?? {}) as PersonalTicketRpcResponse;
+    const responseItems = (response.items ?? []).map(mapItem);
+    if (responseItems.length === 0) break;
+
+    items.push(...responseItems);
+    total = Number(response.total ?? 0);
+    summary = mapSummary(response.summary);
+    campuses = mapNamedOptions(response.campuses);
+    if (items.length >= Number(response.filtered_total ?? items.length)) break;
+
+    page += 1;
+  }
+
+  const filteredItems = items.filter((item) =>
+    matchesLegacyFilters(item, params)
+  );
+  const offset = (params.page - 1) * params.pageSize;
+  const districts = Array.from(
+    new Set(items.map((item) => item.district).filter(Boolean))
+  )
+    .sort((left, right) => left.localeCompare(right, 'ko'))
+    .map((name) => ({ name }));
+
+  return {
+    items: filteredItems.slice(offset, offset + params.pageSize),
+    total,
+    filteredTotal: filteredItems.length,
+    summary,
+    districts,
+    campuses,
+  };
+}
+
+async function getCurrentPersonalTicketPage(
   params: PersonalTicketPageParams
 ): Promise<PersonalTicketPageResult> {
   const { data, error } = await supabase.rpc('get_admin_personal_ticket_page', {
     p_page: params.page,
     p_page_size: params.pageSize,
     p_search: params.search.trim(),
-    p_status: params.status,
+    p_status: params.status.join(',') || 'all',
     p_ticket: params.ticket,
-    p_admin_role: params.adminRole,
+    p_admin_role: params.adminRole.join(',') || 'all',
     p_campus_issue: 'all',
     p_campus: params.campus,
+    p_district: params.district,
   });
 
   if (error) {
-    if (
-      error.code === 'PGRST202' ||
-      error.message.includes('get_admin_personal_ticket_page')
-    ) {
-      throw new Error(
-        '개인 티켓 페이지 조회 DB 함수가 없습니다. Supabase SQL Editor에서 sql/setup/70_admin_personal_ticket_page.sql을 적용해주세요.'
-      );
-    }
-
     throw error;
   }
 
   const response = (data ?? {}) as PersonalTicketRpcResponse;
-  const summary = response.summary ?? {};
 
   return {
     items: (response.items ?? []).map(mapItem),
     total: Number(response.total ?? 0),
     filteredTotal: Number(response.filtered_total ?? 0),
-    summary: {
-      total: Number(summary.total ?? 0),
-      applied: Number(summary.applied ?? 0),
-      confirmed: Number(summary.confirmed ?? 0),
-      pending: Number(summary.pending ?? 0),
-      paid: Number(summary.paid ?? 0),
-      cancelled: Number(summary.cancelled ?? 0),
-      notApplied: Number(summary.not_applied ?? 0),
-    },
-    campuses: (response.campuses ?? [])
-      .filter(
-        (campus): campus is { name: string } => Boolean(campus.name)
-      )
-      .map((campus) => ({
-        name: campus.name,
-      })),
+    summary: mapSummary(response.summary),
+    districts: mapNamedOptions(response.districts),
+    campuses: mapNamedOptions(response.campuses),
   };
+}
+
+export async function getPersonalTicketPage(
+  params: PersonalTicketPageParams
+): Promise<PersonalTicketPageResult> {
+  if (personalTicketRpcVersion !== 'current') {
+    try {
+      const result = await getLegacyCompatiblePersonalTicketPage(params);
+      personalTicketRpcVersion = 'legacy';
+      return result;
+    } catch (error) {
+      if (!isMissingPersonalTicketRpcSignature(error as { message?: string })) {
+        throw error;
+      }
+
+      personalTicketRpcVersion = 'current';
+    }
+  }
+
+  try {
+    return await getCurrentPersonalTicketPage(params);
+  } catch (error) {
+    if (!isMissingPersonalTicketRpcSignature(error as { message?: string })) {
+      throw error;
+    }
+
+    personalTicketRpcVersion = 'legacy';
+
+    try {
+      return await getLegacyCompatiblePersonalTicketPage(params);
+    } catch (legacyError) {
+      if (
+        isMissingPersonalTicketRpcSignature(
+          legacyError as { message?: string }
+        )
+      ) {
+        throw new Error(
+          '개인 티켓 페이지 조회 DB 함수가 없습니다. Supabase SQL Editor에서 sql/setup/130_personal_ticket_district_filter.sql을 적용해주세요.',
+          { cause: legacyError }
+        );
+      }
+
+      throw legacyError;
+    }
+  }
 }
 
 export async function getCampusAdminRoleForScope(params: {

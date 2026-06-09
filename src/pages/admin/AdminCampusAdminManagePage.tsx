@@ -153,15 +153,15 @@ const AdminCampusAdminManagePage = () => {
     if (!target || user.role === 'global_admin') return;
     const changing = Boolean(currentTargetAdmin && currentTargetAdmin.userId !== user.userId);
     if (!window.confirm(changing
-      ? `${target.campus} 캠퍼스 관리자를 ${user.name}님으로 변경할까요?`
-      : `${user.name}님을 ${target.campus} 캠퍼스 관리자로 지정할까요?`
+      ? `${target.campus} 캠퍼스 회계 순장님을 ${user.name}님으로 변경할까요?`
+      : `${user.name}님을 ${target.campus} 캠퍼스 회계 순장님으로 지정할까요?`
     )) return;
 
     setActionId(user.userId);
     try {
       await registerCampusAdmin({ userId: user.userId, district: target.district, team: target.team, campus: target.campus });
       await loadOverview();
-      setMessage({ type: 'success', text: `${target.campus} 캠퍼스 관리자를 ${user.name}님으로 지정했습니다.` });
+      setMessage({ type: 'success', text: `${target.campus} 캠퍼스 회계 순장님을 ${user.name}님으로 지정했습니다.` });
       setTarget(null);
     } catch (error) {
       setMessage({ type: 'error', text: `관리자 지정 중 오류가 발생했습니다: ${getErrorMessage(error)}` });
@@ -176,7 +176,7 @@ const AdminCampusAdminManagePage = () => {
     try {
       await cancelCampusAdmin(assignment.adminRoleId);
       await loadOverview();
-      setMessage({ type: 'success', text: `${assignment.campus} 캠퍼스 관리자 지정을 해제했습니다.` });
+      setMessage({ type: 'success', text: `${assignment.campus} 캠퍼스 회계 순장님 지정을 해제했습니다.` });
     } catch (error) {
       setMessage({ type: 'error', text: `관리자 해제 중 오류가 발생했습니다: ${getErrorMessage(error)}` });
     } finally {
@@ -199,7 +199,7 @@ const AdminCampusAdminManagePage = () => {
         <section className={styles.header}>
           <div className={styles.headerIntro}>
             <div className={styles.headerIcon}><ShieldCheck size={24} /></div>
-            <div><span className={styles.eyebrow}>Campus Admin</span><h1>캠퍼스 관리자 관리</h1><p>캠퍼스별 현황을 확인하고 필요한 캠퍼스에서 바로 담당자를 지정하세요. 관리 대상 캠퍼스를 선택하지 않아도 전체 사용자를 검색할 수 있습니다.</p></div>
+            <div><span className={styles.eyebrow}>Campus Admin</span><h1>캠퍼스 회계 순장님 관리</h1><p>캠퍼스별 현황을 확인하고 필요한 캠퍼스에서 바로 담당자를 지정하세요. 관리 대상 캠퍼스를 선택하지 않아도 전체 사용자를 검색할 수 있습니다.</p></div>
           </div>
           <button type="button" className={styles.refreshButton} onClick={() => void loadOverview()}><RefreshCw size={16} /> 새로고침</button>
         </section>

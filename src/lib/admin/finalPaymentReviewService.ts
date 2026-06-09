@@ -1,4 +1,8 @@
-import { getBusTicketPrice, getCampusTransferStats } from '../adminService';
+import {
+  getBusTicketPrice,
+  getCampusTransferStats,
+  type CampusTransferStat,
+} from '../adminService';
 import { supabase } from '../supabase';
 
 export type FinalPaymentStatus = 'missing' | 'pending' | 'refunded';
@@ -9,6 +13,9 @@ export type IndividualReviewReason =
 
 export interface UnpaidReservation {
   id: string;
+  userId: string;
+  paymentId: string | null;
+  remainingSeatStatus: 'pending_payment' | 'confirmed' | null;
   name: string;
   phone: string;
   district: string;
@@ -20,35 +27,22 @@ export interface UnpaidReservation {
   reviewReasons: IndividualReviewReason[];
 }
 
-export interface UnpaidCampus {
-  key: string;
-  district: string;
-  team: string;
-  campus: string;
-  campusAdminName: string | null;
-  campusAdminPhone: string | null;
-  totalPeople: number;
-  paidPeople: number;
-  unpaidPeople: number;
-  expectedAmount: number;
-  outstandingAmount: number;
-  transferStatus: 'pending' | 'sent' | 'confirmed';
-}
-
 export interface FinalPaymentReview {
   ticketPrice: number;
   totalIndividualReviewTargets: number;
   paidIndividualReviewTargets: number;
+  campusTransfers: CampusTransferStat[];
   unpaidReservations: UnpaidReservation[];
-  unpaidCampuses: UnpaidCampus[];
 }
 
 type PaymentRow = {
+  id?: string | null;
   status?: 'pending' | 'completed' | 'refunded' | null;
 };
 
 type ReservationRow = {
   id: string;
+  created_at: string;
   user_id: string;
   name: string | null;
   phone: string | null;
@@ -64,9 +58,9 @@ type ReservationRow = {
 
 const PAGE_SIZE = 1000;
 const RESERVATION_SELECT =
-  'id, user_id, name, phone, district, team, campus, affiliation_type, status, confirmed_ticket, data, payments(status)';
+  'id, created_at, user_id, name, phone, district, team, campus, affiliation_type, status, confirmed_ticket, data, payments(id,status)';
 const LEGACY_RESERVATION_SELECT =
-  'id, user_id, name, phone, district, team, campus, status, confirmed_ticket, data, payments(status)';
+  'id, created_at, user_id, name, phone, district, team, campus, status, confirmed_ticket, data, payments(id,status)';
 
 type QueryError = {
   code?: string;
@@ -86,6 +80,15 @@ const throwQueryError = (error: QueryError): never => {
 const getPayment = (payments: ReservationRow['payments']) =>
   Array.isArray(payments) ? payments[0] : payments;
 
+const getRemainingSeatStatus = (data: ReservationRow['data']) => {
+  const claim = data?.remainingSeatClaim;
+
+  if (!claim || typeof claim !== 'object') return null;
+
+  const status = (claim as { status?: unknown }).status;
+  return status === 'pending_payment' || status === 'confirmed' ? status : null;
+};
+
 const getIndividualReviewReasons = (
   row: ReservationRow,
   adminCreatedUserIds: Set<string>
@@ -103,15 +106,19 @@ const getIndividualReviewReasons = (
 
 const getAdminCreatedUserIds = async () => {
   const ids = new Set<string>();
+  let cursorId: string | null = null;
 
   while (true) {
-    const from = ids.size;
-    const { data, error } = await supabase
+    let query = supabase
       .from('profiles')
       .select('id')
       .eq('account_source', 'admin_created')
       .order('id', { ascending: true })
-      .range(from, from + PAGE_SIZE - 1);
+      .limit(PAGE_SIZE);
+
+    if (cursorId) query = query.gt('id', cursorId);
+
+    const { data, error } = await query;
 
     if (error) {
       if (isMissingColumn(error, 'account_source')) {
@@ -128,21 +135,31 @@ const getAdminCreatedUserIds = async () => {
     page.forEach((profile) => ids.add(profile.id));
 
     if (page.length < PAGE_SIZE) return ids;
+    cursorId = page[page.length - 1].id;
   }
 };
 
 const getAllActiveReservations = async () => {
   const rows: ReservationRow[] = [];
   let useLegacySelect = false;
+  let cursor: Pick<ReservationRow, 'created_at' | 'id'> | null = null;
 
   while (true) {
-    const from = rows.length;
-    const result = await supabase
+    let query = supabase
       .from('reservations')
       .select(useLegacySelect ? LEGACY_RESERVATION_SELECT : RESERVATION_SELECT)
       .neq('status', 'cancelled')
       .order('created_at', { ascending: false })
-      .range(from, from + PAGE_SIZE - 1);
+      .order('id', { ascending: false })
+      .limit(PAGE_SIZE);
+
+    if (cursor) {
+      query = query.or(
+        `created_at.lt.${cursor.created_at},and(created_at.eq.${cursor.created_at},id.lt.${cursor.id})`
+      );
+    }
+
+    const result = await query;
     let data: unknown = result.data;
     let error: QueryError | null = result.error;
 
@@ -152,12 +169,21 @@ const getAllActiveReservations = async () => {
       );
       useLegacySelect = true;
 
-      const legacyResult = await supabase
+      let legacyQuery = supabase
         .from('reservations')
         .select(LEGACY_RESERVATION_SELECT)
         .neq('status', 'cancelled')
         .order('created_at', { ascending: false })
-        .range(from, from + PAGE_SIZE - 1);
+        .order('id', { ascending: false })
+        .limit(PAGE_SIZE);
+
+      if (cursor) {
+        legacyQuery = legacyQuery.or(
+          `created_at.lt.${cursor.created_at},and(created_at.eq.${cursor.created_at},id.lt.${cursor.id})`
+        );
+      }
+
+      const legacyResult = await legacyQuery;
 
       data = legacyResult.data;
       error = legacyResult.error;
@@ -169,6 +195,7 @@ const getAllActiveReservations = async () => {
     rows.push(...page);
 
     if (page.length < PAGE_SIZE) return rows;
+    cursor = page[page.length - 1];
   }
 };
 
@@ -196,6 +223,9 @@ export async function getFinalPaymentReview(): Promise<FinalPaymentReview> {
 
       return [{
         id: row.id,
+        userId: row.user_id,
+        paymentId: payment?.id ?? null,
+        remainingSeatStatus: getRemainingSeatStatus(row.data),
         name: row.name ?? '',
         phone: row.phone ?? '',
         district: row.district ?? '',
@@ -214,88 +244,12 @@ export async function getFinalPaymentReview(): Promise<FinalPaymentReview> {
     }
   );
 
-  const transferByCampus = new Map(
-    transfers.map((transfer) => [
-      [transfer.district, transfer.team, transfer.campus].join('|'),
-      transfer,
-    ])
-  );
-  const campusPaymentStats = new Map<
-    string,
-    {
-      district: string;
-      team: string;
-      campus: string;
-      totalPeople: number;
-      paidPeople: number;
-    }
-  >();
-
-  reservations.forEach((row) => {
-    if (getIndividualReviewReasons(row, adminCreatedUserIds).length > 0) return;
-
-    const district = row.district ?? '';
-    const team = row.team ?? '';
-    const campus = row.campus ?? '';
-    const key = [district, team, campus].join('|');
-    const stat = campusPaymentStats.get(key) ?? {
-      district,
-      team,
-      campus,
-      totalPeople: 0,
-      paidPeople: 0,
-    };
-
-    stat.totalPeople += 1;
-    if (getPayment(row.payments)?.status === 'completed') stat.paidPeople += 1;
-    campusPaymentStats.set(key, stat);
-  });
-
-  const unpaidCampuses = Array.from(campusPaymentStats.entries())
-    .flatMap<UnpaidCampus>(([key, stat]) => {
-      const transfer = transferByCampus.get(key);
-      const transferStatus = transfer?.status ?? 'pending';
-
-      if (
-        transferStatus === 'confirmed' &&
-        stat.paidPeople === stat.totalPeople
-      ) {
-        return [];
-      }
-
-      const expectedAmount = stat.totalPeople * ticketPrice;
-
-      return [{
-        key,
-        district: stat.district,
-        team: stat.team,
-        campus: stat.campus,
-        campusAdminName: transfer?.campusAdminName ?? null,
-        campusAdminPhone: transfer?.campusAdminPhone ?? null,
-        totalPeople: stat.totalPeople,
-        paidPeople: stat.paidPeople,
-        unpaidPeople: Math.max(stat.totalPeople - stat.paidPeople, 0),
-        expectedAmount,
-        outstandingAmount: Math.max(
-          expectedAmount - (transfer?.actualConfirmedAmount ?? 0),
-          0
-        ),
-        transferStatus,
-      }];
-    })
-    .sort(
-      (a, b) =>
-        a.district.localeCompare(b.district, 'ko') ||
-        a.team.localeCompare(b.team, 'ko') ||
-        a.campus.localeCompare(b.campus, 'ko')
-    );
-
   return {
     ticketPrice,
     totalIndividualReviewTargets: individualReviewTargets.length,
     paidIndividualReviewTargets:
       individualReviewTargets.length - unpaidReservations.length,
+    campusTransfers: transfers,
     unpaidReservations,
-    unpaidCampuses,
   };
 }

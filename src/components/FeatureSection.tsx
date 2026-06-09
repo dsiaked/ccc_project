@@ -5,6 +5,8 @@ import type { ReturnBusReservation } from '../types/reservation';
 import { supabase } from '../lib/supabase';
 import { getReservation } from '../lib/reservationService';
 import { formatBusLabel } from '../utils/busLabel';
+import { createLoginRequiredRedirectState } from '../utils/redirect';
+import LoginRequiredModal from './LoginRequiredModal';
 import styles from './FeatureSection.module.css';
 
 const FeatureSection = () => {
@@ -14,6 +16,10 @@ const FeatureSection = () => {
     null
   );
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [loginRequiredPath, setLoginRequiredPath] = useState<string | null>(
+    null
+  );
 
   useEffect(() => {
     let isMounted = true;
@@ -27,10 +33,12 @@ const FeatureSection = () => {
         if (!isMounted) return;
 
         if (!session) {
+          setIsLoggedIn(false);
           setReservation(null);
           return;
         }
 
+        setIsLoggedIn(true);
         const savedReservation = await getReservation();
         if (!isMounted) return;
 
@@ -54,12 +62,16 @@ const FeatureSection = () => {
   const confirmedTicket = reservation?.confirmedTicket;
 
   const handleClick = () => {
-    if (reservation) {
-      navigate('/ticket');
+    if (isLoading) return;
+
+    const path = reservation ? '/ticket' : '/reservation';
+
+    if (!isLoggedIn) {
+      setLoginRequiredPath(path);
       return;
     }
 
-    navigate('/reservation');
+    navigate(path);
   };
 
   const statusLabel = (() => {
@@ -81,9 +93,10 @@ const FeatureSection = () => {
   })();
 
   return (
-    <section className={styles.section}>
-      <div className={styles.container}>
-        <button
+    <>
+      <section className={styles.section}>
+        <div className={styles.container}>
+          <button
           className={styles.card}
           type="button"
           onClick={handleClick}
@@ -173,7 +186,7 @@ const FeatureSection = () => {
                       <dd>{confirmedTicket.boardingPlace}</dd>
                     </div>
                     <div>
-                      <dt>하차 행선지</dt>
+                      <dt>행선지</dt>
                       <dd>{confirmedTicket.dropoffStation}</dd>
                     </div>
                   </dl>
@@ -208,9 +221,21 @@ const FeatureSection = () => {
               <ArrowRight size={17} />
             </span>
           </div>
-        </button>
-      </div>
-    </section>
+          </button>
+        </div>
+      </section>
+
+      {loginRequiredPath && (
+        <LoginRequiredModal
+          onClose={() => setLoginRequiredPath(null)}
+          onConfirm={() =>
+            navigate('/login', {
+              state: createLoginRequiredRedirectState(loginRequiredPath),
+            })
+          }
+        />
+      )}
+    </>
   );
 };
 

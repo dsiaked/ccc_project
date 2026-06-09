@@ -1,6 +1,6 @@
 .pageContainer {
   min-height: 100vh;
-  background: #f3f4f6;
+  background: #f0f7f4;
   display: flex;
   flex-direction: column;
 }
@@ -16,6 +16,163 @@
 
 .header {
   margin-bottom: 24px;
+  padding: 20px;
+  overflow: hidden;
+  border: 1px solid #a7d7c5;
+  border-top: 5px solid #047857;
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at top right, rgba(16, 185, 129, 0.16), transparent 38%),
+    #ffffff;
+  box-shadow: 0 8px 24px rgba(6, 78, 59, 0.08);
+}
+
+.globalAdminPanel {
+  margin-bottom: 14px;
+  padding: 18px;
+  border: 1px solid #f6c56e;
+  border-top: 5px solid #d97706;
+  border-radius: 14px;
+  background: #fffaf0;
+  box-shadow: 0 8px 20px rgba(146, 64, 14, 0.08);
+}
+
+.globalAdminPanelHeading,
+.campusViewMarker {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.globalAdminPanelHeading {
+  margin-bottom: 14px;
+  color: #92400e;
+}
+
+.globalAdminPanelIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  border-radius: 12px;
+  background: #ffedd5;
+  color: #c2410c;
+}
+
+.globalAdminPanelHeading > span:last-child,
+.campusViewMarker span {
+  display: grid;
+  gap: 2px;
+}
+
+.globalAdminPanelHeading strong,
+.campusViewMarker strong {
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.globalAdminPanelHeading small,
+.campusViewMarker small {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.globalAdminWarning {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #fca5a5;
+  border-radius: 10px;
+  background: #fff1f2;
+  color: #b91c1c;
+}
+
+.globalAdminWarning svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.globalAdminWarning strong {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.globalAdminWarning p {
+  margin: 0;
+  color: #9f1239;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.6;
+}
+
+.campusViewMarker {
+  margin-bottom: 10px;
+  padding: 12px 14px;
+  border: 1px dashed #86bfa9;
+  border-radius: 10px;
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.campusViewMarker small {
+  color: #52766a;
+}
+
+.campusAdminWorkspace {
+  padding: 16px;
+  border: 3px solid #6fb99d;
+  border-radius: 18px;
+  background: rgba(236, 253, 245, 0.56);
+  box-shadow:
+    0 0 0 6px rgba(167, 215, 197, 0.2),
+    0 14px 32px rgba(6, 78, 59, 0.09);
+}
+
+.campusAdminWorkspace > :last-child {
+  margin-bottom: 0;
+}
+
+.roleBanner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 18px;
+  color: #065f46;
+}
+
+.roleBannerIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  border-radius: 12px;
+  background: #d1fae5;
+  color: #047857;
+}
+
+.roleBanner > span:last-child {
+  display: grid;
+  gap: 2px;
+}
+
+.roleBanner strong {
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.roleBanner small {
+  color: #52766a;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.45;
 }
 
 .scopeSelector {
@@ -23,14 +180,14 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  margin-bottom: 12px;
-  color: #334155;
+  margin-bottom: 14px;
+  color: #92400e;
   font-size: 13px;
   font-weight: 800;
 }
 
 .scopeSelector select {
-  min-height: 38px;
+  min-height: 44px;
   max-width: 100%;
   padding: 0 34px 0 12px;
   border: 1px solid #cbd5e1;
@@ -43,34 +200,37 @@
 .adminScopeBadge {
   display: inline-flex;
   align-items: center;
+  gap: 6px;
   min-height: 30px;
   padding: 6px 10px;
   margin-bottom: 10px;
   border-radius: 999px;
-  background: #eff6ff;
-  color: #1d4ed8;
+  background: #ecfdf5;
+  color: #047857;
   font-size: 13px;
-  font-weight: 800;
+  font-weight: 900;
 }
 
 .header h1 {
   font-size: 30px;
   font-weight: 900;
-  color: #0f172a;
+  color: #064e3b;
   margin: 0 0 8px;
 }
 
 .header p {
   font-size: 14px;
-  color: #666666;
+  color: #52766a;
   margin: 0;
+  font-weight: 700;
+  line-height: 1.6;
 }
 
 .signupGuideAlert {
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  margin: -12px 0 24px;
+  margin: 0;
   padding: 14px 16px;
   border: 1px solid #fde68a;
   border-radius: 8px;
@@ -167,7 +327,7 @@
 }
 
 .paymentAccountPanel {
-  margin-bottom: 20px;
+  margin: 0;
   padding: 18px;
   border: 1px solid #bfdbfe;
   border-radius: 8px;
@@ -269,13 +429,6 @@
   font-weight: 800;
 }
 
-.statsBar {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
 .guidePanel {
   margin-bottom: 20px;
   overflow: hidden;
@@ -332,6 +485,15 @@
   border-top: 1px solid #eef2f7;
 }
 
+.guideSection > .preparationGuide {
+  grid-column: 1 / -1;
+}
+
+.preparationGuide {
+  display: grid;
+  gap: 12px;
+}
+
 .guideSection > div {
   padding: 14px;
   border-radius: 8px;
@@ -383,40 +545,12 @@
   line-height: 1.5;
 }
 
-.stat {
-  background: white;
-  border-radius: 8px;
-  padding: 16px;
-  border: 1px solid #e2e8f0;
-  border-left: 4px solid #94a3b8;
-}
-
-.stat.statCompleted {
-  border-left-color: #10b981;
-}
-
-.statLabel {
-  display: block;
-  font-size: 12px;
-  color: #888888;
-  font-weight: 500;
-  margin-bottom: 8px;
-  text-transform: uppercase;
-}
-
-.statValue {
-  display: block;
-  font-size: 24px;
-  font-weight: 900;
-  color: #0f172a;
-}
-
 .paymentRatioCard {
-  margin: 0 0 24px;
+  margin: 0;
   padding: 14px 16px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid #d1fae5;
   border-radius: 8px;
-  background: #ffffff;
+  background: #f0fdf4;
 }
 
 .paymentRatioHeader {
@@ -469,9 +603,7 @@
 }
 
 .listToolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  display: grid;
   gap: 16px;
   margin-bottom: 10px;
   padding: 14px 16px;
@@ -491,20 +623,6 @@
   margin: 0;
   color: #64748b;
   font-size: 13px;
-  line-height: 1.5;
-}
-
-.guideDepositName {
-  display: block;
-  width: fit-content;
-  margin-top: 6px;
-  padding: 7px 9px;
-  border: 1px solid #bfdbfe;
-  border-radius: 8px;
-  background: #eff6ff;
-  color: #1d4ed8;
-  font-size: 13px;
-  font-weight: 900;
   line-height: 1.5;
 }
 
@@ -606,11 +724,320 @@
 }
 
 .tableContainer {
+  display: none;
   background: white;
   border-radius: 8px;
   overflow-x: auto;
   border: 1px solid #e2e8f0;
   margin-bottom: 24px;
+}
+
+/* Keep the same card workflow visible on desktop and mobile. */
+.applicantListContent {
+  margin-bottom: 20px;
+}
+
+.applicantControls {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) auto;
+  align-items: center;
+  gap: 10px 14px;
+  margin-bottom: 10px;
+  padding: 12px 14px;
+  border: 1px solid #dbe3ed;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.listToolbarHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.applicantSearch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid #f6c56e;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #64748b;
+}
+
+.applicantSearch:focus-within {
+  border-color: #2563eb;
+  outline: 2px solid #dbeafe;
+}
+
+.applicantSearch input {
+  min-width: 0;
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #7c2d12;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.applicantFilters {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.applicantFilters button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 38px;
+  padding: 0 11px;
+  border: 1px solid #dbe3ed;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.applicantFilters button span {
+  color: #64748b;
+  font-size: 11px;
+}
+
+.applicantFilters button:hover,
+.applicantFilters .activeApplicantFilter {
+  border-color: #2563eb;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.applicantFilters .activeApplicantFilter span {
+  color: #1d4ed8;
+}
+
+.applicantResultMeta {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.mobileBulkCheck {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  margin-bottom: 6px;
+  padding: 8px 12px;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  background: #eff6ff;
+  color: #1e3a8a;
+  cursor: pointer;
+}
+
+.mobileBulkCheck input,
+.mobileApplicantCheck input {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+}
+
+.mobileBulkCheck span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.mobileBulkCheck strong {
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.mobileBulkCheck small {
+  color: #475569;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.mobileApplicantList {
+  display: grid;
+  gap: 6px;
+}
+
+.mobileApplicantCard {
+  display: grid;
+  grid-template-columns: minmax(170px, 0.75fr) minmax(230px, 1fr) minmax(0, 2fr);
+  align-items: center;
+  gap: 14px;
+  padding: 9px 12px;
+  border: 1px solid #dbe3ed;
+  border-radius: 10px;
+  background: #ffffff;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.035);
+}
+
+.mobileApplicantCardCompleted {
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+
+.mobileApplicantHeader,
+.mobileApplicantCheck,
+.mobileApplicantIdentity {
+  display: flex;
+  align-items: center;
+}
+
+.mobileApplicantHeader {
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.mobileApplicantCheck {
+  gap: 6px;
+  min-height: 32px;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.mobileApplicantIdentity {
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.mobileApplicantIdentity strong {
+  overflow: hidden;
+  color: #0f172a;
+  font-size: 16px;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobileApplicantIdentity a {
+  min-height: 32px;
+  padding: 7px 9px;
+  border-radius: 8px;
+  background: #f1f5f9;
+  color: #1d4ed8;
+  font-size: 13px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.mobileApplicantDetails {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+}
+
+.mobileApplicantDetails > div {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 5px;
+  min-width: 0;
+  padding: 6px 8px;
+  border-radius: 7px;
+  background: #f8fafc;
+}
+
+.mobileApplicantDetails dt,
+.mobileApplicantDetails dd {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.mobileApplicantDetails dt {
+  color: #64748b;
+  font-weight: 800;
+}
+
+.mobileApplicantDetails dd {
+  overflow: hidden;
+  color: #334155;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobileEmptyState {
+  margin: 0;
+  padding: 28px 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #64748b;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.applicantPagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid #dbe3ed;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.applicantPagination > span,
+.applicantPagination strong {
+  color: #475569;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.applicantPagination div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.applicantPagination button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.applicantPagination button:hover:not(:disabled) {
+  border-color: #2563eb;
+  color: #1d4ed8;
+}
+
+.applicantPagination button:disabled {
+  cursor: default;
+  opacity: 0.4;
 }
 
 .table {
@@ -806,7 +1233,7 @@ input[type='checkbox'] {
   accent-color: #667eea;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 760px) {
   .main {
     padding: 12px;
     padding-top: 80px;
@@ -816,10 +1243,6 @@ input[type='checkbox'] {
     font-size: 24px;
   }
 
-  .statsBar {
-    grid-template-columns: 1fr;
-  }
-
   .paymentRatioHeader {
     align-items: stretch;
     flex-direction: column;
@@ -827,6 +1250,28 @@ input[type='checkbox'] {
 
   .guideSection {
     grid-template-columns: 1fr;
+    padding: 0 8px 8px;
+  }
+
+  .guideToggle {
+    min-height: 58px;
+    padding: 14px;
+  }
+
+  .guideSection > div,
+  .paymentAccountPanel {
+    padding: 14px;
+  }
+
+  .paymentAccountFields input {
+    min-height: 48px;
+    font-size: 16px;
+  }
+
+  .paymentAccountFields button {
+    min-height: 48px;
+    width: 100%;
+    font-size: 14px;
   }
 
   .noticeAlert {
@@ -851,7 +1296,7 @@ input[type='checkbox'] {
     flex-direction: column;
   }
 
-  .listToolbar {
+  .listToolbarHeader {
     flex-direction: column;
     align-items: stretch;
   }
@@ -869,22 +1314,21 @@ input[type='checkbox'] {
     width: 100%;
   }
 
+  .mobileApplicantCard {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding: 11px 12px;
+  }
+
+  .mobileApplicantIdentity {
+    padding: 8px 0;
+    border-top: 1px solid #e2e8f0;
+    border-bottom: 1px solid #e2e8f0;
+  }
+
   .verifyButton,
   .verifyAllButton {
     width: 100%;
-  }
-
-  .table {
-    font-size: 12px;
-  }
-
-  .table th,
-  .table td {
-    padding: 12px;
-  }
-
-  .tableContainer {
-    overflow-x: auto;
   }
 
   .transferBox {
@@ -896,16 +1340,19 @@ input[type='checkbox'] {
     flex-direction: column;
   }
 
-  .transferSummaryGrid {
+  .transferSummary > div {
     grid-template-columns: 1fr;
-  }
-
-  .transferDetailGrid {
-    grid-template-columns: 1fr;
+    gap: 4px;
   }
 
   .transferActionStack {
     min-width: 0;
+  }
+
+  .transferActionStack button,
+  .outlineButton {
+    min-height: 48px;
+    width: 100%;
   }
 
   .requestHelpBox {
@@ -940,30 +1387,82 @@ input[type='checkbox'] {
     border-radius: 10px;
   }
 
+  .signupGuideAlert {
+    padding: 12px;
+  }
+
+  .signupGuideAlert p,
+  .guideList,
+  .guideSection p {
+    font-size: 13px;
+  }
+
+  .paymentAccountHeading {
+    align-items: flex-start;
+  }
+
+  .paymentAccountIcon {
+    width: 36px;
+    height: 36px;
+  }
+
+  .guideWarning {
+    width: 100%;
+  }
+
   .noticeAlert,
   .transferBox {
     padding: 14px;
   }
 
-  .tableContainer {
-    margin-right: -10px;
-    margin-left: -10px;
-    border-right: 0;
-    border-left: 0;
-    border-radius: 0;
-    scrollbar-width: thin;
+  .mobileApplicantIdentity {
+    align-items: center;
+    gap: 6px;
   }
 
-  .tableContainer::after {
-    content: '표는 좌우로 밀어서 확인할 수 있습니다';
-    position: sticky;
-    left: 10px;
-    display: block;
-    width: fit-content;
-    padding: 8px 10px;
-    color: #64748b;
-    font-size: 11px;
-    font-weight: 800;
+  .mobileApplicantIdentity a {
+    width: auto;
+    padding-right: 7px;
+    padding-left: 7px;
+    white-space: nowrap;
+  }
+
+  .mobileApplicantDetails {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 4px;
+  }
+
+  .mobileApplicantDetails > div {
+    grid-template-columns: 1fr;
+    gap: 2px;
+    padding: 5px;
+  }
+
+  .applicantControls {
+    grid-template-columns: 1fr;
+    padding: 10px;
+  }
+
+  .applicantFilters {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .applicantFilters button {
+    justify-content: center;
+  }
+
+  .applicantResultMeta {
+    grid-column: auto;
+  }
+
+  .applicantPagination {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .applicantPagination div {
+    justify-content: space-between;
   }
 }
 
@@ -1030,40 +1529,13 @@ input[type='checkbox'] {
   line-height: 1.6;
 }
 
-.transferDetailGrid {
-  display: grid;
-  grid-template-columns: minmax(260px, 1.1fr) minmax(300px, 1fr);
-  gap: 12px;
-  margin-top: 16px;
-}
-
-.transferAccountBox {
-  display: grid;
-  gap: 6px;
-  padding: 14px;
-  border: 1px solid #bfdbfe;
-  border-radius: 8px;
-  background: #eff6ff;
-}
-
-.transferAccountBox span {
-  color: #1d4ed8;
-  font-size: 12px;
-  font-weight: 900;
-}
-
-.transferAccountBox strong {
-  color: #0f172a;
-  font-size: 17px;
-  font-weight: 900;
-  overflow-wrap: anywhere;
-}
-
 .transferDepositorName {
-  color: #1d4ed8;
+  display: block;
+  margin-top: 3px;
+  color: #64748b;
   font-size: 12px;
-  font-weight: 800;
-  line-height: 1.5;
+  font-weight: 700;
+  line-height: 1.4;
 }
 
 .transferStatusPill {
@@ -1078,31 +1550,47 @@ input[type='checkbox'] {
   font-weight: 900;
 }
 
-.transferSummaryGrid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.transferSummaryGrid > div {
-  padding: 12px;
+.transferSummary {
+  margin: 16px 0 0;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
   background: #ffffff;
+  overflow: hidden;
 }
 
-.transferSummaryGrid span {
-  display: block;
-  margin-bottom: 6px;
+.transferSummary > div {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.35fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: center;
+  padding: 12px 14px;
+}
+
+.transferSummary > div + div {
+  border-top: 1px solid #e2e8f0;
+}
+
+.transferSummary dt,
+.transferSummary dd {
+  margin: 0;
+}
+
+.transferSummary dt {
   color: #64748b;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 900;
 }
 
-.transferSummaryGrid strong {
+.transferSummary dd {
+  min-width: 0;
+}
+
+.transferSummary strong {
+  display: block;
   color: #0f172a;
   font-size: 16px;
   font-weight: 900;
+  overflow-wrap: anywhere;
 }
 
 .transferWarning {
@@ -1125,29 +1613,10 @@ input[type='checkbox'] {
   font-weight: 900;
 }
 
-.transferStatusBox {
-  margin-top: 14px;
-  padding: 12px 14px;
-  border-radius: 8px;
-  border: 1px solid #e2e8f0;
-  background: #ffffff;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.transferStatusBox strong {
-  color: #0f172a;
-  font-size: 14px;
-}
-
-.transferStatusBox span {
-  color: #64748b;
-  font-size: 13px;
-}
-
 .transferStatusMeta {
-  color: #475569 !important;
+  margin: 6px 0 0;
+  color: #475569;
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -1157,14 +1626,16 @@ input[type='checkbox'] {
   color: #1d4ed8;
 }
 
-.transferStatusConfirmed {
-  border-color: #bbf7d0;
+.transferStatusReady {
+  border-color: #86efac;
   background: #f0fdf4;
   color: #166534;
 }
 
-.transferStatusBox.transferStatusConfirmed {
-  padding: 14px 16px;
+.transferStatusConfirmed {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+  color: #166534;
 }
 
 .transferStatusNeedsUpdate {
@@ -1339,5 +1810,30 @@ input[type='checkbox'] {
   .transferActionHint {
     max-width: none;
     text-align: left;
+  }
+}
+
+@media (max-width: 760px) {
+  .transferBox,
+  .requestHelpBox {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .transferHeaderRow {
+    flex-direction: column;
+  }
+
+  .transferStatusPill {
+    width: fit-content;
+  }
+
+  .transferSummary > div {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .transferActionStack {
+    min-width: 0;
   }
 }

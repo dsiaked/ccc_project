@@ -46,7 +46,8 @@
 }
 
 .ticketCard,
-.emptyCard {
+.emptyCard,
+.errorCard {
   background: #ffffff;
   border-radius: 18px;
   padding: 20px 14px;
@@ -397,6 +398,17 @@
   text-align: center;
 }
 
+.errorCard {
+  border-color: #fecdca;
+  background: #fffafa;
+  color: #b42318;
+  text-align: center;
+}
+
+.errorCard > svg {
+  color: #d92d20;
+}
+
 .closedEmptyCard {
   border-color: #ddd6fe;
   background: linear-gradient(180deg, #ffffff 0%, #faf8ff 100%);
@@ -424,7 +436,8 @@
   }
 
   .ticketCard,
-  .emptyCard {
+  .emptyCard,
+  .errorCard {
     padding: 24px;
   }
 
@@ -457,7 +470,8 @@
   }
 
   .ticketCard,
-  .emptyCard {
+  .emptyCard,
+  .errorCard {
     padding: 20px 14px;
     border-radius: 18px;
   }

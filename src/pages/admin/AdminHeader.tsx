@@ -7,23 +7,18 @@ import {
   ClipboardList,
   ClipboardCheck,
   FileCheck2,
-  Gauge,
-  Home,
   LayoutDashboard,
   LoaderCircle,
   LogOut,
-  Megaphone,
   MessageSquare,
   PanelLeftClose,
   PanelLeftOpen,
   Route,
   FlaskConical,
   History,
-  Settings,
-  SlidersHorizontal,
+  Home,
   UserCog,
   Users,
-  Workflow,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -72,7 +67,7 @@ const navItems: AdminNavItem[] = [
     allowedRoles: ['global_admin'],
   },
   {
-    label: '가입·신청 현황',
+    label: '가입·신청·입금·배차 현황',
     path: '/admin/applications',
     icon: Users,
     stageGroup: 'application',
@@ -88,7 +83,16 @@ const navItems: AdminNavItem[] = [
     allowedRoles: ['global_admin', 'boarding_manager'],
   },
   {
-    label: '캠퍼스 입금·송금 관리',
+    label: '개인 입금 · 캠퍼스별 송금 관리',
+    path: '/admin/payments/final-review',
+    icon: ClipboardCheck,
+    stageGroup: 'payment',
+    targetGroup: 'global',
+    matchPaths: ['/admin/payments/campus-transfers'],
+    allowedRoles: ['global_admin'],
+  },
+  {
+    label: '캠퍼스 회계 순장님 페이지',
     path: '/admin/campus-dashboard',
     icon: Banknote,
     stageGroup: 'payment',
@@ -96,52 +100,17 @@ const navItems: AdminNavItem[] = [
     allowedRoles: ['campus_admin'],
   },
   {
-    label: '문의 처리',
+    label: '공지·문의 관리',
     path: '/admin/communications',
     icon: MessageSquare,
     stageGroup: 'application',
     targetGroup: 'campus',
-    activeTab: 'requests',
     allowedRoles: ['global_admin', 'campus_admin'],
-  },
-  {
-    label: '캠퍼스 공지',
-    path: '/admin/communications?tab=notices',
-    icon: Megaphone,
-    stageGroup: 'application',
-    targetGroup: 'campus',
-    activeTab: 'notices',
-    allowedRoles: ['global_admin'],
-  },
-  {
-    label: '홈화면 공지',
-    path: '/admin/communications?tab=home',
-    icon: Home,
-    stageGroup: 'application',
-    targetGroup: 'global',
-    activeTab: 'home',
-    allowedRoles: ['global_admin'],
   },
   {
     label: '배차 계산',
     path: '/admin/allocations',
     icon: Route,
-    stageGroup: 'allocation',
-    targetGroup: 'global',
-    allowedRoles: ['global_admin'],
-  },
-  {
-    label: '배차안 편집·확정',
-    path: '/admin/allocations/workspace',
-    icon: Workflow,
-    stageGroup: 'allocation',
-    targetGroup: 'global',
-    allowedRoles: ['global_admin'],
-  },
-  {
-    label: '배차 로직',
-    path: '/admin/allocations/logic',
-    icon: SlidersHorizontal,
     stageGroup: 'allocation',
     targetGroup: 'global',
     allowedRoles: ['global_admin'],
@@ -155,7 +124,7 @@ const navItems: AdminNavItem[] = [
     allowedRoles: ['global_admin'],
   },
   {
-    label: '잔여좌석 판매',
+    label: '잔여 좌석 신청 관리',
     path: '/admin/payments/remaining-seats',
     icon: Bus,
     stageGroup: 'allocation',
@@ -163,23 +132,7 @@ const navItems: AdminNavItem[] = [
     allowedRoles: ['global_admin'],
   },
   {
-    label: '캠퍼스 송금 확인',
-    path: '/admin/payments/campus-transfers',
-    icon: Banknote,
-    stageGroup: 'payment',
-    targetGroup: 'campus',
-    allowedRoles: ['global_admin'],
-  },
-  {
-    label: '미입금 최종 점검',
-    path: '/admin/payments/final-review',
-    icon: ClipboardCheck,
-    stageGroup: 'payment',
-    targetGroup: 'individual',
-    allowedRoles: ['global_admin'],
-  },
-  {
-    label: '사용자 관리',
+    label: '신청자 관리',
     path: '/admin/users',
     icon: Users,
     stageGroup: 'application',
@@ -187,7 +140,7 @@ const navItems: AdminNavItem[] = [
     allowedRoles: ['global_admin'],
   },
   {
-    label: '캠퍼스 관리자 관리',
+    label: '캠퍼스 회계 순장님 관리',
     path: '/admin/access/campus-admins',
     icon: UserCog,
     stageGroup: 'prepare',
@@ -195,7 +148,7 @@ const navItems: AdminNavItem[] = [
     allowedRoles: ['global_admin'],
   },
   {
-    label: '선탑자 권한·호차 관리',
+    label: '선탑자 관리',
     path: '/admin/access/boarding-managers',
     icon: UserCog,
     stageGroup: 'prepare',
@@ -219,22 +172,6 @@ const navItems: AdminNavItem[] = [
     allowedRoles: ['global_admin'],
   },
   {
-    label: '예상 참여 인원 관리',
-    path: '/admin/settings/participation-targets',
-    icon: Gauge,
-    stageGroup: 'prepare',
-    targetGroup: 'campus',
-    allowedRoles: ['global_admin'],
-  },
-  {
-    label: '신청 마감 설정',
-    path: '/admin/settings/reservation-deadline',
-    icon: Settings,
-    stageGroup: 'prepare',
-    targetGroup: 'global',
-    allowedRoles: ['global_admin'],
-  },
-  {
     label: '관리 작업 기록',
     path: '/admin/system/audit-logs',
     icon: History,
@@ -247,8 +184,8 @@ const navItems: AdminNavItem[] = [
 const stageNavGroups = [
   { id: 'prepare', label: '1. 운영 준비' },
   { id: 'application', label: '2. 신청 · 소통' },
-  { id: 'payment', label: '3. 입금 · 검토' },
-  { id: 'allocation', label: '4. 배차' },
+  { id: 'allocation', label: '3. 배차' },
+  { id: 'payment', label: '4. 입금 · 검토' },
   { id: 'boarding', label: '5. 탑승 · 운행' },
   { id: 'followUp', label: '6. 사후 관리' },
 ] as const;
@@ -401,22 +338,35 @@ const AdminHeader = () => {
 
       setCampusNoticeCount(unreadRequestIds.size + unreadNoticeCount);
     };
+    let refreshTimerId: number | null = null;
+    const scheduleBadgeRefresh = () => {
+      if (refreshTimerId !== null) {
+        window.clearTimeout(refreshTimerId);
+      }
+      refreshTimerId = window.setTimeout(() => {
+        refreshTimerId = null;
+        void refreshBadge();
+      }, 250);
+    };
 
     const channel = supabase
       .channel(`campus-request-badge-${activeAdminRole.id}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'campus_requests' },
-        () => void refreshBadge()
+        scheduleBadgeRefresh
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'campus_request_messages' },
-        () => void refreshBadge()
+        scheduleBadgeRefresh
       )
       .subscribe();
 
     return () => {
+      if (refreshTimerId !== null) {
+        window.clearTimeout(refreshTimerId);
+      }
       void supabase.removeChannel(channel);
     };
   }, [session, activeAdminRole]);
@@ -554,12 +504,6 @@ const AdminHeader = () => {
           )
       )
     : [];
-  const homePath =
-    adminRole === 'campus_admin'
-      ? '/admin/campus-dashboard'
-      : adminRole === 'boarding_manager'
-        ? '/admin/boarding'
-        : '/admin/dashboard';
   const isCampusAdmin = adminRole === 'campus_admin';
   const effectiveSidebarView = isCampusAdmin ? 'target' : sidebarView;
   const navGroups =
@@ -582,9 +526,9 @@ const AdminHeader = () => {
         <button
           type="button"
           className={styles.logo}
-          onClick={() => navigate(homePath)}
-          aria-label="관리자 홈으로 이동"
-          title={isSidebarCollapsed ? '관리자 홈' : undefined}
+          onClick={() => navigate('/')}
+          aria-label="서비스 홈 화면으로 이동"
+          title={isSidebarCollapsed ? '홈 화면으로' : undefined}
         >
           <span className={styles.logoMark}>CCC</span>
           <span className={styles.logoLabel}>버스 관리자</span>
@@ -747,6 +691,17 @@ const AdminHeader = () => {
             </select>
           </label>
         )}
+
+        <button
+          type="button"
+          className={styles.homeButton}
+          onClick={() => navigate('/')}
+          aria-label="홈 화면으로 이동"
+          title={isSidebarCollapsed ? '홈 화면으로' : undefined}
+        >
+          <Home size={17} />
+          <span className={styles.homeLabel}>홈 화면으로</span>
+        </button>
 
         <button
           type="button"

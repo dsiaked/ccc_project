@@ -676,8 +676,8 @@ const AdminBoardingPage = () => {
                 <input
                   value={busSearch}
                   onChange={(event) => setBusSearch(event.target.value)}
-                  placeholder="호차 또는 도착지 검색"
-                  aria-label="호차 또는 도착지 검색"
+                  placeholder="호차 또는 행선지 검색"
+                  aria-label="호차 또는 행선지 검색"
                   autoComplete="off"
                 />
                 {busSearch && (

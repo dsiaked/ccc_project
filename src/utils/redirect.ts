@@ -10,6 +10,11 @@ export const normalizeAppRedirect = (
   return redirect;
 };
 
+export const createLoginRequiredRedirectState = (from: string) => ({
+  from: normalizeAppRedirect(from),
+  loginRequired: true as const,
+});
+
 export const decodeUrlComponentSafely = (value: string) => {
   try {
     return decodeURIComponent(value);

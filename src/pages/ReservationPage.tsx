@@ -8,6 +8,7 @@ import {
 import { Bus, MapPin, Search, Coins, Copy, Check } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
+import LoginRequiredModal from '../components/LoginRequiredModal';
 import {
   getDistrictOptions,
   getTeamOptions,
@@ -23,6 +24,7 @@ import type { ReturnBusReservation, StationPreference } from '../types/reservati
 import styles from './ReservationPage.module.css';
 
 import { supabase } from '../lib/supabase';
+import { createLoginRequiredRedirectState } from '../utils/redirect';
 import {
   saveReservation,
   deleteReservation,
@@ -71,6 +73,8 @@ const ReservationPage = () => {
     null
   );
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoginRequiredModalOpen, setIsLoginRequiredModalOpen] =
+    useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
@@ -216,7 +220,7 @@ useEffect(() => {
         if (!isMounted) return;
 
         if (!data.session) {
-          navigate('/login', { state: { from: '/reservation' } });
+          setIsLoginRequiredModalOpen(true);
           return;
         }
 
@@ -314,7 +318,7 @@ useEffect(() => {
     return () => {
       isMounted = false;
     };
-  }, [navigate]);
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -2187,6 +2191,18 @@ const handleConfirmCandidateStations = () => {
   </div>
 )}
       </main>
+
+      {isLoginRequiredModalOpen && (
+        <LoginRequiredModal
+          onClose={() => navigate('/', { replace: true })}
+          onConfirm={() =>
+            navigate('/login', {
+              replace: true,
+              state: createLoginRequiredRedirectState('/reservation'),
+            })
+          }
+        />
+      )}
     </div>
   );
 };

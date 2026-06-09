@@ -3,15 +3,16 @@ import {
   ArrowRight,
   BookOpen,
   CheckCircle2,
+  FilePlus2,
   FolderOpen,
   LoaderCircle,
   Play,
   RotateCcw,
   Square,
   TriangleAlert,
+  X,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { formatBusLabel } from '../../utils/busLabel';
 
 import AdminHeader from './AdminHeader';
 import {
@@ -30,8 +31,11 @@ import {
   type ExactAllocationExecutionMode,
   type ExactAllocationJob,
   type ExactAllocationOptimizerConfig,
+  type ExactAllocationWarning,
 } from '../../lib/admin/exactAllocationOptimizationService';
+import { formatExactAllocationErrorMessage } from '../../lib/admin/exactAllocationErrorMessage';
 import {
+  createManualAllocationWorkspace,
   getConfirmedAllocationWorkspaceSummaries,
   getDraftAllocationWorkspaceSummaries,
   type AllocationWorkspaceSummary,
@@ -121,7 +125,27 @@ const skippableDetailedPhases = [
 type PhaseGroupState = 'completed' | 'current' | 'pending' | 'halted';
 
 const formatError = (error: unknown) =>
-  error instanceof Error ? error.message : String(error);
+  formatExactAllocationErrorMessage(
+    error instanceof Error
+      ? error.message
+      : typeof error === 'string'
+        ? error
+        : null
+  );
+
+const formatWarningMessage = (warning: ExactAllocationWarning) => {
+  const destination = warning.destination ?? '일부 행선지';
+
+  if (warning.code === 'FIRST_CHOICE_DESTINATION_REMOVED') {
+    return `${destination} 1지망 운행이 제외되어 ${warning.passenger_ids.length.toLocaleString()}명이 2지망에 배정되었습니다.`;
+  }
+
+  if (warning.code === 'BELOW_RECOMMENDED_MINIMUM') {
+    return `${destination} 운행의 탑승 인원이 권장 최소 인원보다 적습니다.`;
+  }
+
+  return `${destination} 관련 최적화 결과에 확인이 필요한 사항이 있습니다.`;
+};
 
 const getRecordedElapsedSeconds = (job: ExactAllocationJob) => {
   if (job.result_reused) return 0;
@@ -138,6 +162,14 @@ const getRecordedElapsedSeconds = (job: ExactAllocationJob) => {
         1000
     )
   );
+};
+
+const formatElapsedTime = (elapsedSeconds: number) => {
+  const totalSeconds = Math.max(0, Math.floor(elapsedSeconds));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+
+  return `${minutes.toLocaleString()}분 ${seconds}초`;
 };
 
 const initialConfig: ExactAllocationOptimizerConfig = {
@@ -168,6 +200,10 @@ const AdminExactAllocationPage = () => {
   const [starting, setStarting] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [creatingDraft, setCreatingDraft] = useState(false);
+  const [creatingManualDraft, setCreatingManualDraft] = useState(false);
+  const [manualDraftModalOpen, setManualDraftModalOpen] = useState(false);
+  const [manualDraftName, setManualDraftName] = useState('');
+  const [manualDraftError, setManualDraftError] = useState<string | null>(null);
   const [linkedWorkspace, setLinkedWorkspace] = useState<{
     jobId: string;
     workspaceId: string | null;
@@ -179,14 +215,19 @@ const AdminExactAllocationPage = () => {
   const [skippedDetailedPhases, setSkippedDetailedPhases] = useState<string[]>([]);
   const [allocationName, setAllocationName] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [calculationError, setCalculationError] = useState<string | null>(null);
+  const [resetMessage, setResetMessage] = useState<string | null>(null);
   const [clock, setClock] = useState(() => Date.now());
+  const activeJob = currentJob !== null && activeStatuses.has(currentJob.status);
 
   const loadRecentJobs = useCallback(async () => {
     const jobs = await getRecentExactAllocationJobs();
     setRecentJobs(jobs);
     setCurrentJob((current) => {
-      if (current) return current;
-      return jobs.find((job) => activeStatuses.has(job.status)) ?? jobs[0] ?? null;
+      const activeJob = jobs.find((job) => activeStatuses.has(job.status));
+      if (activeJob) return activeJob;
+      if (!current) return jobs[0] ?? null;
+      return jobs.find((job) => job.id === current.id) ?? jobs[0] ?? null;
     });
   }, []);
 
@@ -248,24 +289,20 @@ const AdminExactAllocationPage = () => {
   }, [currentJob, loadRecentJobs]);
 
   useEffect(() => {
-    if (!currentJob || !activeStatuses.has(currentJob.status)) return;
+    if (!activeJob) return;
     const intervalId = window.setInterval(() => setClock(Date.now()), 1000);
     return () => window.clearInterval(intervalId);
-  }, [currentJob]);
+  }, [activeJob]);
 
   useEffect(() => {
     if (!currentJob || activeStatuses.has(currentJob.status)) return;
 
     const intervalId = window.setInterval(() => {
-      void getExactAllocationJob(currentJob.id)
-        .then((job) => {
-          if (job) setCurrentJob(job);
-        })
-        .catch((pollError) => setError(formatError(pollError)));
+      void loadRecentJobs().catch((pollError) => setError(formatError(pollError)));
     }, 10000);
 
     return () => window.clearInterval(intervalId);
-  }, [currentJob]);
+  }, [currentJob, loadRecentJobs]);
 
   useEffect(() => {
     window.localStorage.setItem(executionModeStorageKey, executionMode);
@@ -294,9 +331,9 @@ const AdminExactAllocationPage = () => {
     };
   }, [currentJob]);
 
-  const activeJob = currentJob && activeStatuses.has(currentJob.status);
-  const reusedResult = currentJob?.result_reused === true;
   const reservationsChanged = currentJob?.reservations_changed === true;
+  const reusedResult =
+    currentJob?.result_reused === true && !reservationsChanged;
   const linkedWorkspaceId =
     linkedWorkspace && linkedWorkspace.jobId === currentJob?.id
       ? linkedWorkspace.workspaceId
@@ -314,18 +351,42 @@ const AdminExactAllocationPage = () => {
   const allocationPlanningLocked = confirmedWorkspace !== null;
   const optimalResult =
     currentJob?.status === 'OPTIMAL' ? currentJob.result ?? null : null;
+  const draftCreationDisabledReason = creatingDraft
+    ? '배차 초안을 검증하고 생성하는 중입니다.'
+    : loadingLinkedWorkspace
+      ? '이 계산 결과로 생성된 배차 초안이 있는지 확인하는 중입니다.'
+      : reservationsChanged
+        ? '계산 이후 신청 정보가 변경되어 생성할 수 없습니다. 최적해를 다시 계산해주세요.'
+        : !allocationName.trim()
+          ? '배차 초안 이름을 입력해주세요.'
+          : null;
+  const calculationStartDisabledReason = starting
+    ? '계산 작업을 생성하는 중입니다.'
+    : resetting
+      ? '계산 기록을 리셋하는 중입니다.'
+      : loading
+        ? '계산 설정을 불러오는 중입니다.'
+        : !hasSingleBusOption
+          ? '버스 옵션 관리에서 계산에 사용할 버스 옵션을 하나만 등록해주세요.'
+          : recommendedMinimumInvalid
+            ? `권장 최소 탑승 인원을 1명 이상, 버스 정원 ${config.capacity.toLocaleString()}명 이하로 입력해주세요.`
+            : null;
   const resultDestinations = useMemo(
     () => new Set(optimalResult?.buses.map((bus) => bus.destination) ?? []).size,
     [optimalResult]
   );
   const displayedElapsedSeconds = useMemo(() => {
     if (!currentJob) return 0;
-    if (!activeStatuses.has(currentJob.status) || !currentJob.started_at) {
+    if (!activeStatuses.has(currentJob.status)) {
       return currentJob.elapsed_seconds;
     }
+    const elapsedStartTime = new Date(
+      currentJob.started_at ?? currentJob.requested_at
+    ).getTime();
+    if (!Number.isFinite(elapsedStartTime)) return currentJob.elapsed_seconds;
     return Math.max(
       currentJob.elapsed_seconds,
-      Math.floor((clock - new Date(currentJob.started_at).getTime()) / 1000)
+      Math.floor((clock - elapsedStartTime) / 1000)
     );
   }, [clock, currentJob]);
   const visiblePhaseGroups =
@@ -390,12 +451,15 @@ const AdminExactAllocationPage = () => {
   };
 
   const handleStart = async () => {
+    setCalculationError(null);
     if (!hasSingleBusOption) {
-      setError('버스 옵션 관리에서 버스 옵션을 하나만 등록한 뒤 계산을 시작해주세요.');
+      setCalculationError(
+        '버스 옵션 관리에서 버스 옵션을 하나만 등록한 뒤 계산을 시작해주세요.'
+      );
       return;
     }
     if (recommendedMinimumInvalid) {
-      setError(
+      setCalculationError(
         `권장 최소 탑승 인원을 1명 이상, 버스 정원 ${config.capacity.toLocaleString()}명 이하로 입력해주세요.`
       );
       return;
@@ -415,7 +479,7 @@ const AdminExactAllocationPage = () => {
       }
       await loadRecentJobs();
     } catch (startError) {
-      setError(formatError(startError));
+      setCalculationError(formatError(startError));
       await loadRecentJobs().catch(() => undefined);
     } finally {
       setStarting(false);
@@ -425,6 +489,7 @@ const AdminExactAllocationPage = () => {
   const handleCancel = async () => {
     if (!currentJob) return;
     setError(null);
+    setCalculationError(null);
     try {
       await cancelExactAllocationJob(currentJob.id);
       const job = await getExactAllocationJob(currentJob.id);
@@ -438,18 +503,25 @@ const AdminExactAllocationPage = () => {
   const handleReset = async () => {
     if (
       !window.confirm(
-        '완료된 최적화 계산 기록과 재사용 캐시를 모두 삭제합니다. 생성된 임시·확정 배차안은 유지됩니다. 계속할까요?'
+        '완료된 최적화 계산 기록과 재사용 캐시를 모두 삭제합니다. 생성된 배차 초안과 확정 배차안은 유지됩니다. 계속할까요?'
       )
     ) {
       return;
     }
     setResetting(true);
     setError(null);
+    setCalculationError(null);
+    setResetMessage(null);
     try {
-      await resetExactAllocationJobs();
+      const deletedCount = await resetExactAllocationJobs();
       setCurrentJob(null);
       setRecentJobs([]);
       setLinkedWorkspace(null);
+      setResetMessage(
+        deletedCount > 0
+          ? `계산 기록과 재사용 캐시 ${deletedCount.toLocaleString()}건을 리셋했습니다.`
+          : '리셋할 계산 기록이 없습니다.'
+      );
     } catch (resetError) {
       setError(formatError(resetError));
     } finally {
@@ -461,7 +533,7 @@ const AdminExactAllocationPage = () => {
     if (!currentJob || currentJob.status !== 'OPTIMAL') return;
     const name = allocationName.trim();
     if (!name) {
-      setError('임시 배차안 이름을 입력해주세요.');
+      setError('배차 초안 이름을 입력해주세요.');
       return;
     }
     setCreatingDraft(true);
@@ -479,6 +551,38 @@ const AdminExactAllocationPage = () => {
       setError(formatError(draftError));
     } finally {
       setCreatingDraft(false);
+    }
+  };
+
+  const openManualDraftModal = () => {
+    setManualDraftName('');
+    setManualDraftError(null);
+    setManualDraftModalOpen(true);
+  };
+
+  const closeManualDraftModal = () => {
+    if (creatingManualDraft) return;
+    setManualDraftModalOpen(false);
+    setManualDraftError(null);
+  };
+
+  const handleCreateManualDraft = async () => {
+    const name = manualDraftName.trim();
+    if (!name) {
+      setManualDraftError('배차 초안 이름을 입력해주세요.');
+      return;
+    }
+
+    setCreatingManualDraft(true);
+    setManualDraftError(null);
+    try {
+      const row = await createManualAllocationWorkspace(name);
+      setManualDraftModalOpen(false);
+      navigate(`/admin/allocations/workspace?id=${row.id}`);
+    } catch (manualDraftCreationError) {
+      setManualDraftError(formatError(manualDraftCreationError));
+    } finally {
+      setCreatingManualDraft(false);
     }
   };
 
@@ -522,12 +626,7 @@ const AdminExactAllocationPage = () => {
       <main className={styles.main}>
         <header className={styles.hero}>
           <div>
-            <span className={styles.eyebrow}>배차 운영</span>
             <h1>배차 계산 및 배차안 관리</h1>
-            <p>
-              모든 승객을 1·2지망 안에서 배차하며, 최저 버스 대수가 수학적으로
-              증명된 결과만 사용합니다.
-            </p>
           </div>
           <div className={styles.heroActions}>
             <button
@@ -537,14 +636,15 @@ const AdminExactAllocationPage = () => {
             >
               <BookOpen size={15} /> 로직 설명
             </button>
-            <span className={styles.proofBadge}>
-              {executionMode === 'cloud' ? 'Cloud Run' : '로컬 Worker'} · OPTIMAL
-              증명 필수
-            </span>
           </div>
         </header>
 
         {error && <div className={styles.error}>{error}</div>}
+        {resetMessage && (
+          <div className={styles.success} role="status">
+            {resetMessage}
+          </div>
+        )}
 
         {confirmedWorkspace && (
           <section className={styles.confirmedWorkspaceTop}>
@@ -552,7 +652,7 @@ const AdminExactAllocationPage = () => {
               <span className={styles.confirmedWorkspaceEyebrow}>배차 확정 완료</span>
               <h2>{confirmedWorkspace.allocation_name}</h2>
               <p>
-                확정 배차를 취소하기 전까지 새 계산, 버스 설정, 임시 배차안 편집을
+                확정 배차를 취소하기 전까지 새 계산, 버스 설정, 배차 초안 편집을
                 사용할 수 없습니다.
               </p>
               <div>
@@ -581,75 +681,36 @@ const AdminExactAllocationPage = () => {
         )}
 
         <div className={allocationPlanningLocked ? styles.planningLocked : undefined}>
-        <nav className={styles.workflow} aria-label="배차 운영 순서">
-          <a className={styles.workflowItem} href="#saved-allocations">
-            <span className={styles.workflowStep}>01</span>
-            <span className={styles.workflowIcon}>
-              <FolderOpen size={18} />
-            </span>
-            <span className={styles.workflowContent}>
-              <small>먼저 확인</small>
-              <strong>저장된 배차안</strong>
-              <em>
-                임시 {draftWorkspaces.length.toLocaleString()} · 확정{' '}
-                {confirmedWorkspaces.length.toLocaleString()}
-              </em>
-            </span>
-            <ArrowRight size={17} />
-          </a>
-          <a className={styles.workflowItem} href="#bus-settings">
-            <span className={styles.workflowStep}>02</span>
-            <span className={styles.workflowIcon}>
-              <BookOpen size={18} />
-            </span>
-            <span className={styles.workflowContent}>
-              <small>계산 전 준비</small>
-              <strong>버스 설정</strong>
-              <em>
-                {loading
-                  ? '설정 확인 중'
-                  : hasSingleBusOption
-                    ? `정원 ${config.capacity.toLocaleString()}명`
-                    : '버스 옵션 확인 필요'}
-              </em>
-            </span>
-            <ArrowRight size={17} />
-          </a>
-          <a className={styles.workflowItem} href="#optimization">
-            <span className={styles.workflowStep}>03</span>
-            <span className={styles.workflowIcon}>
-              {activeJob ? <LoaderCircle size={18} /> : <Play size={18} />}
-            </span>
-            <span className={styles.workflowContent}>
-              <small>계산 및 검증</small>
-              <strong>최적해 계산</strong>
-              <em>
-                {activeJob
-                  ? `${displayedProgress}% 진행 중`
-                  : currentJob?.status === 'OPTIMAL'
-                    ? '최적해 증명 완료'
-                    : '계산 대기'}
-              </em>
-            </span>
-            <ArrowRight size={17} />
-          </a>
-        </nav>
-
         <section className={styles.section} id="saved-allocations">
           <div className={styles.sectionHeader}>
             <div>
               <h2><FolderOpen size={18} /> 저장된 배차안</h2>
               <p className={styles.muted}>
-                임시 배차안을 이어서 편집하거나 확정된 배차 결과를 확인합니다.
+                배차 초안을 이어서 편집하거나 확정된 배차 결과를 확인합니다.
               </p>
             </div>
-            <div className={styles.workspaceCounts}>
-              <span className={styles.draftCount}>
-                임시 {draftWorkspaces.length.toLocaleString()}
-              </span>
-              <span className={styles.confirmedCount}>
-                확정 {confirmedWorkspaces.length.toLocaleString()}
-              </span>
+            <div className={styles.savedAllocationActions}>
+              <div className={styles.workspaceCounts}>
+                <span className={styles.draftCount}>
+                  임시 {draftWorkspaces.length.toLocaleString()}
+                </span>
+                <span className={styles.confirmedCount}>
+                  확정 {confirmedWorkspaces.length.toLocaleString()}
+                </span>
+              </div>
+              <button
+                className={styles.secondary}
+                type="button"
+                disabled={allocationPlanningLocked}
+                title={
+                  allocationPlanningLocked
+                    ? '확정 배차를 먼저 취소한 뒤 수동 배차 초안을 생성해주세요.'
+                    : undefined
+                }
+                onClick={openManualDraftModal}
+              >
+                <FilePlus2 size={15} /> 수동 배차 초안 생성
+              </button>
             </div>
           </div>
           {draftWorkspaces.length + confirmedWorkspaces.length > 0 ? (
@@ -680,7 +741,7 @@ const AdminExactAllocationPage = () => {
                       {workspace.status === 'confirmed' && (
                         <CheckCircle2 size={12} />
                       )}
-                      {workspace.status === 'confirmed' ? '확정 배차안' : '임시'}
+                      {workspace.status === 'confirmed' ? '확정 배차안' : '배차 초안'}
                     </em>
                   </span>
                   <span className={styles.draftItemMetrics}>
@@ -706,289 +767,298 @@ const AdminExactAllocationPage = () => {
           )}
         </section>
 
-        <details className={styles.installGuide}>
-          <summary>
-            <span>
-              <strong>다른 노트북에서 로컬 배차 계산 준비하기</strong>
-              <small>최초 설치 방법과 계산할 때마다 실행할 명령어를 확인합니다.</small>
-            </span>
-            <em>설치 안내 열기</em>
-          </summary>
-          <div className={styles.installGuideBody}>
-            <div className={styles.installNotice}>
-              <strong>보안 주의</strong>
-              <p>
-                로컬 워커에는 관리자급 비밀키인 <code>SUPABASE_SERVICE_ROLE_KEY</code>가
-                필요합니다. 신뢰할 수 있는 관리자 노트북에만 설치하고, 키를 메신저나
-                공개 저장소에 올리지 마세요. 현재 설치 파일은 코드서명되지 않아 Windows
-                보안 경고가 표시될 수 있습니다.
-              </p>
-            </div>
-            <ol className={styles.installSteps}>
-              <li>
-                <strong>설치 프로그램 다운로드</strong>
-                <p>
-                  아래 버튼으로 설치 프로그램을 받은 뒤 실행합니다. Node.js, Python,
-                  프로젝트 소스 코드는 따로 설치할 필요가 없습니다.
-                </p>
-                <a
-                  className={styles.downloadLink}
-                  href="/downloads/CCC-Bus-Allocation-Optimizer-Setup.exe"
-                  download
-                >
-                  Windows 배차 계산기 설치 프로그램 다운로드
-                </a>
-              </li>
-              <li>
-                <strong>메뉴에서 설치 / 업데이트 선택</strong>
-                <p>
-                  설치 창에서 <code>1</code>을 입력하고, 시스템 관리자로부터 전달받은
-                  Supabase URL과 service-role 키를 입력합니다. URL은
-                  <code>https://프로젝트참조.supabase.co</code> 형식으로 입력하고,
-                  대시보드 주소나 <code>/rest/v1</code> 경로는 붙이지 않습니다.
-                  기존 JWT 키와 <code>sb_secret_...</code> 형식의 새 비밀 키를 모두
-                  사용할 수 있습니다.
-                </p>
-              </li>
-              <li>
-                <strong>설치 완료</strong>
-                <p>
-                  연결 확인 후 워커가 바로 실행되며, 다음 Windows 로그인부터 자동으로
-                  실행됩니다.
-                </p>
-              </li>
-              <li>
-                <strong>문제가 있을 때</strong>
-                <p>
-                  설치 프로그램을 다시 실행해 <code>2</code>로 연결을 확인하거나,
-                  <code>3</code>으로 워커를 다시 실행할 수 있습니다.
-                </p>
-              </li>
-            </ol>
-            <p className={styles.installFootnote}>
-              여러 노트북에서 워커를 실행해도 하나의 계산 작업은 한 대만 선점합니다.
-              설치 프로그램은 현재 Windows 사용자 계정에만 설치되며 관리자 권한을
-              요구하지 않습니다.
-            </p>
-          </div>
-        </details>
-
-        <section className={styles.section} id="bus-settings">
+        {!optimalResult ? (
+        <section
+          className={`${styles.section} ${
+            activeJob ? styles.calculationRunning : styles.calculationReady
+          }`}
+          id="optimization"
+        >
           <div className={styles.sectionHeader}>
             <div>
-              <h2>단일 버스 설정</h2>
-              <p className={styles.muted}>
-                버스 옵션 관리에 등록된 한 종류의 버스를 모든 행선지에 적용합니다.
-              </p>
-            </div>
-            <div className={styles.actions}>
-              <button
-                className={styles.secondary}
-                type="button"
-                disabled={Boolean(activeJob)}
-                onClick={() => navigate('/admin/settings?detail=bus-options')}
-              >
-                버스 옵션 관리
-              </button>
-            </div>
-          </div>
-          {!loading && !hasSingleBusOption && (
-            <div className={`${styles.warning} ${styles.busOptionWarning}`}>
-              <span>
-                {busOptionCount === 0
-                  ? '등록된 버스 옵션이 없습니다. 버스 옵션 관리에서 한 개를 등록해주세요.'
-                  : `버스 옵션이 ${busOptionCount.toLocaleString()}개 등록되어 있습니다. 단일 버스 계산을 위해 하나만 남겨주세요.`}
+              <span className={styles.calculationStateBadge}>
+                {activeJob ? '계산 중' : '계산 전'}
               </span>
-              <button
-                className={styles.warningAction}
-                type="button"
-                onClick={() => navigate('/admin/settings?detail=bus-options')}
-              >
-                버스 옵션 관리로 이동 <ArrowRight size={15} />
-              </button>
-            </div>
-          )}
-          <div className={styles.busSettingLayout}>
-            <div className={styles.currentBusSettings}>
-              <div className={styles.settingGroupHeader}>
-                <strong>현재 적용 버스</strong>
-                <span>버스 옵션 관리에서 변경</span>
-              </div>
-              <div className={styles.configSummaryGrid}>
-                <div className={styles.configSummaryCard}>
-                  <span>버스 정원</span>
-                  <strong>{config.capacity.toLocaleString()}<small>명</small></strong>
-                </div>
-                <div className={styles.configSummaryCard}>
-                  <span>대당 예상 비용</span>
-                  <strong>{config.price.toLocaleString()}<small>원</small></strong>
-                </div>
-                <div className={styles.configSummaryCard}>
-                  <span>최대 사용 가능 버스</span>
-                  <strong>{config.maximum_buses.toLocaleString()}<small>대</small></strong>
-                </div>
-              </div>
-            </div>
-
-            <div className={styles.recommendedSetting}>
-              <div className={styles.settingGroupHeader}>
-                <strong>권장 최소 탑승 인원</strong>
-                <span className={styles.editableBadge}>직접 설정</span>
-              </div>
-              <p>
-                이 인원 미만으로 탑승하는 버스가 생기지 않도록 계산 시 권장 기준으로 사용합니다.
-              </p>
-              <div className={styles.recommendedSettingControls}>
-                <label className={styles.numberInput}>
-                  <span className={styles.srOnly}>권장 최소 탑승 인원</span>
-                  <input
-                    type="number"
-                    min="1"
-                    max={config.capacity}
-                    disabled={Boolean(activeJob)}
-                    value={config.recommended_minimum_passengers}
-                    onChange={(event) => {
-                      setConfigSaved(false);
-                      setConfig((current) => ({
-                        ...current,
-                        recommended_minimum_passengers: Number(event.target.value),
-                      }));
-                    }}
-                  />
-                  <span>명</span>
-                </label>
-                <button
-                  className={styles.primary}
-                  type="button"
-                  disabled={
-                    loading ||
-                    savingConfig ||
-                    Boolean(activeJob) ||
-                    !hasSingleBusOption ||
-                    !configChanged ||
-                    recommendedMinimumInvalid
-                  }
-                  onClick={handleSaveConfig}
-                >
-                  {savingConfig ? '저장 중...' : '변경사항 저장'}
-                </button>
-              </div>
-              {recommendedMinimumInvalid && (
-                <small className={styles.fieldError}>
-                  1명 이상, 버스 정원 {config.capacity.toLocaleString()}명 이하로 입력해주세요.
-                </small>
-              )}
-              {configSaved && (
-                <small className={styles.saveSuccess} role="status">
-                  <CheckCircle2 size={14} /> 권장 인원을 저장했습니다.
-                </small>
-              )}
-            </div>
-          </div>
-        </section>
-
-        <section className={styles.section} id="optimization">
-          <div className={styles.sectionHeader}>
-            <div>
-              <h2>최적해 계산</h2>
+              <h2>
+                {activeJob ? (
+                  <><LoaderCircle size={18} /> 최적해 계산 중</>
+                ) : (
+                  '최적해 계산 준비'
+                )}
+              </h2>
               <p className={styles.muted}>
-                예약 정보와 버스 설정이 같으면 저장된 최적해를 즉시 불러오고, 변경된 경우에만 새로 계산합니다.
+                {activeJob
+                  ? '현재 단계와 진행률을 확인할 수 있습니다. 페이지를 벗어나도 계산은 계속됩니다.'
+                  : '계산 기준과 실행 위치를 확인한 뒤 최적해 계산을 시작합니다.'}
               </p>
             </div>
-            <div className={styles.actions}>
-              {activeJob ? (
-                <button className={styles.danger} type="button" onClick={handleCancel}>
-                  <Square size={14} /> 계산 취소
-                </button>
-              ) : (
-                <>
+            <div className={styles.calculationActions}>
+              <div className={styles.actions}>
+                {activeJob ? (
+                  <button className={styles.danger} type="button" onClick={handleCancel}>
+                    <Square size={14} /> 계산 취소
+                  </button>
+                ) : (
                   <button
                     className={styles.secondary}
                     type="button"
                     disabled={resetting || recentJobs.length === 0}
                     onClick={handleReset}
                   >
-                    <RotateCcw size={15} /> {resetting ? '리셋 중...' : '계산 리셋'}
+                    <RotateCcw size={15} /> {resetting ? '리셋 중...' : '계산 기록 리셋'}
                   </button>
-                  <button
-                    className={styles.primary}
-                    type="button"
-                    disabled={
-                      starting ||
-                      resetting ||
-                      loading ||
-                      !hasSingleBusOption ||
-                      recommendedMinimumInvalid
-                    }
-                    onClick={handleStart}
-                  >
-                    <Play size={15} /> {starting ? '시작 중...' : '정확 계산 시작'}
-                  </button>
-                </>
-              )}
+                )}
+              </div>
             </div>
+          </div>
+
+          {!activeJob && (
+          <>
+          {!loading && !hasSingleBusOption && (
+            <div className={`${styles.warning} ${styles.busOptionWarning}`}>
+              <span>
+                {busOptionCount === 0
+                  ? '계산에 사용할 버스 옵션을 한 개 등록해주세요.'
+                  : `계산하려면 버스 옵션을 하나만 남겨주세요. 현재 ${busOptionCount.toLocaleString()}개가 등록되어 있습니다.`}
+              </span>
+              <button
+                className={styles.warningAction}
+                type="button"
+                onClick={() => navigate('/admin/settings?detail=bus-options')}
+              >
+                버스 옵션 관리 <ArrowRight size={15} />
+              </button>
+            </div>
+          )}
+
+          <div className={styles.recommendedSetting}>
+            <div>
+              <strong>권장 최소 탑승 인원</strong>
+              <p>
+                이 인원 미만으로 탑승하는 버스가 생기지 않도록 계산 기준으로 사용합니다.
+              </p>
+            </div>
+            <div className={styles.recommendedSettingEditor}>
+              <label className={styles.numberInput}>
+                <span className={styles.srOnly}>권장 최소 탑승 인원</span>
+                <input
+                  type="number"
+                  min="1"
+                  max={config.capacity}
+                  disabled={Boolean(activeJob)}
+                  value={config.recommended_minimum_passengers}
+                  onChange={(event) => {
+                    setConfigSaved(false);
+                    setConfig((current) => ({
+                      ...current,
+                      recommended_minimum_passengers: Number(event.target.value),
+                    }));
+                  }}
+                />
+                <span>명</span>
+              </label>
+              <button
+                className={styles.secondary}
+                type="button"
+                disabled={
+                  loading ||
+                  savingConfig ||
+                  Boolean(activeJob) ||
+                  !hasSingleBusOption ||
+                  !configChanged ||
+                  recommendedMinimumInvalid
+                }
+                onClick={handleSaveConfig}
+              >
+                {savingConfig ? '저장 중...' : '저장'}
+              </button>
+            </div>
+            {recommendedMinimumInvalid && (
+              <small className={styles.fieldError}>
+                1명 이상, 버스 정원 {config.capacity.toLocaleString()}명 이하로 입력해주세요.
+              </small>
+            )}
+            {configSaved && (
+              <small className={styles.saveSuccess} role="status">
+                <CheckCircle2 size={14} /> 저장했습니다.
+              </small>
+            )}
           </div>
 
           <div className={styles.executionModePanel}>
             <div>
-              <strong>계산 실행 위치</strong>
-              <p className={styles.muted}>
-                새 기본 계산과 상세 균형 계산에 적용됩니다.
-              </p>
+              <strong>계산 위치</strong>
             </div>
             <div className={styles.executionModeOptions}>
-              <label
-                className={executionMode === 'cloud' ? styles.selectedMode : ''}
+              <div
+                className={`${styles.executionModeOption} ${
+                  executionMode === 'cloud' ? styles.selectedMode : ''
+                }`}
               >
-                <input
-                  type="radio"
-                  name="allocation-execution-mode"
-                  value="cloud"
-                  checked={executionMode === 'cloud'}
-                  disabled={Boolean(activeJob)}
-                  onChange={() => setExecutionMode('cloud')}
-                />
-                <span>
-                  <strong>Cloud Run</strong>
-                  <small>설치 없이 서버에서 계산합니다.</small>
-                </span>
-              </label>
-              <label
-                className={executionMode === 'local' ? styles.selectedMode : ''}
+                <label className={styles.executionModeChoice}>
+                  <input
+                    type="radio"
+                    name="allocation-execution-mode"
+                    value="cloud"
+                    checked={executionMode === 'cloud'}
+                    disabled={Boolean(activeJob)}
+                    onChange={() => setExecutionMode('cloud')}
+                  />
+                  <span>
+                    <strong>Cloud Run</strong>
+                    <small>서버에서 계산</small>
+                  </span>
+                </label>
+              </div>
+              <div
+                className={`${styles.executionModeOption} ${
+                  executionMode === 'local' ? styles.selectedMode : ''
+                }`}
               >
-                <input
-                  type="radio"
-                  name="allocation-execution-mode"
-                  value="local"
-                  checked={executionMode === 'local'}
-                  disabled={Boolean(activeJob)}
-                  onChange={() => setExecutionMode('local')}
-                />
-                <span>
-                  <strong>로컬 Worker</strong>
-                  <small>이 PC에서 로컬 Worker가 실행 중이어야 합니다.</small>
-                </span>
-              </label>
+                <label className={styles.executionModeChoice}>
+                  <input
+                    type="radio"
+                    name="allocation-execution-mode"
+                    value="local"
+                    checked={executionMode === 'local'}
+                    disabled={Boolean(activeJob)}
+                    onChange={() => setExecutionMode('local')}
+                  />
+                  <span>
+                    <strong>로컬 Worker</strong>
+                    <small>이 PC의 Worker로 계산</small>
+                  </span>
+                </label>
+                {executionMode === 'local' && (
+                  <details
+                    className={`${styles.installGuide} ${styles.embeddedInstallGuide}`}
+                  >
+                    <summary>
+                      <span>
+                        <strong>다른 노트북에서 계산하기</strong>
+                      </span>
+                      <em>설치 안내</em>
+                    </summary>
+                    <div className={styles.installGuideBody}>
+                      <div className={styles.installNotice}>
+                        <strong>보안 주의</strong>
+                        <p>
+                          로컬 워커에는 관리자급 비밀키인{' '}
+                          <code>SUPABASE_SERVICE_ROLE_KEY</code>가 필요합니다. 신뢰할 수
+                          있는 관리자 노트북에만 설치하고, 키를 메신저나 공개 저장소에
+                          올리지 마세요. 현재 설치 파일은 코드서명되지 않아 Windows 보안
+                          경고가 표시될 수 있습니다.
+                        </p>
+                      </div>
+                      <ol className={styles.installSteps}>
+                        <li>
+                          <strong>설치 프로그램 다운로드</strong>
+                          <p>
+                            아래 버튼으로 설치 프로그램을 받은 뒤 실행합니다. Node.js,
+                            Python, 프로젝트 소스 코드는 따로 설치할 필요가 없습니다.
+                          </p>
+                          <a
+                            className={styles.downloadLink}
+                            href="/downloads/CCC-Bus-Allocation-Optimizer-Setup.exe"
+                            download
+                          >
+                            Windows 배차 계산기 설치 프로그램 다운로드
+                          </a>
+                        </li>
+                        <li>
+                          <strong>메뉴에서 설치 / 업데이트 선택</strong>
+                          <p>
+                            설치 창에서 <code>1</code>을 입력하고, 시스템 관리자로부터
+                            전달받은 Supabase URL과 service-role 키를 입력합니다. URL은
+                            <code>https://프로젝트참조.supabase.co</code> 형식으로
+                            입력하고, 대시보드 주소나 <code>/rest/v1</code> 경로는 붙이지
+                            않습니다. 기존 JWT 키와 <code>sb_secret_...</code> 형식의 새
+                            비밀 키를 모두 사용할 수 있습니다.
+                          </p>
+                        </li>
+                        <li>
+                          <strong>설치 완료</strong>
+                          <p>
+                            연결 확인 후 워커가 바로 실행되며, 다음 Windows 로그인부터
+                            자동으로 실행됩니다.
+                          </p>
+                        </li>
+                        <li>
+                          <strong>문제가 있을 때</strong>
+                          <p>
+                            설치 프로그램을 다시 실행해 <code>2</code>로 연결을 확인하거나,
+                            <code>3</code>으로 워커를 다시 실행할 수 있습니다.
+                          </p>
+                        </li>
+                      </ol>
+                      <p className={styles.installFootnote}>
+                        여러 노트북에서 워커를 실행해도 하나의 계산 작업은 한 대만
+                        선점합니다. 설치 프로그램은 현재 Windows 사용자 계정에만 설치되며
+                        관리자 권한을 요구하지 않습니다.
+                      </p>
+                    </div>
+                  </details>
+                )}
+              </div>
             </div>
           </div>
+          <div className={styles.calculationReadiness}>
+            <article>
+              <span>버스 옵션</span>
+              <strong>
+                {loading
+                  ? '확인 중'
+                  : hasSingleBusOption
+                    ? `정원 ${config.capacity.toLocaleString()}명`
+                    : '설정 필요'}
+              </strong>
+            </article>
+            <article>
+              <span>권장 최소 탑승 인원</span>
+              <strong>{config.recommended_minimum_passengers.toLocaleString()}명</strong>
+            </article>
+            <article>
+              <span>계산 위치</span>
+              <strong>{executionMode === 'cloud' ? 'Cloud Run' : '로컬 Worker'}</strong>
+            </article>
+          </div>
+          <div className={styles.calculationStartArea}>
+            <button
+              className={styles.primary}
+              type="button"
+              disabled={calculationStartDisabledReason !== null}
+              title={calculationStartDisabledReason ?? undefined}
+              onClick={handleStart}
+            >
+              <Play size={16} />
+              {starting ? '계산 작업 생성 중...' : '최적해 계산 시작'}
+            </button>
+            {calculationStartDisabledReason && (
+              <p className={styles.actionDisabledReason}>
+                <TriangleAlert size={15} />
+                {calculationStartDisabledReason}
+              </p>
+            )}
+            {calculationError && (
+              <div className={styles.calculationError} role="alert">
+                <TriangleAlert size={15} />
+                <span>{calculationError}</span>
+              </div>
+            )}
+          </div>
+          </>
+          )}
 
-          {currentJob ? (
+          {activeJob && currentJob && (
             <>
               <div className={styles.jobTitle}>
                 <div>
-                  <strong>
-                    {activeJob && <LoaderCircle size={15} />}{' '}
-                    {currentJob.optimization_scope === 'DETAILED'
-                      ? '상세 균형 작업'
-                      : '기본 최저비용 작업'}{' '}
-                    {currentJob.id}
-                  </strong>
                   <p className={styles.muted}>
                     {reusedResult
-                      ? '예약 정보와 버스 설정의 변동이 없어 이전에 증명된 최적해를 즉시 불러왔습니다.'
+                      ? '신청 정보와 버스 설정의 변동이 없어 이전에 증명된 최적해를 즉시 불러왔습니다.'
                       : currentJob.status === 'OPTIMAL'
                       ? currentJob.optimization_scope === 'BASELINE'
-                        ? '최저비용 기본 배차가 완료되었습니다. 지금 임시 배차안을 생성해 확정할 수 있습니다.'
+                        ? '최저비용 기본 배차가 완료되었습니다. 지금 배차 초안을 생성해 확정할 수 있습니다.'
                         : '최저비용 조건을 유지한 상세 균형 계산이 완료되었습니다.'
                       : currentPhaseGroup
                         ? `${currentPhaseGroup.label} 진행 중`
@@ -1011,12 +1081,12 @@ const AdminExactAllocationPage = () => {
                 <div className={styles.reservationChangeNotice}>
                   <TriangleAlert size={22} />
                   <div>
-                    <strong>계산 이후 예약 변동이 있습니다</strong>
+                    <strong>계산 이후 신청 변동이 있습니다</strong>
                     <p>
-                      계산 당시 활성 예약{' '}
+                      계산 당시 활성 신청{' '}
                       {currentJob.snapshot_active_reservation_count ?? '확인 불가'}명,
                       현재 {currentJob.current_active_reservation_count}명입니다.
-                      인원수가 같아도 예약 정보나 상태가 변경되었을 수 있으니
+                      인원수가 같아도 신청 정보나 상태가 변경되었을 수 있으니
                       최적해를 다시 계산해주세요.
                     </p>
                   </div>
@@ -1028,7 +1098,7 @@ const AdminExactAllocationPage = () => {
                   <div>
                     <strong>저장된 최적해 재사용</strong>
                     <p>
-                      동일한 예약 스냅샷의 검증된 결과를 가져왔습니다. Python
+                      동일한 신청 스냅샷의 검증된 결과를 가져왔습니다. Python
                       Worker를 실행하지 않았으며 최적화 계산 단계도 생략했습니다.
                     </p>
                   </div>
@@ -1083,11 +1153,11 @@ const AdminExactAllocationPage = () => {
                   <strong>
                     {reusedResult
                       ? '계산 생략'
-                      : `${displayedElapsedSeconds.toLocaleString()}초`}
+                      : formatElapsedTime(displayedElapsedSeconds)}
                   </strong>
                 </article>
                 <article>
-                  <span>증명된 최저</span>
+                  <span>증명된 최저 대수</span>
                   <strong>
                     {currentJob.proven_bus_count === null
                       ? '-'
@@ -1175,8 +1245,6 @@ const AdminExactAllocationPage = () => {
                 </div>
               )}
             </>
-          ) : (
-            <p className={styles.muted}>아직 실행한 정확 최적화 작업이 없습니다.</p>
           )}
           {currentJob?.status === 'INFEASIBLE' && (
             <div className={styles.warningList}>
@@ -1186,7 +1254,9 @@ const AdminExactAllocationPage = () => {
                   동일 규격 버스 대수는 무제한이므로 단순 버스 부족이 원인은 아닙니다.
                   1·2지망 데이터와 목적지별 배차 가능 조건을 확인해주세요.
                 </p>
-                {currentJob.error_message && <small>{currentJob.error_message}</small>}
+                {currentJob.error_message && (
+                  <small>{formatExactAllocationErrorMessage(currentJob.error_message)}</small>
+                )}
               </div>
             </div>
           )}
@@ -1194,24 +1264,81 @@ const AdminExactAllocationPage = () => {
             <div className={styles.warningList}>
               <div className={styles.warning}>
                 <strong>계산 실패</strong>
-                <p>{currentJob.error_message}</p>
+                <p>{formatExactAllocationErrorMessage(currentJob.error_message)}</p>
               </div>
             </div>
           )}
         </section>
+        ) : null}
 
         {optimalResult && (
-          <section className={styles.section}>
+          <section
+            className={`${styles.section} ${styles.calculationCompleted}`}
+            id="optimization"
+          >
             <div className={styles.sectionHeader}>
               <div>
-                <h2><CheckCircle2 size={18} /> 최적해 증명 완료</h2>
+                <span className={styles.calculationStateBadge}>계산 후</span>
+                <h2><CheckCircle2 size={18} /> 최적해 계산 완료</h2>
                 <p className={styles.muted}>
                   {currentJob?.optimization_scope === 'BASELINE'
-                    ? '최소 버스 수와 최소 2지망 인원이 증명되었습니다. 상세 균형을 기다리지 않고 지금 임시 배차안을 생성할 수 있습니다.'
+                    ? '최소 버스 수와 최소 2지망 인원이 증명되었습니다. 상세 균형을 기다리지 않고 지금 배차 초안을 생성할 수 있습니다.'
                     : '최저비용 조건을 유지하면서 캠퍼스·팀·탑승 인원 상세 균형까지 계산한 결과입니다.'}
                 </p>
               </div>
+              <div className={styles.actions}>
+                <button
+                  className={styles.secondary}
+                  type="button"
+                  disabled={resetting || recentJobs.length === 0}
+                  onClick={handleReset}
+                >
+                  <RotateCcw size={15} /> {resetting ? '리셋 중...' : '계산 기록 리셋'}
+                </button>
+                <button
+                  className={styles.secondary}
+                  type="button"
+                  disabled={calculationStartDisabledReason !== null}
+                  title={calculationStartDisabledReason ?? undefined}
+                  onClick={handleStart}
+                >
+                  <Play size={15} /> {starting ? '계산 작업 생성 중...' : '다시 계산'}
+                </button>
+              </div>
             </div>
+            {calculationError && (
+              <div className={styles.calculationError} role="alert">
+                <TriangleAlert size={15} />
+                <span>{calculationError}</span>
+              </div>
+            )}
+            {calculationStartDisabledReason && (
+              <p className={styles.actionDisabledReason}>
+                <TriangleAlert size={15} />
+                {calculationStartDisabledReason}
+              </p>
+            )}
+            {reservationsChanged && (
+              <div className={styles.reservationChangeNotice}>
+                <TriangleAlert size={22} />
+                <div>
+                  <strong>계산 이후 신청 변동이 있습니다</strong>
+                  <p>
+                    이 결과로 배차 초안을 생성할 수 없습니다. 최신 신청 정보를
+                    반영하려면 다시 계산해주세요.
+                  </p>
+                </div>
+              </div>
+            )}
+            {reusedResult && (
+              <div className={styles.reusedResultNotice}>
+                <CheckCircle2 size={22} />
+                <div>
+                  <strong>저장된 최적해를 즉시 불러왔습니다</strong>
+                  <p>신청 정보와 버스 설정이 같아 최적화 계산 단계를 생략했습니다.</p>
+                </div>
+              </div>
+            )}
             <div className={styles.metricGrid}>
               <article><span>운행 버스</span><strong>{optimalResult.total_buses}대</strong></article>
               <article><span>총 예상 비용</span><strong>{optimalResult.total_cost.toLocaleString()}원</strong></article>
@@ -1222,19 +1349,11 @@ const AdminExactAllocationPage = () => {
               <div className={styles.warningList}>
                 {optimalResult.warnings.map((warning, index) => (
                   <div className={styles.warning} key={`${warning.code}-${index}`}>
-                    {warning.message}
+                    {formatWarningMessage(warning)}
                   </div>
                 ))}
               </div>
             )}
-            <div className={styles.busGrid}>
-              {optimalResult.buses.map((bus) => (
-                <article className={styles.busCard} key={bus.bus_id}>
-                  <strong>{formatBusLabel(bus.label)} · {bus.destination}</strong>
-                  <span>{bus.passenger_ids.length}명 / {bus.capacity}석</span>
-                </article>
-              ))}
-            </div>
             <div className={styles.draftCreator}>
               {linkedWorkspaceId ? (
                 <button
@@ -1244,12 +1363,12 @@ const AdminExactAllocationPage = () => {
                     navigate(`/admin/allocations/workspace?id=${linkedWorkspaceId}`)
                   }
                 >
-                  완료된 임시 배차안으로 이동
+                  완료된 배차 초안으로 이동
                 </button>
               ) : (
                 <>
                   <label>
-                    임시 배차안 이름
+                    배차 초안 이름
                     <input
                       value={allocationName}
                       onChange={(event) => setAllocationName(event.target.value)}
@@ -1259,11 +1378,12 @@ const AdminExactAllocationPage = () => {
                   <button
                     className={styles.primary}
                     type="button"
-                    disabled={
-                      creatingDraft ||
-                      loadingLinkedWorkspace ||
-                      !allocationName.trim() ||
-                      reservationsChanged
+                    disabled={draftCreationDisabledReason !== null}
+                    title={draftCreationDisabledReason ?? undefined}
+                    aria-describedby={
+                      draftCreationDisabledReason
+                        ? 'draft-creation-disabled-reason'
+                        : undefined
                     }
                     onClick={handleCreateDraft}
                   >
@@ -1271,11 +1391,113 @@ const AdminExactAllocationPage = () => {
                       ? '연결된 배차안 확인 중...'
                       : creatingDraft
                         ? '검증 및 생성 중...'
-                        : '검증 후 임시 배차안 생성'}
+                        : '배차 초안 생성'}
                   </button>
+                  {draftCreationDisabledReason && (
+                    <p
+                      className={styles.draftDisabledReason}
+                      id="draft-creation-disabled-reason"
+                    >
+                      <TriangleAlert size={15} />
+                      <span>
+                        <strong>현재 생성할 수 없는 이유</strong>
+                        {draftCreationDisabledReason}
+                      </span>
+                    </p>
+                  )}
                 </>
               )}
             </div>
+            <div className={styles.detailedBalancePanel}>
+              <div>
+                <span className={styles.optionalBadge}>선택 단계</span>
+                <h3>
+                  {currentJob?.optimization_scope === 'DETAILED'
+                    ? '상세 균형 이어서 최적화'
+                    : '상세 균형 최적화'}
+                </h3>
+                <p className={styles.muted}>
+                  최저비용과 최소 2지망 인원을 유지한 채 캠퍼스·팀·버스별 탑승
+                  균형을 추가로 계산합니다.
+                </p>
+                <details className={styles.balanceSettings}>
+                  <summary>상세 균형 계산 설정</summary>
+                  <label className={styles.resumeOption}>
+                    <input
+                      type="checkbox"
+                      checked={resumeDetailedBalance}
+                      onChange={(event) =>
+                        setResumeDetailedBalance(event.target.checked)
+                      }
+                    />
+                    이전 상세 균형 결과를 기억해 이어서 탐색
+                  </label>
+                  <div className={styles.skipPhaseOptions}>
+                    <strong>건너뛸 계산 선택</strong>
+                    <div>
+                      {skippableDetailedPhases.map((phase) => (
+                        <label key={phase.id}>
+                          <input
+                            type="checkbox"
+                            checked={skippedDetailedPhases.includes(phase.id)}
+                            onChange={(event) =>
+                              setSkippedDetailedPhases((current) =>
+                                event.target.checked
+                                  ? [...current, phase.id]
+                                  : current.filter((id) => id !== phase.id)
+                              )
+                            }
+                          />
+                          {phase.label}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </details>
+              </div>
+              <button
+                className={styles.secondary}
+                type="button"
+                disabled={startingDetailedBalance || reservationsChanged}
+                title={
+                  reservationsChanged
+                    ? '계산 이후 신청 정보가 변경되어 상세 균형 계산을 실행할 수 없습니다.'
+                    : undefined
+                }
+                onClick={handleStartDetailedBalance}
+              >
+                {startingDetailedBalance
+                  ? '상세 균형 작업 생성 중...'
+                  : currentJob?.optimization_scope === 'DETAILED'
+                    ? '설정대로 이어서 계산'
+                    : '상세 균형 최적화 실행'}
+              </button>
+            </div>
+            <details className={styles.calculationDetails}>
+              <summary>계산 상세 보기</summary>
+              <div className={styles.calculationDetailGrid}>
+                <article>
+                  <span>계산 유형</span>
+                  <strong>
+                    {currentJob?.optimization_scope === 'DETAILED'
+                      ? '상세 균형'
+                      : '기본 최저비용'}
+                  </strong>
+                </article>
+                <article>
+                  <span>소요 시간</span>
+                  <strong>
+                    {reusedResult
+                      ? '계산 생략'
+                      : formatElapsedTime(displayedElapsedSeconds)}
+                  </strong>
+                </article>
+                <article>
+                  <span>작업 상태</span>
+                  <strong>{reusedResult ? '즉시 재사용' : currentJob?.status}</strong>
+                </article>
+              </div>
+            </details>
           </section>
         )}
 
@@ -1298,16 +1520,19 @@ const AdminExactAllocationPage = () => {
                 <strong>
                   {job.optimization_scope === 'DETAILED' ? '상세 균형' : '기본 최저비용'}
                   {' · '}
-                  {job.result_reused ? '즉시 재사용' : job.status} ·{' '}
+                  {job.result_reused && !job.reservations_changed
+                    ? '즉시 재사용'
+                    : job.status}{' '}
+                  ·{' '}
                   {job.proven_bus_count ?? '-'}대
-                  {job.reservations_changed && ' · 예약 변동'}
+                  {job.reservations_changed && ' · 신청 변동'}
                 </strong>
                 <div className={styles.historyMeta}>
                   <span>{new Date(job.requested_at).toLocaleString('ko-KR')}</span>
                   <span>
-                    {job.result_reused
+                    {job.result_reused && !job.reservations_changed
                       ? '저장된 최적해 사용 · 계산 생략'
-                      : `소요 ${getRecordedElapsedSeconds(job).toLocaleString()}초`}
+                      : `소요 ${formatElapsedTime(getRecordedElapsedSeconds(job))}`}
                   </span>
                 </div>
               </button>
@@ -1316,6 +1541,84 @@ const AdminExactAllocationPage = () => {
         </section>
         </div>
       </main>
+      {manualDraftModalOpen && (
+        <div className={styles.modalBackdrop} onMouseDown={closeManualDraftModal}>
+          <section
+            className={styles.manualDraftModal}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="manual-draft-modal-title"
+            aria-describedby="manual-draft-modal-description"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <header className={styles.modalHeader}>
+              <div>
+                <span className={styles.modalIcon}>
+                  <FilePlus2 size={19} />
+                </span>
+                <div>
+                  <h2 id="manual-draft-modal-title">수동 배차 초안 생성</h2>
+                  <p id="manual-draft-modal-description">
+                    버스 없이 시작하며, 현재 활성 신청자는 모두 미배차 상태로
+                    추가됩니다.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                aria-label="닫기"
+                disabled={creatingManualDraft}
+                onClick={closeManualDraftModal}
+              >
+                <X size={18} />
+              </button>
+            </header>
+            <form
+              className={styles.manualDraftForm}
+              onSubmit={(event) => {
+                event.preventDefault();
+                void handleCreateManualDraft();
+              }}
+            >
+              <label>
+                배차 초안 이름
+                <input
+                  autoFocus
+                  maxLength={100}
+                  placeholder="예: 1차 수동 배차안"
+                  value={manualDraftName}
+                  onChange={(event) => {
+                    setManualDraftName(event.target.value);
+                    setManualDraftError(null);
+                  }}
+                />
+              </label>
+              {manualDraftError && (
+                <div className={styles.modalError} role="alert">
+                  {manualDraftError}
+                </div>
+              )}
+              <footer className={styles.modalFooter}>
+                <button
+                  className={styles.secondary}
+                  type="button"
+                  disabled={creatingManualDraft}
+                  onClick={closeManualDraftModal}
+                >
+                  취소
+                </button>
+                <button
+                  className={styles.primary}
+                  type="submit"
+                  disabled={creatingManualDraft || !manualDraftName.trim()}
+                >
+                  {creatingManualDraft ? '생성 중...' : '생성 후 편집하기'}
+                </button>
+              </footer>
+            </form>
+          </section>
+        </div>
+      )}
     </div>
   );
 };

@@ -140,6 +140,19 @@ const RECOMMENDED_STATIONS = [
   { name: '청량리역', line: '1호선 / 경의중앙선 / 경춘선 / 수인분당선', address: '서울특별시 동대문구 왕산로 214', lat: 37.5801, lng: 127.0464 },
 ] as const;
 
+const EXTERNAL_USER_RATIO = 0.05;
+const EXTERNAL_AFFILIATIONS = [
+  { district: '경기지구', campus: '수원대학교' },
+  { district: '인천지구', campus: '인하대학교' },
+  { district: '대전지구', campus: '충남대학교' },
+  { district: '대구지구', campus: '경북대학교' },
+  { district: '부산지구', campus: '부산대학교' },
+  { district: '광주지구', campus: '전남대학교' },
+] as const;
+
+const getExternalUserCount = (totalGeneralUsers: number) =>
+  Math.max(1, Math.floor(totalGeneralUsers * EXTERNAL_USER_RATIO));
+
 const buildCampusAssignments = <T extends Record<string, unknown>>(
   campuses: T[],
   count: number,
@@ -236,6 +249,10 @@ const getSimulationUsers = async (serviceClient: ReturnType<typeof createClient>
             team: String(metadata.team ?? ''),
             campus_id: metadata.campus_id ?? null,
             campus: String(metadata.campus ?? ''),
+            affiliation_type:
+              metadata.affiliation_type === 'external' ? 'external' : 'seoul',
+            coordinator_name: String(metadata.coordinator_name ?? ''),
+            coordinator_phone: String(metadata.coordinator_phone ?? ''),
             simRole: metadata.sim_role ?? null,
             sequence: Number(metadata.sim_seq) || 0,
           };
@@ -398,6 +415,10 @@ Deno.serve(async (request) => {
 
   const body = await request.json().catch(() => ({}));
   const stage = typeof body?.stage === 'string' ? body.stage : '';
+  const requestedPaymentMode =
+    body?.payment_mode === 'random' || body?.payment_mode === 'all'
+      ? body.payment_mode
+      : null;
   const referenceConfig = getReferenceConfig();
 
   if (
@@ -405,6 +426,7 @@ Deno.serve(async (request) => {
     stage !== 'reference' &&
     stage !== 'accounts' &&
     stage !== 'reservations' &&
+    stage !== 'deadline' &&
     stage !== 'payments' &&
     stage !== 'transfers' &&
     stage !== 'boarding'
@@ -855,43 +877,39 @@ Deno.serve(async (request) => {
       if (!allCampuses.length) {
         throw new Error('1단계에서 선택한 사용 캠퍼스를 찾지 못했습니다.');
       }
-      if (offset === 0) {
-        const [campusAdminRoleResult, simulationProfileResult] = await Promise.all([
-          serviceClient
-            .from('admin_roles')
-            .select('user_id,campus_id')
-            .eq('role', 'campus_admin'),
-          serviceClient
-            .from('profiles')
-            .select('id')
-            .like('email', 'sim-%@ccc-bus.test'),
-        ]);
-        const conflictLoadError =
-          campusAdminRoleResult.error ?? simulationProfileResult.error;
-        if (conflictLoadError) throw conflictLoadError;
+      const [campusAdminRoleResult, simulationUsers] = await Promise.all([
+        serviceClient
+          .from('admin_roles')
+          .select('user_id,campus_id')
+          .eq('role', 'campus_admin'),
+        getSimulationUsers(serviceClient),
+      ]);
+      if (campusAdminRoleResult.error) throw campusAdminRoleResult.error;
 
-        const simulationProfileIds = new Set(
-          (simulationProfileResult.data ?? []).map((profile) => profile.id),
-        );
-        const targetCampusIds = new Set(allCampuses.map((campus) => campus!.campus_id));
-        const conflictingRoles = (campusAdminRoleResult.data ?? []).filter(
-          (role) =>
-            role.campus_id &&
-            targetCampusIds.has(role.campus_id) &&
-            !simulationProfileIds.has(role.user_id),
-        );
-        if (conflictingRoles.length > 0) {
-          throw new Error(
-            `실제 캠퍼스 회계 순장님 권한 ${conflictingRoles.length}개가 있어 2단계를 실행할 수 없습니다.`,
-          );
-        }
-      }
+      const simulationUserIds = new Set(
+        simulationUsers.map((simulationUser) => simulationUser.userId),
+      );
+      const targetCampusIds = new Set(allCampuses.map((campus) => campus.campus_id));
+      const existingCampusAdminRoles = (campusAdminRoleResult.data ?? []).filter(
+        (role) =>
+          role.campus_id &&
+          targetCampusIds.has(role.campus_id) &&
+          !simulationUserIds.has(role.user_id),
+      );
+      const existingCampusAdminIds = new Set(
+        existingCampusAdminRoles.map((role) => role.campus_id),
+      );
+      const uncoveredCampuses = allCampuses.filter(
+        (campus) => !existingCampusAdminIds.has(campus.campus_id),
+      );
       const targetValue = targetResult.data?.value as {
         targets?: Record<string, number>;
       } | null;
+      const externalUserCount = getExternalUserCount(userCount);
+      const seoulUserCount = userCount - externalUserCount;
       const assignments = buildCampusAssignments(
-        activeCampusResult.data,
-        userCount,
+        allCampuses,
+        seoulUserCount,
         targetValue?.targets ?? {},
       );
       const generalUserCountByCampus = new Map<string, number>();
@@ -902,23 +920,47 @@ Deno.serve(async (request) => {
         );
       }
       const campusDistribution = [...generalUserCountByCampus.values()];
-      const generalSpecs = assignments.map((campus, index) => {
+      const seoulGeneralSpecs = assignments.map((campus, index) => {
         const sequence = index + 1;
         return {
           email: `sim-user-${pad(sequence)}@ccc-bus.test`,
           name: `시뮬레이션 사용자 ${pad(sequence)}`,
           phone: `010-9${String(sequence).padStart(7, '0').slice(-7)}`,
+          affiliation_type: 'seoul',
+          coordinator_name: null,
+          coordinator_phone: null,
           sim_role: null,
           sim_seq: sequence,
           ...campus,
         };
       });
-      const multiCampusAdminCount = Math.min(5, Math.floor(allCampuses.length / 2));
+      const externalSpecs = Array.from({ length: externalUserCount }, (_, index) => {
+        const sequence = seoulUserCount + index + 1;
+        const affiliation = EXTERNAL_AFFILIATIONS[index % EXTERNAL_AFFILIATIONS.length];
+        const coordinatorSequence = (index % EXTERNAL_AFFILIATIONS.length) + 1;
+        return {
+          email: `sim-user-${pad(sequence)}@ccc-bus.test`,
+          name: `시뮬레이션 기타지구 사용자 ${pad(sequence)}`,
+          phone: `010-9${String(sequence).padStart(7, '0').slice(-7)}`,
+          district_id: null,
+          district: affiliation.district,
+          team_id: null,
+          team: '',
+          campus_id: null,
+          campus: affiliation.campus,
+          affiliation_type: 'external',
+          coordinator_name: `시뮬레이션 담당 간사 ${pad(coordinatorSequence)}`,
+          coordinator_phone: `010-7000-${String(coordinatorSequence).padStart(4, '0')}`,
+          sim_role: null,
+          sim_seq: sequence,
+        };
+      });
+      const multiCampusAdminCount = Math.min(5, Math.floor(uncoveredCampuses.length / 2));
       const multiCampusGroups = Array.from(
         { length: multiCampusAdminCount },
-        (_, index) => allCampuses.slice(index * 2, index * 2 + 2),
+        (_, index) => uncoveredCampuses.slice(index * 2, index * 2 + 2),
       );
-      const singleCampusGroups = allCampuses
+      const singleCampusGroups = uncoveredCampuses
         .slice(multiCampusAdminCount * 2)
         .map((campus) => [campus]);
       const adminSpecs = [...multiCampusGroups, ...singleCampusGroups].map(
@@ -926,37 +968,60 @@ Deno.serve(async (request) => {
           email: `sim-admin-campus-${pad(index + 1)}@ccc-bus.test`,
           name: `시뮬레이션 캠퍼스 회계 순장님 ${pad(index + 1)}`,
           phone: `010-8${String(index + 1).padStart(7, '0').slice(-7)}`,
+          affiliation_type: 'seoul',
+          coordinator_name: null,
+          coordinator_phone: null,
           sim_role: 'campus_admin',
           sim_seq: userCount + index + 1,
           managed_campuses: managedCampuses,
           ...managedCampuses[0]!,
         }),
       );
-      const specs = [...generalSpecs, ...adminSpecs];
+      const specs = [...seoulGeneralSpecs, ...externalSpecs, ...adminSpecs];
       const batch = specs.slice(offset, offset + batchSize);
-      const emails = batch.map((spec) => spec.email);
-      const { data: existingProfiles, error: profileLoadError } = await serviceClient
-        .from('profiles')
-        .select('id,email')
-        .in('email', emails);
-      if (profileLoadError) throw profileLoadError;
       const existingByEmail = new Map(
-        (existingProfiles ?? []).map((profile) => [profile.email, profile.id]),
+        simulationUsers.map((simulationUser) => [
+          simulationUser.email.toLowerCase(),
+          simulationUser.userId,
+        ]),
       );
       let created = 0;
       let skipped = 0;
 
       await mapWithConcurrency(batch, 10, async (spec) => {
-        if (existingByEmail.has(spec.email)) {
-          skipped += 1;
-          return;
-        }
-        const { data: createdUser, error: createError } =
-          await serviceClient.auth.admin.createUser({
-            email: spec.email,
-            password,
-            email_confirm: true,
-            user_metadata: {
+        const userMetadata = {
+          name: spec.name,
+          phone: spec.phone,
+          district_id: spec.district_id,
+          district: spec.district,
+          team_id: spec.team_id,
+          team: spec.team,
+          campus_id: spec.campus_id,
+          campus: spec.campus,
+          affiliation_type: spec.affiliation_type,
+          coordinator_name: spec.coordinator_name,
+          coordinator_phone: spec.coordinator_phone,
+          payment_status: spec.sim_role ? 'completed' : 'pending',
+          sim_role: spec.sim_role,
+          sim_seq: spec.sim_seq,
+          managed_campus_ids:
+            spec.sim_role === 'campus_admin'
+              ? spec.managed_campuses.map((campus) => campus.campus_id)
+              : [],
+        };
+        const existingUserId = existingByEmail.get(spec.email.toLowerCase());
+        if (existingUserId) {
+          const { error: authUpdateError } =
+            await serviceClient.auth.admin.updateUserById(existingUserId, {
+              email_confirm: true,
+              user_metadata: userMetadata,
+            });
+          if (authUpdateError) {
+            throw new Error(`${spec.email}: ${authUpdateError.message}`);
+          }
+          const { error: profileUpdateError } = await serviceClient
+            .from('profiles')
+            .update({
               name: spec.name,
               phone: spec.phone,
               district_id: spec.district_id,
@@ -965,25 +1030,35 @@ Deno.serve(async (request) => {
               team: spec.team,
               campus_id: spec.campus_id,
               campus: spec.campus,
-              payment_status: spec.sim_role ? 'completed' : 'pending',
-              sim_role: spec.sim_role,
-              sim_seq: spec.sim_seq,
-              managed_campus_ids:
-                spec.sim_role === 'campus_admin'
-                  ? spec.managed_campuses.map((campus) => campus.campus_id)
-                  : [],
-            },
+              affiliation_type: spec.affiliation_type,
+              coordinator_name: spec.coordinator_name,
+              coordinator_phone: spec.coordinator_phone,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', existingUserId);
+          if (profileUpdateError) {
+            throw new Error(`${spec.email}: ${profileUpdateError.message}`);
+          }
+          skipped += 1;
+          return;
+        }
+        const { data: createdUser, error: createError } =
+          await serviceClient.auth.admin.createUser({
+            email: spec.email,
+            password,
+            email_confirm: true,
+            user_metadata: userMetadata,
           });
         if (createError || !createdUser.user) {
           throw new Error(`${spec.email}: ${createError?.message ?? '계정 생성 실패'}`);
         }
-        existingByEmail.set(spec.email, createdUser.user.id);
+        existingByEmail.set(spec.email.toLowerCase(), createdUser.user.id);
         created += 1;
       });
 
       const adminBatch = batch.filter((spec) => spec.sim_role === 'campus_admin');
       for (const spec of adminBatch) {
-        const userId = existingByEmail.get(spec.email);
+        const userId = existingByEmail.get(spec.email.toLowerCase());
         if (!userId) throw new Error(`${spec.email} 프로필을 찾지 못했습니다.`);
         const { error: roleDeleteError } = await serviceClient
           .from('admin_roles')
@@ -1013,10 +1088,14 @@ Deno.serve(async (request) => {
       const skippedTotal = (Number(previousSummary.skipped_total) || 0) + skipped;
       const summary = {
         total_accounts: specs.length,
-        general_users: generalSpecs.length,
+        general_users: seoulGeneralSpecs.length + externalSpecs.length,
+        seoul_users: seoulGeneralSpecs.length,
+        external_users: externalSpecs.length,
         campus_admins: adminSpecs.length,
         multi_campus_admins: multiCampusAdminCount,
         campus_admin_roles: allCampuses.length,
+        existing_campus_admin_roles: existingCampusAdminRoles.length,
+        generated_campus_admin_roles: uncoveredCampuses.length,
         general_user_distribution_range:
           `${Math.min(...campusDistribution)}~${Math.max(...campusDistribution)}명`,
         processed,
@@ -1026,7 +1105,12 @@ Deno.serve(async (request) => {
         skipped_total: skippedTotal,
       };
       if (done) {
-        const [profileCountResult, simulationAdminProfilesResult] = await Promise.all([
+        const [
+          profileCountResult,
+          simulationAdminProfilesResult,
+          externalProfileCountResult,
+          targetCampusAdminRoleResult,
+        ] = await Promise.all([
           serviceClient
             .from('profiles')
             .select('*', { count: 'exact', head: true })
@@ -1035,9 +1119,22 @@ Deno.serve(async (request) => {
             .from('profiles')
             .select('id')
             .like('email', 'sim-admin-campus-%@ccc-bus.test'),
+          serviceClient
+            .from('profiles')
+            .select('*', { count: 'exact', head: true })
+            .like('email', 'sim-user-%@ccc-bus.test')
+            .eq('affiliation_type', 'external'),
+          serviceClient
+            .from('admin_roles')
+            .select('*', { count: 'exact', head: true })
+            .eq('role', 'campus_admin')
+            .in('campus_id', allCampuses.map((campus) => campus.campus_id)),
         ]);
         const verificationLoadError =
-          profileCountResult.error ?? simulationAdminProfilesResult.error;
+          profileCountResult.error ??
+          simulationAdminProfilesResult.error ??
+          externalProfileCountResult.error ??
+          targetCampusAdminRoleResult.error;
         if (verificationLoadError) throw verificationLoadError;
         const adminProfileIds = (simulationAdminProfilesResult.data ?? []).map(
           (profile) => profile.id,
@@ -1052,18 +1149,24 @@ Deno.serve(async (request) => {
         if (adminRoleResult.error) throw adminRoleResult.error;
 
         const verifiedProfiles = profileCountResult.count ?? 0;
-        const verifiedAdminRoles = adminRoleResult.count ?? 0;
+        const verifiedSimulationAdminRoles = adminRoleResult.count ?? 0;
+        const verifiedAdminRoles = targetCampusAdminRoleResult.count ?? 0;
+        const verifiedExternalProfiles = externalProfileCountResult.count ?? 0;
         if (
           verifiedProfiles !== specs.length ||
-          verifiedAdminRoles !== allCampuses.length
+          verifiedAdminRoles !== allCampuses.length ||
+          verifiedSimulationAdminRoles !== uncoveredCampuses.length ||
+          verifiedExternalProfiles !== externalSpecs.length
         ) {
           throw new Error(
-            `2단계 검증 실패: 프로필 ${verifiedProfiles}/${specs.length}, 캠퍼스 회계 순장님 권한 ${verifiedAdminRoles}/${allCampuses.length}`,
+            `2단계 검증 실패: 프로필 ${verifiedProfiles}/${specs.length}, 기타지구 프로필 ${verifiedExternalProfiles}/${externalSpecs.length}, 전체 캠퍼스 회계 순장님 권한 ${verifiedAdminRoles}/${allCampuses.length}, 생성한 시뮬레이션 권한 ${verifiedSimulationAdminRoles}/${uncoveredCampuses.length}`,
           );
         }
         Object.assign(summary, {
           verified_profiles: verifiedProfiles,
+          verified_external_profiles: verifiedExternalProfiles,
           verified_campus_admin_roles: verifiedAdminRoles,
+          verified_simulation_campus_admin_roles: verifiedSimulationAdminRoles,
         });
       }
       await serviceClient
@@ -1088,15 +1191,36 @@ Deno.serve(async (request) => {
     if (stage === 'reservations' || stage === 'payments') {
       const batchSize = Math.min(200, Math.max(1, Number(body?.batch_size) || 100));
       const previousSummary = (run.summary ?? {}) as Record<string, unknown>;
+      const previousPaymentMode =
+        previousSummary.payment_mode === 'all' || previousSummary.payment_mode === 'random'
+          ? previousSummary.payment_mode
+          : null;
+      const paymentMode =
+        stage === 'payments' && requestedRunId && previousPaymentMode
+          ? previousPaymentMode
+          : requestedPaymentMode;
       const offset = requestedRunId
         ? Math.max(0, Number(previousSummary.processed) || 0)
         : 0;
+      const paymentCursorId =
+        stage === 'payments' &&
+        typeof previousSummary.last_reservation_id === 'string'
+          ? previousSummary.last_reservation_id
+          : null;
+      if (stage === 'payments' && requestedRunId && offset > 0 && !paymentCursorId) {
+        throw new Error(
+          '기존 방식으로 진행 중인 입금 시뮬레이션은 안전하게 이어갈 수 없습니다. 입금 단계를 새로 실행해주세요.',
+        );
+      }
       const users = await getSimulationUsers(serviceClient);
       if (users.length === 0) {
         throw new Error('시뮬레이션 계정이 없습니다. 2단계를 먼저 실행하세요.');
       }
       let activeReservationCount = 0;
       if (stage === 'payments') {
+        if (!paymentMode) {
+          throw new Error('입금 처리 방식이 없습니다. 랜덤 일부 입금 또는 전체 입금을 선택하세요.');
+        }
         const { count, error } = await serviceClient
           .from('reservations')
           .select('id', { count: 'exact', head: true })
@@ -1106,13 +1230,18 @@ Deno.serve(async (request) => {
         if (activeReservationCount === 0) {
           throw new Error('입금 생성 대상인 요청 또는 확정 상태의 활성 시뮬레이션 신청이 없습니다. 3단계 개별 신청을 먼저 실행하세요.');
         }
+        if (paymentMode === 'random' && activeReservationCount < 2) {
+          throw new Error('랜덤 일부 입금은 활성 신청이 2건 이상일 때 실행할 수 있습니다.');
+        }
       }
       const batch = stage === 'reservations' ? users.slice(offset, offset + batchSize) : [];
       let createdInBatch = 0;
       let updatedInBatch = 0;
       let completedInBatch = 0;
+      let pendingInBatch = 0;
       let verifiedInBatch = 0;
       const skippedInBatch = 0;
+      let lastProcessedReservationId = paymentCursorId;
 
       if (stage === 'reservations') {
         const { data: stations, error: stationError } = await serviceClient
@@ -1162,6 +1291,9 @@ Deno.serve(async (request) => {
             team: simulationUser.team,
             campus_id: simulationUser.campus_id,
             campus: simulationUser.campus,
+            affiliation_type: simulationUser.affiliation_type,
+            coordinator_name: simulationUser.coordinator_name || null,
+            coordinator_phone: simulationUser.coordinator_phone || null,
             station_preferences: stationPreferences,
             status: 'requested',
             confirmed_ticket: null,
@@ -1172,6 +1304,9 @@ Deno.serve(async (request) => {
               district: simulationUser.district,
               team: simulationUser.team,
               campus: simulationUser.campus,
+              affiliationType: simulationUser.affiliation_type,
+              coordinatorName: simulationUser.coordinator_name || null,
+              coordinatorPhone: simulationUser.coordinator_phone || null,
               stationPreferences,
               status: 'requested',
               requestedAt,
@@ -1188,18 +1323,24 @@ Deno.serve(async (request) => {
         }
         createdInBatch = rows.length;
       } else {
+        let reservationQuery = serviceClient
+          .from('reservations')
+          .select('id,user_id,status,district_id,district,team_id,team,campus_id,campus,affiliation_type')
+          .in('status', ['requested', 'confirmed'])
+          .order('id', { ascending: true })
+          .limit(batchSize);
+
+        if (paymentCursorId) {
+          reservationQuery = reservationQuery.gt('id', paymentCursorId);
+        }
+
         const [
           { data: reservations, error: reservationError },
           { data: priceSetting, error: priceError },
           { data: campusAdminRoles, error: adminRoleError },
         ] =
           await Promise.all([
-            serviceClient
-              .from('reservations')
-              .select('id,user_id,status,district_id,district,team_id,team,campus_id,campus,affiliation_type')
-              .in('status', ['requested', 'confirmed'])
-              .order('id')
-              .range(offset, offset + batchSize - 1),
+            reservationQuery,
             serviceClient
               .from('app_settings')
               .select('value')
@@ -1213,6 +1354,9 @@ Deno.serve(async (request) => {
         if (reservationError) throw reservationError;
         if (priceError) throw priceError;
         if (adminRoleError) throw adminRoleError;
+        if (reservations && reservations.length > 0) {
+          lastProcessedReservationId = reservations[reservations.length - 1].id;
+        }
         const ticketPrice = Math.max(
           0,
           Number(getSettingObject(priceSetting?.value).price) || 0,
@@ -1220,10 +1364,8 @@ Deno.serve(async (request) => {
         if (ticketPrice <= 0) {
           throw new Error('유효한 버스표 가격이 없습니다. 1단계 운영 초기값 설정을 먼저 실행하세요.');
         }
-        const simulationUserIds = new Set(users.map((simulationUser) => simulationUser.userId));
         const adminByScope = new Map(
           (campusAdminRoles ?? [])
-            .filter((role) => simulationUserIds.has(role.user_id))
             .map((role) => [getCampusKey(role), role.user_id]),
         );
         const now = new Date().toISOString();
@@ -1238,39 +1380,56 @@ Deno.serve(async (request) => {
         const paymentByReservationId = new Map(
           (payments ?? []).map((payment) => [payment.reservation_id, payment]),
         );
-        const existingReservationIds = new Set(
-          (payments ?? []).map((payment) => payment.reservation_id),
-        );
+        const existingReservationIds = new Set((payments ?? []).map((payment) => payment.reservation_id));
         const missingRows = [];
-        const existingReservationIdsByAdmin = new Map<string, string[]>();
+        const completedExistingReservationIdsByAdmin = new Map<string, string[]>();
+        const pendingExistingReservationIds = [];
         const externalReservations = [];
-        for (const reservation of reservations ?? []) {
+        for (const [index, reservation] of (reservations ?? []).entries()) {
+          const reservationIndex = offset + index;
+          const completed =
+            paymentMode === 'all' ||
+            (
+              reservationIndex < activeReservationCount - 1 &&
+              (
+                reservationIndex === 0 ||
+                deterministicUnit(`${run.id}:${reservation.id}:individual-payment`) < 0.7
+              )
+            );
+          completedInBatch += completed ? 1 : 0;
+          pendingInBatch += completed ? 0 : 1;
           if (reservation.affiliation_type === 'external') {
-            externalReservations.push(reservation);
+            externalReservations.push({ reservation, completed });
             continue;
           }
           const scope = getCampusKey(reservation);
           const campusAdminId = adminByScope.get(scope) ?? user.id;
           if (existingReservationIds.has(reservation.id)) {
-            existingReservationIdsByAdmin.set(campusAdminId, [
-              ...(existingReservationIdsByAdmin.get(campusAdminId) ?? []),
-              reservation.id,
-            ]);
+            if (completed) {
+              completedExistingReservationIdsByAdmin.set(campusAdminId, [
+                ...(completedExistingReservationIdsByAdmin.get(campusAdminId) ?? []),
+                reservation.id,
+              ]);
+            } else {
+              pendingExistingReservationIds.push(reservation.id);
+            }
             continue;
           }
           missingRows.push({
             user_id: reservation.user_id,
             reservation_id: reservation.id,
             amount: ticketPrice,
-            status: 'completed',
-            paid_at: now,
-            verified_by: campusAdminId,
-            verified_at: now,
-            notes: '시뮬레이션 전체 활성 신청 입금 완료',
+            status: completed ? 'completed' : 'pending',
+            paid_at: completed ? now : null,
+            verified_by: completed ? campusAdminId : null,
+            verified_at: completed ? now : null,
+            notes: paymentMode === 'all'
+              ? '시뮬레이션 전체 활성 신청 입금 완료'
+              : `시뮬레이션 랜덤 일부 입금 · ${completed ? '입금 완료' : '미입금'}`,
             updated_at: now,
           });
         }
-        for (const [campusAdminId, existingReservationIds] of existingReservationIdsByAdmin) {
+        for (const [campusAdminId, existingReservationIds] of completedExistingReservationIdsByAdmin) {
           const { error: updateError } = await serviceClient
             .from('payments')
             .update({
@@ -1279,17 +1438,34 @@ Deno.serve(async (request) => {
               paid_at: now,
               verified_by: campusAdminId,
               verified_at: now,
-              notes: '시뮬레이션 전체 활성 신청 입금 완료',
+              notes: paymentMode === 'all'
+                ? '시뮬레이션 전체 활성 신청 입금 완료'
+                : '시뮬레이션 랜덤 일부 입금 · 입금 완료',
               updated_at: now,
             })
             .in('reservation_id', existingReservationIds);
           if (updateError) throw new Error(`기존 입금 완료 처리 실패: ${updateError.message}`);
         }
+        if (pendingExistingReservationIds.length > 0) {
+          const { error: updateError } = await serviceClient
+            .from('payments')
+            .update({
+              amount: ticketPrice,
+              status: 'pending',
+              paid_at: null,
+              verified_by: null,
+              verified_at: null,
+              notes: '시뮬레이션 랜덤 일부 입금 · 미입금',
+              updated_at: now,
+            })
+            .in('reservation_id', pendingExistingReservationIds);
+          if (updateError) throw new Error(`기존 미입금 상태 처리 실패: ${updateError.message}`);
+        }
         if (missingRows.length > 0) {
           const { error: insertError } = await serviceClient.from('payments').insert(missingRows);
-          if (insertError) throw new Error(`신규 입금 완료 처리 실패: ${insertError.message}`);
+          if (insertError) throw new Error(`신규 입금 상태 처리 실패: ${insertError.message}`);
         }
-        for (const reservation of externalReservations) {
+        for (const { reservation, completed } of externalReservations) {
           const { error: externalPaymentError } = await userClient.rpc(
             'upsert_reservation_payment',
             {
@@ -1297,26 +1473,30 @@ Deno.serve(async (request) => {
               p_reservation_id: reservation.id,
               p_user_id: reservation.user_id,
               p_amount: ticketPrice,
-              p_status: 'completed',
+              p_status: completed ? 'completed' : 'pending',
             },
           );
           if (externalPaymentError) {
-            throw new Error(`외부 참가자 입금 완료 처리 실패: ${externalPaymentError.message}`);
+            throw new Error(`외부 참가자 입금 상태 처리 실패: ${externalPaymentError.message}`);
           }
         }
         createdInBatch = missingRows.length;
         updatedInBatch = existingReservationIds.size;
-        completedInBatch = (reservations ?? []).length;
         verifiedInBatch = completedInBatch;
       }
 
       const totalWorkItems = stage === 'payments' ? activeReservationCount : users.length;
-      const processedInBatch = stage === 'payments' ? completedInBatch : batch.length;
+      const processedInBatch = stage === 'payments'
+        ? completedInBatch + pendingInBatch
+        : batch.length;
       const processed = Math.min(offset + processedInBatch, totalWorkItems);
-      const done = processed >= totalWorkItems;
+      const done =
+        processed >= totalWorkItems ||
+        (stage === 'payments' && processedInBatch < batchSize);
       const previousCreated = Number(previousSummary.created_total) || 0;
       const previousUpdated = Number(previousSummary.updated_total) || 0;
       const previousCompleted = Number(previousSummary.completed_total) || 0;
+      const previousPending = Number(previousSummary.pending_total) || 0;
       const previousVerified = Number(previousSummary.verified_total) || 0;
       const previousSkipped = Number(previousSummary.skipped_total) || 0;
       const createdTotal = previousCreated + createdInBatch;
@@ -1330,13 +1510,17 @@ Deno.serve(async (request) => {
         ...(stage === 'payments'
           ? {
               completed_in_batch: completedInBatch,
+              pending_in_batch: pendingInBatch,
               updated_in_batch: updatedInBatch,
               skipped_in_batch: skippedInBatch,
               verified_in_batch: verifiedInBatch,
               updated_total: previousUpdated + updatedInBatch,
               completed_total: completedTotal,
+              pending_total: previousPending + pendingInBatch,
               skipped_total: previousSkipped + skippedInBatch,
               verified_total: previousVerified + verifiedInBatch,
+              payment_mode: paymentMode,
+              last_reservation_id: lastProcessedReservationId,
             }
           : {}),
       };
@@ -1359,6 +1543,68 @@ Deno.serve(async (request) => {
       });
     }
 
+    if (stage === 'deadline') {
+      const users = await getSimulationUsers(serviceClient);
+      if (users.length === 0) {
+        throw new Error('시뮬레이션 계정이 없습니다. 2단계를 먼저 실행하세요.');
+      }
+
+      const simulationUserIds = new Set(users.map((simulationUser) => simulationUser.userId));
+      const { data: activeReservations, error: reservationError } = await serviceClient
+        .from('reservations')
+        .select('id,user_id')
+        .in('status', ['requested', 'confirmed']);
+      if (reservationError) throw reservationError;
+
+      const nonSimulationReservations = (activeReservations ?? []).filter(
+        (reservation) => !simulationUserIds.has(reservation.user_id),
+      );
+      if (nonSimulationReservations.length > 0) {
+        throw new Error(
+          `활성 상태의 실제 사용자 예약 ${nonSimulationReservations.length}건이 있어 신청을 자동 마감할 수 없습니다.`,
+        );
+      }
+      if ((activeReservations ?? []).length === 0) {
+        throw new Error('마감할 시뮬레이션 신청이 없습니다. 3단계 개별 신청을 먼저 실행하세요.');
+      }
+
+      const now = new Date().toISOString();
+      throwIfError(
+        (
+          await serviceClient.from('app_settings').upsert(
+            {
+              key: 'first_reservation_deadline',
+              value: { deadline_at: new Date(Date.now() - 60_000).toISOString() },
+            },
+            { onConflict: 'key' },
+          )
+        ).error,
+        '예약 마감 실패',
+      );
+
+      const summary = {
+        deadline_closed: true,
+        active_reservations: activeReservations?.length ?? 0,
+      };
+      await serviceClient
+        .from('simulation_stage_runs')
+        .update({
+          status: 'completed',
+          summary,
+          completed_at: now,
+        })
+        .eq('id', run.id);
+
+      return json({
+        run_id: run.id,
+        stage,
+        status: 'completed',
+        summary,
+        next_offset: null,
+        done: true,
+      });
+    }
+
     if (stage === 'transfers') {
       const users = await getSimulationUsers(serviceClient);
       if (users.length === 0) {
@@ -1368,18 +1614,34 @@ Deno.serve(async (request) => {
       const [
         { data: activeReservations, error: reservationError },
         { data: campusAdminRoles, error: adminRoleError },
+        { data: deadlineSetting, error: deadlineError },
       ] = await Promise.all([
         serviceClient
           .from('reservations')
-          .select('id,user_id,status,district_id,district,team_id,team,campus_id,campus')
+          .select('id,user_id,status,district_id,district,team_id,team,campus_id,campus,affiliation_type')
           .neq('status', 'cancelled'),
         serviceClient
           .from('admin_roles')
           .select('user_id,role,district_id,district,team_id,team,campus_id,campus')
           .eq('role', 'campus_admin'),
+        serviceClient
+          .from('app_settings')
+          .select('value')
+          .eq('key', 'first_reservation_deadline')
+          .maybeSingle(),
       ]);
       if (reservationError) throw reservationError;
       if (adminRoleError) throw adminRoleError;
+      if (deadlineError) throw deadlineError;
+
+      const deadlineAt = getSettingObject(deadlineSetting?.value).deadline_at;
+      if (
+        typeof deadlineAt !== 'string' ||
+        !Number.isFinite(Date.parse(deadlineAt)) ||
+        Date.parse(deadlineAt) > Date.now()
+      ) {
+        throw new Error('신청 마감이 필요합니다. 4단계 신청 마감을 먼저 실행하세요.');
+      }
 
       const nonSimulationReservations = (activeReservations ?? []).filter(
         (reservation) => !simulationUserIds.has(reservation.user_id),
@@ -1392,6 +1654,7 @@ Deno.serve(async (request) => {
       const reservations = (activeReservations ?? []).filter(
         (reservation) =>
           simulationUserIds.has(reservation.user_id) &&
+          reservation.affiliation_type !== 'external' &&
           (reservation.status === 'requested' || reservation.status === 'confirmed'),
       );
       if (reservations.length === 0) {
@@ -1400,7 +1663,6 @@ Deno.serve(async (request) => {
 
       const adminByScope = new Map(
         (campusAdminRoles ?? [])
-          .filter((role) => simulationUserIds.has(role.user_id))
           .map((role) => [getCampusKey(role), role.user_id]),
       );
       const reservationIdsByScope = new Map<string, string[]>();
@@ -1445,7 +1707,7 @@ Deno.serve(async (request) => {
               !payment.verified_at,
           )
         ) {
-          throw new Error(`${scope} 범위에 캠퍼스 회계 순장님이 확인하지 않은 입금이 있습니다. 4단계를 먼저 실행하세요.`);
+          throw new Error(`${scope} 범위에 캠퍼스 회계 순장님이 확인하지 않은 입금이 있습니다. 개인 미입금 처리를 먼저 완료하세요.`);
         }
         return {
           district_id: reservation.district_id,
@@ -1474,18 +1736,6 @@ Deno.serve(async (request) => {
       });
       throwIfError(
         (
-          await serviceClient.from('app_settings').upsert(
-            {
-              key: 'first_reservation_deadline',
-              value: { deadline_at: new Date(Date.now() - 60_000).toISOString() },
-            },
-            { onConflict: 'key' },
-          )
-        ).error,
-        '예약 마감 실패',
-      );
-      throwIfError(
-        (
           await serviceClient
             .from('campus_transfers')
             .upsert(transferRows, { onConflict: 'district,team,campus' })
@@ -1494,9 +1744,14 @@ Deno.serve(async (request) => {
       );
 
       const summary = {
-        deadline_closed: true,
         completed_payments: payments.length,
         verified_payments: payments.length,
+        external_reservations_excluded:
+          (activeReservations ?? []).filter(
+            (reservation) =>
+              simulationUserIds.has(reservation.user_id) &&
+              reservation.affiliation_type === 'external',
+          ).length,
         sent_transfers: transferRows.length,
         confirmed_transfers: transferRows.length,
         sent_total_amount: transferRows.reduce(

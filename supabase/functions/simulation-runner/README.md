@@ -44,10 +44,13 @@ constant and deploying the function again.
   roles, and verifies the final profile and campus-admin-role counts.
 - `reservations`: creates deterministic first- and second-choice reservations
   while leaving every tenth simulation account without a reservation.
-- `payments`: completes and verifies every active reservation payment. Existing
-  payments are updated and missing payments are created.
-- `transfers`: closes the reservation deadline, creates every campus transfer
-  report, and records headquarters confirmation before allocation planning.
+- `deadline`: closes the reservation deadline before allocation planning.
+- `payments`: requires an explicit `payment_mode`. `random` completes and
+  verifies only part of the active reservations while leaving unpaid
+  reservations; `all` completes and verifies every active reservation.
+  Existing payments are updated and missing payments are created.
+- `transfers`: requires the closed reservation deadline, creates every campus
+  transfer report, and records headquarters confirmation.
 - `boarding`: requires a confirmed allocation, records every bus departure, and
   produces deterministic boarded, no-show, and unchecked passenger states with
   boarding events.

@@ -16,9 +16,6 @@ const AdminAllocationsPage = lazy(
 const AdminApplicationsPage = lazy(
   () => import('../pages/admin/AdminTicketPage')
 );
-const AdminCampusTransferPage = lazy(
-  () => import('../pages/admin/AdminCampusTransferPage')
-);
 const AdminFinalPaymentReviewPage = lazy(
   () => import('../pages/admin/AdminFinalPaymentReviewPage')
 );
@@ -168,7 +165,10 @@ const canonicalAdminRoutes = [
   },
   {
     path: 'payments/campus-transfers',
-    element: adminRoute(<AdminCampusTransferPage />, globalAdminOnly),
+    element: adminRoute(
+      <RedirectWithSearch to="/admin/payments/final-review" />,
+      globalAdminOnly
+    ),
   },
   {
     path: 'payments/final-review',
@@ -236,7 +236,7 @@ const legacyAdminRoutes = [
   },
   {
     path: 'campus-transfer',
-    to: '/admin/payments/campus-transfers',
+    to: '/admin/payments/final-review',
     roles: globalAdminOnly,
   },
   {

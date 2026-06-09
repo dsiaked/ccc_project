@@ -7,6 +7,8 @@ from .schema import AllocationResult, OptimizationInput
 
 def validate_input(data: OptimizationInput) -> list[str]:
     errors: list[str] = []
+    if not data.passengers:
+        errors.append("At least one passenger is required.")
     if data.bus.capacity <= 0:
         errors.append("Bus capacity must be positive.")
     if data.bus.price < 0:
@@ -76,6 +78,7 @@ def validate_result(data: OptimizationInput, result: AllocationResult) -> list[s
         errors.append("Every passenger must appear exactly once.")
 
     assignments_by_bus: dict[str, list[str]] = {}
+    seats_by_bus: dict[str, list[int]] = {}
     second_choice_count = 0
     for assignment in result.assignments:
         passenger = passenger_by_id.get(assignment.reservation_id)
@@ -102,6 +105,7 @@ def validate_result(data: OptimizationInput, result: AllocationResult) -> list[s
         assignments_by_bus.setdefault(assignment.bus_id, []).append(
             assignment.reservation_id
         )
+        seats_by_bus.setdefault(assignment.bus_id, []).append(assignment.seat_number)
 
     if second_choice_count != result.second_choice_count:
         errors.append("Reported second-choice count is invalid.")
@@ -118,11 +122,7 @@ def validate_result(data: OptimizationInput, result: AllocationResult) -> list[s
             errors.append(f"{bus.bus_id}: bus capacity exceeded.")
         if tuple(sorted(assigned)) != tuple(sorted(bus.passenger_ids)):
             errors.append(f"{bus.bus_id}: passenger list does not match assignments.")
-        seats = sorted(
-            assignment.seat_number
-            for assignment in result.assignments
-            if assignment.bus_id == bus.bus_id
-        )
+        seats = sorted(seats_by_bus.get(bus.bus_id, []))
         if seats != list(range(1, len(assigned) + 1)):
             errors.append(f"{bus.bus_id}: seat numbers must be contiguous and unique.")
 

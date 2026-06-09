@@ -4,15 +4,18 @@ import base64
 import ctypes
 import getpass
 import json
+import msvcrt
 import os
 import shutil
 import subprocess
 import sys
+import threading
 import urllib.error
 import urllib.parse
 import urllib.request
 from ctypes import wintypes
 from pathlib import Path
+from typing import Callable
 
 from exact_optimizer.local_worker import main as run_local_worker
 from exact_optimizer.worker import build_supabase_headers, normalize_service_role_key
@@ -33,11 +36,19 @@ class DataBlob(ctypes.Structure):
 
 crypt32 = ctypes.windll.crypt32
 kernel32 = ctypes.windll.kernel32
+user32 = ctypes.windll.user32
 kernel32.CreateMutexW.restype = wintypes.HANDLE
 kernel32.CreateMutexW.argtypes = [wintypes.LPVOID, wintypes.BOOL, wintypes.LPCWSTR]
 kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+kernel32.GlobalLock.restype = wintypes.LPVOID
+kernel32.GlobalLock.argtypes = [wintypes.HANDLE]
+kernel32.GlobalUnlock.argtypes = [wintypes.HANDLE]
+user32.OpenClipboard.argtypes = [wintypes.HWND]
+user32.GetClipboardData.restype = wintypes.HANDLE
+user32.GetClipboardData.argtypes = [wintypes.UINT]
 ERROR_ALREADY_EXISTS = 183
 WORKER_MUTEX_NAME = "Local\\CCC-Bus-Allocation-Optimizer-Worker"
+CF_UNICODETEXT = 13
 
 
 def _blob_from_bytes(value: bytes) -> tuple[DataBlob, ctypes.Array]:
@@ -95,6 +106,62 @@ def unprotect_secret(value: str) -> str:
         kernel32.LocalFree(output_blob.pbData)
 
 
+def read_clipboard_text() -> str:
+    if not user32.OpenClipboard(None):
+        raise ctypes.WinError()
+    try:
+        handle = user32.GetClipboardData(CF_UNICODETEXT)
+        if not handle:
+            raise ctypes.WinError()
+        pointer = kernel32.GlobalLock(handle)
+        if not pointer:
+            raise ctypes.WinError()
+        try:
+            return ctypes.wstring_at(pointer)
+        finally:
+            kernel32.GlobalUnlock(handle)
+    finally:
+        user32.CloseClipboard()
+
+
+def read_hidden_console_input(
+    prompt: str,
+    *,
+    read_character: Callable[[], str] = msvcrt.getwch,
+    read_clipboard: Callable[[], str] = read_clipboard_text,
+) -> str:
+    sys.stdout.write(prompt)
+    sys.stdout.flush()
+    characters: list[str] = []
+    try:
+        while True:
+            character = read_character()
+            if character in {"\r", "\n"}:
+                return "".join(characters)
+            if character == "\x03":
+                raise KeyboardInterrupt
+            if character == "\x16":
+                characters.extend(read_clipboard())
+                continue
+            if character in {"\b", "\x7f"}:
+                if characters:
+                    characters.pop()
+                continue
+            if character in {"\x00", "\xe0"}:
+                read_character()
+                continue
+            characters.append(character)
+    finally:
+        sys.stdout.write("\n")
+        sys.stdout.flush()
+
+
+def read_secret(prompt: str) -> str:
+    if sys.stdin.isatty():
+        return read_hidden_console_input(prompt)
+    return getpass.getpass(prompt)
+
+
 def local_app_data() -> Path:
     return Path(os.environ["LOCALAPPDATA"])
 
@@ -109,6 +176,10 @@ def install_directory() -> Path:
 
 def installed_executable() -> Path:
     return install_directory() / EXECUTABLE_NAME
+
+
+def is_application_installed() -> bool:
+    return installed_executable().exists() and config_path().exists()
 
 
 def config_path() -> Path:
@@ -288,6 +359,15 @@ def uninstall_application() -> None:
         )
 
 
+def run_installed_worker() -> int:
+    original_argv = sys.argv
+    sys.argv = [sys.argv[0]]
+    try:
+        return run_local_worker()
+    finally:
+        sys.argv = original_argv
+
+
 def worker_mode() -> int:
     mutex = kernel32.CreateMutexW(None, False, WORKER_MUTEX_NAME)
     if not mutex:
@@ -308,7 +388,7 @@ def worker_mode() -> int:
         sys.stderr = stream
         print("Starting installed local allocation optimizer.", flush=True)
         try:
-            return run_local_worker()
+            return run_installed_worker()
         finally:
             kernel32.CloseHandle(mutex)
 
@@ -317,6 +397,282 @@ def self_test() -> int:
     value = "ccc-bus-installer-self-test"
     if unprotect_secret(protect_secret(value)) != value:
         return 1
+    return 0
+
+
+def installer_gui() -> int:
+    import tkinter as tk
+    from tkinter import messagebox, ttk
+
+    try:
+        saved_url, saved_key = load_config()
+    except Exception:
+        saved_url, saved_key = "", ""
+
+    root = tk.Tk()
+    root.title("CCC 버스 배차 계산기 설치")
+    root.geometry("760x650")
+    root.minsize(720, 620)
+    root.option_add("*Font", ("Malgun Gothic", 10))
+
+    style = ttk.Style(root)
+    style.configure("Title.TLabel", font=("Malgun Gothic", 20, "bold"))
+    style.configure("Subtitle.TLabel", foreground="#475569")
+    style.configure("Status.TLabel", font=("Malgun Gothic", 11, "bold"))
+    style.configure("Primary.TButton", font=("Malgun Gothic", 10, "bold"))
+
+    saved_key_holder = {"value": saved_key}
+    busy = {"value": False}
+    action_buttons: list[ttk.Button] = []
+
+    url_var = tk.StringVar(value=saved_url)
+    key_var = tk.StringVar()
+    show_key_var = tk.BooleanVar(value=False)
+    installation_status_var = tk.StringVar()
+    status_message_var = tk.StringVar(value="연결 정보를 입력한 뒤 설치를 진행해주세요.")
+
+    main = ttk.Frame(root, padding=24)
+    main.grid(row=0, column=0, sticky="nsew")
+    root.columnconfigure(0, weight=1)
+    root.rowconfigure(0, weight=1)
+    main.columnconfigure(0, weight=1)
+
+    ttk.Label(main, text="CCC 버스 배차 계산기", style="Title.TLabel").grid(
+        row=0, column=0, sticky="w"
+    )
+    ttk.Label(
+        main,
+        text="Supabase 연결을 확인하고 로컬 최적화 워커를 설치합니다.",
+        style="Subtitle.TLabel",
+    ).grid(row=1, column=0, sticky="w", pady=(4, 18))
+
+    status_frame = ttk.LabelFrame(main, text="설치 상태", padding=14)
+    status_frame.grid(row=2, column=0, sticky="ew", pady=(0, 14))
+    status_frame.columnconfigure(0, weight=1)
+    ttk.Label(
+        status_frame, textvariable=installation_status_var, style="Status.TLabel"
+    ).grid(row=0, column=0, sticky="w")
+
+    connection_frame = ttk.LabelFrame(main, text="Supabase 연결 정보", padding=16)
+    connection_frame.grid(row=3, column=0, sticky="ew", pady=(0, 14))
+    connection_frame.columnconfigure(1, weight=1)
+
+    ttk.Label(connection_frame, text="프로젝트 URL").grid(
+        row=0, column=0, sticky="w", padx=(0, 12), pady=(0, 12)
+    )
+    url_entry = ttk.Entry(connection_frame, textvariable=url_var)
+    url_entry.grid(row=0, column=1, columnspan=2, sticky="ew", pady=(0, 12))
+
+    ttk.Label(connection_frame, text="Service-role 키").grid(
+        row=1, column=0, sticky="w", padx=(0, 12)
+    )
+    key_entry = ttk.Entry(connection_frame, textvariable=key_var, show="*")
+    key_entry.grid(row=1, column=1, sticky="ew")
+
+    def toggle_key_visibility() -> None:
+        key_entry.configure(show="" if show_key_var.get() else "*")
+
+    ttk.Checkbutton(
+        connection_frame,
+        text="표시",
+        variable=show_key_var,
+        command=toggle_key_visibility,
+    ).grid(row=1, column=2, sticky="e", padx=(10, 0))
+
+    saved_key_text = (
+        "저장된 암호화 키가 있습니다. 변경할 때만 새 키를 입력하세요."
+        if saved_key
+        else "키 입력칸에는 Ctrl+V로 전체 키를 붙여넣을 수 있습니다."
+    )
+    ttk.Label(
+        connection_frame,
+        text=saved_key_text,
+        style="Subtitle.TLabel",
+        wraplength=620,
+    ).grid(row=2, column=0, columnspan=3, sticky="w", pady=(10, 0))
+
+    ttk.Label(
+        connection_frame,
+        text=(
+            "보안 안내: service-role 키는 이 PC의 현재 Windows 사용자만 해독할 수 "
+            "있도록 DPAPI로 암호화 저장됩니다."
+        ),
+        wraplength=620,
+    ).grid(row=3, column=0, columnspan=3, sticky="w", pady=(8, 0))
+
+    action_frame = ttk.Frame(main)
+    action_frame.grid(row=4, column=0, sticky="ew")
+    for column in range(4):
+        action_frame.columnconfigure(column, weight=1)
+
+    progress = ttk.Progressbar(main, mode="indeterminate")
+    progress.grid(row=5, column=0, sticky="ew", pady=(16, 8))
+    ttk.Label(
+        main,
+        textvariable=status_message_var,
+        wraplength=680,
+        justify="left",
+    ).grid(row=6, column=0, sticky="w")
+
+    paths_frame = ttk.LabelFrame(main, text="설치 정보", padding=12)
+    paths_frame.grid(row=7, column=0, sticky="ew", pady=(18, 0))
+    paths_frame.columnconfigure(0, weight=1)
+    ttk.Label(
+        paths_frame,
+        text=f"설치 위치: {install_directory()}\n로그 위치: {log_path()}",
+        style="Subtitle.TLabel",
+        wraplength=650,
+    ).grid(row=0, column=0, sticky="w")
+
+    def refresh_installation_status() -> None:
+        installed = is_application_installed()
+        installation_status_var.set(
+            "설치됨 · Windows 로그인 시 자동 실행"
+            if installed
+            else "설치 전 · 연결 확인 후 설치해주세요"
+        )
+        if busy["value"]:
+            return
+        start_button.configure(state="normal" if installed else "disabled")
+        remove_button.configure(state="normal" if installed else "disabled")
+        install_button.configure(text="업데이트" if installed else "설치")
+
+    def set_busy(value: bool, message: str) -> None:
+        busy["value"] = value
+        status_message_var.set(message)
+        for button in action_buttons:
+            button.configure(state="disabled" if value else "normal")
+        url_entry.configure(state="disabled" if value else "normal")
+        key_entry.configure(state="disabled" if value else "normal")
+        if value:
+            progress.start(12)
+        else:
+            progress.stop()
+            refresh_installation_status()
+
+    def current_connection() -> tuple[str, str]:
+        url = normalize_supabase_url(url_var.get())
+        raw_key = key_var.get().strip() or saved_key_holder["value"]
+        if not raw_key:
+            raise ValueError("Supabase service-role 키를 입력해주세요.")
+        return url, normalize_service_role_key(raw_key)
+
+    def show_input_error(error: Exception) -> None:
+        messagebox.showerror("입력 확인", str(error), parent=root)
+
+    def run_task(
+        start_message: str,
+        success_message: str,
+        operation: Callable[[], None],
+        on_success: Callable[[], None] | None = None,
+    ) -> None:
+        set_busy(True, start_message)
+
+        def finish_success() -> None:
+            if on_success:
+                on_success()
+            set_busy(False, success_message)
+            messagebox.showinfo("완료", success_message, parent=root)
+
+        def finish_error(message: str) -> None:
+            set_busy(False, f"오류: {message}")
+            messagebox.showerror("작업 실패", message, parent=root)
+
+        def worker() -> None:
+            try:
+                operation()
+            except Exception as error:
+                root.after(0, lambda message=str(error): finish_error(message))
+            else:
+                root.after(0, finish_success)
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def validate_clicked() -> None:
+        try:
+            url, key = current_connection()
+        except Exception as error:
+            show_input_error(error)
+            return
+        run_task(
+            "Supabase 연결과 배차 계산 테이블을 확인하는 중입니다...",
+            "Supabase 연결 확인을 완료했습니다.",
+            lambda: validate_connection(url, key),
+        )
+
+    def install_clicked() -> None:
+        try:
+            url, key = current_connection()
+        except Exception as error:
+            show_input_error(error)
+            return
+
+        def operation() -> None:
+            validate_connection(url, key)
+            install_application(url, key)
+            start_worker()
+
+        def on_success() -> None:
+            saved_key_holder["value"] = key
+            url_var.set(url)
+            key_var.set("")
+
+        run_task(
+            "연결을 확인하고 로컬 최적화 워커를 설치하는 중입니다...",
+            "설치와 자동 실행 등록을 완료했습니다.",
+            operation,
+            on_success,
+        )
+
+    def start_clicked() -> None:
+        run_task(
+            "로컬 최적화 워커를 시작하는 중입니다...",
+            "로컬 최적화 워커를 시작했습니다.",
+            start_worker,
+        )
+
+    def remove_clicked() -> None:
+        if not messagebox.askyesno(
+            "설치 제거",
+            "설치된 워커와 저장된 연결 정보를 제거할까요?",
+            parent=root,
+        ):
+            return
+
+        def on_success() -> None:
+            saved_key_holder["value"] = ""
+            key_var.set("")
+
+        run_task(
+            "설치 제거를 준비하는 중입니다...",
+            "제거 작업을 예약했습니다. 창을 닫으면 완료됩니다.",
+            uninstall_application,
+            on_success,
+        )
+
+    validate_button = ttk.Button(
+        action_frame, text="연결 확인", command=validate_clicked
+    )
+    validate_button.grid(row=0, column=0, sticky="ew", padx=(0, 6))
+    install_button = ttk.Button(
+        action_frame, text="설치", command=install_clicked, style="Primary.TButton"
+    )
+    install_button.grid(row=0, column=1, sticky="ew", padx=6)
+    start_button = ttk.Button(
+        action_frame, text="워커 실행", command=start_clicked
+    )
+    start_button.grid(row=0, column=2, sticky="ew", padx=6)
+    remove_button = ttk.Button(
+        action_frame, text="제거", command=remove_clicked
+    )
+    remove_button.grid(row=0, column=3, sticky="ew", padx=(6, 0))
+    action_buttons.extend(
+        [validate_button, install_button, start_button, remove_button]
+    )
+
+    refresh_installation_status()
+    url_entry.focus_set()
+    root.mainloop()
     return 0
 
 
@@ -332,7 +688,7 @@ def prompt_connection() -> tuple[str, str]:
         if saved_key
         else "Supabase service-role 키: "
     )
-    key = getpass.getpass(key_prompt).strip() or saved_key
+    key = read_secret(key_prompt).strip() or saved_key
     if not key:
         raise ValueError("Supabase service-role 키를 입력해주세요.")
     return url, normalize_service_role_key(key)
@@ -399,7 +755,9 @@ def main() -> int:
         return self_test()
     if "--worker" in sys.argv:
         return worker_mode()
-    return installer_wizard()
+    if "--console-wizard" in sys.argv:
+        return installer_wizard()
+    return installer_gui()
 
 
 if __name__ == "__main__":

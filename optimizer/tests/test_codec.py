@@ -73,6 +73,31 @@ class CodecTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "campus must be a string"):
             input_from_snapshot(snapshot)
 
+    def test_rejects_non_integer_bus_fields(self) -> None:
+        for field, value in (
+            ("capacity", 45.5),
+            ("price", "900000"),
+            ("recommended_minimum_passengers", True),
+            ("maximum_buses", "12"),
+        ):
+            with self.subTest(field=field):
+                bus = {
+                    "capacity": 45,
+                    "price": 900000,
+                    "recommended_minimum_passengers": 36,
+                    "maximum_buses": 12,
+                }
+                bus[field] = value
+
+                with self.assertRaisesRegex(ValueError, f"{field} must be an integer"):
+                    input_from_snapshot(
+                        {
+                            "schema_version": 1,
+                            "bus": bus,
+                            "passengers": [],
+                        }
+                    )
+
     def test_ignores_malformed_optional_result_payload(self) -> None:
         result = result_from_dict(
             {

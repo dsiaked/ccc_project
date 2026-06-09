@@ -27,7 +27,7 @@ const HomeNoticeSection = () => {
 
         setAnnouncements(items);
       } catch (error) {
-        console.error('홈 공지 로드 실패:', error);
+        console.error('홈 화면 공지 로드 실패:', error);
       } finally {
         if (isMounted) setIsLoading(false);
       }
@@ -53,7 +53,7 @@ const HomeNoticeSection = () => {
           </div>
           <div>
             <p>NOTICE</p>
-            <h2>공지사항</h2>
+            <h2>홈 화면 공지</h2>
           </div>
         </div>
 

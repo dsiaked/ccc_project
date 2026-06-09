@@ -9,17 +9,20 @@ import styles from './AdminTicketPage.module.css';
 
 interface ReservationWithUser extends ReturnBusReservation {
   userId: string;
+  paymentCompleted: boolean;
 }
 
 type ParticipationScope = 'district' | 'team' | 'campus';
-type CoverageScopeFilter = 'all' | 'individual' | ParticipationScope;
-type AttentionFilter = 'all' | 'low-reservation' | 'low-subscriber';
-type CoverageSortOption =
-  | 'organization'
-  | 'rate-desc'
-  | 'rate-asc'
-  | 'subscriber-rate-desc'
-  | 'subscriber-rate-asc';
+type CoverageViewFilter =
+  | 'campus'
+  | 'individual'
+  | 'team'
+  | 'district'
+  | 'all'
+  | 'allocation-needed'
+  | 'payment-needed'
+  | 'low-reservation'
+  | 'low-subscriber';
 
 interface CoverageRow {
   key: string;
@@ -31,8 +34,10 @@ interface CoverageRow {
   reservationCount: number;
   subscriberCount: number;
   confirmedCount: number;
+  paidCount: number;
   participantTarget: number;
   allocationRate: number | null;
+  paymentRate: number | null;
   reservationRate: number | null;
   subscriberRate: number | null;
   reservationGap: number | null;
@@ -46,6 +51,7 @@ type CoverageBaseRow = Omit<
   CoverageRow,
   | 'participantTarget'
   | 'allocationRate'
+  | 'paymentRate'
   | 'reservationRate'
   | 'subscriberRate'
   | 'reservationGap'
@@ -53,6 +59,10 @@ type CoverageBaseRow = Omit<
   | 'campusAdminPhone'
   | 'campusAdminManagedCount'
 >;
+
+interface PaymentRow {
+  status: 'pending' | 'completed' | 'refunded' | null;
+}
 
 interface ReservationRow {
   id: string;
@@ -65,6 +75,7 @@ interface ReservationRow {
   station_preferences: ReturnBusReservation['stationPreferences'] | null;
   status: ReturnBusReservation['status'] | null;
   confirmed_ticket: ReturnBusReservation['confirmedTicket'] | null;
+  payments: PaymentRow | PaymentRow[] | null;
   data: Partial<ReturnBusReservation> | null;
   created_at: string | null;
   updated_at: string | null;
@@ -121,7 +132,8 @@ interface SubscriberProfileRow {
 const RESERVATION_PAGE_SIZE = 1000;
 const SEOUL_DISTRICT = '서울지구';
 
-const normalizeName = (value: string) => value.replace(/\s/g, '').trim();
+const getPayment = (payments: ReservationRow['payments']) =>
+  Array.isArray(payments) ? payments[0] : payments;
 const isIndividualCoverageRow = (row: Pick<CoverageRow, 'scope' | 'district'>) =>
   row.scope === 'campus' && row.district !== SEOUL_DISTRICT;
 
@@ -143,33 +155,33 @@ const getCoverageKey = (
 
 const getAllReservationRows = async (): Promise<ReservationRow[]> => {
   const rows: ReservationRow[] = [];
-  let totalCount: number | null = null;
+  let cursor: Pick<ReservationRow, 'created_at' | 'id'> | null = null;
 
   while (true) {
-    const from = rows.length;
-    const { data, count, error } = await supabase
+    let query = supabase
       .from('reservations')
       .select(
-        'id, user_id, name, phone, district, team, campus, station_preferences, status, confirmed_ticket, data, created_at, updated_at',
-        { count: 'exact' }
+        'id, user_id, name, phone, district, team, campus, station_preferences, status, confirmed_ticket, data, created_at, updated_at, payments(status)'
       )
       .order('created_at', { ascending: false })
       .order('id', { ascending: false })
-      .range(from, from + RESERVATION_PAGE_SIZE - 1);
+      .limit(RESERVATION_PAGE_SIZE);
+
+    if (cursor) {
+      query = query.or(
+        `created_at.lt.${cursor.created_at},and(created_at.eq.${cursor.created_at},id.lt.${cursor.id})`
+      );
+    }
+
+    const { data, error } = await query;
 
     if (error) throw error;
-    totalCount = count ?? totalCount;
 
-    const page = (data || []) as ReservationRow[];
+    const page = (data || []) as unknown as ReservationRow[];
     rows.push(...page);
 
-    if (
-      page.length === 0 ||
-      (totalCount !== null && rows.length >= totalCount) ||
-      (totalCount === null && page.length < RESERVATION_PAGE_SIZE)
-    ) {
-      return rows;
-    }
+    if (page.length < RESERVATION_PAGE_SIZE) return rows;
+    cursor = page[page.length - 1];
   }
 };
 
@@ -177,29 +189,26 @@ const getAllSubscriberProfileRows = async (): Promise<
   SubscriberProfileRow[]
 > => {
   const rows: SubscriberProfileRow[] = [];
-  let totalCount: number | null = null;
+  let cursorId: string | null = null;
 
   while (true) {
-    const from = rows.length;
-    const { data, count, error } = await supabase
+    let query = supabase
       .from('profiles')
-      .select('id, name, phone, district, team, campus', { count: 'exact' })
+      .select('id, name, phone, district, team, campus')
       .order('id', { ascending: false })
-      .range(from, from + RESERVATION_PAGE_SIZE - 1);
+      .limit(RESERVATION_PAGE_SIZE);
+
+    if (cursorId) query = query.lt('id', cursorId);
+
+    const { data, error } = await query;
 
     if (error) throw error;
-    totalCount = count ?? totalCount;
 
     const page = (data || []) as SubscriberProfileRow[];
     rows.push(...page);
 
-    if (
-      page.length === 0 ||
-      (totalCount !== null && rows.length >= totalCount) ||
-      (totalCount === null && page.length < RESERVATION_PAGE_SIZE)
-    ) {
-      return rows;
-    }
+    if (page.length < RESERVATION_PAGE_SIZE) return rows;
+    cursorId = page[page.length - 1].id;
   }
 };
 
@@ -218,13 +227,8 @@ const AdminTicketPage = () => {
   const [loadError, setLoadError] = useState('');
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
-  const [coverageScopeFilter, setCoverageScopeFilter] =
-    useState<CoverageScopeFilter>('campus');
-  const [attentionFilter, setAttentionFilter] =
-    useState<AttentionFilter>('all');
-  const [coverageSearchText, setCoverageSearchText] = useState('');
-  const [coverageSortOption, setCoverageSortOption] =
-    useState<CoverageSortOption>('organization');
+  const [coverageViewFilter, setCoverageViewFilter] =
+    useState<CoverageViewFilter>('campus');
   const [participationTargets, setParticipationTargets] = useState<
     Record<string, number>
   >({});
@@ -325,6 +329,7 @@ const AdminTicketPage = () => {
               new Date().toISOString(),
             updatedAt: item.updated_at || savedData.updatedAt || undefined,
             userId: item.user_id,
+            paymentCompleted: getPayment(item.payments)?.status === 'completed',
           } as ReservationWithUser;
         });
 
@@ -444,6 +449,7 @@ const AdminTicketPage = () => {
         reservationCount: 0,
         subscriberCount: 0,
         confirmedCount: 0,
+        paidCount: 0,
         personPhone,
       };
 
@@ -526,6 +532,10 @@ const AdminTicketPage = () => {
         if (reservation.status === 'confirmed') {
           row.confirmedCount += 1;
         }
+
+        if (reservation.paymentCompleted) {
+          row.paidCount += 1;
+        }
       });
     });
 
@@ -563,6 +573,10 @@ const AdminTicketPage = () => {
           allocationRate:
             row.reservationCount > 0
               ? (row.confirmedCount / row.reservationCount) * 100
+              : null,
+          paymentRate:
+            row.reservationCount > 0
+              ? (row.paidCount / row.reservationCount) * 100
               : null,
           reservationRate:
             !isIndividualUnit && row.subscriberCount > 0
@@ -621,104 +635,117 @@ const AdminTicketPage = () => {
   const activeReservationCount = reservations.filter(
     (reservation) => reservation.status !== 'cancelled'
   ).length;
+  const confirmedReservationCount = reservations.filter(
+    (reservation) => reservation.status === 'confirmed'
+  ).length;
+  const paidReservationCount = reservations.filter(
+    (reservation) =>
+      reservation.status !== 'cancelled' && reservation.paymentCompleted
+  ).length;
+  const unassignedReservationCount =
+    activeReservationCount - confirmedReservationCount;
+  const unpaidReservationCount = activeReservationCount - paidReservationCount;
+  const totalAllocationRate =
+    activeReservationCount > 0
+      ? (confirmedReservationCount / activeReservationCount) * 100
+      : null;
+  const totalPaymentRate =
+    activeReservationCount > 0
+      ? (paidReservationCount / activeReservationCount) * 100
+      : null;
   const subscriberCount = subscriberProfiles.length;
-  const filteredCoverageRows = useMemo(() => {
-    const searchValue = normalizeName(coverageSearchText);
-    const rows = coverageRows.filter((row) => {
-      const matchesScope =
-        coverageScopeFilter === 'all' ||
-        (coverageScopeFilter === 'individual'
-          ? isIndividualCoverageRow(row)
-          : row.scope === coverageScopeFilter &&
-            (coverageScopeFilter !== 'campus' || !isIndividualCoverageRow(row)));
-      const matchesAttention =
-        attentionFilter === 'all' ||
-        (attentionFilter === 'low-reservation' &&
-          row.reservationRate !== null &&
-          row.reservationRate < 50) ||
-        (attentionFilter === 'low-subscriber' &&
-          row.subscriberRate !== null &&
-          row.subscriberRate < 50);
-
-      if (!matchesScope || !matchesAttention) return false;
-      if (!searchValue) return true;
-
-      return [
-        row.label,
-        row.district,
-        row.team,
-        row.campus,
-        row.campusAdminName || '',
-        row.campusAdminPhone || '',
-        row.personPhone || '',
-      ].some((value) => normalizeName(value).includes(searchValue));
-    });
-
-    if (coverageSortOption === 'organization') return rows;
-
-    return [...rows].sort((a, b) => {
-      const rateKey = coverageSortOption.startsWith('subscriber-rate')
-        ? 'subscriberRate'
-        : 'reservationRate';
-      const aRate = a[rateKey];
-      const bRate = b[rateKey];
-
-      if (aRate === null) return bRate === null ? 0 : 1;
-      if (bRate === null) return -1;
-
-      const rateDifference =
-        coverageSortOption.endsWith('-desc') ? bRate - aRate : aRate - bRate;
-
-      return rateDifference || a.label.localeCompare(b.label, 'ko');
-    });
-  }, [
-    coverageRows,
-    attentionFilter,
-    coverageScopeFilter,
-    coverageSearchText,
-    coverageSortOption,
-  ]);
-
-  const ratedCampusCoverageRows = coverageRows.filter(
-    (row) => row.scope === 'campus' && !isIndividualCoverageRow(row)
-  );
-  const lowReservationRateCampusCount = ratedCampusCoverageRows.filter(
-    (row) => row.reservationRate !== null && row.reservationRate < 50
-  ).length;
-  const lowSubscriberRateCampusCount = ratedCampusCoverageRows.filter(
-    (row) => row.subscriberRate !== null && row.subscriberRate < 50
-  ).length;
   const totalReservationRate =
     subscriberCount > 0 ? (activeReservationCount / subscriberCount) * 100 : null;
   const totalSubscriberRate =
     totalParticipantTarget > 0
       ? (subscriberCount / totalParticipantTarget) * 100
       : null;
-  const hasActiveFilters =
-    coverageScopeFilter !== 'campus' ||
-    attentionFilter !== 'all' ||
-    coverageSearchText.trim() !== '' ||
-    coverageSortOption !== 'organization';
+  const overviewCards = [
+    {
+      label: '참여 목표',
+      value: totalParticipantTarget,
+      unit: '명',
+      rate: null,
+      rateLabel: '기준 인원',
+      description: '등록된 예상 참여 인원',
+      tone: 'participant',
+    },
+    {
+      label: '가입',
+      value: subscriberCount,
+      unit: '명',
+      rate: totalSubscriberRate,
+      rateLabel: '가입률',
+      description: '참여 목표 대비 가입 완료',
+      tone: 'subscriber',
+    },
+    {
+      label: '신청',
+      value: activeReservationCount,
+      unit: '명',
+      rate: totalReservationRate,
+      rateLabel: '신청률',
+      description: '가입 인원 대비 · 취소 제외',
+      tone: 'reservation',
+    },
+    {
+      label: '입금 완료',
+      value: paidReservationCount,
+      unit: '명',
+      rate: totalPaymentRate,
+      rateLabel: '입금률',
+      description: `미입금 ${unpaidReservationCount.toLocaleString()}명`,
+      tone: 'payment',
+    },
+    {
+      label: '배차 확정',
+      value: confirmedReservationCount,
+      unit: '명',
+      rate: totalAllocationRate,
+      rateLabel: '배차율',
+      description: `미배차 ${unassignedReservationCount.toLocaleString()}명`,
+      tone: 'allocation',
+    },
+  ];
+  const filteredCoverageRows = useMemo(() => {
+    return coverageRows.filter((row) => {
+      if (coverageViewFilter === 'all') return true;
+      if (coverageViewFilter === 'individual') return isIndividualCoverageRow(row);
+      if (coverageViewFilter === 'team' || coverageViewFilter === 'district') {
+        return row.scope === coverageViewFilter;
+      }
+      if (coverageViewFilter === 'campus') {
+        return row.scope === 'campus' && !isIndividualCoverageRow(row);
+      }
 
-  const resetFilters = () => {
-    setCoverageScopeFilter('campus');
-    setAttentionFilter('all');
-    setCoverageSearchText('');
-    setCoverageSortOption('organization');
-  };
+      const isCampus = row.scope === 'campus' && !isIndividualCoverageRow(row);
+      if (!isCampus) return false;
 
-  const applyAttentionFilter = (filter: AttentionFilter) => {
-    const nextFilter = attentionFilter === filter ? 'all' : filter;
+      if (coverageViewFilter === 'allocation-needed') {
+        return row.reservationCount > row.confirmedCount;
+      }
+      if (coverageViewFilter === 'payment-needed') {
+        return row.reservationCount > row.paidCount;
+      }
+      if (coverageViewFilter === 'low-reservation') {
+        return row.reservationRate !== null && row.reservationRate < 50;
+      }
 
-    setCoverageScopeFilter('campus');
-    setAttentionFilter(nextFilter);
-    setCoverageSortOption(
-      nextFilter === 'all'
-        ? 'organization'
-        : filter === 'low-subscriber'
-          ? 'subscriber-rate-asc'
-          : 'rate-asc'
-    );
+      return row.subscriberRate !== null && row.subscriberRate < 50;
+    });
+  }, [coverageRows, coverageViewFilter]);
+
+  const hasActiveFilters = coverageViewFilter !== 'campus';
+  const filterLabels: Record<CoverageViewFilter, string> = {
+    campus: '캠퍼스 전체',
+    individual: '개인 · 기타지구',
+    team: '팀',
+    district: '지구',
+    all: '전체 단위',
+    'allocation-needed': '미배차 있음',
+    'payment-needed': '미입금 있음',
+    'low-reservation': '신청률 50% 미만',
+    'low-subscriber': '가입률 50% 미만',
   };
 
   if (loading) {
@@ -794,47 +821,55 @@ const AdminTicketPage = () => {
           </div>
         )}
 
-        <div className={styles.statsBar}>
-          {[
-            {
-              label: '신청 인원',
-              value: activeReservationCount,
-              description: '관리자 신청 취소 제외',
-              tone: 'reservation',
-            },
-            {
-              label: '가입 인원',
-              value: subscriberCount,
-              description: '전체 가입 프로필',
-              tone: 'subscriber',
-            },
-            {
-              label: '수련회 참여인원',
-              value: totalParticipantTarget,
-              description: '등록된 예상 참여 인원 합계',
-              tone: 'participant',
-            },
-          ].map((item) => (
-            <div
-              key={item.label}
-              className={`${styles.stat} ${styles[`stat_${item.tone}`]}`}
-            >
-              <span className={styles.statLabel}>{item.label}</span>
-              <strong className={styles.statValue}>
-                {item.value.toLocaleString()}
-                <small>명</small>
-              </strong>
-              <span className={styles.statHint}>{item.description}</span>
+        <section className={styles.overviewSection} aria-label="운영 현황 요약">
+          <div className={styles.overviewHeader}>
+            <div>
+              <span>운영 퍼널</span>
+              <h2>참여부터 배차까지 한눈에 보기</h2>
             </div>
-          ))}
-        </div>
+            <p>입금률과 배차율은 신청 인원을 기준으로 계산합니다.</p>
+          </div>
+          <div className={styles.statsBar}>
+            {overviewCards.map((item) => (
+              <div
+                key={item.label}
+                className={`${styles.stat} ${styles[`stat_${item.tone}`]}`}
+              >
+                <div className={styles.statTop}>
+                  <span className={styles.statLabel}>{item.label}</span>
+                  <span className={styles.statRate}>
+                    {item.rate === null
+                      ? item.rateLabel
+                      : `${item.rateLabel} ${item.rate.toFixed(1)}%`}
+                  </span>
+                </div>
+                <strong className={styles.statValue}>
+                  {item.value.toLocaleString()}
+                  <small>{item.unit}</small>
+                </strong>
+                <div className={styles.statProgressTrack} aria-hidden="true">
+                  <div
+                    className={styles.statProgressFill}
+                    style={{
+                      width: `${
+                        item.rate === null ? 100 : Math.min(item.rate, 100)
+                      }%`,
+                    }}
+                  />
+                </div>
+                <span className={styles.statHint}>{item.description}</span>
+              </div>
+            ))}
+          </div>
+        </section>
 
         <div className={styles.coverageSection}>
           <div className={styles.sectionHeader}>
             <div>
-              <h2>조직별 신청률 및 가입률</h2>
+              <h2>조직별 배차율 · 입금률 · 신청률 · 가입률</h2>
               <p>
                 배차율은 신청 인원 중 배차가 확정된 비율(확정 인원 ÷ 신청 인원)입니다.
+                입금률은 신청 인원 중 입금이 완료된 비율(입금 인원 ÷ 신청 인원)입니다.
                 신청률은 가입 인원 중 버스를 신청한 비율(신청 인원 ÷ 가입 인원)이며,
                 가입률은 예상 참여 인원 중 가입을 완료한 비율(가입 인원 ÷ 참여 인원)입니다.
                 서울지구 캠퍼스와 기타 지구 개인 데이터를 바탕으로 팀과 지구 비율도
@@ -845,115 +880,40 @@ const AdminTicketPage = () => {
           </div>
 
           <div className={styles.coverageToolbar}>
-            <div className={styles.scopeTabs}>
-              {[
-                ['campus', '캠퍼스'],
-                ['individual', '개인-기타지구'],
-                ['team', '팀'],
-                ['district', '지구'],
-                ['all', '전체'],
-              ].map(([scope, label]) => (
-                <button
-                  key={scope}
-                  type="button"
-                  className={
-                    coverageScopeFilter === scope ? styles.scopeTabActive : ''
-                  }
-                  onClick={() =>
-                    setCoverageScopeFilter(scope as CoverageScopeFilter)
-                  }
-                >
-                  {label}
-                </button>
-              ))}
+            <div className={styles.filterIntro}>
+              <strong>목록 보기</strong>
+              <span>확인이 필요한 조직만 빠르게 좁혀보세요.</span>
             </div>
 
             <div className={styles.coverageToolbarActions}>
               <select
-                className={styles.coverageSortSelect}
-                aria-label="신청 현황 정렬"
-                value={coverageSortOption}
+                className={styles.coverageViewSelect}
+                aria-label="목록 필터"
+                value={coverageViewFilter}
                 onChange={(event) =>
-                  setCoverageSortOption(event.target.value as CoverageSortOption)
+                  setCoverageViewFilter(event.target.value as CoverageViewFilter)
                 }
               >
-                <option value="organization">조직 순</option>
-                <option value="rate-desc">신청률 높은 순</option>
-                <option value="rate-asc">신청률 낮은 순</option>
-                <option value="subscriber-rate-desc">가입률 높은 순</option>
-                <option value="subscriber-rate-asc">가입률 낮은 순</option>
+                <option value="campus">캠퍼스 전체</option>
+                <option value="allocation-needed">미배차 있는 캠퍼스</option>
+                <option value="payment-needed">미입금 있는 캠퍼스</option>
+                <option value="low-reservation">신청률 50% 미만 캠퍼스</option>
+                <option value="low-subscriber">가입률 50% 미만 캠퍼스</option>
+                <option value="individual">개인 · 기타지구</option>
+                <option value="team">팀 단위</option>
+                <option value="district">지구 단위</option>
+                <option value="all">전체 단위</option>
               </select>
-
-              <input
-                className={styles.coverageSearchInput}
-                type="search"
-                value={coverageSearchText}
-                onChange={(event) => setCoverageSearchText(event.target.value)}
-                placeholder="조직, 관리자, 개인 연락처 검색"
-              />
             </div>
-          </div>
-
-          <div className={styles.coverageInsightGrid}>
-            <div className={styles.coverageInsight}>
-              <span>전체 신청률 · 신청 인원 / 가입 인원</span>
-              <strong>
-                {totalReservationRate === null
-                  ? '-'
-                  : `${totalReservationRate.toFixed(1)}%`}
-              </strong>
-            </div>
-            <div className={styles.coverageInsight}>
-              <span>전체 가입률 · 가입 인원 / 참여 인원</span>
-              <strong>
-                {totalSubscriberRate === null ? '-' : `${totalSubscriberRate.toFixed(1)}%`}
-              </strong>
-            </div>
-            <button
-              type="button"
-              className={`${styles.coverageInsight} ${styles.coverageInsightButton} ${
-                attentionFilter === 'low-reservation'
-                  ? styles.coverageInsightActive
-                  : ''
-              }`}
-              aria-pressed={attentionFilter === 'low-reservation'}
-              onClick={() => applyAttentionFilter('low-reservation')}
-            >
-              <span>신청률 50% 미만 캠퍼스 / 전체 캠퍼스</span>
-              <strong>
-                {lowReservationRateCampusCount.toLocaleString()} /{' '}
-                {ratedCampusCoverageRows.length.toLocaleString()}개
-              </strong>
-              <em>클릭하여 목록 필터링</em>
-            </button>
-            <button
-              type="button"
-              className={`${styles.coverageInsight} ${styles.coverageInsightButton} ${
-                attentionFilter === 'low-subscriber'
-                  ? styles.coverageInsightActive
-                  : ''
-              }`}
-              aria-pressed={attentionFilter === 'low-subscriber'}
-              onClick={() => applyAttentionFilter('low-subscriber')}
-            >
-              <span>가입률 50% 미만 캠퍼스 / 전체 캠퍼스</span>
-              <strong>
-                {lowSubscriberRateCampusCount.toLocaleString()} /{' '}
-                {ratedCampusCoverageRows.length.toLocaleString()}개
-              </strong>
-              <em>클릭하여 목록 필터링</em>
-            </button>
           </div>
 
           <div className={styles.tableMeta}>
             <div className={styles.resultSummary} aria-live="polite">
               전체 {coverageRows.length.toLocaleString()}개 중{' '}
               <strong>{filteredCoverageRows.length.toLocaleString()}개</strong> 표시
-              {attentionFilter !== 'all' && (
+              {hasActiveFilters && (
                 <span className={styles.activeFilterChip}>
-                  {attentionFilter === 'low-reservation'
-                    ? '신청률 50% 미만'
-                    : '가입률 50% 미만'}
+                  {filterLabels[coverageViewFilter]}
                 </span>
               )}
             </div>
@@ -967,7 +927,7 @@ const AdminTicketPage = () => {
               <button
                 type="button"
                 className={styles.resetButton}
-                onClick={resetFilters}
+                onClick={() => setCoverageViewFilter('campus')}
               >
                 <RotateCcw size={14} />
                 필터 초기화
@@ -982,7 +942,7 @@ const AdminTicketPage = () => {
           <div
             className={styles.coverageTableWrap}
             role="region"
-            aria-label="조직별 배차율, 신청률 및 가입률 표"
+            aria-label="조직별 배차율, 입금률, 신청률 및 가입률 표"
             tabIndex={0}
           >
             <table className={styles.coverageTable}>
@@ -991,9 +951,10 @@ const AdminTicketPage = () => {
                   <th>단위</th>
                   <th>조직</th>
                   <th className={styles.peopleHeader}>
-                    확정 / 신청 / 가입 / 참여
+                    확정 / 입금 / 신청 / 가입 / 참여
                   </th>
                   <th>배차율 (확정/신청)</th>
+                  <th>입금률 (입금/신청)</th>
                   <th>신청률 (신청/가입)</th>
                   <th>가입률 (가입/참여)</th>
                   <th>관리자 / 연락처</th>
@@ -1003,7 +964,7 @@ const AdminTicketPage = () => {
               <tbody>
                 {filteredCoverageRows.length === 0 ? (
                   <tr>
-                    <td className={styles.emptyCoverageCell} colSpan={7}>
+                    <td className={styles.emptyCoverageCell} colSpan={8}>
                       조건에 맞는 신청 현황이 없습니다.
                     </td>
                   </tr>
@@ -1012,10 +973,14 @@ const AdminTicketPage = () => {
                     const isIndividualUnit = isIndividualCoverageRow(row);
                     const isLowReservationRate =
                       row.reservationRate !== null && row.reservationRate < 50;
+                    const isLowPaymentRate =
+                      row.paymentRate !== null && row.paymentRate < 50;
                     const isLowSubscriberRate =
                       row.subscriberRate !== null && row.subscriberRate < 50;
                     const isLowRate =
-                      isLowReservationRate || isLowSubscriberRate;
+                      isLowPaymentRate ||
+                      isLowReservationRate ||
+                      isLowSubscriberRate;
 
                     return (
                       <tr
@@ -1044,6 +1009,10 @@ const AdminTicketPage = () => {
                           <span>
                             <em>확정</em>
                             <strong>{row.confirmedCount.toLocaleString()}명</strong>
+                          </span>
+                          <span>
+                            <em>입금</em>
+                            <strong>{row.paidCount.toLocaleString()}명</strong>
                           </span>
                           <span>
                             <em>신청</em>
@@ -1082,6 +1051,33 @@ const AdminTicketPage = () => {
                               {row.allocationRate === null
                                 ? '-'
                                 : `${row.allocationRate.toFixed(1)}%`}
+                            </span>
+                          </div>
+                        </td>
+                        <td>
+                          <div
+                            className={`${styles.rateCell} ${
+                              isLowPaymentRate ? styles.rateCellLow : ''
+                            }`}
+                          >
+                            <div className={styles.rateBarTrack}>
+                              <div
+                                className={`${styles.rateBarFill} ${
+                                  styles[`rate_${getRateStatus(row.paymentRate)}`]
+                                }`}
+                                style={{
+                                  width: `${
+                                    row.paymentRate === null
+                                      ? 0
+                                      : Math.min(row.paymentRate, 100)
+                                  }%`,
+                                }}
+                              />
+                            </div>
+                            <span>
+                              {row.paymentRate === null
+                                ? '-'
+                                : `${row.paymentRate.toFixed(1)}%`}
                             </span>
                           </div>
                         </td>

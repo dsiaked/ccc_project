@@ -68,7 +68,7 @@ export async function getPublishedHomeAnnouncements(limit = 5) {
   }
 
   if (error) {
-    console.error('홈 공지 조회 실패:', error);
+    console.error('홈 화면 공지 조회 실패:', error);
     throw new Error(error.message);
   }
 
@@ -83,7 +83,7 @@ export async function getHomeAnnouncements(limit = 50) {
     .limit(limit);
 
   if (error) {
-    console.error('홈화면 공지 조회 실패:', error);
+    console.error('홈 화면 공지 조회 실패:', error);
     throw new Error(error.message);
   }
 
@@ -104,7 +104,7 @@ export async function createHomeAnnouncement(params: {
   );
 
   if (error) {
-    console.error('홈 공지 작성 실패:', error);
+    console.error('홈 화면 공지 작성 실패:', error);
     throw new Error(error.message);
   }
 

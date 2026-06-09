@@ -12,6 +12,24 @@ import LogoutModal from './LogoutModal';
 
 const Sidebar = lazy(() => import('./Sidebar'));
 
+const adminShortcutCopyByRole: Record<
+  AdminRole['role'],
+  { description: string; buttonLabel: string }
+> = {
+  global_admin: {
+    description: '신청 및 버스 운영 현황을 관리할 수 있습니다.',
+    buttonLabel: '관리자 페이지',
+  },
+  campus_admin: {
+    description: '캠퍼스 신청과 입금·송금 현황을 관리할 수 있습니다.',
+    buttonLabel: '캠퍼스 회계 순장님 페이지',
+  },
+  boarding_manager: {
+    description: '담당 호차의 탑승 현황과 승객 상태를 관리할 수 있습니다.',
+    buttonLabel: '선탑자 페이지',
+  },
+};
+
 const Header = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [hasOpenedSidebar, setHasOpenedSidebar] = useState(false);
@@ -26,6 +44,9 @@ const Header = () => {
   const homePath = location.pathname.startsWith('/admin')
     ? '/admin/dashboard'
     : '/';
+  const adminShortcutCopy = adminShortcutRole
+    ? adminShortcutCopyByRole[adminShortcutRole.role]
+    : null;
 
   const toggleSidebar = () => {
     if (!isSidebarOpen) {
@@ -178,7 +199,7 @@ const Header = () => {
         )}
       </header>
 
-      {location.pathname === '/' && adminShortcutRole && (
+      {location.pathname === '/' && adminShortcutRole && adminShortcutCopy && (
         <section className={styles.adminBar} aria-label="관리자 페이지 바로가기">
           <div className={styles.adminBarCopy}>
             <span className={styles.adminBarIcon} aria-hidden="true">
@@ -186,7 +207,7 @@ const Header = () => {
             </span>
             <span className={styles.adminBarText}>
               <strong>관리자 전용</strong>
-              <span>신청 및 버스 운영 현황을 관리할 수 있습니다.</span>
+              <span>{adminShortcutCopy.description}</span>
             </span>
           </div>
           <button
@@ -194,7 +215,7 @@ const Header = () => {
             className={styles.adminBarButton}
             onClick={() => void handleAdminShortcutClick()}
           >
-            관리자 페이지
+            {adminShortcutCopy.buttonLabel}
           </button>
         </section>
       )}

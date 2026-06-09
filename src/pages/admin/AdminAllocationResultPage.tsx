@@ -440,7 +440,7 @@ const AdminAllocationResultPage = () => {
           formatBusLabel(bus.busNumber),
           passenger.confirmedTicket?.seatNumber ?? '',
           passenger.name,
-          passenger.isRemainingSeat ? '잔여좌석' : '일반 배정',
+          passenger.isRemainingSeat ? '잔여 좌석' : '일반 배정',
           passenger.isAdminCreated ? '관리자 추가' : '직접 가입',
           passenger.campus,
           passenger.phone,
@@ -581,7 +581,7 @@ const AdminAllocationResultPage = () => {
                     <span><i className={styles.assignedDot} />배정</span>
                     <span><i className={styles.emptyDot} />빈 좌석</span>
                     <span><i className={styles.unpaidDot} />미입금</span>
-                    <span><i className={styles.remainingSeatDot} />잔여좌석 신청자</span>
+                    <span><i className={styles.remainingSeatDot} />잔여 좌석 신청자</span>
                     <span><i className={styles.adminCreatedDot} />관리자 추가 계정</span>
                   </div>
                   <div className={styles.seatMap}>
@@ -608,7 +608,7 @@ const AdminAllocationResultPage = () => {
                           <span>{seatNumber}</span>
                           <strong>{passenger?.name ?? '빈 좌석'}</strong>
                           {passenger?.isRemainingSeat && (
-                            <small className={styles.remainingSeatLabel}>잔여좌석</small>
+                            <small className={styles.remainingSeatLabel}>잔여 좌석</small>
                           )}
                           {passenger?.isAdminCreated && (
                             <small className={styles.adminCreatedLabel}>관리자 추가</small>
@@ -690,7 +690,7 @@ const AdminAllocationResultPage = () => {
                               <span className={styles.passengerName}>
                                 {passenger.name}
                                 {passenger.isRemainingSeat && (
-                                  <small className={styles.remainingSeatBadge}>잔여좌석</small>
+                                  <small className={styles.remainingSeatBadge}>잔여 좌석</small>
                                 )}
                                 {passenger.isAdminCreated && (
                                   <small className={styles.adminCreatedBadge}>관리자 추가</small>

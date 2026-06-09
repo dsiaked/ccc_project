@@ -11,9 +11,11 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
+import LoginRequiredModal from '../components/LoginRequiredModal';
 import type { ReturnBusReservation } from '../types/reservation';
 import styles from './TicketPage.module.css';
 import { supabase } from '../lib/supabase';
+import { createLoginRequiredRedirectState } from '../utils/redirect';
 import { getReservation } from '../lib/reservationService';
 import {
   getReservationDeadline,
@@ -33,22 +35,26 @@ const TicketPage = () => {
       isClosed: false,
     });
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [cancelling, setCancelling] = useState(false);
+  const [isLoginRequiredModalOpen, setIsLoginRequiredModalOpen] =
+    useState(false);
   const activityDateLabel = reservation?.updatedAt ? '최종 수정 일시' : '신청 일시';
   const activityDate = reservation?.updatedAt || reservation?.requestedAt;
   const remainingSeatClaim = reservation?.remainingSeatClaim;
 
   const handleCancelRemainingSeat = async () => {
     if (!reservation?.remainingSeatClaim) return;
-    if (!window.confirm('입금 대기 중인 잔여좌석 신청을 취소할까요? 좌석은 다시 공개됩니다.')) return;
+    if (!window.confirm('입금 대기 중인 잔여 좌석 신청을 취소할까요? 좌석은 다시 공개됩니다.')) return;
 
     setCancelling(true);
     try {
       await cancelRemainingSeatClaim(reservation.id);
       navigate('/remaining-seats', { replace: true });
     } catch (error) {
-      console.error('잔여좌석 신청 취소 실패:', error);
-      alert('잔여좌석 신청을 취소하지 못했습니다.');
+      console.error('잔여 좌석 신청 취소 실패:', error);
+      alert('잔여 좌석 신청을 취소하지 못했습니다.');
     } finally {
       setCancelling(false);
     }
@@ -58,13 +64,20 @@ const TicketPage = () => {
     let isMounted = true;
 
     const loadReservation = async () => {
+      setLoading(true);
+      setLoadError('');
+
       try {
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
         if (!isMounted) return;
 
-        if (sessionError || !session) {
-          navigate('/login');
+        if (sessionError) {
+          throw sessionError;
+        }
+
+        if (!session) {
+          setIsLoginRequiredModalOpen(true);
           return;
         }
 
@@ -85,7 +98,10 @@ const TicketPage = () => {
         }
       } catch (error) {
         console.error('신청 정보 로드 실패:', error);
-        if (isMounted) setReservation(null);
+        if (isMounted) {
+          setReservation(null);
+          setLoadError('신청 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
+        }
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -96,7 +112,7 @@ const TicketPage = () => {
     return () => {
       isMounted = false;
     };
-  }, [navigate]);
+  }, [loadAttempt, navigate]);
 
   if (reservation?.status === 'confirmed' && reservation.confirmedTicket) {
     return <ConfirmedTicketPage initialReservation={reservation} />;
@@ -122,6 +138,19 @@ const TicketPage = () => {
             <Ticket size={44} color="#98a2b3" />
             <h2 className={styles.emptyTitle}>로딩 중...</h2>
           </section>
+        ) : loadError ? (
+          <section className={styles.errorCard} role="alert">
+            <Ticket size={44} aria-hidden="true" />
+            <h2 className={styles.emptyTitle}>신청 정보를 확인하지 못했습니다</h2>
+            <p className={styles.emptyText}>{loadError}</p>
+            <button
+              type="button"
+              className={styles.primaryButton}
+              onClick={() => setLoadAttempt((attempt) => attempt + 1)}
+            >
+              다시 시도
+            </button>
+          </section>
         ) : reservation ? (
           <section className={styles.ticketCard}>
             <div className={styles.ticketHeader}>
@@ -146,14 +175,14 @@ const TicketPage = () => {
                 <>
                   <CheckCircle2 size={22} aria-hidden="true" />
                   <div>
-                    <strong>잔여좌석이 임시 확보되었습니다</strong>
+                    <strong>잔여 좌석이 임시 확보되었습니다</strong>
                     <span>
                       입금 확인이 완료되면 확정 버스표로 자동 전환됩니다.
                     </span>
                   </div>
                 </>
               ) : reservationDeadline.isClosed ? (
-                '신청이 마감되었습니다. 제출한 희망 행선지를 바탕으로 배차를 준비하고 있습니다.'
+                '신청 및 정보 수정이 마감되었습니다. 제출한 희망 행선지를 바탕으로 배차를 준비하고 있으며, 확정되면 이 화면에서 탑승할 호차를 확인할 수 있습니다.'
               ) : (
                 '신청이 접수되었습니다. 아직 관리자 배정 전입니다.'
               )}
@@ -163,7 +192,7 @@ const TicketPage = () => {
               <section className={styles.claimSummary} aria-label="임시 확보 좌석">
                 <div className={styles.claimSummaryHeader}>
                   <div>
-                    <span>선택한 잔여좌석</span>
+                    <span>선택한 잔여 좌석</span>
                     <h3>
                       {remainingSeatClaim.destination}행 ·{' '}
                       {formatBusLabel(remainingSeatClaim.busLabel)}
@@ -251,7 +280,7 @@ const TicketPage = () => {
                 <div className={styles.infoItem}>
                   <Banknote size={20} color="#475467" className={styles.infoIcon} />
                   <div className={styles.infoContent}>
-                    <p className={styles.label}>잔여좌석 입금 안내</p>
+                    <p className={styles.label}>잔여 좌석 입금 안내</p>
                     <div className={styles.paymentDetails}>
                       <div>
                         <span>입금 금액</span>
@@ -274,15 +303,15 @@ const TicketPage = () => {
               )}
             </div>
 
-            <div className={styles.noticeBox}>
-              <p>
-                {remainingSeatClaim
-                  ? '입금 확인 전에는 직접 취소할 수 있습니다. 입금 확인 후 변경이나 취소는 관리자에게 문의해주세요.'
-                  : reservationDeadline.isClosed
-                    ? '신청 정보 수정은 마감되었습니다. 배차가 확정되면 이 화면에서 탑승할 호차를 확인할 수 있습니다.'
+            {(remainingSeatClaim || !reservationDeadline.isClosed) && (
+              <div className={styles.noticeBox}>
+                <p>
+                  {remainingSeatClaim
+                    ? '입금 확인 전에는 직접 취소할 수 있습니다. 입금 확인 후 변경이나 취소는 관리자에게 문의해주세요.'
                     : '아직 버스표가 확정되지 않았습니다. 관리자가 희망 행선지와 인원 현황을 확인한 뒤 호차와 행선지를 확정합니다.'}
-              </p>
-            </div>
+                </p>
+              </div>
+            )}
 
             <div className={styles.buttonGroup}>
               {(remainingSeatClaim || !reservationDeadline.isClosed) && (
@@ -292,7 +321,7 @@ const TicketPage = () => {
                     navigate(remainingSeatClaim ? '/remaining-seats' : '/reservation')
                   }
                 >
-                  {remainingSeatClaim ? '잔여좌석 현황 보기' : '신청 정보 수정하기'}
+                  {remainingSeatClaim ? '잔여 좌석 현황 보기' : '신청 정보 수정하기'}
                 </button>
               )}
 
@@ -328,7 +357,7 @@ const TicketPage = () => {
             </h2>
             <p className={styles.emptyText}>
               {reservationDeadline.isClosed
-                ? '현재 신청 내역이 없습니다. 확정 배차 후 남은 좌석이 열리면 잔여 좌석을 선택할 수 있습니다.'
+                ? '현재 신청 내역이 없습니다. 확정 배차 후 잔여 좌석이 열리면 잔여 좌석을 선택할 수 있습니다.'
                 : '귀가 버스를 신청하면 이곳에서 신청 내역과 버스표를 확인할 수 있습니다.'}
             </p>
             <button
@@ -346,6 +375,18 @@ const TicketPage = () => {
           </section>
         )}
       </main>
+
+      {isLoginRequiredModalOpen && (
+        <LoginRequiredModal
+          onClose={() => navigate('/', { replace: true })}
+          onConfirm={() =>
+            navigate('/login', {
+              replace: true,
+              state: createLoginRequiredRedirectState('/ticket'),
+            })
+          }
+        />
+      )}
     </div>
   );
 };

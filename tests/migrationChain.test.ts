@@ -322,6 +322,46 @@ for (const [setupFile, migrationFile] of [
     '123_avoid_confirmation_table_lock_timeout.sql',
     '20260610060001_123_avoid_confirmation_table_lock_timeout.sql',
   ],
+  [
+    '124_protect_initial_campus_request_message.sql',
+    '20260610070001_124_protect_initial_campus_request_message.sql',
+  ],
+  [
+    '125_secure_campus_transfer_reports.sql',
+    '20260610080001_125_secure_campus_transfer_reports.sql',
+  ],
+  [
+    '126_allow_campus_request_cascade_delete.sql',
+    '20260610090001_126_allow_campus_request_cascade_delete.sql',
+  ],
+  [
+    '127_keyset_pagination_indexes.sql',
+    '20260610100001_127_keyset_pagination_indexes.sql',
+  ],
+  [
+    '128_admin_audit_log_keyset_index.sql',
+    '20260610110001_128_admin_audit_log_keyset_index.sql',
+  ],
+  [
+    '129_campus_transfer_reports_require_closed_deadline.sql',
+    '20260610120001_129_campus_transfer_reports_require_closed_deadline.sql',
+  ],
+  [
+    '133_prevent_stale_optimizer_result_reuse.sql',
+    '20260610160001_133_prevent_stale_optimizer_result_reuse.sql',
+  ],
+  [
+    '134_safe_reset_allocation_optimization_jobs.sql',
+    '20260610170001_134_safe_reset_allocation_optimization_jobs.sql',
+  ],
+  [
+    '135_split_allocation_deadline_triggers.sql',
+    '20260610180001_135_split_allocation_deadline_triggers.sql',
+  ],
+  [
+    '136_allow_external_reservations_without_team.sql',
+    '20260610190001_136_allow_external_reservations_without_team.sql',
+  ],
 ]) {
   test(`${setupFile} matches its migration`, () => {
     const setupSql = readFileSync(`sql/setup/${setupFile}`, 'utf8').replaceAll(
@@ -482,6 +522,30 @@ test('optimization job reads expose reservation changes', () => {
   );
 });
 
+test('stale reservation snapshots cannot reuse optimization results', () => {
+  const migration = readFileSync(
+    `${migrationDirectory}/20260610160001_133_prevent_stale_optimizer_result_reuse.sql`,
+    'utf8'
+  );
+
+  assert.match(
+    migration,
+    /function public\.allocation_optimization_snapshot_is_current[\s\S]*get_active_reservation_optimization_state/i
+  );
+  assert.match(
+    migration,
+    /function public\.get_reusable_allocation_optimization_job[\s\S]*allocation_optimization_snapshot_is_current\(p_input_snapshot\)/i
+  );
+  assert.match(
+    migration,
+    /function public\.create_allocation_optimization_job\(\)[\s\S]*allocation_optimization_snapshot_is_current\(v_job\.input_snapshot\)/i
+  );
+  assert.match(
+    migration,
+    /function public\.create_detailed_allocation_optimization_job[\s\S]*allocation_optimization_snapshot_is_current\(v_source\.input_snapshot\)/i
+  );
+});
+
 test('remaining-seat passengers keep their allocation source and status', () => {
   const migration = readFileSync(
     `${migrationDirectory}/20260609110001_104_remaining_seat_allocation_passenger_source.sql`,
@@ -633,6 +697,22 @@ test('new optimization snapshots include the configured maximum bus count', () =
   assert.match(
     optimizerModel,
     /_sum\(buses_by_destination\.values\(\)\) <= data\.bus\.maximum_buses/i
+  );
+});
+
+test('saving optimizer settings returns the complete configuration', () => {
+  const migration = readFileSync(
+    `${migrationDirectory}/20260610140001_131_return_complete_optimizer_config_after_save.sql`,
+    'utf8'
+  );
+
+  assert.match(
+    migration,
+    /perform public\.save_allocation_optimizer_config_unlocked/i
+  );
+  assert.match(
+    migration,
+    /return public\.get_allocation_optimizer_config\(\)/i
   );
 });
 
@@ -800,6 +880,95 @@ test('campus request creation and responses are atomic', () => {
   );
 });
 
+test('initial campus request messages are immutable through the API', () => {
+  const migration = readFileSync(
+    `${migrationDirectory}/20260610070001_124_protect_initial_campus_request_message.sql`,
+    'utf8'
+  );
+
+  assert.match(
+    migration,
+    /create or replace function public\.is_initial_campus_request_message[\s\S]*order by first_message\.created_at, first_message\.id/i
+  );
+  assert.match(
+    migration,
+    /create policy "Initial campus request messages cannot be updated"[\s\S]*as restrictive[\s\S]*for update[\s\S]*using \(not public\.is_initial_campus_request_message\(id\)\)[\s\S]*with check \(not public\.is_initial_campus_request_message\(id\)\)/i
+  );
+  assert.match(
+    migration,
+    /create policy "Initial campus request messages cannot be deleted"[\s\S]*as restrictive[\s\S]*for delete[\s\S]*using \(not public\.is_initial_campus_request_message\(id\)\)/i
+  );
+});
+
+test('campus transfer reports use current server-side totals', () => {
+  const migration = readFileSync(
+    `${migrationDirectory}/20260610080001_125_secure_campus_transfer_reports.sql`,
+    'utf8'
+  );
+
+  assert.match(
+    migration,
+    /count\(\*\) filter \([\s\S]*payment\.status = 'completed'[\s\S]*into v_total_people, v_paid_people/i
+  );
+  assert.match(
+    migration,
+    /p_total_people is distinct from v_total_people[\s\S]*p_paid_people is distinct from v_paid_people[\s\S]*p_total_amount is distinct from v_total_amount/i
+  );
+  assert.match(
+    migration,
+    /v_existing\.status = 'confirmed'[\s\S]*A confirmed campus transfer can only be reported again for additional settlement\./i
+  );
+});
+
+test('campus transfer reports require the reservation deadline to be closed', () => {
+  const migration = readFileSync(
+    `${migrationDirectory}/20260610120001_129_campus_transfer_reports_require_closed_deadline.sql`,
+    'utf8'
+  );
+
+  assert.match(
+    migration,
+    /where key = 'first_reservation_deadline'[\s\S]*v_deadline_at is null or v_deadline_at > clock_timestamp\(\)[\s\S]*Campus transfer reports are available only after the reservation deadline\./i
+  );
+});
+
+test('campus request cascade deletion does not recreate child audit rows', () => {
+  const migration = readFileSync(
+    `${migrationDirectory}/20260610090001_126_allow_campus_request_cascade_delete.sql`,
+    'utf8'
+  );
+
+  assert.match(
+    migration,
+    /if tg_op = 'DELETE'[\s\S]*if exists \([\s\S]*from public\.campus_requests request[\s\S]*where request\.id = old\.request_id[\s\S]*insert into public\.campus_request_audit_logs/i
+  );
+});
+
+test('keyset pagination columns have composite indexes', () => {
+  const migration = readFileSync(
+    `${migrationDirectory}/20260610100001_127_keyset_pagination_indexes.sql`,
+    'utf8'
+  );
+
+  assert.match(
+    migration,
+    /idx_reservations_created_id[\s\S]*reservations\(created_at desc, id desc\)/i
+  );
+  assert.match(
+    migration,
+    /idx_campus_request_messages_created_id[\s\S]*campus_request_messages\(created_at desc, id desc\)/i
+  );
+
+  const auditMigration = readFileSync(
+    `${migrationDirectory}/20260610110001_128_admin_audit_log_keyset_index.sql`,
+    'utf8'
+  );
+  assert.match(
+    auditMigration,
+    /idx_admin_action_audit_logs_created_id[\s\S]*admin_action_audit_logs\(created_at desc, id desc\)/i
+  );
+});
+
 test('combined setup includes the latest campus request workflow', () => {
   const combined = readFileSync(
     'sql/setup/combined_supabase_setup.sql',
@@ -861,6 +1030,16 @@ test('combined setup includes the latest campus request workflow', () => {
     'BEGIN sql/setup/121_fix_campus_payment_account_campus_id_ambiguity.sql',
     'BEGIN sql/setup/122_fix_campus_admin_search_rpc_access.sql',
     'BEGIN sql/setup/123_avoid_confirmation_table_lock_timeout.sql',
+    'BEGIN sql/setup/124_protect_initial_campus_request_message.sql',
+    'BEGIN sql/setup/125_secure_campus_transfer_reports.sql',
+    'BEGIN sql/setup/126_allow_campus_request_cascade_delete.sql',
+    'BEGIN sql/setup/127_keyset_pagination_indexes.sql',
+    'BEGIN sql/setup/128_admin_audit_log_keyset_index.sql',
+    'BEGIN sql/setup/129_campus_transfer_reports_require_closed_deadline.sql',
+    'BEGIN sql/setup/133_prevent_stale_optimizer_result_reuse.sql',
+    'BEGIN sql/setup/134_safe_reset_allocation_optimization_jobs.sql',
+    'BEGIN sql/setup/135_split_allocation_deadline_triggers.sql',
+    'BEGIN sql/setup/136_allow_external_reservations_without_team.sql',
   ];
   let previousMarkerIndex = -1;
   for (const marker of orderedMarkers) {

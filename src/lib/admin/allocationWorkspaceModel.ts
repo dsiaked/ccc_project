@@ -52,6 +52,10 @@ export interface AllocationWorkspaceData extends AllocationWorkspaceSnapshot {
   schemaVersion: 1 | 2;
   status: 'draft' | 'confirmed' | 'archived';
   sourceAllocation: Record<string, unknown>;
+  manualBusTemplate?: Pick<
+    AllocationWorkspaceBus,
+    'optionId' | 'capacity' | 'price' | 'maxAvailableCount' | 'minimumPassengers'
+  >;
   sourceOptimizationJobId?: string;
   optimalBaseline?: {
     totalBuses: number;
@@ -89,6 +93,42 @@ const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 
 const uniqueId = (prefix: string) =>
   `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+
+export const createManualAllocationWorkspace = (
+  passengers: AllocationWorkspacePassenger[],
+  actorId: string,
+  createdAt = new Date().toISOString(),
+  manualBusTemplate?: AllocationWorkspaceData['manualBusTemplate']
+): AllocationWorkspaceData => ({
+  schemaVersion: 2,
+  status: 'draft',
+  sourceAllocation: {
+    mode: 'manual',
+  },
+  optimization: {
+    mode: 'manual',
+    firstChoiceWeight: 0,
+    costWeight: 0,
+  },
+  allowMinimumPassengerOverride: false,
+  allowOutOfPreferenceOverride: false,
+  manualBusTemplate: manualBusTemplate ? clone(manualBusTemplate) : undefined,
+  history: [
+    {
+      id: uniqueId('history'),
+      at: createdAt,
+      actorId,
+      action: 'manual_draft_created',
+      detail: '계산 없이 수동 배차 초안을 생성했습니다.',
+    },
+  ],
+  buses: [],
+  passengers: clone(passengers).map((passenger) => ({
+    ...passenger,
+    busId: null,
+    seatNumber: null,
+  })),
+});
 
 const hasSamePassengers = (
   current: AllocationWorkspacePassenger[],
@@ -329,7 +369,7 @@ export const mergeActivePassengersIntoDraft = (
         at: now,
         actorId: 'system',
         action: 'active_reservations_refreshed',
-        detail: `활성 예약을 반영했습니다. 신규 ${newPassengerIds.size}명, 취소 승객 ${cancelledCount}명, 자동 추가 버스 ${addedBusCount}대.`,
+        detail: `활성 신청을 반영했습니다. 신규 ${newPassengerIds.size}명, 취소 승객 ${cancelledCount}명, 자동 추가 버스 ${addedBusCount}대.`,
       },
     ],
   };
@@ -390,9 +430,17 @@ export const validateWorkspace = (
   const errors: string[] = [];
   const warnings: string[] = [];
   const labels = new Set<string>();
+  const seenBusIds = new Set<string>();
   const assignedReservationIds = new Set<string>();
   const busIds = new Set(workspace.buses.map((bus) => bus.id));
   const passengersByBus = new Map<string, AllocationWorkspacePassenger[]>();
+
+  if (workspace.buses.length === 0) {
+    errors.push('At least one bus is required.');
+  }
+  if (workspace.passengers.length === 0) {
+    errors.push('At least one passenger is required.');
+  }
 
   workspace.passengers.forEach((passenger) => {
     if (!passenger.busId) return;
@@ -409,6 +457,27 @@ export const validateWorkspace = (
   }
 
   workspace.buses.forEach((bus) => {
+    if (!bus.id.trim()) errors.push('Every bus needs an ID.');
+    if (seenBusIds.has(bus.id)) {
+      errors.push(`Duplicate bus ID: ${bus.id}`);
+    }
+    seenBusIds.add(bus.id);
+
+    if (!Number.isInteger(bus.capacity) || bus.capacity <= 0) {
+      errors.push(`${bus.label}: bus capacity must be a positive integer.`);
+    }
+    if (!Number.isInteger(bus.price) || bus.price < 0) {
+      errors.push(`${bus.label}: bus price must be a non-negative integer.`);
+    }
+    if (
+      !Number.isInteger(bus.minimumPassengers) ||
+      bus.minimumPassengers < 0
+    ) {
+      errors.push(
+        `${bus.label}: minimum passengers must be a non-negative integer.`
+      );
+    }
+
     if (!bus.label.trim()) errors.push('이름 없는 버스가 있습니다.');
     if (labels.has(bus.label.trim())) {
       errors.push(`버스 이름이 중복되었습니다: ${bus.label}`);
@@ -416,7 +485,7 @@ export const validateWorkspace = (
     labels.add(bus.label.trim());
 
     if (!bus.destination.trim()) {
-      errors.push(`${bus.label}: 도착지가 없습니다.`);
+      errors.push(`${bus.label}: 행선지가 없습니다.`);
     }
 
     const passengers = passengersByBus.get(bus.id) ?? [];
@@ -446,6 +515,7 @@ export const validateWorkspace = (
 
       if (
         passenger.seatNumber === null ||
+        !Number.isInteger(passenger.seatNumber) ||
         passenger.seatNumber < 1 ||
         passenger.seatNumber > bus.capacity
       ) {
