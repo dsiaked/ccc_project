@@ -226,30 +226,6 @@
   line-height: 1.6;
 }
 
-.signupGuideAlert {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  margin: 0;
-  padding: 14px 16px;
-  border: 1px solid #fde68a;
-  border-radius: 8px;
-  background: #fffbeb;
-  color: #92400e;
-}
-
-.signupGuideAlert svg {
-  flex: 0 0 auto;
-  margin-top: 1px;
-}
-
-.signupGuideAlert p {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 800;
-  line-height: 1.55;
-}
-
 .noticeAlert {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
@@ -326,22 +302,34 @@
   background: #1d4ed8;
 }
 
-.paymentAccountPanel {
+.preparationItem {
   margin: 0;
   padding: 18px;
-  border: 1px solid #bfdbfe;
+  border: 1px solid #dbe3ed;
   border-radius: 8px;
   background: #ffffff;
 }
 
-.paymentAccountHeading {
+.preparationItemWarning {
+  border-color: #fde68a;
+  background: #fffdf7;
+}
+
+.preparationItemAccount {
+  border-color: #bfdbfe;
+}
+
+.preparationItemHeader {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
+}
+
+.preparationItemAccount .preparationItemHeader {
   margin-bottom: 16px;
 }
 
-.paymentAccountIcon {
+.preparationItemIcon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -349,25 +337,77 @@
   height: 40px;
   flex: 0 0 auto;
   border-radius: 8px;
+}
+
+.preparationItemWarningIcon {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.preparationItemAccountIcon {
   background: #dbeafe;
   color: #1d4ed8;
 }
 
-.paymentAccountHeading h2,
-.paymentAccountHeading p {
+.preparationItemHeading {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  gap: 10px;
+}
+
+.preparationItemNumber {
+  flex: 0 0 auto;
+  padding-top: 2px;
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.preparationItemHeading h2,
+.preparationItemHeading p {
   margin: 0;
 }
 
-.paymentAccountHeading h2 {
+.preparationItemHeading h2 {
   color: #0f172a;
   font-size: 16px;
   font-weight: 900;
 }
 
-.paymentAccountHeading p {
+.preparationItemHeading p {
   margin-top: 3px;
   color: #64748b;
   font-size: 13px;
+  line-height: 1.55;
+}
+
+.preparationStatus {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 28px;
+  flex: 0 0 auto;
+  padding: 0 9px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.preparationStatusRequired {
+  border-color: #fde68a;
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.preparationStatusComplete {
+  border-color: #a7f3d0;
+  background: #ecfdf5;
+  color: #047857;
 }
 
 .paymentAccountFields {
@@ -400,7 +440,8 @@
   outline: 2px solid #dbeafe;
 }
 
-.paymentAccountFields button {
+.paymentAccountSaveButton,
+.paymentAccountSavedButton {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -417,7 +458,22 @@
   white-space: nowrap;
 }
 
-.paymentAccountFields button:disabled {
+.paymentAccountSaveButton {
+  background: #2563eb;
+}
+
+.paymentAccountSaveButton:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.paymentAccountSavedButton {
+  border: 1px solid #a7f3d0;
+  background: #ecfdf5;
+  color: #047857;
+  cursor: default;
+}
+
+.paymentAccountSaveButton:disabled {
   cursor: not-allowed;
   opacity: 0.55;
 }
@@ -1259,7 +1315,7 @@ input[type='checkbox'] {
   }
 
   .guideSection > div,
-  .paymentAccountPanel {
+  .preparationItem {
     padding: 14px;
   }
 
@@ -1268,7 +1324,8 @@ input[type='checkbox'] {
     font-size: 16px;
   }
 
-  .paymentAccountFields button {
+  .paymentAccountSaveButton,
+  .paymentAccountSavedButton {
     min-height: 48px;
     width: 100%;
     font-size: 14px;
@@ -1387,23 +1444,28 @@ input[type='checkbox'] {
     border-radius: 10px;
   }
 
-  .signupGuideAlert {
-    padding: 12px;
-  }
-
-  .signupGuideAlert p,
   .guideList,
   .guideSection p {
     font-size: 13px;
   }
 
-  .paymentAccountHeading {
-    align-items: flex-start;
+  .preparationItemHeader {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
   }
 
-  .paymentAccountIcon {
+  .preparationItemIcon {
     width: 36px;
     height: 36px;
+  }
+
+  .preparationItemHeading {
+    gap: 7px;
+  }
+
+  .preparationStatus {
+    grid-column: 2;
+    justify-self: start;
   }
 
   .guideWarning {
@@ -1796,6 +1858,90 @@ input[type='checkbox'] {
   background: #f8fafc;
 }
 
+.bulkConfirmBackdrop {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.58);
+}
+
+.bulkConfirmDialog {
+  width: min(100%, 480px);
+  border-radius: 16px;
+  padding: 24px;
+  background: #ffffff;
+  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.28);
+}
+
+.bulkConfirmIcon {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 16px;
+  place-items: center;
+  border-radius: 50%;
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.bulkConfirmEyebrow {
+  margin: 0 0 6px;
+  color: #b45309;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.bulkConfirmDialog h2 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 20px;
+  line-height: 1.4;
+}
+
+.bulkConfirmDialog p {
+  color: #64748b;
+  line-height: 1.6;
+}
+
+.bulkConfirmSummary {
+  display: grid;
+  gap: 10px;
+  margin: 20px 0;
+}
+
+.bulkConfirmSummary > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  border-radius: 10px;
+  padding: 12px 14px;
+  background: #f8fafc;
+}
+
+.bulkConfirmSummary dt {
+  color: #64748b;
+  font-weight: 700;
+}
+
+.bulkConfirmSummary dd {
+  margin: 0;
+  color: #0f172a;
+  font-weight: 900;
+}
+
+.bulkConfirmActions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.bulkConfirmActions button {
+  width: 100%;
+}
+
 @media (max-width: 420px) {
   .transferBox,
   .requestHelpBox {
@@ -1810,6 +1956,14 @@ input[type='checkbox'] {
   .transferActionHint {
     max-width: none;
     text-align: left;
+  }
+
+  .bulkConfirmDialog {
+    padding: 20px;
+  }
+
+  .bulkConfirmActions {
+    grid-template-columns: 1fr;
   }
 }
 

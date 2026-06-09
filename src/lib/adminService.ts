@@ -808,13 +808,13 @@ export async function updatePersonalTicketAsAdmin(
         '전체 관리자 권한이 있어야 개인 버스표를 관리할 수 있습니다.',
       'Reservation not found.': '신청 정보를 찾을 수 없습니다.',
       'A valid bus and seat number are required.':
-        '확정 배차안에 있는 버스와 올바른 좌석 번호를 입력해주세요.',
+        '확정 배차안에 있는 버스와 올바른 좌석번호를 입력해주세요.',
       'The selected bus does not exist in the confirmed allocation.':
         '선택한 버스가 현재 확정 배차안에 없습니다.',
       'The selected bus name is duplicated in confirmed allocations.':
         '확정 배차안에 같은 버스 이름이 중복되어 있습니다.',
       'The selected seat number exceeds the bus capacity.':
-        '선택한 좌석 번호가 버스 정원을 초과합니다.',
+        '선택한 좌석번호가 버스 정원을 초과합니다.',
       'The selected seat number is already assigned.':
         '선택한 좌석은 이미 다른 탑승자에게 배정되었습니다.',
     };

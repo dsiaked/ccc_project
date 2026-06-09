@@ -19,8 +19,32 @@ from .schema import AllocationResult
 from .validation import validate_result
 
 
+STALE_JOB_SECONDS = 4500
+
+
 class JobCancelled(Exception):
     pass
+
+
+def normalize_supabase_url(value: str) -> str:
+    url = value.strip().rstrip("/")
+    parsed = urllib.parse.urlsplit(url)
+    hostname = parsed.hostname or ""
+
+    if (
+        parsed.scheme != "https"
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.port is not None
+        or not re.fullmatch(r"[a-z0-9]+\.supabase\.co", hostname)
+    ):
+        raise ValueError(
+            "Supabase URL must use https://<project-ref>.supabase.co."
+        )
+    if parsed.path not in {"", "/"} or parsed.query or parsed.fragment:
+        raise ValueError("Supabase URL must not include a path, query, or fragment.")
+
+    return f"https://{hostname}"
 
 
 def normalize_service_role_key(value: str) -> str:
@@ -72,7 +96,7 @@ def build_supabase_headers(service_role_key: str) -> dict[str, str]:
 
 class SupabaseRepository:
     def __init__(self, url: str, service_role_key: str) -> None:
-        self.base_url = url.rstrip("/")
+        self.base_url = normalize_supabase_url(url)
         self.service_role_key = normalize_service_role_key(service_role_key)
         self.headers = build_supabase_headers(self.service_role_key)
 
@@ -224,6 +248,14 @@ class SupabaseRepository:
             prefer="return=minimal",
         )
 
+    def expire_stale_jobs(self, stale_after_seconds: int = STALE_JOB_SECONDS) -> int:
+        result = self._request(
+            "POST",
+            "/rest/v1/rpc/expire_stale_allocation_optimization_jobs",
+            body={"p_stale_after_seconds": stale_after_seconds},
+        )
+        return int(result or 0)
+
 
 def now_iso() -> str:
     return datetime.now(UTC).isoformat()
@@ -282,54 +314,79 @@ def run_job(
     last_heartbeat = 0.0
     last_status_check = -STATUS_POLL_INTERVAL_SECONDS
     cached_status = "RUNNING"
-    repository.add_event(job_id, "WORKER_CLAIMED", {"worker_id": worker_id})
 
-    reusable_job = repository.get_reusable_optimal_job(
-        job_id,
-        str(job["input_hash"]),
-        job["input_snapshot"],
-        str(job.get("optimization_scope") or "BASELINE"),
-        job.get("detailed_settings") or {},
-    )
-    if reusable_job is not None:
-        reusable_result = _validated_reusable_result(
-            job["input_snapshot"],
-            reusable_job.get("result"),
+    def fail_claimed_job(error: Exception) -> None:
+        failed = repository.update_job(
+            job_id,
+            {
+                "status": "FAILED",
+                "current_phase": "failed",
+                "elapsed_seconds": round(time.monotonic() - started),
+                "error_message": str(error),
+                "completed_at": now_iso(),
+            },
+            expected_status="RUNNING",
         )
-        if reusable_result is None:
-            repository.add_event(
-                job_id,
-                "JOB_RESULT_REUSE_REJECTED",
-                {"source_job_id": reusable_job["id"]},
+        if failed:
+            try:
+                repository.add_event(job_id, "JOB_FAILED", {"message": str(error)})
+            except Exception:
+                pass
+
+    try:
+        repository.add_event(job_id, "WORKER_CLAIMED", {"worker_id": worker_id})
+
+        reusable_job = repository.get_reusable_optimal_job(
+            job_id,
+            str(job["input_hash"]),
+            job["input_snapshot"],
+            str(job.get("optimization_scope") or "BASELINE"),
+            job.get("detailed_settings") or {},
+        )
+        if reusable_job is not None:
+            reusable_result = _validated_reusable_result(
+                job["input_snapshot"],
+                reusable_job.get("result"),
             )
-        else:
-            completed = repository.update_job(
-                job_id,
-                {
-                    "status": "OPTIMAL",
-                    "progress": 100,
-                    "current_phase": "completed",
-                    "elapsed_seconds": 0,
-                    "best_known_bus_count": reusable_result.total_buses,
-                    "proven_bus_count": reusable_result.total_buses,
-                    "result": reusable_job["result"],
-                    "diagnostics": reusable_job.get("diagnostics"),
-                    "completed_at": now_iso(),
-                },
-                expected_status="RUNNING",
-            )
-            if completed:
+            if reusable_result is None:
                 repository.add_event(
                     job_id,
-                    "JOB_RESULT_REUSED",
+                    "JOB_RESULT_REUSE_REJECTED",
                     {"source_job_id": reusable_job["id"]},
                 )
-                return 0
+            else:
+                completed = repository.update_job(
+                    job_id,
+                    {
+                        "status": "OPTIMAL",
+                        "progress": 100,
+                        "current_phase": "completed",
+                        "elapsed_seconds": 0,
+                        "best_known_bus_count": reusable_result.total_buses,
+                        "proven_bus_count": reusable_result.total_buses,
+                        "result": reusable_job["result"],
+                        "diagnostics": reusable_job.get("diagnostics"),
+                        "completed_at": now_iso(),
+                    },
+                    expected_status="RUNNING",
+                )
+                if completed:
+                    repository.add_event(
+                        job_id,
+                        "JOB_RESULT_REUSED",
+                        {"source_job_id": reusable_job["id"]},
+                    )
+                    return 0
 
-            status = repository.get_job_status(job_id)
-            if status in ("CANCEL_REQUESTED", "CANCELLED"):
-                return 0
-            raise RuntimeError(f"Optimization job entered unexpected status: {status}")
+                status = repository.get_job_status(job_id)
+                if status in ("CANCEL_REQUESTED", "CANCELLED"):
+                    return 0
+                raise RuntimeError(
+                    f"Optimization job entered unexpected status: {status}"
+                )
+    except Exception as error:
+        fail_claimed_job(error)
+        raise
 
     def check_cancellation() -> bool:
         nonlocal cached_status, last_heartbeat, last_status_check
@@ -473,19 +530,7 @@ def run_job(
             repository.add_event(job_id, "JOB_CANCELLED")
         return 0
     except Exception as error:
-        failed = repository.update_job(
-            job_id,
-            {
-                "status": "FAILED",
-                "current_phase": "failed",
-                "elapsed_seconds": round(time.monotonic() - started),
-                "error_message": str(error),
-                "completed_at": now_iso(),
-            },
-            expected_status="RUNNING",
-        )
-        if failed:
-            repository.add_event(job_id, "JOB_FAILED", {"message": str(error)})
+        fail_claimed_job(error)
         raise
 
 
@@ -506,6 +551,7 @@ def main() -> int:
         required["SUPABASE_URL"] or "",
         required["SUPABASE_SERVICE_ROLE_KEY"] or "",
     )
+    repository.expire_stale_jobs()
     return run_job(
         repository,
         required["ALLOCATION_OPTIMIZATION_JOB_ID"] or "",

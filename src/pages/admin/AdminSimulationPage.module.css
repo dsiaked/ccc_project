@@ -164,6 +164,26 @@
 .tableWrap th, .tableWrap td { padding: 12px 14px; border-bottom: 1px solid #eaecf0; text-align: left; font-size: 13px; }
 .tableWrap th { position: sticky; top: 0; background: #f9fafb; color: #475467; font-weight: 900; }
 .tableWrap td:nth-child(3), .tableWrap td:nth-child(4) { font-weight: 800; }
+.modalBackdrop { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 20px; background: rgba(16,24,40,.62); backdrop-filter: blur(5px); }
+.disableSafetyDialog { width: min(100%, 520px); max-height: calc(100dvh - 40px); overflow-y: auto; padding: 26px; border: 1px solid #fda29b; border-radius: 16px; background: #fff; box-shadow: 0 24px 64px rgba(16,24,40,.3); }
+.disableSafetyIcon { display: grid; width: 48px; height: 48px; margin-bottom: 14px; place-items: center; border-radius: 50%; background: #fef3f2; color: #b42318; }
+.disableSafetyEyebrow { margin: 0 0 6px; color: #b42318; font-size: 12px; font-weight: 900; }
+.disableSafetyDialog h2 { margin: 0; color: #101828; font-size: 22px; line-height: 1.4; }
+.disableSafetyDialog > p:not(.disableSafetyEyebrow):not(.disableSafetyError) { color: #667085; line-height: 1.6; }
+.disableSafetySummary { display: grid; gap: 8px; margin: 20px 0; }
+.disableSafetySummary > div { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 12px; padding: 11px 13px; border-radius: 9px; background: #f9fafb; }
+.disableSafetySummary dt { color: #667085; font-weight: 700; }
+.disableSafetySummary dd { min-width: 0; margin: 0; color: #101828; font-weight: 900; text-align: right; overflow-wrap: anywhere; }
+.disableSafetyWarning { display: flex; align-items: flex-start; gap: 8px; padding: 12px; border: 1px solid #fedf89; border-radius: 9px; background: #fffaeb; color: #7a2e0e; font-size: 13px; font-weight: 800; line-height: 1.5; }
+.disableSafetyWarning svg { flex: 0 0 auto; }
+.disableSafetyError { margin: 12px 0 0; color: #b42318; font-size: 13px; font-weight: 800; line-height: 1.5; }
+.disableSafetyActions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px; }
+.disableSafetyActions button { min-height: 44px; border: 0; border-radius: 9px; padding: 9px 12px; font: inherit; font-weight: 900; cursor: pointer; }
+.disableSafetyActions button:disabled { cursor: wait; opacity: .55; }
+.disableSafetyCancel { border: 1px solid #d0d5dd !important; background: #fff; color: #344054; }
+.disableSafetySubmit { display: flex; align-items: center; justify-content: center; gap: 7px; background: #b42318; color: #fff; }
+.spin { animation: spin .85s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
 @media (max-width: 1000px) { .campusSelectorList { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 860px) { .hero { flex-direction: column; } .summaryGrid, .safetyGrid, .inlineMetrics, .referenceInputGrid, .campusSelectorList { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 600px) { .main { width: min(100% - 24px, 1120px); padding-top: 24px; } .summaryGrid, .safetyGrid, .inlineMetrics, .resultGuideGrid, .referenceInputGrid, .recommendedValueGrid, .busOptionEditor, .busOptionEditor fieldset, .setupRequiredGuide li, .campusSelectorList, .cleanupResultGuide { grid-template-columns: 1fr; } .safetyControls, .inlinePreviewHeader, .resultGuideHeader, .referenceEditorHeader, .busOptionEditorHeader, .campusSelectorHeader, .referenceActionBar { align-items: stretch; flex-direction: column; } .referencePresetActions { justify-content: stretch; } .referencePresetActions button, .referenceActionBar button, .safetyControls button, .cleanupResultGuide button { width: 100%; } .stageDetail { align-items: stretch; flex-direction: column; padding-left: 16px; } .stageActionArea { max-width: none; justify-items: stretch; } .stageDetail button { width: 100%; } }
+@media (max-width: 600px) { .main { width: min(100% - 24px, 1120px); padding-top: 24px; } .summaryGrid, .safetyGrid, .inlineMetrics, .resultGuideGrid, .referenceInputGrid, .recommendedValueGrid, .busOptionEditor, .busOptionEditor fieldset, .setupRequiredGuide li, .campusSelectorList, .cleanupResultGuide, .disableSafetySummary > div, .disableSafetyActions { grid-template-columns: 1fr; } .safetyControls, .inlinePreviewHeader, .resultGuideHeader, .referenceEditorHeader, .busOptionEditorHeader, .campusSelectorHeader, .referenceActionBar { align-items: stretch; flex-direction: column; } .referencePresetActions { justify-content: stretch; } .referencePresetActions button, .referenceActionBar button, .safetyControls button, .cleanupResultGuide button { width: 100%; } .stageDetail { align-items: stretch; flex-direction: column; padding-left: 16px; } .stageActionArea { max-width: none; justify-items: stretch; } .stageDetail button { width: 100%; } .disableSafetySummary dd { text-align: left; } }

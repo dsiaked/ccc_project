@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import time
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from math import ceil
@@ -57,6 +58,24 @@ def _secondary_phase_seconds() -> float:
     return max(1.0, float(os.environ.get("ALLOCATION_SECONDARY_PHASE_SECONDS", "30")))
 
 
+def _total_optimization_seconds() -> float:
+    return max(
+        1.0,
+        float(os.environ.get("ALLOCATION_OPTIMIZER_MAX_SECONDS", "3600")),
+    )
+
+
+def _remaining_phase_seconds(
+    deadline: float,
+    phase: str,
+    maximum_seconds: float | None = None,
+) -> float:
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise PhaseSolveError(phase, "TIME_LIMIT")
+    return min(remaining, maximum_seconds) if maximum_seconds is not None else remaining
+
+
 def _maximum_unused_seats(
     passenger_count: int,
     bus_count: int,
@@ -86,10 +105,15 @@ def _refresh_solution_hints(
 def _complete_solution_hints(
     model: cp_model.CpModel,
     cancellation_check: CancellationCheck | None,
+    deadline: float,
 ) -> None:
     solver = cp_model.CpSolver()
     solver.parameters.num_search_workers = _search_worker_count()
-    solver.parameters.max_time_in_seconds = _secondary_phase_seconds()
+    solver.parameters.max_time_in_seconds = _remaining_phase_seconds(
+        deadline,
+        "solution_hints",
+        _secondary_phase_seconds(),
+    )
     monitor_stopped = Event()
 
     def monitor_cancellation() -> None:
@@ -127,14 +151,18 @@ def _solve_phase(
     cancellation_check: CancellationCheck | None,
     search_workers: int | None = None,
     max_time_seconds: float | None = None,
+    deadline: float,
 ) -> cp_model.CpSolver:
     model.Minimize(expression)
     solver = cp_model.CpSolver()
     solver.parameters.num_search_workers = search_workers or _search_worker_count()
     solver.parameters.random_seed = 0
     solver.parameters.randomize_search = False
-    if max_time_seconds is not None:
-        solver.parameters.max_time_in_seconds = max_time_seconds
+    solver.parameters.max_time_in_seconds = _remaining_phase_seconds(
+        deadline,
+        name,
+        max_time_seconds,
+    )
     monitor_stopped = Event()
 
     def monitor_cancellation() -> None:
@@ -179,6 +207,7 @@ def _solve_primary_objectives(
     destinations: tuple[str, ...],
     progress: ProgressCallback | None,
     cancellation_check: CancellationCheck | None,
+    deadline: float,
 ) -> tuple[
     int,
     int,
@@ -240,6 +269,7 @@ def _solve_primary_objectives(
         objectives=objectives,
         progress=progress,
         cancellation_check=cancellation_check,
+        deadline=deadline,
     )
     total_buses = objectives[-1].value
     maximum_unused_seats = _maximum_unused_seats(
@@ -303,6 +333,7 @@ def _solve_primary_objectives(
         objectives=objectives,
         progress=progress,
         cancellation_check=cancellation_check,
+        deadline=deadline,
     )
     second_choice_count = objectives[-1].value
     deterministic_terms = [
@@ -320,6 +351,7 @@ def _solve_primary_objectives(
         progress=None,
         cancellation_check=cancellation_check,
         search_workers=1,
+        deadline=deadline,
     )
 
     return (
@@ -633,6 +665,7 @@ def optimize(
     skipped_detailed_phases: frozenset[str] = frozenset(),
     initial_result: AllocationResult | None = None,
 ) -> AllocationResult:
+    deadline = time.monotonic() + _total_optimization_seconds()
     input_errors = validate_input(data)
     if input_errors:
         return AllocationResult(
@@ -663,7 +696,12 @@ def optimize(
             primary_bus_counts,
         ) = (
             _solve_primary_objectives(
-                data, passengers, destinations, progress, cancellation_check
+                data,
+                passengers,
+                destinations,
+                progress,
+                cancellation_check,
+                deadline,
             )
         )
     except PhaseSolveError as error:
@@ -844,7 +882,10 @@ def optimize(
             assignment=assignment,
             active=active,
         )
-    _complete_solution_hints(model, cancellation_check)
+    try:
+        _complete_solution_hints(model, cancellation_check, deadline)
+    except PhaseSolveError as error:
+        return AllocationResult(status="FAILED", error_message=str(error))
     def solve_secondary(
         name: str,
         expression: cp_model.LinearExpr,
@@ -860,6 +901,7 @@ def optimize(
             cancellation_check=cancellation_check,
             search_workers=search_workers,
             max_time_seconds=_secondary_phase_seconds(),
+            deadline=deadline,
         )
 
     def solve_or_skip(
@@ -880,6 +922,7 @@ def optimize(
                 objectives=objectives,
                 progress=progress,
                 cancellation_check=cancellation_check,
+                deadline=deadline,
             )
         return solve_secondary(name, expression)
 
@@ -888,26 +931,19 @@ def optimize(
         *,
         search_workers: int | None = None,
     ) -> cp_model.CpSolver:
-        combined_expression = phases[0][1]
-        for _, expression, upper_bound in phases[1:]:
-            combined_expression = (
-                combined_expression * (upper_bound + 1) + expression
-            )
-        solver = _solve_phase(
-            model=model,
-            expression=combined_expression,
-            name="_and_".join(name for name, _, _ in phases),
-            objectives=[],
-            progress=None,
-            cancellation_check=cancellation_check,
-            search_workers=search_workers,
-        )
+        solver: cp_model.CpSolver | None = None
         for name, expression, _ in phases:
-            value = solver.Value(expression)
-            model.Add(expression == value)
-            objectives.append(ObjectiveValue(name=name, value=value))
-            if progress:
-                progress(name, value)
+            solver = _solve_phase(
+                model=model,
+                expression=expression,
+                name=name,
+                objectives=objectives,
+                progress=progress,
+                cancellation_check=cancellation_check,
+                search_workers=search_workers,
+                deadline=deadline,
+            )
+        assert solver is not None
         return solver
 
     def add_group_metrics(

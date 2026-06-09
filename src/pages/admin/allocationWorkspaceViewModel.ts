@@ -63,7 +63,7 @@ const VALIDATION_ERROR_GROUPS = [
     matches: (error: string) =>
       error.includes('정원을') ||
       error.includes('좌석') ||
-      error.includes('유효한 좌석 번호'),
+      error.includes('유효한 좌석번호'),
   },
   {
     id: 'bus-information',
@@ -73,7 +73,7 @@ const VALIDATION_ERROR_GROUPS = [
       error.includes('이름이 없는 버스') ||
       error.includes('버스 이름이 중복') ||
       error.includes('행선지가 없습니다') ||
-      error.includes('출발 시간이 없습니다') ||
+      error.includes('출발 일시가 없습니다') ||
       error.includes('탑승장소가 없습니다') ||
       error.includes('최대'),
   },

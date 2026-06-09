@@ -1,9 +1,9 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { CheckCircle2, KeyRound, ShieldCheck } from 'lucide-react';
+import { CheckCircle2, Home, KeyRound, ShieldCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 import Header from '../components/Header';
-import { clearAdminRoleCache } from '../lib/adminService';
+import { clearAdminRoleCache, getAdminRole } from '../lib/adminService';
 import {
   parseInvitationCodes,
   redeemInvitationCodes,
@@ -28,6 +28,7 @@ const InvitationCodePage = () => {
   const [loading, setLoading] = useState(true);
   const [validating, setValidating] = useState(false);
   const [redeeming, setRedeeming] = useState(false);
+  const [openingAdmin, setOpeningAdmin] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
 
@@ -62,7 +63,7 @@ const InvitationCodePage = () => {
     setValidatedCodes([]);
 
     if (codes.length === 0) {
-      setError('권한 등록 코드를 하나 이상 입력해 주세요.');
+      setError('권한 등록 코드를 하나 이상 입력해주세요.');
       return;
     }
 
@@ -72,7 +73,7 @@ const InvitationCodePage = () => {
       if (!result.valid) {
         setError(
           `${result.errorIndex ? `${result.errorIndex}번째 코드: ` : ''}${
-            result.errorMessage ?? '권한 등록 코드를 확인해 주세요.'
+            result.errorMessage ?? '권한 등록 코드를 확인해주세요.'
           }`
         );
         return;
@@ -112,6 +113,40 @@ const InvitationCodePage = () => {
     }
   };
 
+  const handleGoToAdminPage = async () => {
+    setOpeningAdmin(true);
+    setError('');
+
+    try {
+      const role = await getAdminRole(userId);
+
+      if (role?.role === 'global_admin') {
+        navigate('/admin/dashboard');
+        return;
+      }
+
+      if (role?.role === 'campus_admin') {
+        navigate('/admin/campus-dashboard');
+        return;
+      }
+
+      if (role?.role === 'boarding_manager') {
+        navigate('/admin/boarding');
+        return;
+      }
+
+      setError('등록된 관리자 권한을 확인하지 못했습니다.');
+    } catch (adminRoleError) {
+      setError(
+        adminRoleError instanceof Error
+          ? adminRoleError.message
+          : '관리자 페이지를 열지 못했습니다.'
+      );
+    } finally {
+      setOpeningAdmin(false);
+    }
+  };
+
   return (
     <div className={styles.page}>
       <Header />
@@ -125,22 +160,39 @@ const InvitationCodePage = () => {
           <p className={styles.description}>
             {success
               ? '새 관리자 권한이 계정에 반영되었습니다.'
-              : '받은 권한 등록 코드를 입력하세요. 여러 코드는 줄바꿈이나 쉼표로 구분할 수 있습니다.'}
+              : '받은 권한 등록 코드를 입력하세요. 여러 코드는 쉼표나 공백으로 구분할 수 있습니다.'}
           </p>
 
           {success ? (
-            <button
-              type="button"
-              className={styles.primaryButton}
-              onClick={() => navigate('/admin/login')}
-            >
-              <ShieldCheck size={18} />
-              관리자 화면으로 이동
-            </button>
+            <div className={styles.successActions}>
+              <button
+                type="button"
+                className={styles.secondaryButton}
+                onClick={() => navigate('/')}
+              >
+                <Home size={18} />
+                홈 화면으로 이동
+              </button>
+              <button
+                type="button"
+                className={styles.primaryButton}
+                disabled={openingAdmin}
+                onClick={() => void handleGoToAdminPage()}
+              >
+                <ShieldCheck size={18} />
+                {openingAdmin ? '관리자 페이지 여는 중...' : '관리자 페이지로 이동'}
+              </button>
+              {error && (
+                <p className={styles.successError} role="alert">
+                  {error}
+                </p>
+              )}
+            </div>
           ) : (
             <form className={styles.form} onSubmit={handleValidate}>
               <label htmlFor="invitation-codes">권한 등록 코드</label>
-              <textarea
+              <input
+                type="text"
                 id="invitation-codes"
                 value={value}
                 onChange={(event) => {
@@ -150,7 +202,6 @@ const InvitationCodePage = () => {
                   setError('');
                 }}
                 placeholder="예: ABCDEF-123456-ABCDEF-123456"
-                rows={5}
                 disabled={loading || validating || redeeming}
               />
 
@@ -173,17 +224,24 @@ const InvitationCodePage = () => {
 
               <button
                 type="submit"
-                className={styles.primaryButton}
+                className={styles.secondaryButton}
                 disabled={loading || validating || redeeming}
               >
-                {validating ? '확인하는 중...' : '권한 등록 코드 확인'}
+                <CheckCircle2 size={18} />
+                {validating
+                  ? '확인하는 중...'
+                  : validatedCodes.length > 0
+                    ? '코드 다시 확인'
+                    : '권한 등록 코드 확인'}
               </button>
 
               {validatedCodes.length > 0 && (
                 <div className={styles.confirmation}>
+                  <strong className={styles.confirmationTitle}>
+                    이 권한을 계정에 등록할까요?
+                  </strong>
                   <p>
-                    위 권한을 이 계정에 등록할까요? 등록하면 권한 등록 코드는 다시
-                    사용할 수 없습니다.
+                    등록 후 권한 등록 코드는 다시 사용할 수 없습니다.
                   </p>
                   <button
                     type="button"
@@ -191,6 +249,7 @@ const InvitationCodePage = () => {
                     disabled={redeeming}
                     onClick={() => void handleRedeem()}
                   >
+                    <ShieldCheck size={18} />
                     {redeeming ? '등록하는 중...' : '확인한 권한 최종 등록'}
                   </button>
                 </div>

@@ -173,7 +173,7 @@ const AdminBoardingManagerPage = () => {
     } else {
       setMessageType('error');
       setMessage(
-        `${succeededIds.length.toLocaleString()}명 지정 완료, ${failedResults.length.toLocaleString()}명 지정 실패했습니다. 실패한 사용자를 다시 확인해 주세요.`
+        `${succeededIds.length.toLocaleString()}명 지정 완료, ${failedResults.length.toLocaleString()}명 지정 실패했습니다. 실패한 사용자를 다시 확인해주세요.`
       );
     }
     setActionUserId('');
@@ -250,7 +250,7 @@ const AdminBoardingManagerPage = () => {
         {!loading && !assignmentOptions.isAvailable && (
           <p className={styles.migrationNotice} role="status">
             탑승 관리 간사님 권한 관리는 사용할 수 있지만 담당 호차 지정 기능은 아직 DB에 설치되지 않았습니다.
-            Supabase에 <code>sql/setup/96_boarding_manager_bus_assignments.sql</code>을 적용해 주세요.
+            Supabase에 <code>sql/setup/96_boarding_manager_bus_assignments.sql</code>을 적용해주세요.
           </p>
         )}
 

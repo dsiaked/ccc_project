@@ -62,7 +62,7 @@ export const describeAllocationWorkspaceChanges = (
     const changes = [
       ['이름', oldBus.label, bus.label],
       ['행선지', oldBus.destination, bus.destination],
-      ['출발 시각', oldBus.departureTime, bus.departureTime],
+      ['출발 일시', oldBus.departureTime, bus.departureTime],
       ['탑승장소', oldBus.boardingPlace, bus.boardingPlace],
       ['정원', oldBus.capacity, bus.capacity],
       ['비용', oldBus.price, bus.price],

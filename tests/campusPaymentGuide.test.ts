@@ -26,6 +26,26 @@ test('campus payment guide explains the full transfer workflow', () => {
   }
 });
 
+test('campus preparation items share one checklist card language', () => {
+  assert.match(campusPage, /className=\{styles\.preparationItemHeader\}/);
+  assert.match(campusPage, /가입 캠퍼스를 확인해주세요/);
+  assert.match(campusPage, /확인 필요/);
+  assert.match(campusPage, /hasSavedPaymentAccount \? '등록 완료' : '등록 필요'/);
+  assert.match(campusPageStyles, /\.preparationItem\s*\{/);
+  assert.match(campusPageStyles, /\.preparationStatusComplete\s*\{/);
+  assert.match(campusPageStyles, /\.preparationStatusRequired\s*\{/);
+});
+
+test('campus payment account button communicates registration, edits, and saved state', () => {
+  assert.match(campusPage, /setIsPaymentAccountDirty\(true\)/);
+  assert.match(campusPage, /setIsPaymentAccountDirty\(false\)/);
+  assert.match(campusPage, /입금 받을 계좌 등록/);
+  assert.match(campusPage, /변경 내용 저장/);
+  assert.match(campusPage, /저장 완료/);
+  assert.match(campusPageStyles, /\.paymentAccountSaveButton\s*\{/);
+  assert.match(campusPageStyles, /\.paymentAccountSavedButton\s*\{/);
+});
+
 test('campus payment guide omits the Seoul district depositor-name instruction', () => {
   assert.doesNotMatch(
     campusPage,
@@ -111,7 +131,7 @@ test('campus applicant list stays compact with search, filters, and pagination',
   assert.match(campusPage, /const APPLICANT_PAGE_SIZE = 10/);
   assert.match(campusPage, /const filteredReservations = useMemo/);
   assert.match(campusPage, /const pagedReservations = filteredReservations\.slice/);
-  assert.match(campusPage, /placeholder="이름, 연락처, 정류장, 배차 검색"/);
+  assert.match(campusPage, /placeholder="이름, 연락처, 행선지, 배차 검색"/);
   assert.match(campusPage, /className=\{styles\.applicantPagination\}/);
   assert.match(campusPageStyles, /\.applicantFilters\s*\{/);
   assert.match(campusPageStyles, /\.applicantPagination\s*\{/);
@@ -122,10 +142,11 @@ test('campus bulk payment changes only the current filter results after confirma
     campusPage,
     /const filteredCheckableReservations = useMemo\(\(\) => \{[\s\S]*return filteredReservations\.filter/
   );
-  assert.match(
-    campusPage,
-    /현재 필터 결과의 신청자 \$\{filteredCheckableReservations\.length\}명을 모두/
-  );
+  assert.match(campusPage, /setPendingBulkPaymentStatus\(checked\)/);
+  assert.match(campusPage, /role="dialog"/);
+  assert.match(campusPage, /변경 대상/);
+  assert.match(campusPage, /변경 후 상태/);
+  assert.doesNotMatch(campusPage, /현재 필터 결과의 신청자[\s\S]*window\.confirm/);
   assert.match(
     campusPage,
     /filteredCheckableReservations\.map\(\(reservation\) =>/
@@ -165,8 +186,11 @@ test('global-only campus controls are separated from the campus administrator vi
   assert.match(campusPageStyles, /border-top: 5px solid #d97706/);
 });
 
-test('the complete campus administrator view is grouped in one workspace frame', () => {
-  assert.match(campusPage, /className=\{styles\.campusAdminWorkspace\}/);
+test('the complete campus administrator view is framed only for global administrators', () => {
+  assert.match(
+    campusPage,
+    /activeAdminRole\?\.role === 'global_admin'[\s\S]*\? styles\.campusAdminWorkspace[\s\S]*: undefined/
+  );
   assert.match(campusPage, /aria-label="캠퍼스 회계 순장님 운영 화면"/);
   assert.match(campusPageStyles, /\.campusAdminWorkspace\s*\{/);
   assert.match(campusPageStyles, /border: 3px solid #6fb99d/);

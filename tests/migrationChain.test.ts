@@ -355,6 +355,10 @@ for (const [setupFile, migrationFile] of [
     '20260610170001_134_safe_reset_allocation_optimization_jobs.sql',
   ],
   [
+    '143_fix_allocation_optimization_reset.sql',
+    '20260610230004_143_fix_allocation_optimization_reset.sql',
+  ],
+  [
     '135_split_allocation_deadline_triggers.sql',
     '20260610180001_135_split_allocation_deadline_triggers.sql',
   ],
@@ -369,6 +373,14 @@ for (const [setupFile, migrationFile] of [
   [
     '139_fix_allocation_draft_reservation_normalization.sql',
     '20260610220001_139_fix_allocation_draft_reservation_normalization.sql',
+  ],
+  [
+    '140_boarding_field_exceptions.sql',
+    '20260610230001_140_boarding_field_exceptions.sql',
+  ],
+  [
+    '150_require_boarding_transition_reason.sql',
+    '20260610230011_150_require_boarding_transition_reason.sql',
   ],
 ]) {
   test(`${setupFile} matches its migration`, () => {
@@ -653,7 +665,7 @@ test('allocation confirmation avoids broad table locks that can time out', () =>
   );
   assert.match(
     patchMigration,
-    /pg_get_functiondef[\s\S]*replace\([\s\S]*lock table public\.bus_allocations[\s\S]*pg_advisory_xact_lock/i
+    /pg_get_functiondef[\s\S]*regexp_replace\([\s\S]*lock table[\s\S]*bus_allocations[\s\S]*pg_advisory_xact_lock/i
   );
 });
 
@@ -1058,6 +1070,9 @@ test('combined setup includes the latest campus request workflow', () => {
     'BEGIN sql/setup/136_allow_external_reservations_without_team.sql',
     'BEGIN sql/setup/137_enable_signup_email_availability_check.sql',
     'BEGIN sql/setup/139_fix_allocation_draft_reservation_normalization.sql',
+    'BEGIN sql/setup/140_boarding_field_exceptions.sql',
+    'BEGIN sql/setup/143_fix_allocation_optimization_reset.sql',
+    'BEGIN sql/setup/150_require_boarding_transition_reason.sql',
   ];
   let previousMarkerIndex = -1;
   for (const marker of orderedMarkers) {

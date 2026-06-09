@@ -130,7 +130,7 @@ test('disabled simulation stage actions explain why they cannot run', () => {
 test('simulation page consolidates individual payment and campus settlement', () => {
   assert.match(simulationPage, /모두 입금 완료로 만들기/);
   assert.match(simulationPage, /랜덤 일부 입금/);
-  assert.match(simulationPage, /개별 입금·캠퍼스별 송금 완료 보고·본부 확인/);
+  assert.match(simulationPage, /개인 입금·캠퍼스별 송금 완료 보고·본부 확인/);
   assert.match(simulationPage, /캠퍼스 송금·본부 확인/);
   assert.match(simulationPage, /index === 5/);
   assert.match(simulationPage, /runSimulationStage\('transfers'\)/);

@@ -371,21 +371,6 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
               <li>
                 <button
                   type="button"
-                  className={navItemClassName('/invitation-codes')}
-                  onClick={() => handleProtectedMenuClick('/invitation-codes')}
-                  aria-current={
-                    location.pathname === '/invitation-codes'
-                      ? 'page'
-                      : undefined
-                  }
-                >
-                  <KeyRound size={20} className={styles.navIcon} />
-                  권한 등록 코드 등록
-                </button>
-              </li>
-              <li>
-                <button
-                  type="button"
                   className={navItemClassName('/')}
                   onClick={() => handleMenuClick('/')}
                   aria-current={
@@ -442,63 +427,76 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
             </ul>
           </section>
 
-          {(globalAdminRole || campusAdminRole || boardingManagerRole) && (
-            <section className={styles.navSection} aria-labelledby="admin-menu">
-              <h3 className={styles.navSectionLabel} id="admin-menu">
-                관리자 메뉴
-              </h3>
-              <ul className={styles.navList}>
-                {globalAdminRole && (
-                  <li>
-                    <button
-                      type="button"
-                      className={`${navItemClassName('/admin/dashboard')} ${styles.adminNavItem}`}
-                      onClick={() => handleMenuClick('/admin/dashboard')}
-                    >
-                      <ShieldCheck size={20} className={styles.navIcon} />
-                      <span className={styles.navLabel}>전체 관리자</span>
-                    </button>
-                  </li>
-                )}
-                {!globalAdminRole && campusAdminRole && (
-                  <li>
-                    <button
-                      type="button"
-                      className={`${navItemClassName('/admin/campus-dashboard')} ${styles.adminNavItem}`}
-                      onClick={() =>
-                        void handleAdminMenuClick(campusAdminRole, '/admin/campus-dashboard')
-                      }
-                    >
-                      <ShieldCheck size={20} className={styles.navIcon} />
-                      <span className={styles.navLabel}>캠퍼스 회계 순장님 페이지</span>
-                      {campusNoticeCount > 0 && (
-                        <span className={styles.navBadge}>
-                          공지 {campusNoticeCount}
-                        </span>
-                      )}
-                    </button>
-                  </li>
-                )}
-                {!globalAdminRole && boardingManagerRole && (
-                  <li>
-                    <button
-                      type="button"
-                      className={`${navItemClassName('/admin/boarding')} ${styles.adminNavItem}`}
-                      onClick={() =>
-                        void handleAdminMenuClick(
-                          boardingManagerRole,
-                          '/admin/boarding'
-                        )
-                      }
-                    >
-                      <ShieldCheck size={20} className={styles.navIcon} />
-                      <span className={styles.navLabel}>탑승 확인 관리</span>
-                    </button>
-                  </li>
-                )}
-              </ul>
-            </section>
-          )}
+          <section className={styles.navSection} aria-labelledby="admin-menu">
+            <h3 className={styles.navSectionLabel} id="admin-menu">
+              관리자 메뉴
+            </h3>
+            <ul className={styles.navList}>
+              {globalAdminRole && (
+                <li>
+                  <button
+                    type="button"
+                    className={`${navItemClassName('/admin/dashboard')} ${styles.adminNavItem}`}
+                    onClick={() => handleMenuClick('/admin/dashboard')}
+                  >
+                    <ShieldCheck size={20} className={styles.navIcon} />
+                    <span className={styles.navLabel}>전체 관리자</span>
+                  </button>
+                </li>
+              )}
+              {!globalAdminRole && campusAdminRole && (
+                <li>
+                  <button
+                    type="button"
+                    className={`${navItemClassName('/admin/campus-dashboard')} ${styles.adminNavItem}`}
+                    onClick={() =>
+                      void handleAdminMenuClick(campusAdminRole, '/admin/campus-dashboard')
+                    }
+                  >
+                    <ShieldCheck size={20} className={styles.navIcon} />
+                    <span className={styles.navLabel}>캠퍼스 회계 순장님 페이지</span>
+                    {campusNoticeCount > 0 && (
+                      <span className={styles.navBadge}>
+                        공지 {campusNoticeCount}
+                      </span>
+                    )}
+                  </button>
+                </li>
+              )}
+              {!globalAdminRole && boardingManagerRole && (
+                <li>
+                  <button
+                    type="button"
+                    className={`${navItemClassName('/admin/boarding')} ${styles.adminNavItem}`}
+                    onClick={() =>
+                      void handleAdminMenuClick(
+                        boardingManagerRole,
+                        '/admin/boarding'
+                      )
+                    }
+                  >
+                    <ShieldCheck size={20} className={styles.navIcon} />
+                    <span className={styles.navLabel}>탑승 확인 관리</span>
+                  </button>
+                </li>
+              )}
+              <li>
+                <button
+                  type="button"
+                  className={navItemClassName('/invitation-codes')}
+                  onClick={() => handleProtectedMenuClick('/invitation-codes')}
+                  aria-current={
+                    location.pathname === '/invitation-codes'
+                      ? 'page'
+                      : undefined
+                  }
+                >
+                  <KeyRound size={20} className={styles.navIcon} />
+                  권한 등록 코드
+                </button>
+              </li>
+            </ul>
+          </section>
         </nav>
 
         <div className={styles.footer}>

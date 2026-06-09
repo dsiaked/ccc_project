@@ -20,6 +20,7 @@ from exact_optimizer.model import (
     PhaseSolveError,
     _maximum_destination_buses,
     _maximum_unused_seats,
+    _remaining_phase_seconds,
     _search_worker_count,
     _solve_phase,
 )
@@ -89,6 +90,7 @@ class ExactOptimizerTests(unittest.TestCase):
                     cancellation_check=None,
                     search_workers=1,
                     max_time_seconds=1,
+                    deadline=model_module.time.monotonic() + 10,
                 )
         self.assertEqual(
             fake_solver.parameters.search_branching,
@@ -102,6 +104,16 @@ class ExactOptimizerTests(unittest.TestCase):
             self.assertEqual(_search_worker_count(), 1)
         with patch("exact_optimizer.model.os.cpu_count", return_value=None):
             self.assertEqual(_search_worker_count(), 1)
+
+    def test_caps_each_phase_to_the_shared_remaining_deadline(self) -> None:
+        with patch("exact_optimizer.model.time.monotonic", return_value=100.0):
+            self.assertEqual(_remaining_phase_seconds(140.0, "phase"), 40.0)
+            self.assertEqual(
+                _remaining_phase_seconds(140.0, "phase", 30.0),
+                30.0,
+            )
+            with self.assertRaisesRegex(PhaseSolveError, "TIME_LIMIT"):
+                _remaining_phase_seconds(100.0, "phase")
 
     def test_calculates_global_unused_seat_limit(self) -> None:
         self.assertEqual(_maximum_unused_seats(2347, 54, 44), 29)
@@ -238,6 +250,35 @@ class ExactOptimizerTests(unittest.TestCase):
         self.assertIn("team_bus_uses", detailed_phases)
         self.assertIn("destination_occupancy_imbalance", detailed_phases)
         self.assertEqual(detailed_phases[-1], "deterministic_tie_break")
+
+    def test_solves_detailed_lexicographic_objectives_as_separate_phases(self) -> None:
+        data = OptimizationInput(
+            passengers=tuple(
+                passenger(
+                    f"p-{index}",
+                    "A" if index % 2 == 0 else "B",
+                    "B" if index % 2 == 0 else "A",
+                    campus=f"Campus {index % 3}",
+                    team=f"Team {index % 2}",
+                )
+                for index in range(8)
+            ),
+            bus=BusConfiguration(capacity=4, price=100),
+        )
+
+        with patch(
+            "exact_optimizer.model._solve_phase",
+            wraps=model_module._solve_phase,
+        ) as solve_phase:
+            result = optimize(data, detailed_balance=True)
+
+        phase_names = [call.kwargs["name"] for call in solve_phase.call_args_list]
+        self.assertEqual(result.status, "OPTIMAL")
+        self.assertIn("campus_bus_uses", phase_names)
+        self.assertIn("campus_distribution_imbalance", phase_names)
+        self.assertIn("destination_occupancy_imbalance", phase_names)
+        self.assertIn("deterministic_tie_break", phase_names)
+        self.assertFalse(any("_and_" in name for name in phase_names))
 
     def test_skips_selected_detailed_balance_phases(self) -> None:
         data = OptimizationInput(

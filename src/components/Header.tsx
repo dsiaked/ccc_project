@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
-import { LogIn, LogOut, Menu, ShieldCheck } from 'lucide-react';
+import { Bell, LogIn, LogOut, Menu, ShieldCheck } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   getAdminRoles,
@@ -7,6 +7,7 @@ import {
   type AdminRole,
 } from '../lib/adminService';
 import { supabase } from '../lib/supabase';
+import { getMyPersonalNotifications } from '../lib/personalNotificationService';
 import styles from './Header.module.css';
 import LogoutModal from './LogoutModal';
 
@@ -38,6 +39,7 @@ const Header = () => {
   const [adminShortcutRole, setAdminShortcutRole] = useState<AdminRole | null>(
     null
   );
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -69,6 +71,7 @@ const Header = () => {
 
       if (!session) {
         setAdminShortcutRole(null);
+        setUnreadNotificationCount(0);
         return;
       }
 
@@ -82,6 +85,12 @@ const Header = () => {
           roles.find((role) => role.role === 'boarding_manager') ??
           null
       );
+      const notifications = await getMyPersonalNotifications(20);
+      if (isMounted) {
+        setUnreadNotificationCount(
+          notifications.filter((notification) => !notification.readAt).length
+        );
+      }
     };
 
     const checkLogin = async () => {
@@ -160,6 +169,19 @@ const Header = () => {
         </button>
 
         <div className={styles.rightGroup}>
+          {isLoggedIn && (
+            <button
+              type="button"
+              className={styles.notificationButton}
+              aria-label={`개인 알림 ${unreadNotificationCount}건`}
+              onClick={() => navigate('/#personal-notifications')}
+            >
+              <Bell size={20} color="#1e40af" />
+              {unreadNotificationCount > 0 && (
+                <strong>{unreadNotificationCount}</strong>
+              )}
+            </button>
+          )}
           <button
             type="button"
             className={styles.loginButton}

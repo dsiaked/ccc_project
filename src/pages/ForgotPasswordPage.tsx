@@ -56,7 +56,7 @@ const ForgotPasswordPage = () => {
           <section className={styles.resultCard}>
             <div className={styles.iconCircle}><MailCheck size={32} /></div>
             <p className={styles.eyebrow}>재설정 메일을 보냈어요</p>
-            <h2>메일함을 확인해 주세요</h2>
+            <h2>메일함을 확인해주세요</h2>
             <p><strong>{email.trim().toLowerCase()}</strong>로 보낸 링크에서 새 비밀번호를 설정할 수 있습니다.</p>
             <Link to="/login" className={styles.primaryLink}>로그인으로 돌아가기</Link>
           </section>

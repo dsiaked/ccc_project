@@ -25,7 +25,7 @@ const AuthCallbackPage = () => {
   const callbackAccessToken = hashParams.get('access_token');
   const hasCallbackEvidence = Boolean(callbackCode || callbackAccessToken);
   const missingCallbackError = !errorDescription && !hasCallbackEvidence
-    ? '확인할 인증 정보가 없습니다. 인증 또는 로그인을 다시 진행해 주세요.'
+    ? '확인할 인증 정보가 없습니다. 인증 또는 로그인을 다시 진행해주세요.'
     : null;
   const [status, setStatus] = useState<CallbackStatus>(
     errorDescription || missingCallbackError ? 'error' : 'checking'
@@ -77,8 +77,8 @@ const AuthCallbackPage = () => {
         clearOAuthState();
         setVerificationError(
           isOAuthCallback
-            ? '카카오 로그인 정보를 확인하지 못했습니다. 다시 시도해 주세요.'
-            : '인증 정보를 확인하지 못했습니다. 인증 또는 로그인을 다시 진행해 주세요.'
+            ? '카카오 로그인 정보를 확인하지 못했습니다. 다시 시도해주세요.'
+            : '인증 정보를 확인하지 못했습니다. 인증 또는 로그인을 다시 진행해주세요.'
         );
         setStatus('error');
         return;
@@ -114,7 +114,7 @@ const AuthCallbackPage = () => {
       <main className={styles.page}>
         <div className={styles.spinner} aria-hidden="true" />
         <h1>인증 정보를 확인하고 있습니다</h1>
-        <p>확인이 끝날 때까지 잠시만 기다려 주세요.</p>
+        <p>확인이 끝날 때까지 잠시만 기다려주세요.</p>
       </main>
     );
   }

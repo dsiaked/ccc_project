@@ -257,7 +257,7 @@ export const VirtualPassengerTable = memo(function VirtualPassengerTable({
             <tr>
               <th aria-label="드래그 이동" />
               <th>탑승자</th>
-              <th>전화번호</th>
+              <th>연락처</th>
               <th>캠퍼스·팀</th>
               <th>1·2지망</th>
               <th>버스 이동</th>

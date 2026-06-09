@@ -3,6 +3,7 @@ import {
   useDeferredValue,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import {
@@ -119,6 +120,20 @@ const AdminAllocationWorkspacePage = () => {
   const [confirmationFailure, setConfirmationFailure] =
     useState<ConfirmationFailure | null>(null);
   const [preflightChecking, setPreflightChecking] = useState(false);
+  const confirmationInFlightRef = useRef(false);
+  const cancellationInFlightRef = useRef(false);
+  const workspaceDeletionInFlightRef = useRef(false);
+  const versionRestoreInFlightRef = useRef(false);
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [deleteWorkspaceDialogOpen, setDeleteWorkspaceDialogOpen] =
+    useState(false);
+  const [leaveWorkspaceDialogOpen, setLeaveWorkspaceDialogOpen] =
+    useState(false);
+  const [pendingBusDeletion, setPendingBusDeletion] =
+    useState<AllocationWorkspaceBus | null>(null);
+  const [pendingVersionRestore, setPendingVersionRestore] =
+    useState<AllocationWorkspaceVersionSummary | null>(null);
   const [completionNotice, setCompletionNotice] =
     useState<CompletionNotice | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -221,16 +236,30 @@ const AdminAllocationWorkspacePage = () => {
   }, [dirty]);
 
   const navigateToAllocations = useCallback(() => {
-    if (
-      dirty &&
-      !window.confirm(
-        '저장하지 않은 변경사항이 있습니다. 배차 계산으로 이동할까요?'
-      )
-    ) {
+    if (dirty) {
+      setLeaveWorkspaceDialogOpen(true);
       return;
     }
     navigate('/admin/allocations');
   }, [dirty, navigate]);
+
+  const confirmNavigateToAllocations = useCallback(() => {
+    setLeaveWorkspaceDialogOpen(false);
+    navigate('/admin/allocations');
+  }, [navigate]);
+
+  useEffect(() => {
+    if (!leaveWorkspaceDialogOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !saving) {
+        setLeaveWorkspaceDialogOpen(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [leaveWorkspaceDialogOpen, saving]);
 
   const selectedBus = workspace?.buses.find((bus) => bus.id === selectedBusId);
   const deferredWorkspace = useDeferredValue(workspace);
@@ -536,7 +565,16 @@ const AdminAllocationWorkspacePage = () => {
 
   const deleteBus = (busId: string) => {
     if (readOnly) return;
-    if (!window.confirm('이 버스를 삭제하고 탑승자를 미배차 상태로 옮길까요?')) return;
+    const bus = workspace?.buses.find((item) => item.id === busId);
+    if (!bus) return;
+
+    setPendingBusDeletion(bus);
+  };
+
+  const confirmBusDeletion = () => {
+    if (readOnly || !pendingBusDeletion) return;
+
+    const busId = pendingBusDeletion.id;
     updateWorkspace((current) => {
       const buses = current.buses.filter((bus) => bus.id !== busId);
       const passengers = current.passengers.map((passenger) =>
@@ -547,7 +585,19 @@ const AdminAllocationWorkspacePage = () => {
       setSelectedBusId(buses[0]?.id ?? '');
       return { ...current, buses, passengers };
     });
+    setPendingBusDeletion(null);
   };
+
+  useEffect(() => {
+    if (!pendingBusDeletion) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setPendingBusDeletion(null);
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [pendingBusDeletion]);
 
   const save = async () => {
     if (!row || !workspace) return;
@@ -577,18 +627,32 @@ const AdminAllocationWorkspacePage = () => {
     }
   };
 
-  const deleteWorkspace = async () => {
+  const deleteWorkspace = () => {
     if (
       !row ||
       !workspace ||
       workspace.status !== 'draft' ||
-      !window.confirm(
-        `"${row.allocation_name}" 배차 초안을 삭제할까요? 저장하지 않은 변경사항과 배차안 기록이 모두 삭제됩니다.`
-      )
+      saving ||
+      workspaceDeletionInFlightRef.current
     ) {
       return;
     }
 
+    setDeleteWorkspaceDialogOpen(true);
+  };
+
+  const confirmWorkspaceDeletion = async () => {
+    if (
+      !row ||
+      !workspace ||
+      workspace.status !== 'draft' ||
+      saving ||
+      workspaceDeletionInFlightRef.current
+    ) {
+      return;
+    }
+
+    workspaceDeletionInFlightRef.current = true;
     setSaving(true);
     setError(null);
     try {
@@ -600,14 +664,52 @@ const AdminAllocationWorkspacePage = () => {
           ? deleteError.message
           : '배차 초안을 삭제하지 못했습니다.'
       );
+      workspaceDeletionInFlightRef.current = false;
       setSaving(false);
     }
   };
 
-  const restoreVersion = async (versionId: string) => {
-    if (!workspace || readOnly) return;
+  useEffect(() => {
+    if (!deleteWorkspaceDialogOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (
+        event.key === 'Escape' &&
+        !saving &&
+        !workspaceDeletionInFlightRef.current
+      ) {
+        setDeleteWorkspaceDialogOpen(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [deleteWorkspaceDialogOpen, saving]);
+
+  const restoreVersion = (versionId: string) => {
+    if (!workspace || readOnly || saving || versionRestoreInFlightRef.current) {
+      return;
+    }
+
     const version = workspaceVersions.find((item) => item.id === versionId);
-    if (!version || !window.confirm(`${version.label} 상태로 복원할까요?`)) return;
+    if (!version) return;
+
+    setPendingVersionRestore(version);
+  };
+
+  const confirmVersionRestore = async () => {
+    if (
+      !workspace ||
+      !pendingVersionRestore ||
+      readOnly ||
+      saving ||
+      versionRestoreInFlightRef.current
+    ) {
+      return;
+    }
+
+    const versionId = pendingVersionRestore.id;
+    versionRestoreInFlightRef.current = true;
     setSaving(true);
     setError(null);
     try {
@@ -620,6 +722,7 @@ const AdminAllocationWorkspacePage = () => {
         passengers: clone(snapshot.passengers),
       }));
       setSelectedBusId(snapshot.buses[0]?.id ?? '');
+      setPendingVersionRestore(null);
     } catch (restoreError) {
       setError(
         restoreError instanceof Error
@@ -627,9 +730,27 @@ const AdminAllocationWorkspacePage = () => {
           : '저장 버전을 복원하지 못했습니다.'
       );
     } finally {
+      versionRestoreInFlightRef.current = false;
       setSaving(false);
     }
   };
+
+  useEffect(() => {
+    if (!pendingVersionRestore) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (
+        event.key === 'Escape' &&
+        !saving &&
+        !versionRestoreInFlightRef.current
+      ) {
+        setPendingVersionRestore(null);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [pendingVersionRestore, saving]);
 
   const workspaceTimeline = useMemo<WorkspaceTimelineItem[]>(() => {
     if (!workspace) return [];
@@ -687,7 +808,7 @@ const AdminAllocationWorkspacePage = () => {
     );
   }, [workspace, workspaceVersions]);
 
-  const confirmAll = async () => {
+  const confirmAll = () => {
     if (
       !row ||
       !workspace ||
@@ -696,9 +817,24 @@ const AdminAllocationWorkspacePage = () => {
       !canConfirm ||
       saving
     ) return;
-    if (!window.confirm('전체 배차를 확정할까요? 탑승자에게 확정 버스표가 공개됩니다.')) {
+
+    setConfirmDialogOpen(true);
+  };
+
+  const confirmPendingAllocation = async () => {
+    if (
+      !row ||
+      !workspace ||
+      readOnly ||
+      dirty ||
+      !canConfirm ||
+      saving ||
+      confirmationInFlightRef.current
+    ) {
       return;
     }
+
+    confirmationInFlightRef.current = true;
     setSaving(true);
     setConfirmationAction('confirm');
     setCompletionNotice(null);
@@ -743,6 +879,7 @@ const AdminAllocationWorkspacePage = () => {
       setDirty(false);
       setConfirmationFailure(null);
       setCompletionNotice('confirmed');
+      setConfirmDialogOpen(false);
     } catch (confirmError) {
       const reason =
         confirmError instanceof Error
@@ -756,10 +893,28 @@ const AdminAllocationWorkspacePage = () => {
         '배차 확정에 실패했습니다. 확정 영역의 실패 이유를 확인해주세요.'
       );
     } finally {
+      confirmationInFlightRef.current = false;
       setSaving(false);
       setConfirmationAction(null);
     }
   };
+
+  useEffect(() => {
+    if (!confirmDialogOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (
+        event.key === 'Escape' &&
+        !saving &&
+        !confirmationInFlightRef.current
+      ) {
+        setConfirmDialogOpen(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [confirmDialogOpen, saving]);
 
   const runConfirmationPreflight = async () => {
     if (!row || !workspace || dirty) return;
@@ -788,11 +943,24 @@ const AdminAllocationWorkspacePage = () => {
     }
   };
 
-  const cancelConfirmation = async () => {
-    if (!row || !workspace || saving) return;
-    if (!window.confirm('배차 확정을 취소할까요? 탑승자의 확정 버스표가 숨겨집니다.')) {
+  const cancelConfirmation = () => {
+    if (!row || !workspace || saving || cancellationInFlightRef.current) return;
+
+    setCancelDialogOpen(true);
+  };
+
+  const confirmCancellation = async () => {
+    if (
+      !row ||
+      !workspace ||
+      workspace.status !== 'confirmed' ||
+      saving ||
+      cancellationInFlightRef.current
+    ) {
       return;
     }
+
+    cancellationInFlightRef.current = true;
     setSaving(true);
     setConfirmationAction('cancel');
     setCompletionNotice(null);
@@ -810,15 +978,34 @@ const AdminAllocationWorkspacePage = () => {
         .catch((versionError) => console.warn('Failed to refresh versions:', versionError));
       setDirty(false);
       setCompletionNotice('cancelled');
+      setCancelDialogOpen(false);
     } catch (cancelError) {
       setError(
         cancelError instanceof Error ? cancelError.message : '확정을 취소하지 못했습니다.'
       );
     } finally {
+      cancellationInFlightRef.current = false;
       setSaving(false);
       setConfirmationAction(null);
     }
   };
+
+  useEffect(() => {
+    if (!cancelDialogOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (
+        event.key === 'Escape' &&
+        !saving &&
+        !cancellationInFlightRef.current
+      ) {
+        setCancelDialogOpen(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [cancelDialogOpen, saving]);
 
   if (!workspace || !row) {
     return (
@@ -1200,13 +1387,13 @@ const AdminAllocationWorkspacePage = () => {
             <div className={styles.sharedBusInfoHeader}>
               <div>
                 <strong>공통 운행정보</strong>
-                <span>출발 시간과 탑승장소는 모든 버스에 동일하게 적용됩니다.</span>
+                <span>출발 일시와 탑승장소는 모든 버스에 동일하게 적용됩니다.</span>
               </div>
               <small>{workspace.buses.length}대 일괄 적용</small>
             </div>
             <div className={styles.sharedBusInfoFields}>
               <label className={hasMissingDepartureTime ? styles.fieldWithError : undefined}>
-                출발 시간
+                출발 일시
                 <input
                   disabled={readOnly}
                   value={sharedDepartureTime.value}
@@ -1975,6 +2162,551 @@ const AdminAllocationWorkspacePage = () => {
           </details>
         )}
       </main>
+
+      {confirmDialogOpen && workspace.status === 'draft' && (
+        <div
+          className={styles.confirmBackdrop}
+          onMouseDown={(event) => {
+            if (
+              event.target === event.currentTarget &&
+              !saving &&
+              !confirmationInFlightRef.current
+            ) {
+              setConfirmDialogOpen(false);
+            }
+          }}
+        >
+          <section
+            className={styles.confirmDialog}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="allocation-confirm-title"
+            aria-describedby="allocation-confirm-description"
+          >
+            <span className={styles.confirmDialogIcon} aria-hidden="true">
+              <ShieldCheck size={26} />
+            </span>
+            <p className={styles.confirmDialogEyebrow}>전체 배차 확정</p>
+            <h2 id="allocation-confirm-title">
+              {row.allocation_name} 배차안을 확정할까요?
+            </h2>
+            <p id="allocation-confirm-description">
+              서버에서 최신 신청자와 배차 상태를 다시 검증한 뒤 확정합니다. 확정
+              완료 즉시 탑승자에게 버스표가 공개되고 배차 편집이 잠깁니다.
+            </p>
+            <dl className={styles.confirmDialogSummary}>
+              <div>
+                <dt>확정 탑승자</dt>
+                <dd>{workspace.passengers.length.toLocaleString()}명</dd>
+              </div>
+              <div>
+                <dt>운행 버스</dt>
+                <dd>{workspace.buses.length.toLocaleString()}대</dd>
+              </div>
+              <div>
+                <dt>총 비용</dt>
+                <dd>{totals.totalCost.toLocaleString()}원</dd>
+              </div>
+              <div>
+                <dt>현재 경고</dt>
+                <dd>{validation.warnings.length.toLocaleString()}건</dd>
+              </div>
+              <div>
+                <dt>잔여 좌석 입금 대기</dt>
+                <dd>{pendingRemainingSeatCount.toLocaleString()}명</dd>
+              </div>
+              <div>
+                <dt>처리 결과</dt>
+                <dd>버스표 공개 · 배차 편집 잠금</dd>
+              </div>
+            </dl>
+            <div className={styles.confirmDialogActions}>
+              <button
+                type="button"
+                className={styles.confirmDialogCancel}
+                onClick={() => setConfirmDialogOpen(false)}
+                disabled={saving}
+                autoFocus
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                className={styles.confirmDialogSubmit}
+                onClick={() => void confirmPendingAllocation()}
+                disabled={saving}
+              >
+                {confirmationAction === 'confirm' ? (
+                  <>
+                    <LoaderCircle className={styles.spin} size={18} /> 배차 확정 중...
+                  </>
+                ) : (
+                  <>
+                    <BadgeCheck size={18} /> 전체 배차 확정
+                  </>
+                )}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {cancelDialogOpen && workspace.status === 'confirmed' && (
+        <div
+          className={styles.confirmBackdrop}
+          onMouseDown={(event) => {
+            if (
+              event.target === event.currentTarget &&
+              !saving &&
+              !cancellationInFlightRef.current
+            ) {
+              setCancelDialogOpen(false);
+            }
+          }}
+        >
+          <section
+            className={styles.confirmDialog}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="allocation-cancel-title"
+            aria-describedby="allocation-cancel-description"
+          >
+            <span
+              className={`${styles.confirmDialogIcon} ${styles.cancelDialogIcon}`}
+              aria-hidden="true"
+            >
+              <RotateCcw size={26} />
+            </span>
+            <p
+              className={`${styles.confirmDialogEyebrow} ${styles.cancelDialogEyebrow}`}
+            >
+              배차 확정 취소
+            </p>
+            <h2 id="allocation-cancel-title">
+              {row.allocation_name} 배차 확정을 취소할까요?
+            </h2>
+            <p id="allocation-cancel-description">
+              탑승자에게 공개된 확정 버스표가 즉시 숨겨지고 배차안은 다시 편집 가능한
+              초안 상태로 돌아갑니다.
+            </p>
+            <dl className={styles.confirmDialogSummary}>
+              <div>
+                <dt>기존 확정 시각</dt>
+                <dd>
+                  {workspace.confirmedAt
+                    ? new Date(workspace.confirmedAt).toLocaleString('ko-KR')
+                    : '-'}
+                </dd>
+              </div>
+              <div>
+                <dt>영향받는 탑승자</dt>
+                <dd>{workspace.passengers.length.toLocaleString()}명</dd>
+              </div>
+              <div>
+                <dt>운행 버스</dt>
+                <dd>{workspace.buses.length.toLocaleString()}대</dd>
+              </div>
+              <div>
+                <dt>배차안 총 비용</dt>
+                <dd>{totals.totalCost.toLocaleString()}원</dd>
+              </div>
+              <div>
+                <dt>처리 결과</dt>
+                <dd>버스표 숨김 · 배차 초안 전환</dd>
+              </div>
+            </dl>
+            <div className={styles.confirmDialogActions}>
+              <button
+                type="button"
+                className={styles.confirmDialogCancel}
+                onClick={() => setCancelDialogOpen(false)}
+                disabled={saving}
+                autoFocus
+              >
+                돌아가기
+              </button>
+              <button
+                type="button"
+                className={styles.cancelDialogSubmit}
+                onClick={() => void confirmCancellation()}
+                disabled={saving}
+              >
+                {confirmationAction === 'cancel' ? (
+                  <>
+                    <LoaderCircle className={styles.spin} size={18} /> 취소 처리 중...
+                  </>
+                ) : (
+                  <>
+                    <RotateCcw size={18} /> 배차 확정 취소
+                  </>
+                )}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {pendingBusDeletion && workspace.status === 'draft' && (
+        <div
+          className={styles.confirmBackdrop}
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              setPendingBusDeletion(null);
+            }
+          }}
+        >
+          <section
+            className={styles.confirmDialog}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="bus-delete-title"
+            aria-describedby="bus-delete-description"
+          >
+            <span
+              className={`${styles.confirmDialogIcon} ${styles.cancelDialogIcon}`}
+              aria-hidden="true"
+            >
+              <Trash2 size={26} />
+            </span>
+            <p
+              className={`${styles.confirmDialogEyebrow} ${styles.cancelDialogEyebrow}`}
+            >
+              버스 삭제
+            </p>
+            <h2 id="bus-delete-title">
+              {formatBusLabel(pendingBusDeletion.label)} 버스를 삭제할까요?
+            </h2>
+            <p id="bus-delete-description">
+              이 버스에 배정된 탑승자의 호차와 좌석이 모두 해제되어 미배차 상태로
+              전환됩니다. 변경사항 저장 전에는 서버 배차안에 반영되지 않습니다.
+            </p>
+            <dl className={styles.confirmDialogSummary}>
+              <div>
+                <dt>삭제 버스</dt>
+                <dd>{formatBusLabel(pendingBusDeletion.label)}</dd>
+              </div>
+              <div>
+                <dt>행선지</dt>
+                <dd>{pendingBusDeletion.destination || '미설정'}</dd>
+              </div>
+              <div>
+                <dt>좌석 정원</dt>
+                <dd>{pendingBusDeletion.capacity.toLocaleString()}석</dd>
+              </div>
+              <div>
+                <dt>미배차 전환</dt>
+                <dd>
+                  {workspace.passengers
+                    .filter((passenger) => passenger.busId === pendingBusDeletion.id)
+                    .length.toLocaleString()}
+                  명
+                </dd>
+              </div>
+              <div>
+                <dt>잔여 좌석 신청자</dt>
+                <dd>
+                  {workspace.passengers
+                    .filter(
+                      (passenger) =>
+                        passenger.busId === pendingBusDeletion.id &&
+                        isRemainingSeatPassenger(passenger)
+                    )
+                    .length.toLocaleString()}
+                  명 포함
+                </dd>
+              </div>
+              <div>
+                <dt>처리 결과</dt>
+                <dd>버스 삭제 · 탑승자 미배차 전환</dd>
+              </div>
+            </dl>
+            <div className={styles.confirmDialogActions}>
+              <button
+                type="button"
+                className={styles.confirmDialogCancel}
+                onClick={() => setPendingBusDeletion(null)}
+                autoFocus
+              >
+                돌아가기
+              </button>
+              <button
+                type="button"
+                className={styles.cancelDialogSubmit}
+                onClick={confirmBusDeletion}
+              >
+                <Trash2 size={18} /> 버스 삭제
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {deleteWorkspaceDialogOpen && workspace.status === 'draft' && (
+        <div
+          className={styles.confirmBackdrop}
+          onMouseDown={(event) => {
+            if (
+              event.target === event.currentTarget &&
+              !saving &&
+              !workspaceDeletionInFlightRef.current
+            ) {
+              setDeleteWorkspaceDialogOpen(false);
+            }
+          }}
+        >
+          <section
+            className={`${styles.confirmDialog} ${styles.dangerConfirmDialog}`}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="workspace-delete-title"
+            aria-describedby="workspace-delete-description"
+          >
+            <span
+              className={`${styles.confirmDialogIcon} ${styles.cancelDialogIcon}`}
+              aria-hidden="true"
+            >
+              <Trash2 size={26} />
+            </span>
+            <p
+              className={`${styles.confirmDialogEyebrow} ${styles.cancelDialogEyebrow}`}
+            >
+              배차 초안 영구 삭제
+            </p>
+            <h2 id="workspace-delete-title">
+              {row.allocation_name} 배차 초안을 삭제할까요?
+            </h2>
+            <p id="workspace-delete-description">
+              삭제하면 배차안, 저장 기록, 복원 가능한 버전을 되돌릴 수 없습니다.
+              탑승자의 기존 신청 정보는 삭제되지 않습니다.
+            </p>
+            <dl className={styles.confirmDialogSummary}>
+              <div>
+                <dt>배차 탑승자</dt>
+                <dd>{workspace.passengers.length.toLocaleString()}명</dd>
+              </div>
+              <div>
+                <dt>운행 버스</dt>
+                <dd>{workspace.buses.length.toLocaleString()}대</dd>
+              </div>
+              <div>
+                <dt>복원 버전</dt>
+                <dd>{workspaceVersions.length.toLocaleString()}개 삭제</dd>
+              </div>
+              <div>
+                <dt>미저장 변경사항</dt>
+                <dd>{dirty ? '함께 삭제됨' : '없음'}</dd>
+              </div>
+              <div>
+                <dt>처리 결과</dt>
+                <dd>배차 초안 · 기록 · 버전 영구 삭제</dd>
+              </div>
+            </dl>
+            <div className={styles.confirmDialogActions}>
+              <button
+                type="button"
+                className={styles.confirmDialogCancel}
+                onClick={() => setDeleteWorkspaceDialogOpen(false)}
+                disabled={saving}
+                autoFocus
+              >
+                돌아가기
+              </button>
+              <button
+                type="button"
+                className={styles.cancelDialogSubmit}
+                onClick={() => void confirmWorkspaceDeletion()}
+                disabled={saving}
+              >
+                {saving ? (
+                  <>
+                    <LoaderCircle className={styles.spin} size={18} /> 삭제 중...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 size={18} /> 배차 초안 영구 삭제
+                  </>
+                )}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {leaveWorkspaceDialogOpen && (
+        <div
+          className={styles.confirmBackdrop}
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !saving) {
+              setLeaveWorkspaceDialogOpen(false);
+            }
+          }}
+        >
+          <section
+            className={`${styles.confirmDialog} ${styles.dangerConfirmDialog}`}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="workspace-leave-title"
+            aria-describedby="workspace-leave-description"
+          >
+            <span
+              className={`${styles.confirmDialogIcon} ${styles.cancelDialogIcon}`}
+              aria-hidden="true"
+            >
+              <ArrowLeft size={26} />
+            </span>
+            <p
+              className={`${styles.confirmDialogEyebrow} ${styles.cancelDialogEyebrow}`}
+            >
+              저장하지 않은 변경사항
+            </p>
+            <h2 id="workspace-leave-title">변경사항을 버리고 이동할까요?</h2>
+            <p id="workspace-leave-description">
+              현재 작업공간에서 저장하지 않은 버스 설정과 승객 배정 변경사항은
+              사라집니다. 마지막으로 저장한 배차 초안과 버전 기록은 그대로
+              유지됩니다.
+            </p>
+            <dl className={styles.confirmDialogSummary}>
+              <div>
+                <dt>배차 초안</dt>
+                <dd>{row.allocation_name}</dd>
+              </div>
+              <div>
+                <dt>현재 작업 규모</dt>
+                <dd>
+                  버스 {workspace.buses.length.toLocaleString()}대 · 승객{' '}
+                  {workspace.passengers.length.toLocaleString()}명
+                </dd>
+              </div>
+              <div>
+                <dt>저장된 기록</dt>
+                <dd>유지됨</dd>
+              </div>
+              <div>
+                <dt>저장하지 않은 변경사항</dt>
+                <dd>이동 시 폐기됨</dd>
+              </div>
+              <div>
+                <dt>이동 위치</dt>
+                <dd>배차 계산 목록</dd>
+              </div>
+            </dl>
+            <div className={styles.confirmDialogActions}>
+              <button
+                type="button"
+                className={styles.confirmDialogCancel}
+                onClick={() => setLeaveWorkspaceDialogOpen(false)}
+                disabled={saving}
+                autoFocus
+              >
+                계속 편집
+              </button>
+              <button
+                type="button"
+                className={styles.cancelDialogSubmit}
+                onClick={confirmNavigateToAllocations}
+                disabled={saving}
+              >
+                <ArrowLeft size={18} /> 변경사항 버리고 이동
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {pendingVersionRestore && workspace.status === 'draft' && (
+        <div
+          className={styles.confirmBackdrop}
+          onMouseDown={(event) => {
+            if (
+              event.target === event.currentTarget &&
+              !saving &&
+              !versionRestoreInFlightRef.current
+            ) {
+              setPendingVersionRestore(null);
+            }
+          }}
+        >
+          <section
+            className={styles.confirmDialog}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="version-restore-title"
+            aria-describedby="version-restore-description"
+          >
+            <span className={styles.confirmDialogIcon} aria-hidden="true">
+              <History size={26} />
+            </span>
+            <p className={styles.confirmDialogEyebrow}>저장 버전 복원</p>
+            <h2 id="version-restore-title">
+              {pendingVersionRestore.label} 상태로 복원할까요?
+            </h2>
+            <p id="version-restore-description">
+              현재 버스와 탑승자 배정이 선택한 저장 버전으로 교체됩니다. 복원 후
+              변경사항을 저장해야 실제 서버 배차안에 반영됩니다.
+            </p>
+            <dl className={styles.confirmDialogSummary}>
+              <div>
+                <dt>복원 버전</dt>
+                <dd>{pendingVersionRestore.label}</dd>
+              </div>
+              <div>
+                <dt>저장 시각</dt>
+                <dd>
+                  {new Date(pendingVersionRestore.createdAt).toLocaleString(
+                    'ko-KR'
+                  )}
+                </dd>
+              </div>
+              <div>
+                <dt>저장자</dt>
+                <dd>{pendingVersionRestore.actorId.slice(0, 8)}</dd>
+              </div>
+              <div>
+                <dt>현재 배차 규모</dt>
+                <dd>
+                  버스 {workspace.buses.length.toLocaleString()}대 · 탑승자{' '}
+                  {workspace.passengers.length.toLocaleString()}명
+                </dd>
+              </div>
+              <div>
+                <dt>미저장 변경사항</dt>
+                <dd>{dirty ? '복원 내용으로 교체됨' : '없음'}</dd>
+              </div>
+              <div>
+                <dt>처리 결과</dt>
+                <dd>복원본 적용 · 별도 저장 필요</dd>
+              </div>
+            </dl>
+            <div className={styles.confirmDialogActions}>
+              <button
+                type="button"
+                className={styles.confirmDialogCancel}
+                onClick={() => setPendingVersionRestore(null)}
+                disabled={saving}
+                autoFocus
+              >
+                돌아가기
+              </button>
+              <button
+                type="button"
+                className={styles.confirmDialogSubmit}
+                onClick={() => void confirmVersionRestore()}
+                disabled={saving}
+              >
+                {saving ? (
+                  <>
+                    <LoaderCircle className={styles.spin} size={18} /> 복원 중...
+                  </>
+                ) : (
+                  <>
+                    <History size={18} /> 저장 버전 복원
+                  </>
+                )}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
     </div>
   );
 };

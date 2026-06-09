@@ -781,7 +781,7 @@ const AdminParticipationTargetsPage = () => {
 
       if (!campusRow) {
         const fullScope = [rowDistrict, rowTeam, rowCampus].filter(Boolean).join(' > ');
-        errors.push(`${lineNum}번째 행: 시스템 내에 존재하지 않는 캠퍼스 [${fullScope}] 입니다. 철자나 공백을 확인해 주세요.`);
+        errors.push(`${lineNum}번째 행: 시스템 내에 존재하지 않는 캠퍼스 [${fullScope}] 입니다. 철자나 공백을 확인해주세요.`);
         return;
       }
 
@@ -790,14 +790,14 @@ const AdminParticipationTargetsPage = () => {
 
     if (errors.length > 0) {
       setValidationErrors(errors);
-      setError(`엑셀 파일 유효성 검사에 실패했습니다. 총 ${errors.length}개의 오류가 감지되어 업로드가 취소되었습니다. 하단의 에러 리포트를 수정 후 다시 시도해 주세요.`);
+      setError(`엑셀 파일 유효성 검사에 실패했습니다. 총 ${errors.length}개의 오류가 감지되어 업로드가 취소되었습니다. 하단의 에러 리포트를 수정 후 다시 시도해주세요.`);
       return;
     }
 
     const importedCount = Object.keys(importedTargets).length;
 
     if (importedCount === 0) {
-      setError('해석된 캠퍼스가 없습니다. 지구, 팀, 캠퍼스, 참여인원 형식으로 붙여넣어 주세요.');
+      setError('해석된 캠퍼스가 없습니다. 지구, 팀, 캠퍼스, 참여인원 형식으로 붙여넣어주세요.');
       return;
     }
 
@@ -815,7 +815,7 @@ const AdminParticipationTargetsPage = () => {
     if (!file) return;
 
     if (file.name.toLowerCase().endsWith('.xlsx')) {
-      setError('엑셀에서 표 범위를 복사해 붙여넣거나 CSV/TSV로 저장해 업로드해 주세요.');
+      setError('엑셀에서 표 범위를 복사해 붙여넣거나 CSV/TSV로 저장해 업로드해주세요.');
       event.target.value = '';
       return;
     }

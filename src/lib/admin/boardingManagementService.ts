@@ -21,6 +21,7 @@ export interface BoardingBus {
 
 export interface BoardingPassenger {
   reservationId: string;
+  passengerKind?: 'reservation' | 'walk_in';
   busId?: string;
   name: string;
   phone: string;
@@ -29,8 +30,11 @@ export interface BoardingPassenger {
   campus: string;
   busNumber: string;
   seatNumber: string;
+  stationPreferences?: string[];
+  assignedDestination?: string;
   boardingStatus: BoardingStatus;
   boardingNote?: string | null;
+  fieldExceptionReason?: string | null;
   boardingNoteUpdatedAt?: string | null;
   boardingNoteUpdatedByName?: string | null;
   updatedAt?: string | null;
@@ -99,6 +103,16 @@ const isMissingBoardingManagerAssignmentRpc = (error: {
   error.message?.includes('schema cache') ||
   error.message?.includes('Could not find the function');
 
+const isMissingBoardingTransitionReasonRpc = (error: {
+  code?: string;
+  message?: string;
+}) =>
+  isMissingBoardingManagerAssignmentRpc(error) &&
+  error.message?.includes('p_reason');
+
+const boardingTransitionReasonUpgradeMessage =
+  '탑승 상태 변경 DB 기능이 최신 버전이 아닙니다. Supabase에 sql/setup/150_require_boarding_transition_reason.sql을 적용해주세요.';
+
 export const getBoardingManagementSnapshot = async () => {
   const { data, error } = await supabase.rpc('get_boarding_management_snapshot');
   if (error) throw new Error(error.message);
@@ -129,22 +143,104 @@ export const syncBoardingRosterGoogleSheet = async () => {
 
 export const setPassengerBoardingStatus = async (
   reservationId: string,
-  status: BoardingStatus
+  status: BoardingStatus,
+  reason = ''
 ) => {
   const { error } = await supabase.rpc('set_passenger_boarding_status', {
     p_reservation_id: reservationId,
     p_status: status,
+    p_reason: reason,
+  });
+  if (!error) return;
+  if (!isMissingBoardingTransitionReasonRpc(error)) {
+    throw new Error(error.message);
+  }
+  if (reason.trim()) {
+    throw new Error(boardingTransitionReasonUpgradeMessage);
+  }
+
+  const { error: legacyError } = await supabase.rpc('set_passenger_boarding_status', {
+    p_reservation_id: reservationId,
+    p_status: status,
+  });
+  if (legacyError) throw new Error(legacyError.message);
+};
+
+export const updatePassengerBoardingNote = async (
+  passengerId: string,
+  passengerKind: BoardingPassenger['passengerKind'],
+  note: string
+) => {
+  const { error } =
+    passengerKind === 'walk_in'
+      ? await supabase.rpc('update_walk_in_boarding_note', {
+          p_walk_in_id: passengerId,
+          p_note: note,
+        })
+      : await supabase.rpc('update_passenger_boarding_note', {
+          p_reservation_id: passengerId,
+          p_note: note,
+        });
+  if (error) throw new Error(error.message);
+};
+
+export const setBoardingPassengerStatus = async (
+  passenger: Pick<BoardingPassenger, 'reservationId' | 'passengerKind'>,
+  status: BoardingStatus,
+  reason = ''
+) => {
+  if (passenger.passengerKind !== 'walk_in') {
+    return setPassengerBoardingStatus(passenger.reservationId, status, reason);
+  }
+
+  const { error } = await supabase.rpc('set_walk_in_boarding_status', {
+    p_walk_in_id: passenger.reservationId,
+    p_status: status,
+    p_reason: reason,
+  });
+  if (!error) return;
+  if (!isMissingBoardingTransitionReasonRpc(error)) {
+    throw new Error(error.message);
+  }
+  if (reason.trim()) {
+    throw new Error(boardingTransitionReasonUpgradeMessage);
+  }
+
+  const { error: legacyError } = await supabase.rpc('set_walk_in_boarding_status', {
+    p_walk_in_id: passenger.reservationId,
+    p_status: status,
+  });
+  if (legacyError) throw new Error(legacyError.message);
+};
+
+export const moveBoardingPassenger = async (
+  reservationId: string,
+  targetBusId: string,
+  reason: string
+) => {
+  const { error } = await supabase.rpc('move_boarding_passenger_as_global_admin', {
+    p_reservation_id: reservationId,
+    p_target_bus_id: targetBusId,
+    p_reason: reason,
   });
   if (error) throw new Error(error.message);
 };
 
-export const updatePassengerBoardingNote = async (
-  reservationId: string,
-  note: string
-) => {
-  const { error } = await supabase.rpc('update_passenger_boarding_note', {
-    p_reservation_id: reservationId,
-    p_note: note,
+export const addBoardingWalkIn = async (input: {
+  busId: string;
+  seatNumber: number;
+  name: string;
+  phone: string;
+  campus: string;
+  reason: string;
+}) => {
+  const { error } = await supabase.rpc('add_boarding_walk_in_as_global_admin', {
+    p_bus_id: input.busId,
+    p_seat_number: input.seatNumber,
+    p_name: input.name,
+    p_phone: input.phone,
+    p_campus: input.campus,
+    p_reason: input.reason,
   });
   if (error) throw new Error(error.message);
 };
@@ -242,7 +338,7 @@ export const saveBoardingManagerBusAssignments = async (
   if (error) {
     if (isMissingBoardingManagerAssignmentRpc(error)) {
       throw new Error(
-        '담당 호차 지정 DB 기능이 설치되지 않았습니다. Supabase에 sql/setup/96_boarding_manager_bus_assignments.sql을 적용해 주세요.'
+        '담당 호차 지정 DB 기능이 설치되지 않았습니다. Supabase에 sql/setup/96_boarding_manager_bus_assignments.sql을 적용해주세요.'
       );
     }
     throw new Error(error.message);

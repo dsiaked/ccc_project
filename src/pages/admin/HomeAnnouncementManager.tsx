@@ -118,7 +118,7 @@ const HomeAnnouncementManager = () => {
     }
 
     if (!normalizedTitle || !normalizedContent) {
-      alert('공지 제목과 내용을 모두 입력해 주세요.');
+      alert('공지 제목과 내용을 모두 입력해주세요.');
       return;
     }
 
@@ -234,7 +234,7 @@ const HomeAnnouncementManager = () => {
               <textarea
                 value={content}
                 onChange={(event) => setContent(event.target.value)}
-                placeholder="홈 화면에 표시할 공지 내용을 입력해 주세요."
+                placeholder="홈 화면에 표시할 공지 내용을 입력해주세요."
                 rows={6}
                 maxLength={1000}
               />

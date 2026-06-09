@@ -73,6 +73,18 @@ const setupFiles = [
   '137_enable_signup_email_availability_check.sql',
   '138_admin_invitation_codes.sql',
   '139_fix_allocation_draft_reservation_normalization.sql',
+  '140_boarding_field_exceptions.sql',
+  '142_bulk_admin_invitation_codes.sql',
+  '143_fix_allocation_optimization_reset.sql',
+  '144_expire_stale_allocation_optimization_jobs.sql',
+  '145_fix_invitation_code_pgcrypto_search_path.sql',
+  '146_rate_limit_boarding_check_in_codes.sql',
+  '147_personal_user_management.sql',
+  '147_secure_admin_created_account_source.sql',
+  '148_store_invitation_code_plaintext.sql',
+  '149_disable_signup_email_enumeration.sql',
+  '150_require_boarding_transition_reason.sql',
+  '151_personal_user_management_enhancements.sql',
 ];
 
 let combined = readFileSync(combinedPath, 'utf8').replaceAll('\r\n', '\n');

@@ -59,11 +59,11 @@ def main() -> int:
     try:
         while True:
             try:
-                job_ids = (
-                    [args.job_id]
-                    if args.job_id
-                    else repository.get_pending_job_ids(execution_mode="local")
-                )
+                repository.expire_stale_jobs()
+                if args.job_id:
+                    job_ids = [args.job_id]
+                else:
+                    job_ids = repository.get_pending_job_ids(execution_mode="local")
                 consecutive_poll_failures = 0
             except Exception as error:
                 if args.once:

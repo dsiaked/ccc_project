@@ -59,7 +59,7 @@ describe('describeAllocationWorkspaceChanges', () => {
       changes[1],
       '탑승자 변경: 추가 0명, 제외 0명, 호차 이동 1명, 좌석 변경 0명.'
     );
-    assert.ok(changes.includes('1호차: 출발 시각 10:00 → 11:00'));
+    assert.ok(changes.includes('1호차: 출발 일시 10:00 → 11:00'));
     assert.ok(changes.includes('홍길동: 1호차 1번 → 2호차 3번'));
   });
 

@@ -80,3 +80,7 @@ image or frontend environment.
 The worker atomically claims a `PENDING` job, records each proven optimization
 phase, and writes a final result only after the independent result validator
 passes.
+
+Every solver phase shares one overall deadline. The default is one hour and can
+be changed with `ALLOCATION_OPTIMIZER_MAX_SECONDS`. Secondary phases also keep
+their shorter `ALLOCATION_SECONDARY_PHASE_SECONDS` limit.

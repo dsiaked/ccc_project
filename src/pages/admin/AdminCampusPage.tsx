@@ -8,6 +8,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronUp,
+  CircleCheck,
   Download,
   Landmark,
   Megaphone,
@@ -203,6 +204,9 @@ const CampusAdminPage = () => {
   const [reservations, setReservations] = useState<ReservationWithPayment[]>([]);
   const [loading, setLoading] = useState(true);
   const [verifying, setVerifying] = useState(false);
+  const [pendingBulkPaymentStatus, setPendingBulkPaymentStatus] = useState<
+    boolean | null
+  >(null);
   const [transferSending, setTransferSending] = useState(false);
   const [savingPaymentAccount, setSavingPaymentAccount] = useState(false);
   const [savingApplicantImage, setSavingApplicantImage] = useState(false);
@@ -229,6 +233,8 @@ const CampusAdminPage = () => {
     useState('');
   const [paymentAccount, setPaymentAccount] =
     useState<CampusPaymentAccount | null>(null);
+  const [hasSavedPaymentAccount, setHasSavedPaymentAccount] = useState(false);
+  const [isPaymentAccountDirty, setIsPaymentAccountDirty] = useState(false);
   const [paymentAccountMessage, setPaymentAccountMessage] = useState<
     string | null
   >(null);
@@ -411,6 +417,8 @@ const CampusAdminPage = () => {
           }
 
           if (paymentAccountResult.status === 'fulfilled') {
+            setHasSavedPaymentAccount(Boolean(paymentAccountResult.value));
+            setIsPaymentAccountDirty(false);
             setPaymentAccount(
               paymentAccountResult.value ?? {
                 campusId: nextScope.campusId,
@@ -420,6 +428,8 @@ const CampusAdminPage = () => {
               }
             );
           } else {
+            setHasSavedPaymentAccount(false);
+            setIsPaymentAccountDirty(false);
             console.warn(
               'Failed to load campus payment account:',
               paymentAccountResult.reason
@@ -557,7 +567,6 @@ const CampusAdminPage = () => {
   const paidPeople = stats.completed;
   const paymentRate =
     totalPeople > 0 ? Math.round((paidPeople / totalPeople) * 100) : 0;
-
   const totalAmount =
     reservations.filter((reservation) => reservation.status !== 'cancelled')
       .length * ticketPrice;
@@ -726,7 +735,7 @@ const CampusAdminPage = () => {
       context.font =
         '500 12px "Pretendard", "Noto Sans KR", "Malgun Gothic", sans-serif';
       context.fillText(
-        '개인정보가 포함된 이미지입니다. 필요한 범위에서만 사용해 주세요.',
+        '개인정보가 포함된 이미지입니다. 필요한 범위에서만 사용해주세요.',
         margin,
         logicalHeight - 22
       );
@@ -873,7 +882,7 @@ const CampusAdminPage = () => {
     }
   };
 
-  const handleBulkPaymentCheck = async (checked: boolean) => {
+  const handleBulkPaymentCheck = (checked: boolean) => {
     if (verifying) return;
 
     if (isPaymentCheckLocked) {
@@ -881,19 +890,18 @@ const CampusAdminPage = () => {
       return;
     }
 
-    const nextStatus = checked ? 'completed' : 'pending';
-
     if (filteredCheckableReservations.length === 0) {
       return;
     }
 
-    const confirmed = window.confirm(
-      `현재 필터 결과의 신청자 ${filteredCheckableReservations.length}명을 모두 ${
-        checked ? '입금 확인' : '미입금'
-      } 상태로 변경할까요?\n\n환불 상태 신청자는 제외됩니다.`
-    );
+    setPendingBulkPaymentStatus(checked);
+  };
 
-    if (!confirmed) return;
+  const confirmBulkPaymentCheck = async () => {
+    if (pendingBulkPaymentStatus === null || verifying) return;
+
+    const checked = pendingBulkPaymentStatus;
+    const nextStatus = checked ? 'completed' : 'pending';
 
     setVerifying(true);
 
@@ -922,6 +930,7 @@ const CampusAdminPage = () => {
       );
 
       await refreshReservations(campus, adminScope?.team);
+      setPendingBulkPaymentStatus(null);
     } catch (error) {
       console.error('전체 입금 상태 변경 실패:', error);
 
@@ -930,6 +939,19 @@ const CampusAdminPage = () => {
       setVerifying(false);
     }
   };
+
+  useEffect(() => {
+    if (pendingBulkPaymentStatus === null) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !verifying) {
+        setPendingBulkPaymentStatus(null);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [pendingBulkPaymentStatus, verifying]);
 
   const handleMarkCampusTransferSent = async () => {
     if (!adminScope) {
@@ -1058,6 +1080,7 @@ const CampusAdminPage = () => {
     if (!adminScope) return;
 
     setPaymentAccountMessage(null);
+    setIsPaymentAccountDirty(true);
     setPaymentAccount((current) => ({
       campusId: adminScope.campusId,
       bankName: current?.bankName ?? '',
@@ -1083,6 +1106,8 @@ const CampusAdminPage = () => {
     try {
       const saved = await updateCampusPaymentAccount(paymentAccount);
       setPaymentAccount(saved);
+      setHasSavedPaymentAccount(true);
+      setIsPaymentAccountDirty(false);
       setPaymentAccountMessage('입금 계좌를 저장했습니다.');
     } catch (error) {
       setPaymentAccountMessage(
@@ -1176,7 +1201,11 @@ const CampusAdminPage = () => {
         )}
 
         <section
-          className={styles.campusAdminWorkspace}
+          className={
+            activeAdminRole?.role === 'global_admin'
+              ? styles.campusAdminWorkspace
+              : undefined
+          }
           aria-label="캠퍼스 회계 순장님 운영 화면"
         >
         <section className={styles.header}>
@@ -1245,27 +1274,65 @@ const CampusAdminPage = () => {
             <div id="campus-payment-guide" className={styles.guideSection}>
               <div className={styles.preparationGuide}>
                 <strong>0. 사전 준비 단계</strong>
-                <section className={styles.signupGuideAlert}>
-                  <AlertTriangle size={20} aria-hidden="true" />
-                  <p>
-                    서울지구 소속이 아니더라도 본인 캠퍼스와 함께 온 친구들은 본인
-                    캠퍼스로 회원가입하도록 안내해주세요.
-                  </p>
+                <section
+                  className={`${styles.preparationItem} ${styles.preparationItemWarning}`}
+                >
+                  <div className={styles.preparationItemHeader}>
+                    <div
+                      className={`${styles.preparationItemIcon} ${styles.preparationItemWarningIcon}`}
+                    >
+                      <AlertTriangle size={20} aria-hidden="true" />
+                    </div>
+                    <div className={styles.preparationItemHeading}>
+                      <span className={styles.preparationItemNumber}>01</span>
+                      <div>
+                        <h2>가입 캠퍼스를 확인해주세요</h2>
+                        <p>
+                          서울지구 소속이 아니더라도 본인 캠퍼스와 함께 온 친구들은 본인
+                          캠퍼스로 회원가입하도록 안내해주세요.
+                        </p>
+                      </div>
+                    </div>
+                    <span
+                      className={`${styles.preparationStatus} ${styles.preparationStatusRequired}`}
+                    >
+                      확인 필요
+                    </span>
+                  </div>
                 </section>
 
-                <section className={styles.paymentAccountPanel}>
-                  <div className={styles.paymentAccountHeading}>
-                    <div className={styles.paymentAccountIcon}>
-                      <Landmark size={20} />
+                <section
+                  className={`${styles.preparationItem} ${styles.preparationItemAccount}`}
+                >
+                  <div className={styles.preparationItemHeader}>
+                    <div
+                      className={`${styles.preparationItemIcon} ${styles.preparationItemAccountIcon}`}
+                    >
+                      <Landmark size={20} aria-hidden="true" />
                     </div>
-                    <div>
-                      <h2>입금 계좌 등록</h2>
-                      <p>
-                        신청자가 신청 과정에서 확인하는 캠퍼스 계좌입니다. 신청
-                        접수 전에 등록하고, 접수 중 변경했다면 기존 신청자에게도
-                        별도로 안내해주세요.
-                      </p>
+                    <div className={styles.preparationItemHeading}>
+                      <span className={styles.preparationItemNumber}>02</span>
+                      <div>
+                        <h2>입금 계좌 등록</h2>
+                        <p>
+                          신청자가 신청 과정에서 확인하는 캠퍼스 계좌입니다. 신청
+                          접수 전에 등록하고, 접수 중 변경했다면 기존 신청자에게도
+                          별도로 안내해주세요.
+                        </p>
+                      </div>
                     </div>
+                    <span
+                      className={`${styles.preparationStatus} ${
+                        hasSavedPaymentAccount
+                          ? styles.preparationStatusComplete
+                          : styles.preparationStatusRequired
+                      }`}
+                    >
+                      {hasSavedPaymentAccount && (
+                        <CircleCheck size={14} aria-hidden="true" />
+                      )}
+                      {hasSavedPaymentAccount ? '등록 완료' : '등록 필요'}
+                    </span>
                   </div>
                   <div className={styles.paymentAccountFields}>
                     <label>
@@ -1306,11 +1373,30 @@ const CampusAdminPage = () => {
                     </label>
                     <button
                       type="button"
+                      className={
+                        hasSavedPaymentAccount && !isPaymentAccountDirty
+                          ? styles.paymentAccountSavedButton
+                          : styles.paymentAccountSaveButton
+                      }
                       onClick={() => void handleSavePaymentAccount()}
-                      disabled={savingPaymentAccount || !adminScope}
+                      disabled={
+                        savingPaymentAccount ||
+                        !adminScope ||
+                        (hasSavedPaymentAccount && !isPaymentAccountDirty)
+                      }
                     >
-                      <Save size={16} />
-                      {savingPaymentAccount ? '저장 중' : '계좌 저장'}
+                      {hasSavedPaymentAccount && !isPaymentAccountDirty ? (
+                        <CircleCheck size={16} aria-hidden="true" />
+                      ) : (
+                        <Save size={16} aria-hidden="true" />
+                      )}
+                      {savingPaymentAccount
+                        ? '저장 중...'
+                        : hasSavedPaymentAccount && !isPaymentAccountDirty
+                          ? '저장 완료'
+                          : hasSavedPaymentAccount
+                            ? '변경 내용 저장'
+                            : '입금 받을 계좌 등록'}
                     </button>
                   </div>
                   {paymentAccountMessage && (
@@ -1471,7 +1557,7 @@ const CampusAdminPage = () => {
                   setApplicantQuery(event.target.value);
                   setApplicantPage(1);
                 }}
-                placeholder="이름, 연락처, 정류장, 배차 검색"
+                  placeholder="이름, 연락처, 행선지, 배차 검색"
               />
             </label>
 
@@ -1853,7 +1939,7 @@ const CampusAdminPage = () => {
                 <dd>
                   <strong>
                     {districtTransferAccountNumber ||
-                      '전체 관리자가 계좌 번호를 아직 설정하지 않았습니다.'}
+                      '전체 관리자가 계좌번호를 아직 설정하지 않았습니다.'}
                   </strong>
                   <small className={styles.transferDepositorName}>
                     입금자명: {adminScope?.campus || '서울캠'}홍길동
@@ -1946,6 +2032,70 @@ const CampusAdminPage = () => {
         </div>
         </section>
       </main>
+
+      {pendingBulkPaymentStatus !== null && (
+        <div
+          className={styles.bulkConfirmBackdrop}
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !verifying) {
+              setPendingBulkPaymentStatus(null);
+            }
+          }}
+        >
+          <section
+            className={styles.bulkConfirmDialog}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="bulk-payment-confirm-title"
+            aria-describedby="bulk-payment-confirm-description"
+          >
+            <span className={styles.bulkConfirmIcon} aria-hidden="true">
+              <AlertTriangle size={24} />
+            </span>
+            <div>
+              <p className={styles.bulkConfirmEyebrow}>일괄 입금 상태 변경</p>
+              <h2 id="bulk-payment-confirm-title">
+                현재 필터 결과 {filteredCheckableReservations.length}명을{' '}
+                {pendingBulkPaymentStatus ? '입금 확인' : '미입금'} 상태로
+                변경할까요?
+              </h2>
+              <p id="bulk-payment-confirm-description">
+                검색어와 입금 상태 필터에 포함된 신청자만 변경하며, 환불 상태
+                신청자는 제외합니다.
+              </p>
+            </div>
+            <dl className={styles.bulkConfirmSummary}>
+              <div>
+                <dt>변경 대상</dt>
+                <dd>{filteredCheckableReservations.length}명</dd>
+              </div>
+              <div>
+                <dt>변경 후 상태</dt>
+                <dd>{pendingBulkPaymentStatus ? '입금 확인' : '미입금'}</dd>
+              </div>
+            </dl>
+            <div className={styles.bulkConfirmActions}>
+              <button
+                type="button"
+                className={styles.outlineButton}
+                onClick={() => setPendingBulkPaymentStatus(null)}
+                disabled={verifying}
+                autoFocus
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                className={styles.primaryButton}
+                onClick={() => void confirmBulkPaymentCheck()}
+                disabled={verifying}
+              >
+                {verifying ? '변경 중...' : '상태 변경하기'}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
     </div>
   );
 };

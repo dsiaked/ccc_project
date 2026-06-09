@@ -4,8 +4,7 @@ create or replace function public.assert_allocation_planning_unlocked()
 returns void language plpgsql security definer set search_path = public as $$
 begin
   if current_setting('app.allocation_confirmation_write', true) = 'on' then
-    if tg_op = 'DELETE' then return old; end if;
-    return new;
+    return;
   end if;
 
   if exists (

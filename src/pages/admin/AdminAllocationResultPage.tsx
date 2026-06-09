@@ -772,7 +772,7 @@ const AdminAllocationResultPage = () => {
                 <section className={styles.busDetail} id="allocation-seat-map">
                   <div className={styles.sectionHeading}>
                     <Bus size={19} />
-                    <h2>{formatBusLabel(selectedBus.busNumber)} 좌석 번호 현황</h2>
+                    <h2>{formatBusLabel(selectedBus.busNumber)} 좌석번호 현황</h2>
                   </div>
                   <div className={styles.busMeta}>
                     <span>정원 {selectedBus.capacity}명</span>
@@ -788,9 +788,9 @@ const AdminAllocationResultPage = () => {
                     <span><i className={styles.adminCreatedDot} />관리자 추가 계정</span>
                   </div>
                   <p className={styles.seatMapNotice}>
-                    실제 차량 배치도가 아닌 좌석 번호 기준 현황입니다.
+                    실제 차량 배치도가 아닌 좌석번호 기준 현황입니다.
                   </p>
-                  <div className={styles.seatMap} aria-label="좌석 번호별 배정 현황">
+                  <div className={styles.seatMap} aria-label="좌석번호별 배정 현황">
                     {Array.from({ length: selectedBus.capacity }, (_, index) => {
                       const seatNumber = String(index + 1);
                       const passenger = selectedBus.passengers.find(

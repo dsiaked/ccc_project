@@ -30,6 +30,12 @@ test('administrator tools are listed under operation preparation', () => {
   assert.match(toolsItem, /allowedRoles: \['global_admin'\]/);
 });
 
+test('invitation code management stays in the tools hub instead of the sidebar', () => {
+  assert.doesNotMatch(adminHeader, /label: '권한 등록 코드 관리'/);
+  assert.doesNotMatch(adminHeader, /path: '\/admin\/system\/invitation-codes'/);
+  assert.match(adminToolsPage, /path: '\/admin\/system\/invitation-codes'/);
+});
+
 test('administrator tools hub links to existing management screens', () => {
   [
     '/admin/access/campus-admins',

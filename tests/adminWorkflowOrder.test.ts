@@ -139,7 +139,7 @@ test('simulation displays deadline and allocation before the consolidated paymen
     /simulationStageDisplayOrder = \[0, 1, 2, 3, 6, 5, 7, 8\]/
   );
   assert.match(simulationPage, /신청 마감 및 배차 계획 산출 및 확정/);
-  assert.match(simulationPage, /개별 입금·캠퍼스별 송금 완료 보고·본부 확인/);
+  assert.match(simulationPage, /개인 입금·캠퍼스별 송금 완료 보고·본부 확인/);
   assert.match(
     simulationPage,
     /simulationStageDisplayOrder\.map\(\(index\) =>/

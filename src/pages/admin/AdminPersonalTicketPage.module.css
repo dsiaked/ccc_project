@@ -618,6 +618,11 @@
   color: #be123c;
 }
 
+.paymentRefundRequired {
+  background: #fef3c7;
+  color: #b45309;
+}
+
 .paymentNotApplied {
   min-width: 24px;
   padding: 0;
@@ -676,6 +681,356 @@
   margin: 4px 0 0;
   color: #667085;
   font-size: 13px;
+}
+
+.detailTabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+  margin-bottom: 14px;
+}
+
+.detailTabs button {
+  min-height: 34px;
+  padding: 0 5px;
+  border: 1px solid #d0d5dd;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #667085;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.detailTabs .detailTabActive {
+  border-color: #2563eb;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.bulkBar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  padding: 10px;
+  border-bottom: 1px solid #bfdbfe;
+  background: #eff6ff;
+}
+
+.bulkBar strong {
+  margin-right: auto;
+  color: #1d4ed8;
+  font-size: 12px;
+}
+
+.bulkBar button {
+  min-height: 30px;
+  padding: 0 8px;
+  border: 1px solid #93c5fd;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #1d4ed8;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.operationOverview,
+.operationPanel {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 14px;
+  border: 1px solid #dbe3ee;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.operationPanel > select,
+.notificationComposer select {
+  width: 100%;
+  height: 38px;
+  padding: 0 9px;
+  border: 1px solid #ccd3dc;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #344054;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.operationOverview {
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+
+.operationOverviewHeader,
+.operationPanelHeader {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  color: #475569;
+}
+
+.operationOverviewHeader {
+  justify-content: space-between;
+  color: #b45309;
+}
+
+.operationOverviewHeader div,
+.operationPanelHeader div {
+  display: grid;
+  gap: 3px;
+}
+
+.operationOverviewHeader span,
+.operationPanelHeader span {
+  color: #667085;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.operationOverviewHeader strong,
+.operationPanelHeader strong {
+  color: #101828;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.statusFlow {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.statusFlow div {
+  display: grid;
+  gap: 4px;
+  padding: 9px;
+  border: 1px solid #fde68a;
+  border-radius: 7px;
+  background: #ffffff;
+}
+
+.statusFlow span {
+  color: #92400e;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.statusFlow strong {
+  color: #101828;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.riskNotice,
+.emptyHistory {
+  margin: 0;
+  color: #667085;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.5;
+}
+
+.operationActions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.operationActions button {
+  min-width: 0;
+  padding: 0 7px;
+  font-size: 12px;
+}
+
+.basicInfoGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.basicInfoGrid label {
+  display: grid;
+  gap: 5px;
+}
+
+.basicInfoGrid span,
+.scopeSummary {
+  color: #667085;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.basicInfoGrid input {
+  width: 100%;
+  min-width: 0;
+  height: 38px;
+  padding: 0 9px;
+  border: 1px solid #ccd3dc;
+  border-radius: 7px;
+  box-sizing: border-box;
+  font-family: inherit;
+}
+
+.scopeSummary {
+  padding: 8px;
+  border-radius: 7px;
+  background: #f8fafc;
+  line-height: 1.45;
+}
+
+.notificationComposer {
+  display: grid;
+  gap: 8px;
+}
+
+.notificationComposer input,
+.notificationComposer textarea {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ccd3dc;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #101828;
+  font-family: inherit;
+  font-size: 13px;
+  box-sizing: border-box;
+}
+
+.notificationComposer textarea {
+  min-height: 82px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.compactHistory {
+  display: grid;
+  gap: 7px;
+  max-height: 230px;
+  overflow-y: auto;
+}
+
+.compactHistory div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 3px 8px;
+  padding: 9px;
+  border: 1px solid #e4e7ec;
+  border-radius: 7px;
+  background: #f8fafc;
+}
+
+.compactHistory strong {
+  color: #101828;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.compactHistory span {
+  color: #667085;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.compactHistory p {
+  grid-column: 1 / -1;
+  margin: 2px 0 0;
+  color: #475467;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.compactHistory details {
+  grid-column: 1 / -1;
+  color: #475467;
+  font-size: 10px;
+}
+
+.compactHistory pre {
+  max-height: 160px;
+  padding: 7px;
+  overflow: auto;
+  border-radius: 6px;
+  background: #ffffff;
+  white-space: pre-wrap;
+}
+
+.compactHistory small {
+  grid-column: 1 / -1;
+  color: #98a2b3;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.modalBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.58);
+}
+
+.operationModal {
+  display: grid;
+  gap: 16px;
+  width: min(480px, 100%);
+  padding: 22px;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.28);
+}
+
+.operationModal h2 {
+  margin: 4px 0;
+  color: #101828;
+  font-size: 21px;
+}
+
+.operationModal p,
+.operationModal span {
+  margin: 0;
+  color: #667085;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.operationModal label {
+  display: grid;
+  gap: 7px;
+}
+
+.operationModal textarea {
+  min-height: 100px;
+  padding: 11px;
+  border: 1px solid #ccd3dc;
+  border-radius: 8px;
+  font-family: inherit;
+  resize: vertical;
+}
+
+.modalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.modalActions button {
+  min-height: 38px;
+  padding: 0 13px;
+  border: 1px solid #ccd3dc;
+  border-radius: 8px;
+  background: #ffffff;
+  font-family: inherit;
+  font-weight: 900;
+  cursor: pointer;
 }
 
 .deleteUserPanel {
@@ -1106,6 +1461,14 @@
   .roleScopeSelectorGrid {
     grid-template-columns: 1fr;
   }
+
+  .operationActions {
+    grid-template-columns: 1fr;
+  }
+
+  .basicInfoGrid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 560px) {
@@ -1161,5 +1524,9 @@
   .roleScopeItem {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .statusFlow {
+    grid-template-columns: 1fr;
   }
 }

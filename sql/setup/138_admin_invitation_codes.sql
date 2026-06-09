@@ -5,6 +5,7 @@
 create table if not exists public.admin_invitation_codes (
   id uuid primary key default gen_random_uuid(),
   code_hash bytea not null unique,
+  code text,
   code_hint text not null,
   role text not null check (role in ('campus_admin', 'boarding_manager')),
   campus_id uuid references public.campuses(id) on delete cascade,
@@ -73,7 +74,7 @@ create or replace function public.validate_admin_invitation_codes(p_codes text[]
 returns jsonb
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
 declare
   v_codes text[] := coalesce(p_codes, array[]::text[]);
@@ -193,7 +194,7 @@ create or replace function public.redeem_admin_invitation_codes_for_user(
 returns jsonb
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
 declare
   v_validation jsonb;
@@ -322,7 +323,7 @@ create or replace function public.create_admin_invitation_code(
 returns jsonb
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
 declare
   v_raw text := upper(encode(gen_random_bytes(12), 'hex'));
@@ -376,10 +377,11 @@ begin
   );
 
   insert into public.admin_invitation_codes (
-    code_hash, code_hint, role, campus_id, created_by
+    code_hash, code, code_hint, role, campus_id, created_by
   )
   values (
     digest(v_raw, 'sha256'),
+    v_code,
     concat(substr(v_raw, 1, 4), '-****-', substr(v_raw, 21, 4)),
     p_role,
     p_campus_id,

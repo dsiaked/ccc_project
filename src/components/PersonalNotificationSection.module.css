@@ -1,0 +1,108 @@
+.section {
+  width: min(1120px, calc(100% - 40px));
+  margin: 0 auto 28px;
+  padding: 20px;
+  border: 1px solid #bfdbfe;
+  border-radius: 16px;
+  background: #eff6ff;
+}
+
+.header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  color: #2563eb;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.header div {
+  flex: 1;
+  display: grid;
+  gap: 2px;
+}
+
+.unreadBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: #dc2626;
+  color: #ffffff;
+  font-size: 11px;
+}
+
+.header span {
+  color: #2563eb;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.header h2 {
+  margin: 0;
+  color: #101828;
+  font-size: 20px;
+  font-weight: 900;
+}
+
+.list {
+  display: grid;
+  gap: 9px;
+}
+
+.item {
+  padding: 14px;
+  border: 1px solid #dbeafe;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.unread {
+  border-color: #60a5fa;
+  box-shadow: inset 3px 0 #2563eb;
+}
+
+.item div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.item strong {
+  color: #101828;
+  font-size: 14px;
+}
+
+.item time {
+  color: #667085;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.item p {
+  margin: 7px 0 0;
+  color: #475467;
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+@media (max-width: 560px) {
+  .section {
+    width: calc(100% - 24px);
+    padding: 14px;
+  }
+
+  .item div {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+}

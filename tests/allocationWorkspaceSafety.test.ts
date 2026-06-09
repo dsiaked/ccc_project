@@ -18,9 +18,15 @@ const workspaceStyles = readFileSync(
 test('dirty workspace navigation asks before leaving through explicit page links', () => {
   assert.match(
     workspacePage,
-    /const navigateToAllocations = useCallback\(\(\) => \{[\s\S]*dirty &&[\s\S]*window\.confirm\([\s\S]*navigate\('\/admin\/allocations'\)/
+    /const navigateToAllocations = useCallback\(\(\) => \{[\s\S]*if \(dirty\) \{[\s\S]*setLeaveWorkspaceDialogOpen\(true\)[\s\S]*navigate\('\/admin\/allocations'\)/
+  );
+  assert.match(
+    workspacePage,
+    /const confirmNavigateToAllocations = useCallback\(\(\) => \{[\s\S]*navigate\('\/admin\/allocations'\)/
   );
   assert.match(workspacePage, /onClick=\{navigateToAllocations\}/);
+  assert.match(workspacePage, /onClick=\{confirmNavigateToAllocations\}/);
+  assert.doesNotMatch(workspacePage, /window\.confirm/);
 });
 
 test('read-only workspace disables real controls and guards mutations', () => {

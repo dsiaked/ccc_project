@@ -450,7 +450,7 @@ export const validateWorkspace = (
   });
 
   if (workspace.buses.some((bus) => !bus.departureTime.trim())) {
-    errors.push('출발 시간이 없습니다.');
+    errors.push('출발 일시가 없습니다.');
   }
   if (workspace.buses.some((bus) => !bus.boardingPlace.trim())) {
     errors.push('탑승장소가 없습니다.');
@@ -519,7 +519,7 @@ export const validateWorkspace = (
         passenger.seatNumber < 1 ||
         passenger.seatNumber > bus.capacity
       ) {
-        errors.push(`${passenger.name}: 유효한 좌석 번호가 필요합니다.`);
+        errors.push(`${passenger.name}: 유효한 좌석번호가 필요합니다.`);
       } else if (seats.has(passenger.seatNumber)) {
         errors.push(`${bus.label}: ${passenger.seatNumber}번 좌석이 중복되었습니다.`);
       } else {

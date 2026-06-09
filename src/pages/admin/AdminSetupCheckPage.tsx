@@ -272,9 +272,9 @@ const AdminSetupCheckPage = () => {
       icon: Landmark,
       title: '서울지구 송금 계좌',
       description:
-        '캠퍼스 회계 순장님이 버스표 금액을 송금할 서울지구 계좌 번호를 설정합니다.',
-      status: accountNumber || '계좌 번호 미설정',
-      actionLabel: '계좌 번호 저장',
+        '캠퍼스 회계 순장님이 버스표 금액을 송금할 서울지구 계좌번호를 설정합니다.',
+      status: accountNumber || '계좌번호 미설정',
+      actionLabel: '계좌번호 저장',
       actionPath: '',
       isReady: Boolean(accountNumber),
     },
@@ -1033,7 +1033,7 @@ const AdminSetupCheckPage = () => {
     const nextAccountNumber = accountNumberInput.trim();
 
     if (!nextAccountNumber) {
-      setError('서울지구 송금 계좌 번호를 입력해주세요.');
+      setError('서울지구 송금 계좌번호를 입력해주세요.');
       return;
     }
 
@@ -1047,11 +1047,11 @@ const AdminSetupCheckPage = () => {
 
       setAccountNumber(savedAccountNumber);
       setAccountNumberInput(savedAccountNumber);
-      setMessage('서울지구 송금 계좌 번호를 저장했습니다.');
+      setMessage('서울지구 송금 계좌번호를 저장했습니다.');
     } catch (saveError) {
       console.error('Failed to save district transfer account number:', saveError);
       setError(
-        `서울지구 송금 계좌 번호 저장 중 오류가 발생했습니다: ${getErrorMessage(saveError)}`
+        `서울지구 송금 계좌번호 저장 중 오류가 발생했습니다: ${getErrorMessage(saveError)}`
       );
     } finally {
       setSavingAccountNumber(false);
@@ -1192,7 +1192,7 @@ const AdminSetupCheckPage = () => {
                   value={accountNumberInput}
                   onChange={(event) => setAccountNumberInput(event.target.value)}
                   placeholder="예: 국민 123456-01-123456"
-                  aria-label="서울지구 계좌 번호"
+                  aria-label="서울지구 계좌번호"
                 />
                 <button
                   type="button"

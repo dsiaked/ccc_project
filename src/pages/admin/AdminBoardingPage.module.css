@@ -18,14 +18,26 @@
 .exportActions button:hover { background: #eff6ff; }
 .exportActions button:disabled { opacity: .5; cursor: default; }
 .sheetSyncStatus { flex-basis: 100%; color: #166534 !important; font-size: 11px !important; text-align: right; }
-.overview { margin-bottom: 12px; padding: 12px; border: 1px solid #dbe3ee; border-radius: 14px; background: white; }
-.overviewStats dt { color: #64748b; font-size: 12px; font-weight: 800; }
-.busProgress { height: 7px; overflow: hidden; border-radius: 999px; background: #e2e8f0; }
-.busProgress span { display: block; height: 100%; border-radius: inherit; background: #2563eb; transition: width .2s ease; }
-.overviewStats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin: 0; }
-.overviewStats div { display: grid; align-content: center; gap: 5px; padding: 10px 12px; border-radius: 10px; background: #f8fafc; }
-.overviewStats dd { margin: 0; color: #172554; font-size: 20px; font-weight: 900; }
-.overviewStats .overviewAlert { background: #fff1f2; }.overviewStats .overviewAlert dt, .overviewStats .overviewAlert dd { color: #be123c; }
+.overview { display: grid; gap: 13px; margin-bottom: 12px; padding: 16px 18px; border: 1px solid #dbe3ee; border-radius: 12px; background: white; }
+.overviewHeading { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; }
+.overviewHeading > div { display: flex; align-items: baseline; gap: 8px; }
+.overviewHeading span { color: #64748b; font-size: 12px; font-weight: 800; }
+.overviewHeading > div strong { color: #172554; font-size: 24px; font-weight: 900; }
+.overviewHeading > span strong { color: #334155; font-size: 14px; }
+.overviewProgress { display: flex; height: 12px; overflow: hidden; border-radius: 999px; background: #e2e8f0; }
+.overviewProgress span { min-width: 0; height: 100%; transition: width .25s ease; }
+.overviewProgressBoarded { background: #22c55e; }
+.overviewProgressUnchecked { background: #f59e0b; }
+.overviewProgressNoShow { background: #ef4444; }
+.overviewLegend { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; }
+.overviewLegend button { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 9px; border: 1px solid transparent; border-radius: 999px; background: transparent; color: #64748b; font-size: 12px; font-weight: 800; cursor: pointer; }
+.overviewLegend button:hover, .overviewLegend button.overviewLegendActive { border-color: #cbd5e1; background: #f8fafc; color: #172554; }
+.overviewLegend button > span { width: 8px; height: 8px; border-radius: 999px; }
+.overviewLegend button strong { color: #334155; }
+.overviewLegend_boarded > span { background: #22c55e; }
+.overviewLegend_unchecked > span { background: #f59e0b; }
+.overviewLegend_no_show > span { background: #ef4444; }
+.overviewLegend_no_show strong { color: #be123c; }
 .busToolbar { display: grid; grid-template-columns: minmax(220px, 360px) auto 1fr; align-items: center; gap: 8px; margin-bottom: 10px; }
 .busToolbar label { display: flex; align-items: center; gap: 7px; min-height: 40px; padding: 0 10px; border: 1px solid #cbd5e1; border-radius: 9px; background: white; color: #64748b; }
 .busToolbar input { width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; font: inherit; }
@@ -37,25 +49,43 @@
 .busCard { padding: 15px; border: 2px solid transparent; border-radius: 12px; background: white; text-align: left; cursor: pointer; }
 .busCardActive { border-color: #2563eb; box-shadow: 0 6px 18px rgba(37, 99, 235, .15); }
 .busCardProblem:not(.busCardActive) { border-color: #fecaca; }
+.busCardDepartureWarning { border-color: #f97316; background: #fff7ed; box-shadow: 0 6px 18px rgba(249, 115, 22, .18); }
 .busCard > div:first-child { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .busCard strong { color: #172554; font-size: 19px; }
 .busCard p { margin: 6px 0 13px; overflow: hidden; color: #64748b; text-overflow: ellipsis; white-space: nowrap; }
 .busCardStatus { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
 .selectedBadge { display: inline-flex; align-items: center; gap: 3px; padding: 4px 7px; border-radius: 999px; background: #dbeafe; color: #1d4ed8; font-size: 11px; font-weight: 900; }
 .departedBadge { padding: 4px 7px; border-radius: 999px; background: #dcfce7; color: #166534; font-size: 11px; font-weight: 900; }
+.departedUncheckedBadge { padding: 4px 7px; border-radius: 999px; background: #ffedd5; color: #c2410c; font-size: 11px; font-weight: 900; }
 .busProgressHeader { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; color: #475569; font-size: 12px; font-weight: 800; }
 .busProgressHeader strong { color: #2563eb; font-size: 12px; }
-.busProgress { height: 5px; }
+.busProgress { display: flex; height: 7px; overflow: hidden; border-radius: 999px; background: #e2e8f0; }
+.busProgress span { min-width: 0; height: 100%; transition: width .2s ease; }
+.busProgressBoarded { background: #22c55e; }
+.busProgressUnchecked { background: #f59e0b; }
+.busProgressNoShow { background: #ef4444; }
 .busCounts { display: flex; align-items: center; flex-wrap: wrap; gap: 5px 10px; margin-top: 10px; }
 .busCounts span { color: #64748b; font-size: 11px; font-weight: 800; }
-.busCounts .noShow, .statusBadge { padding: 5px 8px; border-radius: 999px; font-size: 11px; font-weight: 900; }
+.busCounts span::before { display: inline-block; width: 6px; height: 6px; margin-right: 4px; border-radius: 999px; content: ''; vertical-align: 1px; }
+.busCountBoarded::before { background: #22c55e; }
+.busCountUnchecked::before { background: #f59e0b; }
+.busCountNoShow::before { background: #ef4444; }
+.statusBadge { padding: 5px 8px; border-radius: 999px; font-size: 11px; font-weight: 900; }
 .boarded { background: #dcfce7; color: #166534; }.unchecked { background: #fef3c7; color: #92400e; }.noShow { background: #fee2e2; color: #991b1b; }
 .noBuses { display: grid; justify-items: center; gap: 8px; padding: 34px 20px; border: 1px dashed #cbd5e1; border-radius: 12px; background: white; color: #64748b; text-align: center; }
 .noBuses button { min-height: 36px; padding: 0 12px; border: 1px solid #bfdbfe; border-radius: 8px; background: #eff6ff; color: #1d4ed8; font-weight: 900; cursor: pointer; }
 .roster { margin-top: 18px; padding: 20px; border: 1px solid #dfe3e8; border-radius: 14px; background: white; }
 .rosterHeader { display: flex; justify-content: space-between; gap: 16px; padding-bottom: 18px; border-bottom: 1px solid #e5e7eb; }
 .rosterHeader span { color: #2563eb; font-size: 12px; font-weight: 900; }.rosterHeader h2 { margin: 4px 0; color: #172554; }.rosterHeader p { margin: 0; color: #64748b; }
+.fieldExceptionActions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 14px 0; padding: 12px 14px; border: 1px solid #c4b5fd; border-radius: 10px; background: #f5f3ff; }
+.fieldExceptionActions div { display: grid; gap: 3px; }.fieldExceptionActions strong { color: #5b21b6; }.fieldExceptionActions span { color: #6b7280; font-size: 12px; }
+.fieldExceptionActions button, .movePassengerButton { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 38px; padding: 0 11px; border: 1px solid #a78bfa; border-radius: 8px; background: white; color: #6d28d9; font-weight: 900; cursor: pointer; }
 .departure { background: #b91c1c; color: white; }.cancelDeparture { background: #fff1f2; color: #be123c; border: 1px solid #fecaca; }.clearSearch { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid #bfdbfe; background: #eff6ff; color: #1d4ed8; }
+.departureFooter { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 22px; padding: 18px; border: 1px solid #fecaca; border-radius: 12px; background: #fff7f7; }
+.departureFooter div { display: grid; gap: 4px; }
+.departureFooter strong { color: #7f1d1d; }
+.departureFooter span { color: #64748b; font-size: 12px; }
+.departureFooter button { flex: 0 0 auto; min-height: 46px; }
 .filters { display: grid; grid-template-columns: 1fr 220px auto; align-items: center; gap: 10px; margin: 16px 0; }
 .filters label { display: flex; align-items: center; gap: 8px; padding: 0 12px; border: 1px solid #cbd5e1; border-radius: 9px; }
 .filters input, .filters select { width: 100%; height: 44px; border: 0; background: white; font: inherit; }.filters select { padding: 0 12px; border: 1px solid #cbd5e1; border-radius: 9px; }
@@ -79,6 +109,7 @@
 .passengerName { color: #172554; font-size: 13px; }
 .passengerCampus { color: #64748b; font-size: 10px; font-weight: 700; }
 .statusBadge { padding: 3px 6px; border-radius: 999px; font-size: 10px; font-weight: 900; }
+.walkInBadge { padding: 3px 6px; border-radius: 999px; background: #ede9fe; color: #6d28d9; font-size: 9px; font-weight: 900; }
 .status_unchecked .statusBadge { background: #ffedd5; color: #c2410c; }.status_boarded .statusBadge { background: #dcfce7; color: #166534; }.status_no_show .statusBadge { background: #fee2e2; color: #991b1b; }
 .meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }.meta span, .meta a { padding: 4px 7px; border-radius: 6px; background: #f1f5f9; color: #475569; font-size: 12px; font-weight: 700; }.meta a { color: #1d4ed8; text-decoration: none; }
 .changeSummary { display: flex; align-items: center; flex-wrap: wrap; gap: 5px 8px; margin-top: 9px; font-size: 12px; }
@@ -92,17 +123,90 @@
 .actions button { display: flex; align-items: center; justify-content: center; gap: 2px; min-width: 0; min-height: 30px; padding: 0 3px; border-radius: 5px; font-size: 10px; font-weight: 800; cursor: pointer; }
 .actions button:disabled { opacity: .42; cursor: default; }
 .boardButton { border: 1px solid #86efac; background: #f0fdf4; color: #166534; }.noShowButton { border: 1px solid #fecaca; background: #fff1f2; color: #be123c; }.resetButton { border: 1px solid #cbd5e1; background: white; color: #475569; }
-.passengerDetails { border-top: 1px solid #e5e7eb; background: rgba(255, 255, 255, .8); text-align: left; }
-.passengerDetails summary { display: flex; align-items: center; gap: 5px; min-height: 28px; padding: 0 7px; color: #475569; font-size: 10px; font-weight: 900; cursor: pointer; }
-.passengerDetails summary small { min-width: 0; overflow: hidden; color: #64748b; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
-.passengerDetails .meta, .passengerDetails .changeSummary { margin: 7px; }
-.passengerDetails .changeSummary { align-items: flex-start; flex-direction: column; }
-.noteEditor { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 6px; padding: 0 7px 7px; }
-.noteEditor label { grid-column: 1 / -1; }
-.noteEditor label { color: #475569; font-size: 12px; font-weight: 900; }
-.noteEditor textarea { width: 100%; min-width: 0; min-height: 54px; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 7px; background: white; color: #172554; font: inherit; line-height: 1.4; resize: vertical; }
-.noteEditor button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 38px; padding: 0 11px; border: 1px solid #bfdbfe; border-radius: 7px; background: #eff6ff; color: #1d4ed8; font-weight: 900; cursor: pointer; }
-.noteEditor button:disabled { opacity: .45; cursor: default; }
+.detailButton { display: flex; align-items: center; gap: 5px; width: 100%; min-width: 0; min-height: 38px; padding: 6px 8px; border: 0; border-top: 1px solid #e5e7eb; background: rgba(255, 255, 255, .8); color: #475569; font-size: 10px; font-weight: 900; text-align: left; cursor: pointer; }
+.detailButton:hover { background: #eff6ff; color: #1d4ed8; }
+.detailButton span { flex: 0 0 auto; }
+.detailButton small { min-width: 0; overflow: hidden; color: #64748b; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.detailPanelOpen { overflow: hidden; }
+.detailBackdrop { position: fixed; z-index: 1000; inset: 0; display: flex; justify-content: flex-end; background: rgba(15, 23, 42, .46); }
+.detailPanel { width: min(100%, 520px); height: 100%; overflow-y: auto; background: #f8fafc; box-shadow: -12px 0 30px rgba(15, 23, 42, .18); }
+.detailHeader { position: sticky; z-index: 2; top: 0; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 22px 22px 18px; border-bottom: 1px solid #dbe3ee; background: rgba(255, 255, 255, .96); backdrop-filter: blur(10px); }
+.detailHeader span { color: #2563eb; font-size: 12px; font-weight: 900; }
+.detailHeader h2 { margin: 4px 0; color: #172554; font-size: 25px; }
+.detailHeader p { margin: 0; color: #64748b; font-size: 13px; }
+.detailHeader button { display: grid; flex: 0 0 auto; place-content: center; width: 44px; height: 44px; border: 1px solid #cbd5e1; border-radius: 999px; background: white; color: #475569; cursor: pointer; }
+.detailStatusSection, .detailFacts, .preferenceSection, .phoneButton, .detailRecord, .detailNoteEditor { margin: 14px 18px; border: 1px solid #dbe3ee; border-radius: 12px; background: white; }
+.detailStatusSection { display: grid; gap: 12px; padding: 16px; }
+.detailStatusSection > div:first-child { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.detailStatusSection > div:first-child > span { color: #64748b; font-size: 12px; font-weight: 800; }
+.detailStatus { padding: 6px 9px; border-radius: 999px; font-size: 12px; font-weight: 900; }
+.detailStatus_unchecked { background: #ffedd5; color: #c2410c; }.detailStatus_boarded { background: #dcfce7; color: #166534; }.detailStatus_no_show { background: #fee2e2; color: #991b1b; }
+.detailActions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
+.detailActions button { display: flex; align-items: center; justify-content: center; gap: 5px; min-height: 44px; border-radius: 8px; font-weight: 900; cursor: pointer; }
+.detailActions button:disabled { opacity: .42; cursor: default; }
+.detailFacts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); overflow: hidden; }
+.detailFacts div { min-width: 0; padding: 13px 15px; border-bottom: 1px solid #e5e7eb; }
+.detailFacts div:nth-child(odd) { border-right: 1px solid #e5e7eb; }
+.detailFacts div:nth-last-child(-n + 2) { border-bottom: 0; }
+.detailFacts div:last-child:nth-child(odd) { grid-column: 1 / -1; border-right: 0; }
+.detailFacts dt { color: #64748b; font-size: 11px; font-weight: 800; }
+.detailFacts dd { margin: 4px 0 0; overflow-wrap: anywhere; color: #172554; font-size: 14px; font-weight: 900; }
+.preferenceSection { padding: 16px; }
+.preferenceHeading { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.preferenceHeading h3 { margin: 0; color: #172554; font-size: 14px; }
+.preferenceHeading span { color: #2563eb; font-size: 11px; font-weight: 900; text-align: right; }
+.preferenceSection p { margin: 12px 0 0; color: #64748b; font-size: 13px; }
+.preferenceList { display: grid; gap: 7px; margin: 12px 0 0; padding: 0; list-style: none; }
+.preferenceList li { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px; min-width: 0; padding: 10px 11px; border: 1px solid #e2e8f0; border-radius: 8px; background: #f8fafc; }
+.preferenceList li > span { color: #64748b; font-size: 11px; font-weight: 900; }
+.preferenceList strong { min-width: 0; overflow-wrap: anywhere; color: #334155; font-size: 13px; }
+.preferenceList small { padding: 3px 6px; border-radius: 999px; background: #dbeafe; color: #1d4ed8; font-size: 10px; font-weight: 900; }
+.preferenceList .preferenceAssigned { border-color: #93c5fd; background: #eff6ff; }
+.phoneButton { display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 48px; border-color: #bfdbfe; background: #eff6ff; color: #1d4ed8; font-weight: 900; text-decoration: none; }
+.detailRecord { padding: 16px; }
+.detailRecord h3 { margin: 0 0 10px; color: #172554; font-size: 14px; }
+.detailRecord p { margin: 0; color: #64748b; font-size: 13px; }
+.detailRecord .exceptionReasonText { margin-bottom: 10px; padding: 9px 10px; border-radius: 7px; background: #f5f3ff; color: #6d28d9; font-weight: 800; }
+.detailRecord .changeSummary { align-items: flex-start; flex-direction: column; margin: 0; }
+.statusChangeReason { width: 100%; margin: 2px 0 0 !important; padding: 8px 10px; border-radius: 7px; background: #ecfdf5; color: #166534 !important; font-weight: 800; }
+.detailNoteEditor { display: grid; gap: 10px; padding: 16px; }
+.noShowReasonEditor { border-color: #fca5a5; box-shadow: 0 0 0 2px rgba(239, 68, 68, .08); }
+.noShowReasonNotice { display: flex; align-items: flex-start; gap: 9px; padding: 11px 12px; border: 1px solid #fecaca; border-radius: 8px; background: #fff1f2; color: #991b1b; }
+.noShowReasonNotice svg { flex: 0 0 auto; margin-top: 1px; }
+.noShowReasonNotice div { display: grid; gap: 2px; }
+.noShowReasonNotice strong { font-size: 13px; }
+.noShowReasonNotice span { color: #be123c; font-size: 11px; line-height: 1.45; }
+.detailNoteHeading { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; }
+.detailNoteHeading label { color: #172554; font-size: 14px; font-weight: 900; }
+.detailNoteHeading span { color: #64748b; font-size: 11px; text-align: right; }
+.detailNoteEditor textarea { width: 100%; min-height: 120px; padding: 11px 12px; border: 1px solid #cbd5e1; border-radius: 8px; background: white; color: #172554; font: inherit; line-height: 1.5; resize: vertical; }
+.noteSaveRow { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.noteSaveRow span { color: #64748b; font-size: 12px; }
+.noteSaveRow button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-width: 90px; min-height: 42px; padding: 0 13px; border: 1px solid #93c5fd; border-radius: 8px; background: #eff6ff; color: #1d4ed8; font-weight: 900; cursor: pointer; }
+.noteSaveRow button:disabled { opacity: .45; cursor: default; }
+.movePassengerButton { width: calc(100% - 36px); margin: 0 18px 14px; }
+.exceptionBackdrop { position: fixed; z-index: 1200; inset: 0; display: grid; place-items: center; padding: 18px; background: rgba(15, 23, 42, .58); }
+.exceptionModal { width: min(620px, 100%); max-height: min(760px, 94vh); overflow: auto; border-radius: 16px; background: white; box-shadow: 0 24px 70px rgba(15, 23, 42, .28); }
+.exceptionModal header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 18px 20px; border-bottom: 1px solid #e5e7eb; }
+.exceptionModal header span { color: #7c3aed; font-size: 11px; font-weight: 900; }.exceptionModal header h2 { margin: 3px 0 0; color: #172554; font-size: 21px; }
+.exceptionModal header button { display: grid; place-content: center; width: 36px; height: 36px; border: 0; border-radius: 999px; background: #f1f5f9; color: #475569; cursor: pointer; }
+.exceptionModal form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 20px; }
+.exceptionModal label { display: grid; gap: 5px; color: #475569; font-size: 12px; font-weight: 900; }
+.exceptionModal input, .exceptionModal select, .exceptionModal textarea { width: 100%; min-width: 0; padding: 10px 11px; border: 1px solid #cbd5e1; border-radius: 8px; background: white; color: #172554; font: inherit; box-sizing: border-box; }
+.targetBusCapacity { display: grid; align-content: center; gap: 3px; padding: 10px 12px; border: 1px solid #bfdbfe; border-radius: 8px; background: #eff6ff; }
+.targetBusCapacity span { color: #64748b; font-size: 11px; font-weight: 900; }
+.targetBusCapacity strong { color: #1d4ed8; font-size: 20px; }
+.targetBusCapacity small { color: #64748b; font-size: 11px; }
+.exceptionReason, .exceptionModal form > p, .exceptionModal footer { grid-column: 1 / -1; }
+.previousNoShowReason { display: grid; grid-column: 1 / -1; gap: 5px; padding: 12px; border: 1px solid #fecaca; border-radius: 9px; background: #fff7f7; }
+.previousNoShowReason span { color: #991b1b; font-size: 12px; font-weight: 900; }
+.previousNoShowReason strong { color: #334155; font-size: 13px; line-height: 1.5; white-space: pre-wrap; }
+.previousNoShowReason small { color: #64748b; font-size: 11px; }
+.exceptionModal form > p { margin: 0; color: #64748b; font-size: 12px; line-height: 1.5; }
+.exceptionModal footer { display: flex; justify-content: flex-end; gap: 8px; padding-top: 4px; }
+.exceptionModal footer button { min-height: 40px; padding: 0 14px; border: 1px solid #cbd5e1; border-radius: 8px; background: white; color: #475569; font-weight: 900; cursor: pointer; }
+.exceptionModal footer button[type="submit"] { border-color: #7c3aed; background: #7c3aed; color: white; }
+.exceptionModal footer button:disabled { opacity: .5; cursor: default; }
 @media (max-width: 900px) {
   .main {
     padding: 14px 12px calc(40px + env(safe-area-inset-bottom));
@@ -115,14 +219,18 @@
 
   .hero,
   .rosterHeader,
-  .allocationTitle {
+  .allocationTitle,
+  .fieldExceptionActions,
+  .departureFooter {
     flex-direction: column;
   }
 
   .hero button,
   .departure,
   .cancelDeparture,
-  .clearSearch {
+  .clearSearch,
+  .fieldExceptionActions button,
+  .departureFooter button {
     width: 100%;
     justify-content: center;
   }
@@ -149,11 +257,16 @@
   }
 
   .overview {
-    padding: 10px;
+    padding: 14px;
   }
 
-  .overviewStats {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .overviewHeading {
+    align-items: flex-start;
+  }
+
+  .overviewHeading > div {
+    display: grid;
+    gap: 2px;
   }
 
   .busToolbar {
@@ -255,21 +368,6 @@
   .passengerList { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .actions button { min-height: 38px; touch-action: manipulation; }
 
-  .noteEditor {
-    grid-template-columns: 1fr auto;
-  }
-
-  .noteEditor label {
-    grid-column: 1 / -1;
-  }
-
-  .noteEditor textarea {
-    min-height: 64px;
-  }
-
-  .noteEditor button {
-    min-height: 44px;
-  }
 }
 
 .checkInCodePanel {
@@ -351,6 +449,8 @@
 }
 
 @media (max-width: 560px) {
+  .exceptionModal form { grid-template-columns: 1fr; padding: 16px; }
+  .exceptionModal form > label, .exceptionReason, .exceptionModal form > p, .exceptionModal footer { grid-column: 1; }
   .passengerList { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
   .passengerName { font-size: 12px; }
   .actions button { min-height: 36px; font-size: 9px; }
@@ -402,6 +502,66 @@
   .filters input,
   .filters select {
     font-size: 14px;
+  }
+
+  .detailBackdrop {
+    align-items: flex-end;
+  }
+
+  .detailPanel {
+    width: 100%;
+    height: min(88vh, 760px);
+    border-radius: 18px 18px 0 0;
+    box-shadow: 0 -12px 30px rgba(15, 23, 42, .18);
+  }
+
+  .detailHeader {
+    padding: 16px 14px 14px;
+  }
+
+  .detailHeader h2 {
+    font-size: 22px;
+  }
+
+  .detailStatusSection,
+  .detailFacts,
+  .preferenceSection,
+  .phoneButton,
+  .detailRecord,
+  .detailNoteEditor {
+    margin-right: 10px;
+    margin-left: 10px;
+  }
+
+  .detailActions {
+    gap: 5px;
+  }
+
+  .detailActions button {
+    font-size: 11px;
+  }
+
+  .detailNoteHeading,
+  .noteSaveRow {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .detailNoteHeading span {
+    text-align: left;
+  }
+
+  .preferenceHeading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .preferenceHeading span {
+    text-align: left;
+  }
+
+  .noteSaveRow button {
+    width: 100%;
   }
 
   .noResults {

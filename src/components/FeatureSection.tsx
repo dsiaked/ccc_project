@@ -82,7 +82,7 @@ const FeatureSection = () => {
 
   const statusDescription = (() => {
     if (!reservation) {
-      return '아직 귀가 버스 신청 정보가 없습니다.';
+      return '아직 버스 신청 정보가 없습니다.';
     }
 
     if (isConfirmed) {
@@ -100,7 +100,7 @@ const FeatureSection = () => {
           className={styles.card}
           type="button"
           onClick={handleClick}
-          aria-label={`${statusLabel} 귀가 버스 신청 현황 확인`}
+          aria-label={`${statusLabel} 버스 신청 현황 확인`}
         >
           <div className={styles.topArea}>
             <div className={styles.iconContainer}>
@@ -130,8 +130,8 @@ const FeatureSection = () => {
           </div>
 
           <div className={styles.content}>
-            <p className={styles.eyebrow}>귀가 버스 신청</p>
-            <h3 className={styles.title}>귀가 버스 신청 현황</h3>
+            <p className={styles.eyebrow}>버스 신청</p>
+            <h3 className={styles.title}>버스 신청 현황</h3>
             <p className={styles.description}>
               {isLoading ? '신청 정보를 불러오는 중...' : statusDescription}
             </p>
@@ -178,7 +178,7 @@ const FeatureSection = () => {
 
                   <dl className={styles.confirmedSummaryList}>
                     <div>
-                      <dt>출발시간</dt>
+                      <dt>출발 일시</dt>
                       <dd>{confirmedTicket.departureTime}</dd>
                     </div>
                     <div>
@@ -215,7 +215,7 @@ const FeatureSection = () => {
                 ? '확정 버스표 보기'
                 : reservation
                   ? '버스표 보러가기'
-                  : '귀가 버스 신청하기'}
+                  : '버스 신청하기'}
             </span>
             <span className={styles.bottomIcon} aria-hidden="true">
               <ArrowRight size={17} />

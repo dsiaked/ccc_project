@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import {
   AlertTriangle,
   ArrowLeft,
@@ -6,6 +6,7 @@ import {
   ChevronDown,
   ChevronUp,
   Database,
+  LoaderCircle,
   Play,
   RefreshCw,
   ShieldCheck,
@@ -35,8 +36,8 @@ const simulationStages = [
   ['운영 초기값 설정', '서울지구 조직도와 기본 행선지를 등록하고 권장 시뮬레이션 운영 초기값을 생성합니다.', ['서울지구 조직도·기본 행선지 등록', '예상 참여 인원 2,500명 설정', '신청 마감 시각을 실행 시점부터 14일 후로 설정', '44인승 SIM 버스 옵션·요금 설정']],
   ['사용자 및 캠퍼스 회계 순장님 생성', '서울지구 캠퍼스별 비균등 분포와 서울 외 지구 가입자를 포함해 일반 회원을 생성하고, 기존 캠퍼스 회계 순장님 권한은 재사용합니다.', ['다양한 캠퍼스 규모별 실제 로그인 계정 생성', '서울 외 지구 가입자·담당 간사 정보 생성', '권한이 없는 캠퍼스에만 캠퍼스 회계 순장님 생성']],
   ['개별 신청', '시뮬레이션 계정별 1·2지망 신청을 요청 상태로 만들고, 매 10번째 계정은 미신청 상태로 유지합니다.', ['신청 대상 계정의 기존 신청을 요청 상태로 갱신', '기존 확정 버스표 초기화', '매 10번째 계정의 기존 신청·입금 삭제', '행선지 수요 분산']],
-  ['개별 입금', '활성 신청 중 일부만 랜덤 입금 처리하거나 전체를 입금 완료 상태로 설정합니다.', ['랜덤 일부 입금·미입금 상태 설정', '전체 입금 완료 상태 설정', '입금 완료 사용자의 캠퍼스 회계 순장님 확인 기록 반영']],
-  ['개별 입금·캠퍼스별 송금 완료 보고·본부 확인', '개인 입금 상태를 처리하고, 신청 마감 후 서울지구 신청이 있는 캠퍼스별 송금 보고와 본부 확인을 생성합니다.', ['랜덤 일부 입금·미입금 상태 설정', '전체 입금 완료 상태 설정', '서울 외 지구 신청은 캠퍼스 송금 대상에서 제외', '서울지구 캠퍼스별 송금 보고·본부 확인 생성']],
+  ['개인 입금', '활성 신청 중 일부만 랜덤 입금 처리하거나 전체를 입금 완료 상태로 설정합니다.', ['랜덤 일부 입금·미입금 상태 설정', '전체 입금 완료 상태 설정', '입금 완료 사용자의 캠퍼스 회계 순장님 확인 기록 반영']],
+  ['개인 입금·캠퍼스별 송금 완료 보고·본부 확인', '개인 입금 상태를 처리하고, 신청 마감 후 서울지구 신청이 있는 캠퍼스별 송금 보고와 본부 확인을 생성합니다.', ['랜덤 일부 입금·미입금 상태 설정', '전체 입금 완료 상태 설정', '서울 외 지구 신청은 캠퍼스 송금 대상에서 제외', '서울지구 캠퍼스별 송금 보고·본부 확인 생성']],
   ['신청 마감 및 배차 계획 산출 및 확정', '신청 마감은 이 단계에서 실행하고, 배차 계산·편집·확정과 버스표 발급은 배차 화면에서 진행합니다.', ['신청 마감 자동 실행', '배차 화면에서 추천 계산', '배차 화면에서 배차 초안 편집', '배차 화면에서 전체 배차 확정 및 버스표 발급']],
   ['잔여 좌석 신청 및 추가 버스표', '자동 시뮬레이션 실행 없이 잔여 좌석 신청 관리 화면에서 공개·입금 확인·추가 버스표 발급을 진행합니다.', ['잔여 좌석 신청 관리 화면에서 공개 범위 설정', '추가 신청자 입금 확인', '추가 버스표 발급']],
   ['출발·탑승 리허설', '기존 시뮬레이션 탑승 기록을 초기화한 뒤 확정 버스표를 기준으로 탑승 확인·미탑승·탑승 미확인 상태를 재현합니다.', ['기존 시뮬레이션 탑승 상태·이벤트·출발 기록 초기화', '확정 배차안의 모든 호차 출발 기록 생성', '탑승 확인·미탑승·탑승 미확인 상태 반영', '탑승 확인·미탑승 이벤트 생성']],
@@ -153,7 +154,7 @@ const stageSummaryLabels: Record<string, string> = {
   verified_payments: '캠퍼스 확인 처리',
   verified_in_batch: '이번 배치 캠퍼스 확인',
   verified_total: '누적 캠퍼스 확인',
-  payment_mode: '개별 입금 설정 모드',
+  payment_mode: '개인 입금 설정 모드',
   sent_transfers: '송금 보고 처리',
   confirmed_transfers: '본부 확인 완료',
   sent_total_amount: '총 송금액',
@@ -480,7 +481,7 @@ const buildStagePreview = (
         activeReservationCount > 0 &&
         completedPaymentCount >= activeReservationCount &&
         verifiedPaymentCount >= activeReservationCount
-          ? '개별 입금 완료'
+          ? '개인 입금 완료'
           : activeReservationCount > 0
             ? '미입금 사용자 있음'
             : '개별 신청 필요',
@@ -491,7 +492,7 @@ const buildStagePreview = (
         ['미입금 추정', `${Math.max(0, activeReservationCount - completedPaymentCount).toLocaleString()}건`],
       ],
       rows: [
-        { label: '개별 입금 상태', value: `완료 ${(operation?.payments.completed ?? 0).toLocaleString()} / 대기 ${(operation?.payments.pending ?? 0).toLocaleString()}`, note: '랜덤 일부 입금 또는 전체 입금 완료 중 선택' },
+        { label: '개인 입금 상태', value: `완료 ${(operation?.payments.completed ?? 0).toLocaleString()} / 대기 ${(operation?.payments.pending ?? 0).toLocaleString()}`, note: '랜덤 일부 입금 또는 전체 입금 완료 중 선택' },
         { label: '처리 대상', value: `${activeReservationCount.toLocaleString()}건`, note: '요청 또는 확정 상태인 모든 활성 신청' },
         { label: '랜덤 일부 입금', value: '입금 완료·미입금 혼합', note: '최소 1건은 입금 완료, 최소 1건은 미입금 상태로 유지' },
         { label: '전체 입금 완료', value: '모든 활성 신청 완료·확인', note: '입금 완료 대상에는 담당 캠퍼스 회계 순장님 또는 전체 관리자 확인 기록도 함께 반영' },
@@ -509,7 +510,7 @@ const buildStagePreview = (
               ? '송금·본부 확인 필요'
               : activeReservationCount > 0
                 ? '미입금 사용자 있음'
-                : '개별 입금 필요',
+                : '개인 입금 필요',
       metrics: [
         ['신청 마감', operation?.deadlineClosed ? '마감됨' : '마감 필요'],
         ['활성 신청', `${activeReservationCount.toLocaleString()}건`],
@@ -517,7 +518,7 @@ const buildStagePreview = (
         ['본부 확인', `${(operation?.transfers.confirmed ?? 0).toLocaleString()}건`],
       ],
       rows: [
-        { label: '개별 입금 상태', value: `완료 ${(operation?.payments.completed ?? 0).toLocaleString()} / 대기 ${(operation?.payments.pending ?? 0).toLocaleString()}`, note: '랜덤 일부 입금 또는 전체 입금 완료 중 선택' },
+        { label: '개인 입금 상태', value: `완료 ${(operation?.payments.completed ?? 0).toLocaleString()} / 대기 ${(operation?.payments.pending ?? 0).toLocaleString()}`, note: '랜덤 일부 입금 또는 전체 입금 완료 중 선택' },
         { label: '캠퍼스 입금 확인', value: `${(operation?.payments.verified ?? 0).toLocaleString()}건`, note: 'verified_at이 기록된 실제 입금' },
         { label: '캠퍼스 송금 처리', value: `송금 ${(operation?.transfers.sent ?? 0).toLocaleString()} / 본부 확인 ${(operation?.transfers.confirmed ?? 0).toLocaleString()}`, note: '서울지구 활성 신청이 있는 캠퍼스 범위별로 생성' },
         { label: '서울 외 지구 신청', value: '캠퍼스 송금 대상 제외', note: '개인 입금 상태에는 포함되지만 서울지구 캠퍼스 송금 보고에는 포함하지 않음' },
@@ -705,6 +706,11 @@ const AdminSimulationPage = () => {
   );
   const [actionMessage, setRunMessage] = useState<string | null>(null);
   const [updatingSafety, setUpdatingSafety] = useState(false);
+  const safetyDisableInFlightRef = useRef(false);
+  const [disableSafetyDialogOpen, setDisableSafetyDialogOpen] = useState(false);
+  const [disableSafetyError, setDisableSafetyError] = useState<string | null>(
+    null
+  );
   const [previewMode, setPreviewMode] = useState<'before' | 'after'>('before');
   const referenceConfig = DEFAULT_SIMULATION_REFERENCE_CONFIG;
   const executionState = useSyncExternalStore(
@@ -1017,6 +1023,45 @@ const AdminSimulationPage = () => {
     }
   };
 
+  const applySimulationEnabledChange = async (enabled: boolean) => {
+    if (
+      updatingSafety ||
+      (enabled === false && safetyDisableInFlightRef.current)
+    ) {
+      return;
+    }
+
+    if (!enabled) safetyDisableInFlightRef.current = true;
+    setUpdatingSafety(true);
+    setError(null);
+    setDisableSafetyError(null);
+    setRunMessage(null);
+    try {
+      await setSimulationEnabled(enabled);
+      setPreview(await getSimulationPreview());
+      setDisableSafetyDialogOpen(false);
+      setRunMessage(
+        enabled
+          ? '시뮬레이션 실행 잠금이 활성화되었습니다.'
+          : '시뮬레이션 실행 잠금이 비활성화되었습니다.'
+      );
+    } catch (updateError) {
+      console.error('Failed to update simulation safety lock:', updateError);
+      const message =
+        updateError instanceof Error
+          ? updateError.message
+          : '시뮬레이션 실행 잠금을 변경하지 못했습니다.';
+      if (enabled) {
+        setError(message);
+      } else {
+        setDisableSafetyError(message);
+      }
+    } finally {
+      safetyDisableInFlightRef.current = false;
+      setUpdatingSafety(false);
+    }
+  };
+
   const handleSimulationEnabledChange = async (enabled: boolean) => {
     if (!preview?.safety.projectIdMatches || !preview.safety.allowedProjectId) {
       setError('허용된 테스트 프로젝트에서만 실행 잠금을 변경할 수 있습니다.');
@@ -1033,32 +1078,32 @@ const AdminSimulationPage = () => {
         }
         return;
       }
-    } else if (!window.confirm('시뮬레이션 실행을 즉시 비활성화할까요?')) {
+      await applySimulationEnabledChange(true);
       return;
     }
 
-    setUpdatingSafety(true);
-    setError(null);
-    setRunMessage(null);
-    try {
-      await setSimulationEnabled(enabled);
-      setPreview(await getSimulationPreview());
-      setRunMessage(
-        enabled
-          ? '시뮬레이션 실행 잠금이 활성화되었습니다.'
-          : '시뮬레이션 실행 잠금이 비활성화되었습니다.'
-      );
-    } catch (updateError) {
-      console.error('Failed to update simulation safety lock:', updateError);
-      setError(
-        updateError instanceof Error
-          ? updateError.message
-          : '시뮬레이션 실행 잠금을 변경하지 못했습니다.'
-      );
-    } finally {
-      setUpdatingSafety(false);
-    }
+    if (runningStageIndex !== null || updatingSafety) return;
+    setDisableSafetyError(null);
+    setDisableSafetyDialogOpen(true);
   };
+
+  const confirmSimulationDisable = async () => {
+    if (runningStageIndex !== null || !preview?.safety.simulationEnabled) return;
+    await applySimulationEnabledChange(false);
+  };
+
+  useEffect(() => {
+    if (!disableSafetyDialogOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !updatingSafety) {
+        setDisableSafetyDialogOpen(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [disableSafetyDialogOpen, updatingSafety]);
 
   return (
     <div className={styles.pageContainer}>
@@ -1297,7 +1342,7 @@ const AdminSimulationPage = () => {
                             {paymentMutationDisabledReason && (
                               <p className={styles.disabledReason}>
                                 <AlertTriangle size={15} />
-                                <span><strong>개별 입금 상태 변경</strong>{paymentMutationDisabledReason}</span>
+                                <span><strong>개인 입금 상태 변경</strong>{paymentMutationDisabledReason}</span>
                               </p>
                             )}
                             {settlementDisabledReason && (
@@ -1561,13 +1606,106 @@ const AdminSimulationPage = () => {
           <div className={styles.sectionTitle}><Database size={21} /><div><h2>최근 실행 기록</h2><p>서버가 기록한 단계별 실행 결과입니다.</p></div></div>
           <div className={styles.historyList}>
             {stageRuns.length > 0 ? stageRuns.map((run) => <article key={run.id}>
-              <div><strong>{run.stage === 'cleanup' ? `${getSimulationStageDisplayNumber(0)}단계 시뮬레이션 정보 초기화` : run.stage === 'reference' ? `${getSimulationStageDisplayNumber(1)}단계 운영 초기값 설정` : run.stage === 'accounts' ? `${getSimulationStageDisplayNumber(2)}단계 사용자 및 캠퍼스 회계 순장님 생성` : run.stage === 'reservations' ? `${getSimulationStageDisplayNumber(3)}단계 개별 신청` : run.stage === 'deadline' ? `${getSimulationStageDisplayNumber(6)}단계 신청 마감` : run.stage === 'payments' ? `${getSimulationStageDisplayNumber(5)}단계 개별 입금` : run.stage === 'transfers' ? `${getSimulationStageDisplayNumber(5)}단계 캠퍼스 송금·본부 확인` : run.stage === 'boarding' ? `${getSimulationStageDisplayNumber(8)}단계 출발·탑승 리허설` : run.stage}</strong><span>{new Date(run.started_at).toLocaleString()}</span></div>
+              <div><strong>{run.stage === 'cleanup' ? `${getSimulationStageDisplayNumber(0)}단계 시뮬레이션 정보 초기화` : run.stage === 'reference' ? `${getSimulationStageDisplayNumber(1)}단계 운영 초기값 설정` : run.stage === 'accounts' ? `${getSimulationStageDisplayNumber(2)}단계 사용자 및 캠퍼스 회계 순장님 생성` : run.stage === 'reservations' ? `${getSimulationStageDisplayNumber(3)}단계 개별 신청` : run.stage === 'deadline' ? `${getSimulationStageDisplayNumber(6)}단계 신청 마감` : run.stage === 'payments' ? `${getSimulationStageDisplayNumber(5)}단계 개인 입금` : run.stage === 'transfers' ? `${getSimulationStageDisplayNumber(5)}단계 캠퍼스 송금·본부 확인` : run.stage === 'boarding' ? `${getSimulationStageDisplayNumber(8)}단계 출발·탑승 리허설` : run.stage}</strong><span>{new Date(run.started_at).toLocaleString()}</span></div>
               <span className={run.status === 'completed' ? styles.completedBadge : run.status === 'failed' ? styles.failedBadge : styles.runningBadge}>{run.status}</span>
             </article>) : <p className={styles.emptyHistory}>아직 실행 기록이 없습니다.</p>}
           </div>
         </section>
 
       </main>
+
+      {disableSafetyDialogOpen && preview?.safety.simulationEnabled && (
+        <div
+          className={styles.modalBackdrop}
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !updatingSafety) {
+              setDisableSafetyDialogOpen(false);
+            }
+          }}
+        >
+          <section
+            className={styles.disableSafetyDialog}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="simulation-disable-title"
+            aria-describedby="simulation-disable-description"
+          >
+            <span className={styles.disableSafetyIcon} aria-hidden="true">
+              <ShieldCheck size={26} />
+            </span>
+            <p className={styles.disableSafetyEyebrow}>시뮬레이션 실행 안전 잠금</p>
+            <h2 id="simulation-disable-title">실행을 즉시 비활성화할까요?</h2>
+            <p id="simulation-disable-description">
+              비활성화하면 새로운 시뮬레이션 단계 실행이 차단됩니다. 이미 생성된
+              테스트 데이터와 실행 기록은 유지되며, 데이터 초기화 작업은 실행되지
+              않습니다.
+            </p>
+            <dl className={styles.disableSafetySummary}>
+              <div>
+                <dt>테스트 프로젝트</dt>
+                <dd>{preview.safety.currentProjectId}</dd>
+              </div>
+              <div>
+                <dt>현재 신청</dt>
+                <dd>{activeReservationCount.toLocaleString()}건 유지</dd>
+              </div>
+              <div>
+                <dt>실행 기록</dt>
+                <dd>{stageRuns.length.toLocaleString()}건 유지</dd>
+              </div>
+              <div>
+                <dt>비활성화 결과</dt>
+                <dd>신규 단계 실행 차단</dd>
+              </div>
+              <div>
+                <dt>데이터 초기화</dt>
+                <dd>실행하지 않음</dd>
+              </div>
+            </dl>
+            <div className={styles.disableSafetyWarning}>
+              <AlertTriangle size={18} aria-hidden="true" />
+              <span>
+                테스트 데이터를 삭제하려면 별도의 시뮬레이션 정보 초기화 단계를
+                실행해야 합니다.
+              </span>
+            </div>
+            {disableSafetyError && (
+              <p className={styles.disableSafetyError} role="alert">
+                {disableSafetyError}
+              </p>
+            )}
+            <div className={styles.disableSafetyActions}>
+              <button
+                type="button"
+                className={styles.disableSafetyCancel}
+                onClick={() => setDisableSafetyDialogOpen(false)}
+                disabled={updatingSafety}
+                autoFocus
+              >
+                실행 유지
+              </button>
+              <button
+                type="button"
+                className={styles.disableSafetySubmit}
+                onClick={() => void confirmSimulationDisable()}
+                disabled={updatingSafety || runningStageIndex !== null}
+              >
+                {updatingSafety ? (
+                  <>
+                    <LoaderCircle className={styles.spin} size={18} />
+                    비활성화 중...
+                  </>
+                ) : (
+                  <>
+                    <ShieldCheck size={18} />
+                    실행 즉시 비활성화
+                  </>
+                )}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
     </div>
   );
 };

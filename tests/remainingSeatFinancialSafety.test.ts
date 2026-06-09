@@ -27,7 +27,7 @@ test('remaining seat claims require a valid payment account and positive amount'
   );
   assert.match(
     remainingSeatPage,
-    /결제 계좌 또는 금액이 등록되지 않아 신청할 수 없습니다\. 관리자에게 문의해 주세요\./
+    /결제 계좌 또는 금액이 등록되지 않아 신청할 수 없습니다\. 관리자에게 문의해주세요\./
   );
 });
 
@@ -56,10 +56,26 @@ test('claim failures survive the immediate options refresh', () => {
 });
 
 test('remaining seat cancellation requires refund confirmation after payment', () => {
+  assert.match(ticketPage, /setCancelDialogOpen\(true\)/);
+  assert.match(ticketPage, /role="dialog"/);
   assert.match(
     ticketPage,
-    /이미 입금했다면 환불이 자동 처리되는지 확정할 수 없으므로 관리자에게 문의하고 환불 여부를 반드시 확인해 주세요\./
+    /이미 입금했다면 환불은[\s\S]*자동 처리되지 않을 수 있으므로 관리자에게 문의하고 환불 여부를[\s\S]*반드시 확인해주세요\./
   );
+  assert.match(ticketPage, /신청 취소는 환불 완료를 의미하지 않습니다\./);
+  assert.match(ticketPage, /신청 취소 · 좌석 다시 공개/);
+  assert.match(ticketPage, /className=\{styles\.modalCancelButton\}[\s\S]*autoFocus/);
+  assert.doesNotMatch(ticketPage, /window\.confirm/);
+});
+
+test('remaining seat cancellation blocks duplicate requests and keeps failures visible', () => {
+  assert.match(ticketPage, /const cancelInFlightRef = useRef\(false\)/);
+  assert.match(
+    ticketPage,
+    /cancelInFlightRef\.current = true[\s\S]*cancelRemainingSeatClaim\(reservation\.id\)[\s\S]*cancelInFlightRef\.current = false/
+  );
+  assert.match(ticketPage, /setCancelError\('잔여 좌석 신청을 취소하지 못했습니다/);
+  assert.match(ticketPage, /className=\{styles\.cancelError\} role="alert"/);
 });
 
 test('remaining seat payment confirmation focuses the safe cancellation action', () => {

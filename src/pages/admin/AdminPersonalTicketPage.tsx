@@ -8,9 +8,13 @@ import {
 } from 'react';
 import {
   ArrowLeft,
+  AlertTriangle,
+  Bell,
   ChevronDown,
   ChevronUp,
   CheckCircle2,
+  CreditCard,
+  History,
   RefreshCw,
   RotateCcw,
   Save,
@@ -46,6 +50,24 @@ import {
   type PersonalTicketItem,
   type PersonalTicketSummary,
 } from '../../lib/admin/personalTicketService';
+import {
+  bulkSendPersonalNotifications,
+  bulkUpdatePersonalUserPayments,
+  getPersonalUserManagementDetail,
+  recordPersonalUserAction,
+  revertPersonalUserAction,
+  sendPersonalNotification,
+  updatePersonalReservationStatus,
+  updatePersonalUserInfo,
+  updatePersonalUserOrganization,
+  updatePersonalUserPayment,
+  type PersonalUserManagementDetail,
+  type PersonalUserPaymentStatus,
+} from '../../lib/admin/personalUserManagementService';
+import {
+  assignBoardingManager,
+  cancelBoardingManager,
+} from '../../lib/admin/boardingManagementService';
 import type {
   ConfirmedTicket,
   ReturnBusReservation,
@@ -60,7 +82,18 @@ type ReservationStatusFilter =
   | 'confirmed'
   | 'cancelled';
 type TicketStatusFilter = 'all' | 'confirmed' | 'pending' | 'not_applied';
-type AdminRoleFilter = 'general' | 'campus_admin' | 'global_admin';
+type AdminRoleFilter =
+  | 'general'
+  | 'campus_admin'
+  | 'boarding_manager'
+  | 'global_admin';
+type DetailTab =
+  | 'overview'
+  | 'application'
+  | 'ticket'
+  | 'permissions'
+  | 'notifications'
+  | 'history';
 
 type ReservationItem = PersonalTicketItem;
 type AdminRoleRow = PersonalTicketAdminRole;
@@ -117,6 +150,7 @@ const reservationStatusOptions: Array<{
 const adminRoleOptions: Array<{ value: AdminRoleFilter; label: string }> = [
   { value: 'general', label: '일반 사용자' },
   { value: 'campus_admin', label: '캠퍼스 회계 순장님' },
+  { value: 'boarding_manager', label: '탑승 관리자' },
   { value: 'global_admin', label: '전체 관리자' },
 ];
 const emptySummary: PersonalTicketSummary = {
@@ -128,6 +162,35 @@ const emptySummary: PersonalTicketSummary = {
   cancelled: 0,
   notApplied: 0,
 };
+const emptyManagementDetail: PersonalUserManagementDetail = {
+  paymentId: null,
+  paymentStatus: null,
+  notifications: [],
+  actionLogs: [],
+};
+const actionLabels: Record<string, string> = {
+  payment_pending: '입금 확인 취소',
+  payment_completed: '입금 확인',
+  payment_refund_required: '환불 필요',
+  payment_refunded: '환불 완료',
+  reservation_cancelled: '신청 취소',
+  reservation_restored: '신청 취소 해제',
+  ticket_issued: '버스표 발급',
+  ticket_updated: '버스표 수정',
+  ticket_cancelled: '버스표 발급 취소',
+  notification_sent: '개인 알림 발송',
+  user_info_updated: '기본 정보 수정',
+  organization_updated: '소속 변경',
+  action_reverted: '작업 되돌리기',
+};
+
+const formatManagementDate = (value: string) =>
+  new Intl.DateTimeFormat('ko-KR', {
+    month: 'numeric',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(value));
 
 const getFirstStationName = (reservation: ReservationItem) =>
   reservation.stationPreferences.find((preference) => preference.rank === 1)
@@ -177,6 +240,22 @@ const AdminPersonalTicketPage = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savingRole, setSavingRole] = useState(false);
+  const [savingOperation, setSavingOperation] = useState(false);
+  const [managementDetail, setManagementDetail] =
+    useState<PersonalUserManagementDetail>(emptyManagementDetail);
+  const [notificationTitle, setNotificationTitle] = useState('');
+  const [notificationContent, setNotificationContent] = useState('');
+  const [infoName, setInfoName] = useState('');
+  const [infoPhone, setInfoPhone] = useState('');
+  const [activeDetailTab, setActiveDetailTab] = useState<DetailTab>('overview');
+  const [attentionOnly, setAttentionOnly] = useState(false);
+  const [historyFilter, setHistoryFilter] = useState('all');
+  const [selectedReservationIds, setSelectedReservationIds] = useState<string[]>([]);
+  const [reasonDialog, setReasonDialog] = useState<{
+    label: string;
+    impact: string;
+  } | null>(null);
+  const [reasonDialogValue, setReasonDialogValue] = useState('');
   const [deletingUser, setDeletingUser] = useState(false);
   const [isCreateUserOpen, setIsCreateUserOpen] = useState(false);
   const [isDeletePanelOpen, setIsDeletePanelOpen] = useState(false);
@@ -216,6 +295,7 @@ const AdminPersonalTicketPage = () => {
   const loadRequestId = useRef(0);
   const selectedReservationIdRef = useRef<string | null>(null);
   const roleDistrictsLoadedRef = useRef(false);
+  const reasonResolver = useRef<((reason: string | null) => void) | null>(null);
 
   const loadReservations = useCallback(async () => {
     const requestId = ++loadRequestId.current;
@@ -311,6 +391,33 @@ const AdminPersonalTicketPage = () => {
   const selectedCampusAdminRoles = selectedAdminRoles.filter(
     (role) => role.role === 'campus_admin'
   );
+  const selectedBoardingManagerRole =
+    selectedAdminRoles.find((role) => role.role === 'boarding_manager') ?? null;
+
+  const loadManagementDetail = useCallback(async () => {
+    if (!selectedReservation) {
+      setManagementDetail(emptyManagementDetail);
+      return;
+    }
+
+    try {
+      setManagementDetail(
+        await getPersonalUserManagementDetail(
+          selectedReservation.userId,
+          selectedReservation.dbId
+        )
+      );
+    } catch (error) {
+      console.warn('Failed to load personal user management detail:', error);
+      setManagementDetail(emptyManagementDetail);
+    }
+  }, [selectedReservation]);
+
+  useEffect(() => {
+    // Synchronize the selected user's server-backed operational detail.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadManagementDetail();
+  }, [loadManagementDetail]);
 
   const renderAdminRoleBadge = (reservation: ReservationItem) => {
     const userAdminRoles = reservation.adminRoles;
@@ -319,6 +426,9 @@ const AdminPersonalTicketPage = () => {
     const campusAdminRoleCount = userAdminRoles.filter(
       (role) => role.role === 'campus_admin'
     ).length;
+    const isBoardingManager = userAdminRoles.some(
+      (role) => role.role === 'boarding_manager'
+    );
 
     if (globalAdminRole) {
       return (
@@ -334,6 +444,14 @@ const AdminPersonalTicketPage = () => {
           {campusAdminRoleCount > 1
             ? `캠퍼스 회계 순장님 ${campusAdminRoleCount}개`
             : '캠퍼스 회계 순장님'}
+        </span>
+      );
+    }
+
+    if (isBoardingManager) {
+      return (
+        <span className={`${styles.adminBadge} ${styles.adminCampus}`}>
+          탑승 관리자
         </span>
       );
     }
@@ -366,7 +484,17 @@ const AdminPersonalTicketPage = () => {
 
   const totalPages = Math.max(1, Math.ceil(filteredTotal / PAGE_SIZE));
   const effectivePage = Math.min(page, totalPages);
-  const pagedReservations = reservations;
+  const pagedReservations = attentionOnly
+    ? reservations.filter(
+        (reservation) =>
+          (reservation.status === 'cancelled' &&
+            reservation.paymentStatus === 'completed') ||
+          reservation.paymentStatus === 'refund_required' ||
+          (reservation.hasReservation &&
+            reservation.status !== 'cancelled' &&
+            !reservation.confirmedTicket)
+      )
+    : reservations;
 
   const selectReservation = (reservation: ReservationItem) => {
     selectedReservationIdRef.current = reservation.id;
@@ -375,6 +503,10 @@ const AdminPersonalTicketPage = () => {
     setIsDeletePanelOpen(false);
     setIsRolePanelOpen(false);
     setIsTicketPanelOpen(true);
+    setNotificationTitle('');
+    setNotificationContent('');
+    setInfoName(reservation.name);
+    setInfoPhone(reservation.phone);
     setRoleDistrictId('');
     setRoleDistrictName('');
     setRoleTeamId('');
@@ -416,6 +548,7 @@ const AdminPersonalTicketPage = () => {
     } else {
       next.set('district', district);
     }
+
     setSearchParams(next, { replace: true });
   };
 
@@ -556,7 +689,7 @@ const AdminPersonalTicketPage = () => {
     const seatNumber = draft.seatNumber.trim();
 
     if (!busNumber || !seatNumber) {
-      alert('확정 배차안의 호차와 좌석 번호를 입력해주세요.');
+      alert('확정 배차안의 호차와 좌석번호를 입력해주세요.');
       return;
     }
 
@@ -579,6 +712,11 @@ const AdminPersonalTicketPage = () => {
     }
 
     const cleanConfirmedTicket = removeUndefinedValues(confirmedTicket);
+    const reason = await requestOperationReason(
+      '버스표 발급·수정',
+      '배차 결과와 사용자 버스표가 함께 변경됩니다.'
+    );
+    if (!reason) return;
 
     setSaving(true);
 
@@ -604,7 +742,16 @@ const AdminPersonalTicketPage = () => {
             : reservation
         )
       );
+      await recordPersonalUserAction({
+        targetUserId: selectedReservation.userId,
+        reservationId: selectedReservation.dbId,
+        action: selectedReservation.confirmedTicket
+          ? 'ticket_updated'
+          : 'ticket_issued',
+        reason,
+      });
       await loadReservations();
+      await loadManagementDetail();
 
       alert('개인 버스표를 저장했습니다.');
     } catch (error) {
@@ -612,6 +759,248 @@ const AdminPersonalTicketPage = () => {
       alert(`개인 버스표 저장 중 오류가 발생했습니다: ${getErrorMessage(error)}`);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const requestOperationReason = (
+    label: string,
+    impact = '변경 전후 값과 처리 관리자가 작업 이력에 기록됩니다.'
+  ) =>
+    new Promise<string | null>((resolve) => {
+      reasonResolver.current = resolve;
+      setReasonDialogValue('');
+      setReasonDialog({ label, impact });
+    });
+
+  const closeReasonDialog = (reason: string | null) => {
+    reasonResolver.current?.(reason?.trim() || null);
+    reasonResolver.current = null;
+    setReasonDialog(null);
+    setReasonDialogValue('');
+  };
+
+  const handlePaymentStatusChange = async (
+    status: PersonalUserPaymentStatus,
+    label: string
+  ) => {
+    if (!selectedReservation?.dbId) return;
+
+    const reason = await requestOperationReason(label);
+    if (!reason) return;
+
+    setSavingOperation(true);
+    try {
+      await updatePersonalUserPayment({
+        reservationId: selectedReservation.dbId,
+        status,
+        reason,
+      });
+      await Promise.all([loadReservations(), loadManagementDetail()]);
+      const paymentNotification: Record<PersonalUserPaymentStatus, [string, string]> = {
+        pending: ['입금 확인 변경 안내', '입금 확인 상태가 대기로 변경되었습니다.'],
+        completed: ['입금 확인 안내', '입금 확인이 완료되었습니다.'],
+        refund_required: ['환불 절차 안내', '신청 취소에 따라 환불 처리가 필요합니다.'],
+        refunded: ['환불 완료 안내', '환불 처리가 완료되었습니다.'],
+      };
+      setNotificationTitle(paymentNotification[status][0]);
+      setNotificationContent(paymentNotification[status][1]);
+      alert(`${label} 처리가 완료되었습니다.`);
+    } catch (error) {
+      console.error('Failed to update personal payment:', error);
+      alert(`${label} 처리 중 오류가 발생했습니다: ${getErrorMessage(error)}`);
+    } finally {
+      setSavingOperation(false);
+    }
+  };
+
+  const handleSendPersonalNotification = async () => {
+    if (!selectedReservation) return;
+
+    const title = notificationTitle.trim();
+    const content = notificationContent.trim();
+    if (!title || !content) {
+      alert('개인 알림 제목과 내용을 입력해주세요.');
+      return;
+    }
+
+    const confirmed = await requestOperationReason(
+      '개인 앱 알림 발송',
+      `${selectedReservation.name}님에게 "${title}" 알림을 발송합니다. 발송 후 취소할 수 없습니다.`
+    );
+    if (!confirmed) return;
+
+    setSavingOperation(true);
+    try {
+      await sendPersonalNotification({
+        targetUserId: selectedReservation.userId,
+        title,
+        content,
+        category: 'admin',
+      });
+      setNotificationTitle('');
+      setNotificationContent('');
+      await loadManagementDetail();
+      alert('개인 앱 알림을 발송했습니다.');
+    } catch (error) {
+      console.error('Failed to send personal notification:', error);
+      alert(`개인 알림 발송 중 오류가 발생했습니다: ${getErrorMessage(error)}`);
+    } finally {
+      setSavingOperation(false);
+    }
+  };
+
+  const handleSavePersonalUserInfo = async () => {
+    if (!selectedReservation) return;
+
+    const name = infoName.trim();
+    const phone = infoPhone.trim();
+    if (!name || !phone) {
+      alert('이름과 전화번호를 모두 입력해주세요.');
+      return;
+    }
+    if (!/^01[016789]-?\d{3,4}-?\d{4}$/.test(phone)) {
+      alert('전화번호를 010-1234-5678 형식으로 입력해주세요.');
+      return;
+    }
+
+    const reason = await requestOperationReason('기본 정보 수정');
+    if (!reason) return;
+
+    setSavingOperation(true);
+    try {
+      await updatePersonalUserInfo({
+        targetUserId: selectedReservation.userId,
+        reservationId: selectedReservation.dbId,
+        name,
+        phone,
+        reason,
+      });
+      await Promise.all([loadReservations(), loadManagementDetail()]);
+      alert('사용자 기본 정보를 수정했습니다.');
+    } catch (error) {
+      console.error('Failed to update personal user info:', error);
+      alert(`기본 정보 수정 중 오류가 발생했습니다: ${getErrorMessage(error)}`);
+    } finally {
+      setSavingOperation(false);
+    }
+  };
+
+  const handleUpdateOrganization = async () => {
+    if (!selectedReservation || !roleCampusId) return;
+    const reason = await requestOperationReason(
+      '소속 변경',
+      `${roleCampusName} 캠퍼스로 프로필과 신청 정보의 소속을 함께 변경합니다.`
+    );
+    if (!reason) return;
+
+    setSavingOperation(true);
+    try {
+      await updatePersonalUserOrganization({
+        targetUserId: selectedReservation.userId,
+        reservationId: selectedReservation.dbId,
+        campusId: roleCampusId,
+        reason,
+      });
+      await Promise.all([loadReservations(), loadManagementDetail()]);
+      alert('사용자 소속을 변경했습니다.');
+    } catch (error) {
+      alert(`소속 변경 중 오류가 발생했습니다: ${getErrorMessage(error)}`);
+    } finally {
+      setSavingOperation(false);
+    }
+  };
+
+  const handleToggleBoardingManager = async () => {
+    if (!selectedReservation) return;
+    const assigning = !selectedBoardingManagerRole;
+    const reason = await requestOperationReason(
+      assigning ? '탑승 관리자 권한 부여' : '탑승 관리자 권한 회수'
+    );
+    if (!reason) return;
+
+    setSavingRole(true);
+    try {
+      if (assigning) await assignBoardingManager(selectedReservation.userId);
+      else await cancelBoardingManager(selectedReservation.userId);
+      await recordPersonalUserAction({
+        targetUserId: selectedReservation.userId,
+        reservationId: selectedReservation.dbId,
+        action: assigning ? 'boarding_manager_assigned' : 'boarding_manager_cancelled',
+        reason,
+      });
+      await Promise.all([loadReservations(), loadManagementDetail()]);
+    } catch (error) {
+      alert(`탑승 관리자 권한 처리 중 오류가 발생했습니다: ${getErrorMessage(error)}`);
+    } finally {
+      setSavingRole(false);
+    }
+  };
+
+  const handleRevertAction = async (actionId: string) => {
+    const reason = await requestOperationReason(
+      '작업 되돌리기',
+      '현재 데이터와 충돌하지 않는 입금·소속 변경만 되돌릴 수 있습니다.'
+    );
+    if (!reason) return;
+    setSavingOperation(true);
+    try {
+      await revertPersonalUserAction(actionId, reason);
+      await Promise.all([loadReservations(), loadManagementDetail()]);
+    } catch (error) {
+      alert(`작업을 되돌리지 못했습니다: ${getErrorMessage(error)}`);
+    } finally {
+      setSavingOperation(false);
+    }
+  };
+
+  const handleBulkPayment = async (status: PersonalUserPaymentStatus) => {
+    const targets = reservations.filter(
+      (item) => selectedReservationIds.includes(item.id) && item.dbId
+    );
+    if (targets.length === 0) return;
+    const reason = await requestOperationReason(
+      '선택 사용자 일괄 입금 처리',
+      `${targets.length}명의 입금 상태를 변경합니다.`
+    );
+    if (!reason) return;
+    setSavingOperation(true);
+    try {
+      await bulkUpdatePersonalUserPayments({
+        reservationIds: targets.map((item) => item.dbId as string),
+        status,
+        reason,
+      });
+      setSelectedReservationIds([]);
+      await loadReservations();
+    } finally {
+      setSavingOperation(false);
+    }
+  };
+
+  const handleBulkNotification = async () => {
+    const targets = reservations.filter((item) =>
+      selectedReservationIds.includes(item.id)
+    );
+    if (!notificationTitle.trim() || !notificationContent.trim()) {
+      alert('개인 알림 탭에서 제목과 내용을 먼저 작성해주세요.');
+      return;
+    }
+    const reason = await requestOperationReason(
+      '선택 사용자 일괄 알림 발송',
+      `${targets.length}명에게 같은 앱 알림을 발송합니다. 발송 후 취소할 수 없습니다.`
+    );
+    if (!reason) return;
+    setSavingOperation(true);
+    try {
+      await bulkSendPersonalNotifications({
+        targetUserIds: targets.map((item) => item.userId),
+        title: notificationTitle.trim(),
+        content: notificationContent.trim(),
+      });
+      setSelectedReservationIds([]);
+      await loadManagementDetail();
+    } finally {
+      setSavingOperation(false);
     }
   };
 
@@ -624,9 +1013,11 @@ const AdminPersonalTicketPage = () => {
       return;
     }
 
-    const ok = window.confirm('이 신청자의 확정 버스표를 취소할까요?');
-
-    if (!ok) return;
+    const reason = await requestOperationReason(
+      '버스표 발급 취소',
+      '확정 버스표가 제거되며 배차 승객 목록에서도 제외됩니다.'
+    );
+    if (!reason) return;
 
     setSaving(true);
 
@@ -649,8 +1040,15 @@ const AdminPersonalTicketPage = () => {
             : reservation
         )
       );
+      await recordPersonalUserAction({
+        targetUserId: selectedReservation.userId,
+        reservationId: selectedReservation.dbId,
+        action: 'ticket_cancelled',
+        reason,
+      });
       setDraft(ticketToDraft(undefined, selectedReservation));
       await loadReservations();
+      await loadManagementDetail();
 
       alert('확정 버스표를 취소했습니다.');
     } catch (error) {
@@ -670,40 +1068,28 @@ const AdminPersonalTicketPage = () => {
     }
 
     const willCancel = selectedReservation.status !== 'cancelled';
-    const ok = window.confirm(
+    const reason = await requestOperationReason(
+      willCancel ? '신청 취소' : '신청 취소 해제',
       willCancel
-        ? '이 신청자를 취소 처리할까요? 확정된 버스표도 함께 삭제됩니다.'
-        : '이 신청자의 취소 상태를 해제하고 신청 상태로 되돌릴까요?'
+        ? '배차와 버스표가 함께 취소되며, 입금 완료 상태라면 환불 필요로 변경됩니다.'
+        : '신청 상태만 복구됩니다. 기존 좌석과 버스표는 자동 복구되지 않습니다.'
     );
-
-    if (!ok) return;
+    if (!reason) return;
 
     const nextStatus = willCancel ? 'cancelled' : 'requested';
     setSaving(true);
 
     try {
-      const saved = await updatePersonalTicketAsAdmin(
-        selectedReservation.dbId,
-        nextStatus
-      );
-
-      setReservations((prev) =>
-        prev.map((reservation) =>
-          reservation.id === selectedReservation.id
-            ? {
-                ...reservation,
-                status: saved.status,
-                confirmedTicket: undefined,
-                updatedAt: saved.updated_at,
-                rawData: saved.data,
-              }
-            : reservation
-        )
-      );
+      await updatePersonalReservationStatus({
+        reservationId: selectedReservation.dbId,
+        status: nextStatus,
+        reason,
+      });
       setDraft(
         willCancel ? emptyDraft : ticketToDraft(undefined, selectedReservation)
       );
       await loadReservations();
+      await loadManagementDetail();
 
       alert(willCancel ? '신청자를 취소 처리했습니다.' : '취소 상태를 해제했습니다.');
     } catch (error) {
@@ -796,7 +1182,7 @@ const AdminPersonalTicketPage = () => {
 
         <section className={styles.header}>
           <div>
-            <h1>개별 사용자 관리</h1>
+            <h1>사용자별 관리</h1>
             <p>
               사용자별 관리자 권한과 개인 버스표를 한 화면에서 확인하고
               수정합니다. 신청자를 선택하면 권한 등록과 버스표 확정을 이어서
@@ -930,6 +1316,16 @@ const AdminPersonalTicketPage = () => {
               ) : (
                 <ChevronDown size={15} />
               )}
+            </button>
+            <button
+              type="button"
+              className={`${styles.filterToggle} ${
+                attentionOnly ? styles.filterToggleActive : ''
+              }`}
+              onClick={() => setAttentionOnly((current) => !current)}
+            >
+              <AlertTriangle size={15} />
+              조치 필요
             </button>
           </div>
 
@@ -1128,11 +1524,47 @@ const AdminPersonalTicketPage = () => {
 
         <div className={styles.layout}>
           <section className={styles.tablePanel}>
+            {selectedReservationIds.length > 0 && (
+              <div className={styles.bulkBar}>
+                <strong>{selectedReservationIds.length}명 선택</strong>
+                <button type="button" onClick={() => void handleBulkPayment('completed')}>
+                  일괄 입금 확인
+                </button>
+                <button type="button" onClick={() => void handleBulkPayment('refunded')}>
+                  일괄 환불 완료
+                </button>
+                <button type="button" onClick={() => void handleBulkNotification()}>
+                  작성 알림 일괄 발송
+                </button>
+                <button type="button" onClick={() => setSelectedReservationIds([])}>
+                  선택 해제
+                </button>
+              </div>
+            )}
             <div className={styles.tableWrap}>
               <table className={styles.table}>
                 <thead>
                   <tr>
-                    <th>신청자</th>
+                    <th>
+                      <input
+                        type="checkbox"
+                        aria-label="현재 목록 전체 선택"
+                        checked={
+                          pagedReservations.length > 0 &&
+                          pagedReservations.every((item) =>
+                            selectedReservationIds.includes(item.id)
+                          )
+                        }
+                        onChange={(event) =>
+                          setSelectedReservationIds(
+                            event.target.checked
+                              ? pagedReservations.map((item) => item.id)
+                              : []
+                          )
+                        }
+                      />
+                      신청자
+                    </th>
                     <th>소속</th>
                     <th>희망 행선지</th>
                     <th>신청 여부</th>
@@ -1181,6 +1613,19 @@ const AdminPersonalTicketPage = () => {
                         aria-label={`${reservation.name} 버스표 관리 선택`}
                       >
                         <td className={styles.personCell}>
+                          <input
+                            type="checkbox"
+                            aria-label={`${reservation.name} 선택`}
+                            checked={selectedReservationIds.includes(reservation.id)}
+                            onClick={(event) => event.stopPropagation()}
+                            onChange={(event) =>
+                              setSelectedReservationIds((current) =>
+                                event.target.checked
+                                  ? [...current, reservation.id]
+                                  : current.filter((id) => id !== reservation.id)
+                              )
+                            }
+                          />
                           <strong>{reservation.name}</strong>
                           <span>{reservation.phone || '-'}</span>
                           {isExternal && (
@@ -1237,6 +1682,8 @@ const AdminPersonalTicketPage = () => {
                                 ? styles.paymentNotApplied
                                 : reservation.paymentStatus === 'completed'
                                   ? styles.paymentCompleted
+                                  : reservation.paymentStatus === 'refund_required'
+                                    ? styles.paymentRefundRequired
                                   : reservation.paymentStatus === 'refunded'
                                     ? styles.paymentRefunded
                                     : styles.paymentPending
@@ -1246,6 +1693,8 @@ const AdminPersonalTicketPage = () => {
                               ? '-'
                               : reservation.paymentStatus === 'completed'
                                 ? '입금 완료'
+                                : reservation.paymentStatus === 'refund_required'
+                                  ? '환불 필요'
                                 : reservation.paymentStatus === 'refunded'
                                   ? '환불'
                                   : '미입금'}
@@ -1341,7 +1790,184 @@ const AdminPersonalTicketPage = () => {
                   )}
                 </div>
 
-                <section className={styles.rolePanel}>
+                <nav className={styles.detailTabs} aria-label="사용자 상세 관리">
+                  {([
+                    ['overview', '요약·정보'],
+                    ['application', '신청·입금'],
+                    ['ticket', '버스표'],
+                    ['permissions', '권한'],
+                    ['notifications', '알림'],
+                    ['history', '이력'],
+                  ] as Array<[DetailTab, string]>).map(([tab, label]) => (
+                    <button
+                      key={tab}
+                      type="button"
+                      className={activeDetailTab === tab ? styles.detailTabActive : ''}
+                      onClick={() => setActiveDetailTab(tab)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </nav>
+
+                <section className={styles.operationPanel} hidden={activeDetailTab !== 'overview'}>
+                  <div className={styles.operationPanelHeader}>
+                    <UserPlus size={18} />
+                    <div>
+                      <strong>기본 정보 수정</strong>
+                      <span>
+                        이름과 전화번호 변경은 신청 정보에도 함께 반영됩니다.
+                      </span>
+                    </div>
+                  </div>
+                  <div className={styles.basicInfoGrid}>
+                    <label>
+                      <span>이름</span>
+                      <input
+                        value={infoName}
+                        onChange={(event) => setInfoName(event.target.value)}
+                      />
+                    </label>
+                    <label>
+                      <span>전화번호</span>
+                      <input
+                        value={infoPhone}
+                        onChange={(event) => setInfoPhone(event.target.value)}
+                      />
+                    </label>
+                  </div>
+                  <div className={styles.scopeSummary}>
+                    소속: {selectedReservation.district || '-'} /{' '}
+                    {selectedReservation.team || '-'} /{' '}
+                    {selectedReservation.campus || '-'}
+                  </div>
+                  <button
+                    type="button"
+                    className={styles.secondaryButton}
+                    disabled={
+                      savingOperation ||
+                      (infoName === selectedReservation.name &&
+                        infoPhone === selectedReservation.phone)
+                    }
+                    onClick={() => void handleSavePersonalUserInfo()}
+                  >
+                    <Save size={15} />
+                    기본 정보 저장
+                  </button>
+                  <p className={styles.riskNotice}>
+                    소속 변경은 권한 탭에서 지구·팀·캠퍼스를 선택한 뒤 실행할 수 있습니다.
+                  </p>
+                </section>
+
+                <section className={styles.operationOverview} hidden={activeDetailTab !== 'overview'}>
+                  <div className={styles.operationOverviewHeader}>
+                    <div>
+                      <span>개인 운영 상태</span>
+                      <strong>신청부터 알림까지 한곳에서 처리합니다.</strong>
+                    </div>
+                    <AlertTriangle size={18} />
+                  </div>
+                  <div className={styles.statusFlow}>
+                    <div>
+                      <span>신청</span>
+                      <strong>
+                        {selectedReservation.status === 'cancelled'
+                          ? '취소 완료'
+                          : selectedReservation.hasReservation
+                            ? '신청 완료'
+                            : '미신청'}
+                      </strong>
+                    </div>
+                    <div>
+                      <span>입금</span>
+                      <strong>
+                        {managementDetail.paymentStatus === 'completed'
+                          ? '입금 완료'
+                          : managementDetail.paymentStatus === 'refund_required'
+                            ? '환불 필요'
+                          : managementDetail.paymentStatus === 'refunded'
+                            ? '환불 완료'
+                            : '입금 대기'}
+                      </strong>
+                    </div>
+                    <div>
+                      <span>배차·버스표</span>
+                      <strong>
+                        {selectedReservation.confirmedTicket
+                          ? '발급 완료'
+                          : '미발급'}
+                      </strong>
+                    </div>
+                  </div>
+                  <p className={styles.riskNotice}>
+                    {selectedReservation.status === 'cancelled' &&
+                    (managementDetail.paymentStatus === 'completed' ||
+                      managementDetail.paymentStatus === 'refund_required')
+                      ? '신청은 취소되었지만 입금이 완료되어 환불 처리가 필요합니다.'
+                      : selectedReservation.confirmedTicket &&
+                          managementDetail.paymentStatus !== 'completed'
+                        ? '버스표가 발급되었지만 입금 확인이 완료되지 않았습니다.'
+                      : '신청, 입금, 배차, 권한 변경은 사유 입력 후 기록됩니다.'}
+                  </p>
+                </section>
+
+                {selectedReservation.hasReservation && (
+                  <section className={styles.operationPanel} hidden={activeDetailTab !== 'application'}>
+                    <div className={styles.operationPanelHeader}>
+                      <CreditCard size={18} />
+                      <div>
+                        <strong>입금·환불 처리</strong>
+                        <span>현재 상태를 변경하면 작업 사유가 기록됩니다.</span>
+                      </div>
+                    </div>
+                    <div className={styles.operationActions}>
+                      <button
+                        type="button"
+                        className={styles.primaryButton}
+                        disabled={
+                          savingOperation ||
+                          managementDetail.paymentStatus === 'completed'
+                        }
+                        onClick={() =>
+                          void handlePaymentStatusChange('completed', '입금 확인')
+                        }
+                      >
+                        입금 확인
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.secondaryButton}
+                        disabled={
+                          savingOperation ||
+                          managementDetail.paymentStatus === 'pending'
+                        }
+                        onClick={() =>
+                          void handlePaymentStatusChange(
+                            'pending',
+                            '입금 확인 취소'
+                          )
+                        }
+                      >
+                        확인 취소
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.dangerButton}
+                        disabled={
+                          savingOperation ||
+                          managementDetail.paymentStatus === 'refunded'
+                        }
+                        onClick={() =>
+                          void handlePaymentStatusChange('refunded', '환불 완료')
+                        }
+                      >
+                        환불 완료
+                      </button>
+                    </div>
+                  </section>
+                )}
+
+                <section className={styles.rolePanel} hidden={activeDetailTab !== 'permissions'}>
                   <button
                     type="button"
                     className={styles.roleHeader}
@@ -1477,13 +2103,36 @@ const AdminPersonalTicketPage = () => {
                           <ShieldCheck size={16} />
                           선택한 캠퍼스 회계 순장님 등록
                         </button>
-
+                        <button
+                          type="button"
+                          className={styles.secondaryButton}
+                          onClick={() => void handleUpdateOrganization()}
+                          disabled={savingOperation || !roleCampusId}
+                        >
+                          선택 캠퍼스로 소속 변경
+                        </button>
                       </div>
                     </>
                   )}
+                  <div className={styles.actionRow}>
+                    <button
+                      type="button"
+                      className={
+                        selectedBoardingManagerRole
+                          ? styles.dangerButton
+                          : styles.boardingManagerButton
+                      }
+                      onClick={() => void handleToggleBoardingManager()}
+                      disabled={savingRole}
+                    >
+                      {selectedBoardingManagerRole
+                        ? '탑승 관리자 권한 회수'
+                        : '탑승 관리자 권한 부여'}
+                    </button>
+                  </div>
                 </section>
 
-                <section className={styles.ticketPanel}>
+                <section className={styles.ticketPanel} hidden={activeDetailTab !== 'ticket'}>
                   <button
                     type="button"
                     className={styles.ticketHeader}
@@ -1526,7 +2175,7 @@ const AdminPersonalTicketPage = () => {
                   </div>
 
                   <div className={styles.field}>
-                    <label>좌석 번호</label>
+                    <label>좌석번호</label>
                     <input
                       value={draft.seatNumber}
                       onChange={(event) =>
@@ -1537,7 +2186,7 @@ const AdminPersonalTicketPage = () => {
                   </div>
 
                   <div className={styles.field}>
-                    <label>출발 시간</label>
+                    <label>출발 일시</label>
                     <input
                       value={draft.departureTime}
                       onChange={(event) =>
@@ -1644,7 +2293,141 @@ const AdminPersonalTicketPage = () => {
                   )}
                 </section>
 
-                <section className={styles.deleteUserPanel}>
+                <section className={styles.operationPanel} hidden={activeDetailTab !== 'notifications'}>
+                  <div className={styles.operationPanelHeader}>
+                    <Bell size={18} />
+                    <div>
+                      <strong>개인 앱 알림</strong>
+                      <span>발송한 알림은 취소할 수 없으며 이력에 남습니다.</span>
+                    </div>
+                  </div>
+                  <div className={styles.notificationComposer}>
+                    <select
+                      defaultValue=""
+                      onChange={(event) => {
+                        const templates: Record<string, [string, string]> = {
+                          cancelled: ['신청 취소 안내', '버스 신청이 취소되었습니다. 입금하신 경우 환불 절차를 확인해주세요.'],
+                          paid: ['입금 확인 안내', '입금 확인이 완료되었습니다.'],
+                          refund: ['환불 완료 안내', '환불 처리가 완료되었습니다.'],
+                          ticket: ['버스표 안내', '버스표가 발급 또는 변경되었습니다. 앱에서 탑승 정보를 확인해주세요.'],
+                        };
+                        const template = templates[event.target.value];
+                        if (template) {
+                          setNotificationTitle(template[0]);
+                          setNotificationContent(template[1]);
+                        }
+                      }}
+                    >
+                      <option value="">알림 템플릿 선택</option>
+                      <option value="cancelled">신청 취소</option>
+                      <option value="paid">입금 확인</option>
+                      <option value="refund">환불 완료</option>
+                      <option value="ticket">버스표 발급·변경</option>
+                    </select>
+                    <input
+                      value={notificationTitle}
+                      onChange={(event) => setNotificationTitle(event.target.value)}
+                      placeholder="알림 제목"
+                    />
+                    <textarea
+                      value={notificationContent}
+                      onChange={(event) =>
+                        setNotificationContent(event.target.value)
+                      }
+                      placeholder="사용자에게 전달할 내용을 입력해주세요."
+                    />
+                    <button
+                      type="button"
+                      className={styles.primaryButton}
+                      disabled={savingOperation}
+                      onClick={() => void handleSendPersonalNotification()}
+                    >
+                      <Bell size={15} />
+                      앱 알림 발송
+                    </button>
+                  </div>
+                  {managementDetail.notifications.length > 0 && (
+                    <div className={styles.compactHistory}>
+                      {managementDetail.notifications.slice(0, 3).map((item) => (
+                        <div key={item.id}>
+                          <strong>{item.title}</strong>
+                          <span>
+                            {formatManagementDate(item.createdAt)} ·{' '}
+                            {item.readAt ? '읽음' : '읽지 않음'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </section>
+
+                <section className={styles.operationPanel} hidden={activeDetailTab !== 'history'}>
+                  <div className={styles.operationPanelHeader}>
+                    <History size={18} />
+                    <div>
+                      <strong>개인 작업 이력</strong>
+                      <span>최근 관리자 처리와 사유를 확인합니다.</span>
+                    </div>
+                  </div>
+                  <select
+                    value={historyFilter}
+                    onChange={(event) => setHistoryFilter(event.target.value)}
+                  >
+                    <option value="all">모든 작업 이력</option>
+                    <option value="payment">입금·환불</option>
+                    <option value="reservation">신청</option>
+                    <option value="ticket">버스표</option>
+                    <option value="notification">알림</option>
+                    <option value="organization">소속</option>
+                  </select>
+                  {managementDetail.actionLogs.length === 0 ? (
+                    <p className={styles.emptyHistory}>기록된 개인 작업이 없습니다.</p>
+                  ) : (
+                    <div className={styles.compactHistory}>
+                      {managementDetail.actionLogs
+                        .filter(
+                          (item) =>
+                            historyFilter === 'all' ||
+                            item.action.startsWith(historyFilter)
+                        )
+                        .map((item) => (
+                        <div key={item.id}>
+                          <strong>{actionLabels[item.action] ?? item.action}</strong>
+                          <span>
+                            {item.actorName} · {formatManagementDate(item.createdAt)}
+                          </span>
+                          <p>{item.reason}</p>
+                          {(item.beforeData || item.afterData) && (
+                            <details>
+                              <summary>변경 전후 값 보기</summary>
+                              <pre>
+                                {JSON.stringify(
+                                  { before: item.beforeData, after: item.afterData },
+                                  null,
+                                  2
+                                )}
+                              </pre>
+                            </details>
+                          )}
+                          {item.reversible && !item.revertedAt && (
+                            <button
+                              type="button"
+                              className={styles.scopeCancelButton}
+                              onClick={() => void handleRevertAction(item.id)}
+                            >
+                              되돌리기
+                            </button>
+                          )}
+                          {!item.reversible && (
+                            <small>되돌릴 수 없는 작업</small>
+                          )}
+                        </div>
+                        ))}
+                    </div>
+                  )}
+                </section>
+
+                <section className={styles.deleteUserPanel} hidden={activeDetailTab !== 'overview'}>
                   <button
                     type="button"
                     className={styles.deleteUserHeader}
@@ -1695,6 +2478,45 @@ const AdminPersonalTicketPage = () => {
           </aside>
         </div>
       </main>
+
+      {reasonDialog && (
+        <div className={styles.modalBackdrop} role="presentation">
+          <section
+            className={styles.operationModal}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="operation-dialog-title"
+          >
+            <div>
+              <span>위험 작업 확인</span>
+              <h2 id="operation-dialog-title">{reasonDialog.label}</h2>
+              <p>{reasonDialog.impact}</p>
+            </div>
+            <label>
+              <span>처리 사유</span>
+              <textarea
+                autoFocus
+                value={reasonDialogValue}
+                onChange={(event) => setReasonDialogValue(event.target.value)}
+                placeholder="처리 사유를 구체적으로 입력해주세요."
+              />
+            </label>
+            <div className={styles.modalActions}>
+              <button type="button" onClick={() => closeReasonDialog(null)}>
+                취소
+              </button>
+              <button
+                type="button"
+                className={styles.dangerButton}
+                disabled={!reasonDialogValue.trim()}
+                onClick={() => closeReasonDialog(reasonDialogValue)}
+              >
+                사유 확인 후 실행
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
 
       {isCreateUserOpen && (
         <AdminCreateUserModal

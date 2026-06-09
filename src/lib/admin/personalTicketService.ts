@@ -11,12 +11,13 @@ export type PersonalTicketPersonStatus =
 export type PersonalTicketPaymentStatus =
   | 'pending'
   | 'completed'
+  | 'refund_required'
   | 'refunded';
 
 export interface PersonalTicketAdminRole {
   id: string;
   user_id: string;
-  role: 'global_admin' | 'campus_admin';
+  role: 'global_admin' | 'campus_admin' | 'boarding_manager';
   district: string | null;
   team: string | null;
   campus: string | null;

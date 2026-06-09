@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ArrowLeft,
   Banknote,
@@ -91,6 +91,12 @@ const AdminRemainingSeatSalesPage = () => {
   const [savingKey, setSavingKey] = useState('');
   const [loadError, setLoadError] = useState('');
   const [completedOpen, setCompletedOpen] = useState(false);
+  const confirmPaymentInFlightRef = useRef(false);
+  const cancelClaimInFlightRef = useRef(false);
+  const [pendingPaymentConfirmation, setPendingPaymentConfirmation] =
+    useState<ClaimItem | null>(null);
+  const [pendingClaimCancellation, setPendingClaimCancellation] =
+    useState<ClaimItem | null>(null);
 
   const loadData = async (showLoading = true) => {
     if (showLoading) {
@@ -200,41 +206,99 @@ const AdminRemainingSeatSalesPage = () => {
     await saveSettings({ ...settings, hiddenBusIds }, `bus:${busId}`);
   };
 
-  const handleConfirmPayment = async (item: ClaimItem) => {
+  const handleConfirmPayment = (item: ClaimItem) => {
+    if (savingKey || confirmPaymentInFlightRef.current) return;
+
+    setPendingPaymentConfirmation(item);
+  };
+
+  const confirmPendingPayment = async () => {
     if (
-      !window.confirm(
-        `${item.name}님의 ${item.claim.amount.toLocaleString()}원 입금을 확인하고 버스표를 확정할까요?`
-      )
+      !pendingPaymentConfirmation ||
+      savingKey ||
+      confirmPaymentInFlightRef.current
     ) {
       return;
     }
 
+    const item = pendingPaymentConfirmation;
     setSavingKey(`confirm:${item.reservationId}`);
     try {
+      confirmPaymentInFlightRef.current = true;
       await confirmRemainingSeatPayment(item.reservationId);
       await loadData();
+      setPendingPaymentConfirmation(null);
     } catch (error) {
       alert(`입금 확인에 실패했습니다: ${getErrorMessage(error)}`);
     } finally {
+      confirmPaymentInFlightRef.current = false;
       setSavingKey('');
     }
   };
 
-  const handleCancelClaim = async (item: ClaimItem) => {
-    if (!window.confirm(`${item.name}님의 임시 확보를 취소하고 좌석을 다시 공개할까요?`)) {
+  useEffect(() => {
+    if (!pendingPaymentConfirmation) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (
+        event.key === 'Escape' &&
+        !savingKey &&
+        !confirmPaymentInFlightRef.current
+      ) {
+        setPendingPaymentConfirmation(null);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [pendingPaymentConfirmation, savingKey]);
+
+  const handleCancelClaim = (item: ClaimItem) => {
+    if (savingKey || cancelClaimInFlightRef.current) return;
+
+    setPendingClaimCancellation(item);
+  };
+
+  const confirmPendingClaimCancellation = async () => {
+    if (
+      !pendingClaimCancellation ||
+      savingKey ||
+      cancelClaimInFlightRef.current
+    ) {
       return;
     }
 
+    const item = pendingClaimCancellation;
     setSavingKey(`cancel:${item.reservationId}`);
     try {
+      cancelClaimInFlightRef.current = true;
       await cancelRemainingSeatClaim(item.reservationId);
       await loadData();
+      setPendingClaimCancellation(null);
     } catch (error) {
       alert(`임시 확보 취소에 실패했습니다: ${getErrorMessage(error)}`);
     } finally {
+      cancelClaimInFlightRef.current = false;
       setSavingKey('');
     }
   };
+
+  useEffect(() => {
+    if (!pendingClaimCancellation) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (
+        event.key === 'Escape' &&
+        !savingKey &&
+        !cancelClaimInFlightRef.current
+      ) {
+        setPendingClaimCancellation(null);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [pendingClaimCancellation, savingKey]);
 
   if (loading) {
     return (
@@ -467,6 +531,189 @@ const AdminRemainingSeatSalesPage = () => {
           )}
         </section>
       </main>
+
+      {pendingPaymentConfirmation && (
+        <div
+          className={styles.confirmBackdrop}
+          onMouseDown={(event) => {
+            if (
+              event.target === event.currentTarget &&
+              !savingKey &&
+              !confirmPaymentInFlightRef.current
+            ) {
+              setPendingPaymentConfirmation(null);
+            }
+          }}
+        >
+          <section
+            className={styles.confirmDialog}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="confirm-payment-title"
+            aria-describedby="confirm-payment-description"
+          >
+            <span
+              className={`${styles.confirmIcon} ${styles.paymentConfirmIcon}`}
+              aria-hidden="true"
+            >
+              <CheckCircle2 size={24} />
+            </span>
+            <p
+              className={`${styles.confirmEyebrow} ${styles.paymentConfirmEyebrow}`}
+            >
+              입금 확인 · 버스표 확정
+            </p>
+            <h2 id="confirm-payment-title">
+              {pendingPaymentConfirmation.name || '이름 없는 신청자'}님의 입금을
+              확인할까요?
+            </h2>
+            <p id="confirm-payment-description">
+              실제 계좌 입금 내역과 입금자명을 확인해주세요. 처리 후 신청이
+              확정되고 확보한 좌석의 버스표가 발급됩니다.
+            </p>
+            <dl className={styles.confirmSummary}>
+              <div>
+                <dt>신청자</dt>
+                <dd>
+                  {pendingPaymentConfirmation.name || '이름 없음'} ·{' '}
+                  {pendingPaymentConfirmation.campus || '캠퍼스 없음'}
+                </dd>
+              </div>
+              <div>
+                <dt>입금자명</dt>
+                <dd>{pendingPaymentConfirmation.claim.depositorName || '미입력'}</dd>
+              </div>
+              <div>
+                <dt>입금 계좌</dt>
+                <dd>
+                  {pendingPaymentConfirmation.claim.transferAccount || '설정 필요'}
+                </dd>
+              </div>
+              <div>
+                <dt>확보 좌석</dt>
+                <dd>
+                  {formatBusLabel(pendingPaymentConfirmation.claim.busLabel)} ·{' '}
+                  {pendingPaymentConfirmation.claim.seatNumber}번
+                </dd>
+              </div>
+              <div>
+                <dt>행선지</dt>
+                <dd>{pendingPaymentConfirmation.claim.destination}행</dd>
+              </div>
+              <div>
+                <dt>확인 금액</dt>
+                <dd>{pendingPaymentConfirmation.claim.amount.toLocaleString()}원</dd>
+              </div>
+              <div>
+                <dt>처리 결과</dt>
+                <dd>신청 확정 · 버스표 발급</dd>
+              </div>
+            </dl>
+            <div className={styles.confirmActions}>
+              <button
+                type="button"
+                className={styles.cancelConfirmButton}
+                onClick={() => setPendingPaymentConfirmation(null)}
+                disabled={Boolean(savingKey)}
+                autoFocus
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                className={styles.confirmButton}
+                onClick={() => void confirmPendingPayment()}
+                disabled={Boolean(savingKey)}
+              >
+                {savingKey ? '확인 처리 중...' : '입금 확인·버스표 확정'}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {pendingClaimCancellation && (
+        <div
+          className={styles.confirmBackdrop}
+          onMouseDown={(event) => {
+            if (
+              event.target === event.currentTarget &&
+              !savingKey &&
+              !cancelClaimInFlightRef.current
+            ) {
+              setPendingClaimCancellation(null);
+            }
+          }}
+        >
+          <section
+            className={styles.confirmDialog}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="cancel-claim-title"
+            aria-describedby="cancel-claim-description"
+          >
+            <span className={styles.confirmIcon} aria-hidden="true">
+              <XCircle size={24} />
+            </span>
+            <p className={styles.confirmEyebrow}>임시 확보 취소</p>
+            <h2 id="cancel-claim-title">
+              {pendingClaimCancellation.name || '이름 없는 신청자'}님의 좌석 확보를
+              취소할까요?
+            </h2>
+            <p id="cancel-claim-description">
+              아직 입금 확인 전인 임시 확보를 취소합니다. 해당 좌석은 잔여 좌석으로
+              반환되며, 판매와 버스 공개 설정이 켜져 있을 때 다시 신청할 수 있습니다.
+            </p>
+            <dl className={styles.confirmSummary}>
+              <div>
+                <dt>신청자</dt>
+                <dd>
+                  {pendingClaimCancellation.name || '이름 없음'} ·{' '}
+                  {pendingClaimCancellation.campus || '캠퍼스 없음'}
+                </dd>
+              </div>
+              <div>
+                <dt>확보 좌석</dt>
+                <dd>
+                  {formatBusLabel(pendingClaimCancellation.claim.busLabel)} ·{' '}
+                  {pendingClaimCancellation.claim.seatNumber}번
+                </dd>
+              </div>
+              <div>
+                <dt>행선지</dt>
+                <dd>{pendingClaimCancellation.claim.destination}행</dd>
+              </div>
+              <div>
+                <dt>입금 대기 금액</dt>
+                <dd>{pendingClaimCancellation.claim.amount.toLocaleString()}원</dd>
+              </div>
+              <div>
+                <dt>처리 결과</dt>
+                <dd>임시 확보 해제 · 잔여 좌석 반환</dd>
+              </div>
+            </dl>
+            <div className={styles.confirmActions}>
+              <button
+                type="button"
+                className={styles.cancelConfirmButton}
+                onClick={() => setPendingClaimCancellation(null)}
+                disabled={Boolean(savingKey)}
+                autoFocus
+              >
+                돌아가기
+              </button>
+              <button
+                type="button"
+                className={styles.cancelButton}
+                onClick={() => void confirmPendingClaimCancellation()}
+                disabled={Boolean(savingKey)}
+              >
+                {savingKey ? '취소 처리 중...' : '임시 확보 취소'}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
     </div>
   );
 };

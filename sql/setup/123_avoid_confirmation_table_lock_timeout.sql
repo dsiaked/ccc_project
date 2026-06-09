@@ -10,10 +10,11 @@ begin
   )
   into v_function_definition;
 
-  v_updated_definition := replace(
+  v_updated_definition := regexp_replace(
     v_function_definition,
-    E'lock table public.bus_allocations in share row exclusive mode;\n  lock table public.reservations in share row exclusive mode;',
-    E'perform pg_advisory_xact_lock(hashtextextended(''allocation-confirmation'', 0));'
+    E'lock table public\\.bus_allocations in share row exclusive mode;\\s+lock table public\\.reservations in share row exclusive mode;',
+    E'perform pg_advisory_xact_lock(hashtextextended(''allocation-confirmation'', 0));',
+    'i'
   );
 
   if v_updated_definition = v_function_definition then

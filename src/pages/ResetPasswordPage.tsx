@@ -108,7 +108,7 @@ const ResetPasswordPage = () => {
     setError('');
 
     if (recoveryStatus !== 'valid') {
-      setError('유효한 비밀번호 재설정 링크를 먼저 열어 주세요.');
+      setError('유효한 비밀번호 재설정 링크를 먼저 열어주세요.');
       return;
     }
 
@@ -127,7 +127,7 @@ const ResetPasswordPage = () => {
       const { data: userData, error: userError } = await supabase.auth.getUser();
       if (userError || userData.user?.id !== recoveryUserId) {
         setRecoveryStatus('invalid');
-        setError('재설정 링크가 만료되었거나 유효하지 않습니다. 새 링크를 요청해 주세요.');
+        setError('재설정 링크가 만료되었거나 유효하지 않습니다. 새 링크를 요청해주세요.');
         return;
       }
 
@@ -149,7 +149,7 @@ const ResetPasswordPage = () => {
           <section className={styles.resultCard} aria-live="polite">
             <div className={styles.spinner} aria-hidden="true" />
             <h2>재설정 링크를 확인하고 있습니다</h2>
-            <p>잠시만 기다려 주세요.</p>
+            <p>잠시만 기다려주세요.</p>
           </section>
         ) : recoveryStatus === 'invalid' ? (
           <section className={styles.resultCard}>
@@ -160,7 +160,7 @@ const ResetPasswordPage = () => {
             <h2>비밀번호를 변경할 수 없습니다</h2>
             <p>
               비밀번호 찾기에서 새 재설정 링크를 요청한 뒤, 받은 메일의 링크로
-              다시 접속해 주세요.
+              다시 접속해주세요.
             </p>
             <Link to="/forgot-password" className={styles.primaryLink}>
               비밀번호 찾기로 이동
@@ -171,7 +171,7 @@ const ResetPasswordPage = () => {
             <div className={styles.iconCircle}><CheckCircle2 size={32} /></div>
             <p className={styles.eyebrow}>변경 완료</p>
             <h2>새 비밀번호가 설정되었습니다</h2>
-            <p>새 비밀번호로 로그인해 주세요.</p>
+            <p>새 비밀번호로 로그인해주세요.</p>
             <Link to="/login" className={styles.primaryLink}>로그인하러 가기</Link>
           </section>
         ) : (

@@ -21,6 +21,7 @@ export interface InvitationValidationResult {
 
 export interface AdminInvitationCode {
   id: string;
+  code: string | null;
   codeHint: string;
   role: InvitationRole;
   campusId: string | null;
@@ -95,6 +96,33 @@ export async function createAdminInvitationCode(
   return data as unknown as CreatedInvitationCode;
 }
 
+export async function createAdminInvitationCodes(
+  role: InvitationRole,
+  campusId: string | null,
+  count: number
+) {
+  if (count === 1) {
+    return [await createAdminInvitationCode(role, campusId)];
+  }
+
+  const { data, error } = await supabase.rpc('create_admin_invitation_codes', {
+    p_role: role,
+    p_campus_id: campusId,
+    p_count: count,
+  });
+
+  if (error) {
+    if (error.code === 'PGRST202') {
+      throw new Error(
+        '여러 권한 등록 코드 발급 기능의 데이터베이스 업데이트가 아직 적용되지 않았습니다.'
+      );
+    }
+    throw error;
+  }
+
+  return data as unknown as CreatedInvitationCode[];
+}
+
 export async function cancelAdminInvitationCode(invitationId: string) {
   const { data, error } = await supabase.rpc('cancel_admin_invitation_code', {
     p_invitation_id: invitationId,
@@ -123,7 +151,7 @@ export async function getAdminInvitationCodes(): Promise<AdminInvitationCode[]> 
   const { data, error } = await supabase
     .from('admin_invitation_codes')
     .select(
-      'id, code_hint, role, campus_id, created_at, expires_at, used_at, used_by, cancelled_at'
+      'id, code, code_hint, role, campus_id, created_at, expires_at, used_at, used_by, cancelled_at'
     )
     .order('created_at', { ascending: false });
 
@@ -133,6 +161,7 @@ export async function getAdminInvitationCodes(): Promise<AdminInvitationCode[]> 
 
   return (data ?? []).map((item) => ({
     id: item.id,
+    code: item.code,
     codeHint: item.code_hint,
     role: item.role as InvitationRole,
     campusId: item.campus_id,

@@ -89,7 +89,21 @@ export async function submitBoardingCheckInCode(code: string): Promise<string> {
   if (error) throw error;
   if (!data) throw new Error('탑승 체크인 시간을 저장하지 못했습니다.');
 
-  return data as string;
+  if (typeof data === 'string') return data;
+
+  const result = data as {
+    success?: boolean;
+    confirmedAt?: string;
+    message?: string;
+  };
+  if (!result.success) {
+    throw new Error(result.message || 'The check-in code could not be verified.');
+  }
+  if (!result.confirmedAt) {
+    throw new Error('The boarding confirmation time was not returned.');
+  }
+
+  return result.confirmedAt;
 }
 
 /**

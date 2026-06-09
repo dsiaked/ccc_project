@@ -6,22 +6,26 @@
 .hero span { font-size: 11px; font-weight: 900; text-transform: uppercase; }
 .hero h1 { margin: 4px 0; color: #fff; }
 .hero p { margin: 0; color: #cbd5e1; }
-.hero button, .issueCard > button, .createdCard button, .list article > button { display: flex; min-height: 38px; align-items: center; justify-content: center; gap: 6px; padding: 0 12px; border-radius: 8px; font-weight: 900; }
+.hero button, .issueCard > button, .createdCard button, .rowActions button { display: flex; min-height: 38px; align-items: center; justify-content: center; gap: 6px; padding: 0 12px; border-radius: 8px; font-weight: 900; }
 .hero button { background: #fff; color: #1d4ed8; }
 .error, .success { margin: 0 0 14px; padding: 12px; border-radius: 8px; font-weight: 800; }
 .error { background: #fff1f2; color: #be123c; }
 .success { background: #f0fdf4; color: #166534; }
-.createdCard { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 14px; margin-bottom: 14px; padding: 16px; border: 1px solid #86efac; border-radius: 12px; background: #f0fdf4; }
+.createdCard { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(260px, auto) auto; align-items: center; gap: 14px; margin-bottom: 14px; padding: 16px; border: 1px solid #86efac; border-radius: 12px; background: #f0fdf4; }
 .createdCard div { display: grid; gap: 3px; color: #166534; }
 .createdCard span { font-size: 12px; }
 .createdCard code { padding: 9px 11px; border-radius: 7px; background: #fff; color: #14532d; font-size: 15px; font-weight: 900; }
+.createdCodes { max-height: 240px; overflow: auto; }
+.createdCode { display: grid !important; grid-template-columns: minmax(220px, 1fr) auto; align-items: center; gap: 6px !important; }
+.createdCode button { min-height: 36px; }
 .createdCard button { background: #16a34a; color: #fff; }
 .issueCard, .listCard { margin-top: 14px; border: 1px solid #e2e8f0; border-radius: 13px; background: #fff; }
-.issueCard { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(180px, .7fr) minmax(260px, 1fr) auto; align-items: end; gap: 14px; padding: 18px; }
+.issueCard { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(180px, .7fr) minmax(220px, 1fr) minmax(110px, .4fr) auto; align-items: end; gap: 14px; padding: 18px; }
 .issueCard h2, .listHeader h2 { margin: 0; color: #172554; font-size: 17px; }
 .issueCard p, .listHeader p { margin: 4px 0 0; color: #64748b; font-size: 12px; }
 .issueCard label { display: grid; gap: 6px; color: #475569; font-size: 12px; font-weight: 900; }
-.issueCard select { min-height: 42px; padding: 0 10px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; }
+.issueCard select, .issueCard input { min-height: 42px; padding: 0 10px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; }
+.issueCard input:disabled { background: #f1f5f9; color: #94a3b8; }
 .issueCard > button { min-height: 42px; background: #2563eb; color: #fff; }
 .listCard { overflow: hidden; }
 .listHeader { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px; border-bottom: 1px solid #e2e8f0; }
@@ -35,6 +39,7 @@
 .list article:last-child { border-bottom: 0; }
 .list article > div:first-child { display: grid; gap: 4px; }
 .list code { color: #1e3a8a; font-size: 13px; font-weight: 900; }
+.list small { color: #94a3b8; font-size: 11px; }
 .list strong { color: #172554; }
 .list article > div:first-child span { color: #64748b; font-size: 12px; }
 .meta { display: flex; align-items: center; gap: 8px; }
@@ -43,8 +48,10 @@
 .active { background: #dcfce7; color: #166534; }
 .used { background: #dbeafe; color: #1d4ed8; }
 .expired, .cancelled { background: #f1f5f9; color: #64748b; }
-.list article > button { border: 1px solid #fecaca; background: #fff1f2; color: #be123c; }
-.list article > button:disabled, .hero button:disabled, .issueCard > button:disabled { cursor: not-allowed; opacity: .5; }
+.rowActions { display: flex; align-items: center; gap: 6px; }
+.rowActions button:first-child { border: 1px solid #bfdbfe; background: #eff6ff; color: #1d4ed8; }
+.rowActions button:last-child { border: 1px solid #fecaca; background: #fff1f2; color: #be123c; }
+.rowActions button:disabled, .hero button:disabled, .issueCard > button:disabled { cursor: not-allowed; opacity: .5; }
 @media (max-width: 1050px) {
   .issueCard { grid-template-columns: 1fr 1fr; }
 }
@@ -53,6 +60,8 @@
   .hero, .createdCard { align-items: stretch; grid-template-columns: 1fr; flex-direction: column; }
   .issueCard { grid-template-columns: 1fr; }
   .list article { grid-template-columns: 1fr; }
+  .rowActions { width: 100%; }
+  .rowActions button { flex: 1; }
   .meta { justify-content: space-between; }
   .listHeader { align-items: flex-start; gap: 12px; flex-direction: column; }
   .listHeaderActions { width: 100%; justify-content: space-between; }

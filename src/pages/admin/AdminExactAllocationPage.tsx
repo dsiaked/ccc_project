@@ -577,6 +577,7 @@ const AdminExactAllocationPage = () => {
       );
     } catch (resetError) {
       setError(formatError(resetError));
+      await loadRecentJobs(currentJob?.id).catch(() => undefined);
     } finally {
       setResetting(false);
     }

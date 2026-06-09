@@ -258,8 +258,8 @@ const ConfirmedTicketPage = ({
 
           {/* 중간 - 주요 정보 */}
           <div className={styles.ticketMiddle}>
-            <div className={styles.infoRow}>
-              <div className={styles.infoBlock}>
+            <div className={`${styles.infoRow} ${styles.tripSummaryRow}`}>
+              <div className={`${styles.infoBlock} ${styles.tripSummaryBlock}`}>
                 <Clock size={20} color="#2563eb" className={styles.infoIcon} />
                 <div className={styles.infoBlockContent}>
                   <span className={styles.infoLabel}>출발 일시</span>
@@ -267,23 +267,19 @@ const ConfirmedTicketPage = ({
                 </div>
               </div>
 
-              <div className={styles.infoBlock}>
+              <div className={`${styles.infoBlock} ${styles.tripSummaryBlock}`}>
                 <MapPin size={20} color="#dc2626" className={styles.infoIcon} />
                 <div className={styles.infoBlockContent}>
                   <span className={styles.infoLabel}>탑승장소</span>
                   <span className={styles.infoValue}>{ticket.boardingPlace}</span>
                 </div>
               </div>
-            </div>
 
-            <div className={styles.infoRow}>
-              <div className={styles.infoBlockFull}>
+              <div className={`${styles.infoBlock} ${styles.tripSummaryBlock}`}>
                 <MapPin size={20} color="#16a34a" className={styles.infoIcon} />
-                <div className={styles.infoBlockContentFull}>
-                  <div className={styles.dropoffMain}>
-                    <span className={styles.infoLabel}>확정 행선지</span>
-                    <span className={styles.infoValue}>{ticket.dropoffStation}</span>
-                  </div>
+                <div className={styles.infoBlockContent}>
+                  <span className={styles.infoLabel}>확정 행선지</span>
+                  <span className={styles.infoValue}>{ticket.dropoffStation}</span>
                   {ticket.dropoffDetail && (
                     <span className={styles.infoSubValue}>{ticket.dropoffDetail}</span>
                   )}

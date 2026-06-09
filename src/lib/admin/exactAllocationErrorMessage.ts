@@ -119,7 +119,7 @@ const dynamicMessages: Array<[RegExp, string]> = [
   [/: empty buses are not allowed\./, '배차 결과에 탑승자가 없는 버스가 포함되어 있습니다.'],
   [/: bus capacity exceeded\./, '배차 결과에서 버스 정원을 초과했습니다.'],
   [/: passenger list does not match assignments\./, '버스별 신청자 목록과 배정 결과가 일치하지 않습니다.'],
-  [/: seat numbers must be contiguous and unique\./, '좌석 번호가 중복되었거나 순서대로 배정되지 않았습니다.'],
+  [/: seat numbers must be contiguous and unique\./, '좌석번호가 중복되었거나 순서대로 배정되지 않았습니다.'],
   [/ phase ended with INFEASIBLE\./, '현재 신청 정보와 배차 조건을 만족하는 결과를 찾을 수 없습니다.'],
   [/ phase ended with /, '배차 계산 단계가 정상적으로 완료되지 않았습니다. 다시 시도해주세요.'],
   [/^Passenger \d+ field .+ must be a string\./, '일부 신청자 정보 형식이 올바르지 않습니다.'],

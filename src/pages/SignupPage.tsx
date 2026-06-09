@@ -61,9 +61,6 @@ const SignupPage = () => {
 
   const [email, setEmail] = useState(initialDraft.email);
   const [emailMessage, setEmailMessage] = useState<string | null>(null);
-  const [emailCheckStatus, setEmailCheckStatus] = useState<
-    'idle' | 'checking' | 'available' | 'unavailable' | 'error'
-  >('idle');
 
   const [password, setPassword] = useState('');
   const [passwordConfirm, setPasswordConfirm] = useState('');
@@ -236,73 +233,15 @@ const SignupPage = () => {
     };
   }, [teamId]);
 
-  const resetEmailCheck = () => {
-    setEmailMessage(null);
-    setEmailCheckStatus('idle');
-  };
-
-  const handleEmailCheck = async () => {
-    const normalizedEmail = email.trim().toLowerCase();
-
-    setError(null);
-    setSuccess(null);
-
-    if (!validateEmail(normalizedEmail)) {
-      setEmailCheckStatus('error');
-      setEmailMessage('유효한 이메일을 입력해주세요.');
-      return;
-    }
-
-    setEmailCheckStatus('checking');
-    setEmailMessage(null);
-
-    try {
-      const { data: emailExists, error: emailCheckError } = await supabase.rpc(
-        'email_exists',
-        { p_email: normalizedEmail }
-      );
-
-      if (emailCheckError) {
-        console.error('이메일 중복 확인 실패:', emailCheckError);
-        setEmailCheckStatus('error');
-        setEmailMessage(
-          '이메일 중복 확인에 실패했습니다. 잠시 후 다시 시도해주세요.'
-        );
-        return;
-      }
-
-      if (emailExists) {
-        setEmailCheckStatus('unavailable');
-        setEmailMessage(
-          '이미 가입된 이메일입니다. 로그인하거나 비밀번호 찾기를 이용해주세요.'
-        );
-        return;
-      }
-
-      setEmailCheckStatus('available');
-      setEmailMessage('사용 가능한 이메일입니다.');
-    } catch (emailCheckError) {
-      console.error('이메일 중복 확인 실패:', emailCheckError);
-      setEmailCheckStatus('error');
-      setEmailMessage(
-        '이메일 중복 확인에 실패했습니다. 잠시 후 다시 시도해주세요.'
-      );
-    }
-  };
-
   const handleNextStep = () => {
     setError(null);
 
     if (!validateEmail(email.trim().toLowerCase())) {
-      setEmailCheckStatus('error');
       setEmailMessage('유효한 이메일을 입력해주세요.');
       return;
     }
 
-    if (emailCheckStatus !== 'available') {
-      setEmailMessage('이메일 중복 확인을 먼저 완료해주세요.');
-      return;
-    }
+    setEmailMessage(null);
 
     if (password.length < 6) {
       setError('비밀번호는 최소 6자 이상이어야 합니다.');
@@ -429,7 +368,7 @@ const SignupPage = () => {
         if (!validation.valid) {
           setError(
             `${validation.errorIndex ? `${validation.errorIndex}번째 코드: ` : ''}${
-              validation.errorMessage ?? '권한 등록 코드를 확인해 주세요.'
+              validation.errorMessage ?? '권한 등록 코드를 확인해주세요.'
             }`
           );
           return;
@@ -465,11 +404,8 @@ const SignupPage = () => {
 
       if (signUpError) {
         if (isAlreadyRegisteredSignupError(signUpError)) {
-          setCurrentStep(0);
-          setEmailCheckStatus('unavailable');
-          setEmailMessage(
-            '이미 가입된 이메일입니다. 로그인하거나 비밀번호 찾기를 이용해주세요.'
-          );
+          clearSignupDraft();
+          setSignupResult('verification-required');
           return;
         }
 
@@ -488,11 +424,8 @@ const SignupPage = () => {
       setSignupResult('complete');
     } catch (error) {
       if (isAlreadyRegisteredSignupError(error)) {
-        setCurrentStep(0);
-        setEmailCheckStatus('unavailable');
-        setEmailMessage(
-          '이미 가입된 이메일입니다. 로그인하거나 비밀번호 찾기를 이용해주세요.'
-        );
+        clearSignupDraft();
+        setSignupResult('verification-required');
         return;
       }
 
@@ -532,19 +465,20 @@ const SignupPage = () => {
             </div>
             <p className={styles.resultEyebrow}>
               {signupResult === 'verification-required'
-                ? '인증 메일을 보냈어요'
+                ? '가입 요청을 접수했어요'
                 : '회원가입 완료'}
             </p>
             <h2>
               {signupResult === 'verification-required'
-                ? '메일함에서 인증을 완료해 주세요'
+                ? '이메일을 확인해주세요'
                 : '계정이 준비되었습니다'}
             </h2>
             <p className={styles.resultDescription}>
               {signupResult === 'verification-required' ? (
                 <>
-                  <strong>{email.trim().toLowerCase()}</strong>로 보낸 인증
-                  링크를 누른 뒤 로그인해 주세요.
+                  가입 가능한 이메일이면{' '}
+                  <strong>{email.trim().toLowerCase()}</strong>로 인증 링크가
+                  전송됩니다.
                 </>
               ) : (
                 '이제 로그인하고 귀가 버스를 신청할 수 있습니다.'
@@ -629,35 +563,20 @@ const SignupPage = () => {
                   setEmail(e.target.value);
                   setError(null);
                   setSuccess(null);
-                  resetEmailCheck();
+                  setEmailMessage(null);
                 }}
                 autoComplete="email"
                 aria-describedby={emailMessage ? 'signup-email-message' : undefined}
-                aria-invalid={
-                  emailCheckStatus === 'unavailable' || emailCheckStatus === 'error'
-                }
-                disabled={emailCheckStatus === 'checking'}
+                aria-invalid={Boolean(emailMessage)}
                 required
               />
-              <button
-                type="button"
-                className={styles.emailCheckButton}
-                onClick={handleEmailCheck}
-                disabled={emailCheckStatus === 'checking'}
-              >
-                {emailCheckStatus === 'checking' ? '확인 중...' : '중복 확인'}
-              </button>
             </div>
 
             {emailMessage && (
               <p
                 id="signup-email-message"
-                className={
-                  emailCheckStatus === 'available'
-                    ? styles.successMessage
-                    : styles.errorMessage
-                }
-                role={emailCheckStatus === 'available' ? 'status' : 'alert'}
+                className={styles.errorMessage}
+                role="alert"
               >
                 {emailMessage}
               </p>
@@ -764,7 +683,7 @@ const SignupPage = () => {
               required
             />
             <p className={styles.phoneGuide}>
-              원활한 배차 소통을 위해 반드시 본인의 정확한 전화번호를
+              원활한 배차 소통을 위해 반드시 본인의 정확한 연락처를
               입력해주세요.
             </p>
           </div>
@@ -966,7 +885,6 @@ const SignupPage = () => {
               type="button"
               className={styles.submitButton}
               onClick={handleNextStep}
-              disabled={emailCheckStatus !== 'available'}
             >
               다음
             </button>

@@ -31,7 +31,7 @@ const getErrorMessage = (error: unknown) =>
     : '잔여 좌석 처리 중 오류가 발생했습니다.';
 
 const PAYMENT_INFO_UNAVAILABLE_MESSAGE =
-  '선택한 버스의 결제 계좌 또는 금액이 등록되지 않아 신청할 수 없습니다. 관리자에게 문의해 주세요.';
+  '선택한 버스의 결제 계좌 또는 금액이 등록되지 않아 신청할 수 없습니다. 관리자에게 문의해주세요.';
 
 const hasValidPaymentInfo = (option: RemainingSeatOption) =>
   typeof option.transferAccount === 'string' &&
@@ -268,7 +268,7 @@ const RemainingSeatPage = () => {
                   <div className={styles.selectedDetails}>
                     <div>
                       <Clock3 size={16} />
-                      <span>출발시간</span>
+                      <span>출발 일시</span>
                       <strong>{commonSeatDetails.departureTime}</strong>
                     </div>
                     <div>
@@ -303,7 +303,7 @@ const RemainingSeatPage = () => {
                     placeholder="예: 홍길동1234"
                   />
                   <small>
-                    공백 없이 이름 뒤에 휴대폰 뒷4자리를 입력해주세요.
+                    공백 없이 이름 뒤에 휴대폰 뒷 4자리를 입력해주세요.
                   </small>
                 </label>
               </div>

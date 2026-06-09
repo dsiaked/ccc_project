@@ -73,7 +73,7 @@ const HeroSection = () => {
     ? {
         label: '2026 CCC 여름수련회',
         title: '귀가 버스 정보를 확인하고 있어요',
-        description: '잠시만 기다려 주세요.',
+        description: '잠시만 기다려주세요.',
         buttonLabel: '확인 중',
         icon: Clock3,
         path: '/reservation',
@@ -91,7 +91,7 @@ const HeroSection = () => {
       ? {
           label: '배차 확정 완료',
           title: '귀가 버스가 확정되었어요',
-          description: '탑승 전 호차, 좌석과 출발 정보를 꼭 확인해 주세요.',
+          description: '탑승 전 호차, 좌석과 출발 정보를 꼭 확인해주세요.',
           buttonLabel: '버스표 보기',
           icon: CheckCircle2,
           path: '/ticket',
@@ -119,7 +119,7 @@ const HeroSection = () => {
               label: '2026 CCC 여름수련회',
               title: '귀가 버스를 편하게 신청하세요',
               description:
-                '희망 행선지를 선택하고 배차 결과를 한곳에서 확인할 수 있어요.',
+                '희망 행선지를 선택하고 배차 결과를 한 곳에서 확인할 수 있어요.',
               buttonLabel: '버스 신청하기',
               icon: Ticket,
               path: '/reservation',

@@ -556,7 +556,7 @@ export const validateWorkspaceLegacy = (
   });
 
   if (workspace.buses.some((bus) => !bus.departureTime.trim())) {
-    errors.push('출발 시간이 없습니다.');
+    errors.push('출발 일시가 없습니다.');
   }
   if (workspace.buses.some((bus) => !bus.boardingPlace.trim())) {
     errors.push('탑승장소가 없습니다.');
@@ -621,7 +621,7 @@ export const validateWorkspaceLegacy = (
         passenger.seatNumber < 1 ||
         passenger.seatNumber > bus.capacity
       ) {
-        errors.push(`${passenger.name}: 유효한 좌석 번호가 필요합니다.`);
+        errors.push(`${passenger.name}: 유효한 좌석번호가 필요합니다.`);
       } else if (seats.has(passenger.seatNumber)) {
         errors.push(`${bus.label}: ${passenger.seatNumber}번 좌석이 중복되었습니다.`);
       } else {
@@ -960,11 +960,11 @@ const throwAllocationRpcError = (error: {
     'Every bus needs valid required details.':
       '필수 정보가 누락되었거나 정원이 올바르지 않은 버스가 있습니다.',
     'Every passenger needs a bus and valid seat number.':
-      '버스 또는 유효한 좌석 번호가 지정되지 않은 탑승자가 있습니다.',
+      '버스 또는 유효한 좌석번호가 지정되지 않은 탑승자가 있습니다.',
     'Duplicate reservation IDs exist in the allocation.':
       '같은 신청자가 배차안에 중복으로 포함되어 있습니다.',
     'Invalid bus, seat, or destination assignment exists.':
-      '버스, 좌석 번호 또는 행선지가 올바르지 않은 배차가 있습니다.',
+      '버스, 좌석번호 또는 행선지가 올바르지 않은 배차가 있습니다.',
     'Duplicate seat assignments exist.':
       '같은 버스에서 중복으로 배정된 좌석이 있습니다.',
     'Active reservations changed after the draft was created.':

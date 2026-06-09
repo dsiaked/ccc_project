@@ -532,7 +532,7 @@ begin
       jsonb_build_object(
         'key', 'assignments',
         'message', coalesce(nullif(passenger ->> 'name', ''), '이름 없는 탑승자')
-          || ': 배차 버스, 좌석 번호 또는 목적지가 올바르지 않습니다.',
+          || ': 배차 버스, 좌석번호 또는 목적지가 올바르지 않습니다.',
         'passenger_id', passenger ->> 'reservationId',
         'bus_id', passenger ->> 'busId'
       )

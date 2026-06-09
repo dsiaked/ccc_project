@@ -62,17 +62,16 @@
   font-weight: 800;
 }
 
-.form textarea {
+.form input {
   width: 100%;
   padding: 14px;
   border: 1px solid #cbd5e1;
   border-radius: 10px;
   font: inherit;
   line-height: 1.55;
-  resize: vertical;
 }
 
-.form textarea:focus {
+.form input:focus {
   outline: 3px solid rgba(37, 99, 235, 0.16);
   border-color: #2563eb;
 }
@@ -94,14 +93,23 @@
 
 .confirmation {
   display: grid;
-  gap: 12px;
-  padding-top: 4px;
+  gap: 10px;
+  margin-top: 4px;
+  padding: 16px;
+  border: 1px solid #bfdbfe;
+  border-radius: 12px;
+  background: #eff6ff;
+}
+
+.confirmationTitle {
+  color: #1e3a8a;
+  font-size: 15px;
 }
 
 .confirmation p {
   margin: 0;
-  color: #475569;
-  font-size: 14px;
+  color: #64748b;
+  font-size: 13px;
   line-height: 1.55;
 }
 
@@ -110,6 +118,21 @@
   color: #b42318;
   font-size: 14px;
   line-height: 1.5;
+}
+
+.successActions {
+  display: grid;
+  width: 100%;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.successError {
+  grid-column: 1 / -1;
+  margin: 2px 0 0;
+  color: #b42318;
+  font-size: 14px;
+  text-align: center;
 }
 
 .primaryButton {
@@ -126,7 +149,27 @@
   font-weight: 900;
 }
 
-.primaryButton:disabled {
+.secondaryButton {
+  display: flex;
+  width: 100%;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid #2563eb;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #1d4ed8;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.secondaryButton:hover:not(:disabled) {
+  background: #eff6ff;
+}
+
+.primaryButton:disabled,
+.secondaryButton:disabled {
   cursor: not-allowed;
   opacity: 0.55;
 }
@@ -138,5 +181,9 @@
 
   .card {
     padding: 26px 18px;
+  }
+
+  .successActions {
+    grid-template-columns: 1fr;
   }
 }

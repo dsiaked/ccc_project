@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import io
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import exact_optimizer.local_worker as local_worker
 from exact_optimizer.worker import (
     SupabaseRepository,
     build_supabase_headers,
     normalize_service_role_key,
+    normalize_supabase_url,
     run_job,
 )
 from exact_optimizer.schema import AllocationResult
@@ -53,6 +54,11 @@ class FakeRepository:
         self.reusable_job: dict[str, object] | None = None
         self.job_result: dict[str, object] | None = None
         self.status_reads = 0
+        self.expire_calls = 0
+
+    def expire_stale_jobs(self, stale_after_seconds: int = 4500) -> int:
+        self.expire_calls += 1
+        return 0
 
     def claim_job(
         self, job_id: str, worker_id: str, execution_mode: str | None = None
@@ -117,6 +123,11 @@ class WorkerTests(unittest.TestCase):
     def test_local_worker_retries_after_pending_poll_failure(self) -> None:
         class PollingRepository:
             calls = 0
+            expire_calls = 0
+
+            def expire_stale_jobs(self, stale_after_seconds: int = 4500) -> int:
+                self.expire_calls += 1
+                return 0
 
             def get_pending_job_ids(
                 self, limit: int = 1, execution_mode: str = "local"
@@ -138,6 +149,7 @@ class WorkerTests(unittest.TestCase):
 
         self.assertEqual(result, 0)
         self.assertEqual(repository.calls, 2)
+        self.assertEqual(repository.expire_calls, 2)
         sleep.assert_called_once_with(2.0)
         self.assertIn("Retrying in 2 seconds", errors.getvalue())
 
@@ -180,6 +192,32 @@ class WorkerTests(unittest.TestCase):
 
         self.assertEqual(headers["apikey"], key)
         self.assertNotIn("Authorization", headers)
+
+    def test_normalizes_official_https_supabase_url(self) -> None:
+        self.assertEqual(
+            normalize_supabase_url(" https://example.supabase.co/ "),
+            "https://example.supabase.co",
+        )
+
+    def test_rejects_unsafe_supabase_urls(self) -> None:
+        unsafe_urls = (
+            "http://example.supabase.co",
+            "https://attacker.example",
+            "https://example.supabase.co.attacker.example",
+            "https://user@example.supabase.co",
+            "https://example.supabase.co:443",
+            "https://example.supabase.co/rest/v1",
+            "https://example.supabase.co?redirect=attacker",
+        )
+
+        for url in unsafe_urls:
+            with self.subTest(url=url):
+                with self.assertRaises(ValueError):
+                    normalize_supabase_url(url)
+
+    def test_repository_rejects_unsafe_supabase_url_before_storing_key(self) -> None:
+        with self.assertRaises(ValueError):
+            SupabaseRepository("http://attacker.example", "sb_secret_example")
 
     def test_repository_keeps_api_key_header_for_every_request(self) -> None:
         repository = SupabaseRepository(
@@ -237,6 +275,22 @@ class WorkerTests(unittest.TestCase):
         self.assertEqual(request.call_args.kwargs["body"]["p_input_snapshot"], snapshot)
         self.assertEqual(request.call_args.kwargs["body"]["p_detailed_settings"], settings)
 
+    def test_expires_stale_jobs_through_server_side_rpc(self) -> None:
+        repository = SupabaseRepository("https://example.supabase.co", "sb_secret_test")
+
+        with patch.object(repository, "_request", return_value=2) as request:
+            expired = repository.expire_stale_jobs(4500)
+
+        self.assertEqual(expired, 2)
+        self.assertEqual(
+            request.call_args.args,
+            ("POST", "/rest/v1/rpc/expire_stale_allocation_optimization_jobs"),
+        )
+        self.assertEqual(
+            request.call_args.kwargs["body"],
+            {"p_stale_after_seconds": 4500},
+        )
+
     def test_completes_optimal_job(self) -> None:
         repository = FakeRepository()
 
@@ -256,6 +310,31 @@ class WorkerTests(unittest.TestCase):
             ],
             ["total_buses", "second_choice_passengers", "completed"],
         )
+
+    def test_marks_job_failed_when_reuse_lookup_fails_after_claim(self) -> None:
+        repository = FakeRepository()
+        repository.get_reusable_optimal_job = Mock(
+            side_effect=RuntimeError("reuse lookup failed")
+        )
+
+        with self.assertRaisesRegex(RuntimeError, "reuse lookup failed"):
+            run_job(repository, "job-1", "worker-1")  # type: ignore[arg-type]
+
+        self.assertEqual(repository.status, "FAILED")
+        self.assertIn("JOB_FAILED", repository.events)
+        self.assertEqual(repository.updates[-1]["error_message"], "reuse lookup failed")
+
+    def test_marks_job_failed_when_claim_event_recording_fails(self) -> None:
+        repository = FakeRepository()
+        repository.add_event = Mock(
+            side_effect=RuntimeError("event recording failed")
+        )
+
+        with self.assertRaisesRegex(RuntimeError, "event recording failed"):
+            run_job(repository, "job-1", "worker-1")  # type: ignore[arg-type]
+
+        self.assertEqual(repository.status, "FAILED")
+        self.assertEqual(repository.updates[-1]["error_message"], "event recording failed")
 
     def test_throttles_repeated_cancellation_status_reads(self) -> None:
         repository = FakeRepository()

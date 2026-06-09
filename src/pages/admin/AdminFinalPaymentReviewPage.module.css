@@ -16,6 +16,7 @@
 .amountProgressTrack { position: relative; height: 12px; overflow: hidden; border-radius: 999px; background: #e4e7ec; }
 .amountProgressBar { height: 100%; border-radius: inherit; background: linear-gradient(90deg, #1570ef, #53b1fd); transition: width .25s ease; }
 .dangerCard { color: #d92d20; border-color: #fecdca; }
+.successCard { color: #079455; border-color: #abefc6; background: #f6fef9; }
 .tabs { display: flex; align-items: center; gap: 6px; padding: 5px; margin-bottom: 14px; border: 1px solid #e4e7ec; border-radius: 12px; background: #fff; width: fit-content; }
 .tabs button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 42px; padding: 0 14px; border: 0; border-radius: 8px; background: transparent; color: #667085; font: inherit; font-size: 13px; font-weight: 900; cursor: pointer; }
 .tabs button span { display: inline-flex; align-items: center; justify-content: center; min-width: 24px; height: 22px; padding: 0 7px; border-radius: 999px; background: #f2f4f7; color: #475467; font-size: 11px; }
@@ -57,7 +58,24 @@
 .waitingText { margin: 0 !important; color: #667085 !important; font-size: 11px !important; font-weight: 800; white-space: nowrap; }
 .textButton { margin-top: 5px; padding: 0; border: 0; background: transparent; color: #175cd3; font: inherit; font-size: 11px; font-weight: 800; cursor: pointer; }
 .emptyCell { padding: 40px !important; color: #667085 !important; text-align: center !important; }
+.emptyStateTitle { margin-bottom: 6px; color: #067647 !important; font-size: 16px; }
+.emptyCell .emptyStateTitle + span { margin-top: 0; color: #667085; font-size: 12px; }
 .errorState { display: flex; align-items: center; gap: 12px; padding: 14px; margin-bottom: 18px; border: 1px solid #fecdca; border-radius: 10px; background: #fef3f2; color: #b42318; }
 button:disabled { cursor: wait; opacity: .6; }
+.confirmBackdrop { position: fixed; z-index: 1000; inset: 0; display: grid; place-items: center; padding: 20px; background: rgba(16, 24, 40, .58); }
+.confirmDialog { width: min(100%, 500px); padding: 24px; border-radius: 16px; background: #fff; box-shadow: 0 24px 64px rgba(16, 24, 40, .28); }
+.confirmIcon { display: grid; width: 44px; height: 44px; margin-bottom: 14px; place-items: center; border-radius: 50%; background: #dcfae6; color: #067647; }
+.confirmEyebrow { margin: 0 0 6px; color: #067647; font-size: 12px; font-weight: 900; }
+.revertConfirmIcon { background: #fee4e2; color: #b42318; }
+.revertConfirmEyebrow { color: #b42318; }
+.confirmDialog h2 { margin: 0; color: #101828; font-size: 21px; line-height: 1.4; }
+.confirmDialog > p:not(.confirmEyebrow) { color: #667085; line-height: 1.6; }
+.confirmSummary { display: grid; gap: 9px; margin: 20px 0; }
+.confirmSummary > div { display: grid; grid-template-columns: 120px 1fr; gap: 12px; padding: 12px 14px; border-radius: 9px; background: #f9fafb; }
+.confirmSummary dt { color: #667085; font-weight: 700; }
+.confirmSummary dd { margin: 0; color: #101828; font-weight: 900; text-align: right; }
+.confirmActions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.confirmActions button { width: 100%; min-height: 42px; }
+.cancelConfirmButton { border: 1px solid #d0d5dd; border-radius: 7px; background: #fff; color: #344054; font: inherit; font-weight: 900; cursor: pointer; }
 @media (max-width: 1100px) { .summaryGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 720px) { .main { padding: 20px 14px; } .hero, .panelHeader, .toolbar, .panelActions { flex-direction: column; } .heroActions, .searchBox, .panelHeader select, .panelActions, .primaryButton, .tabs { width: 100%; min-width: 0; } .tabs button { flex: 1; padding: 0 8px; } .summaryGrid { grid-template-columns: 1fr; } }
+@media (max-width: 720px) { .main { padding: 20px 14px; } .hero, .panelHeader, .toolbar, .panelActions { flex-direction: column; } .heroActions, .searchBox, .panelHeader select, .panelActions, .primaryButton, .tabs { width: 100%; min-width: 0; } .tabs button { flex: 1; padding: 0 8px; } .summaryGrid { grid-template-columns: 1fr; } .confirmDialog { padding: 20px; } .confirmSummary > div, .confirmActions { grid-template-columns: 1fr; } .confirmSummary dd { text-align: left; } }

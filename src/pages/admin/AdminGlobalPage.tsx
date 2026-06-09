@@ -48,7 +48,7 @@ const operationScenarioSteps = [
   {
     id: 'post-deadline-operations',
     title: '전체 공지 및 신청 시작',
-    description: '각 팀과 캠퍼스에 전체 공지를 전달하고 귀가 버스 신청을 시작합니다.',
+    description: '각 팀과 캠퍼스에 전체 공지를 전달하고 버스 신청을 시작합니다.',
     timing: '수련회 2일차',
     checks: ['팀·캠퍼스별 전체 공지 전달', '신청 시작'],
     actionLabel: '가입 신청 현황 확인하기',
@@ -84,7 +84,7 @@ const continuousOperationStep = {
   actionLabel: '입금 집계 확인하기',
   actionPath: '/admin/payments/final-review',
   actionLinks: [
-    { label: '개별 사용자 관리', path: '/admin/users' },
+    { label: '사용자별 관리', path: '/admin/users' },
     { label: '문의', path: '/admin/communications' },
   ],
 } as const;
@@ -95,7 +95,7 @@ const operationScenarioStepIds = new Set<string>(
 
 const quickActions = [
   {
-    title: '개별 사용자 관리',
+    title: '사용자별 관리',
     description: '사용자별 관리자 권한과 개인 버스표 정보를 함께 관리합니다.',
     path: '/admin/users',
     icon: CreditCard,

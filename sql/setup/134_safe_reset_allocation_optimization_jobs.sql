@@ -50,23 +50,25 @@ begin
 
   delete from public.allocation_optimization_jobs;
 
-  insert into public.admin_action_audit_logs (
-    actor_id,
-    action,
-    resource_type,
-    before_data,
-    after_data
-  )
-  values (
-    auth.uid(),
-    'reset',
-    'allocation_optimization_jobs',
-    jsonb_build_object(
-      'deleted_count', v_deleted_count,
-      'status_counts', v_status_counts
-    ),
-    jsonb_build_object('remaining_count', 0)
-  );
+  if to_regclass('public.admin_action_audit_logs') is not null then
+    insert into public.admin_action_audit_logs (
+      actor_id,
+      action,
+      resource_type,
+      before_data,
+      after_data
+    )
+    values (
+      auth.uid(),
+      'reset',
+      'allocation_optimization_jobs',
+      jsonb_build_object(
+        'deleted_count', v_deleted_count,
+        'status_counts', v_status_counts
+      ),
+      jsonb_build_object('remaining_count', 0)
+    );
+  end if;
 
   return v_deleted_count;
 end;

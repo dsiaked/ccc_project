@@ -589,7 +589,7 @@ const AdminCampusRequestsPage = () => {
     }
 
     if (selectedNoticeTargets.length === 0) {
-      alert('공지를 받을 캠퍼스를 한 곳 이상 선택해 주세요.');
+      alert('공지를 받을 캠퍼스를 한 곳 이상 선택해주세요.');
       return;
     }
 

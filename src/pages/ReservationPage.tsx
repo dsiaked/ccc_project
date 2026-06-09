@@ -5,7 +5,17 @@ import {
   useRef,
   useState,
 } from 'react';
-import { Bus, MapPin, Search, Coins, Copy, Check } from 'lucide-react';
+import {
+  AlertTriangle,
+  Bus,
+  Check,
+  Coins,
+  Copy,
+  LoaderCircle,
+  MapPin,
+  Search,
+  Trash2,
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
 import LoginRequiredModal from '../components/LoginRequiredModal';
@@ -76,6 +86,11 @@ const ReservationPage = () => {
   const [isLoginRequiredModalOpen, setIsLoginRequiredModalOpen] =
     useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const reservationDeletionInFlightRef = useRef(false);
+  const [isDeleteConfirmModalOpen, setIsDeleteConfirmModalOpen] =
+    useState(false);
+  const [isDeletingReservation, setIsDeletingReservation] = useState(false);
+  const [reservationDeleteError, setReservationDeleteError] = useState('');
   const [currentStep, setCurrentStep] = useState(0);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [formStatus, setFormStatus] = useState<{
@@ -813,21 +828,56 @@ const handleConfirmCandidateStations = () => {
   closeStationCandidateModal();
 };
 
-  const handleCancelReservation = async () => {
-    const confirmed = window.confirm('신청 정보를 삭제하시겠습니까?');
+  const handleCancelReservation = () => {
+    if (!savedReservation || isReservationLocked || isDeletingReservation) {
+      return;
+    }
+    setReservationDeleteError('');
+    setIsDeleteConfirmModalOpen(true);
+  };
 
-    if (!confirmed) return;
+  const confirmCancelReservation = async () => {
+    if (
+      !savedReservation ||
+      isReservationLocked ||
+      isDeletingReservation ||
+      reservationDeletionInFlightRef.current
+    ) {
+      return;
+    }
 
+    reservationDeletionInFlightRef.current = true;
+    setIsDeletingReservation(true);
+    setReservationDeleteError('');
     try {
       await deleteReservation();
-
-      alert('신청 정보가 삭제되었습니다.');
-      navigate('/');
+      navigate('/', {
+        replace: true,
+        state: { reservationDeleted: true },
+      });
     } catch (error) {
       console.error('신청 삭제 실패:', error);
-      alert('신청 삭제에 실패했습니다. 다시 시도해주세요.');
+      setReservationDeleteError(
+        '신청 삭제에 실패했습니다. 신청 마감 여부를 확인한 뒤 다시 시도해주세요.'
+      );
+    } finally {
+      reservationDeletionInFlightRef.current = false;
+      setIsDeletingReservation(false);
     }
   };
+
+  useEffect(() => {
+    if (!isDeleteConfirmModalOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !isDeletingReservation) {
+        setIsDeleteConfirmModalOpen(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isDeleteConfirmModalOpen, isDeletingReservation]);
 
   const clearValidationFeedback = (fieldName?: string) => {
     setFormStatus(null);
@@ -1252,7 +1302,7 @@ const handleConfirmCandidateStations = () => {
               </div>
 
               <h1 className={styles.title}>
-                {isEditMode ? '귀가 버스 신청 수정하기' : '귀가 버스 신청하기'}
+                {isEditMode ? '버스 신청 수정하기' : '버스 신청하기'}
               </h1>
 
               <p className={styles.subtitle}>
@@ -1962,6 +2012,7 @@ const handleConfirmCandidateStations = () => {
                     <button
                       type="button"
                       onClick={handleCancelReservation}
+                      disabled={isDeletingReservation}
                     >
                       신청 삭제
                     </button>
@@ -1979,6 +2030,101 @@ const handleConfirmCandidateStations = () => {
             </div>
           </>
         )}
+
+{isDeleteConfirmModalOpen && savedReservation && (
+  <div
+    className={styles.modalOverlay}
+    onMouseDown={(event) => {
+      if (event.target === event.currentTarget && !isDeletingReservation) {
+        setIsDeleteConfirmModalOpen(false);
+      }
+    }}
+  >
+    <section
+      className={styles.deleteConfirmModal}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="reservation-delete-title"
+      aria-describedby="reservation-delete-description"
+    >
+      <span className={styles.deleteConfirmIcon} aria-hidden="true">
+        <Trash2 size={26} />
+      </span>
+      <p className={styles.deleteConfirmEyebrow}>버스 신청 영구 삭제</p>
+      <h2 id="reservation-delete-title">신청 정보를 삭제할까요?</h2>
+      <p id="reservation-delete-description">
+        삭제하면 신청자 정보와 희망 행선지, 연결된 결제 기록이 제거되고 향후
+        배차 대상에서 제외됩니다. 삭제한 신청은 복구할 수 없습니다.
+      </p>
+      <dl className={styles.deleteConfirmSummary}>
+        <div>
+          <dt>신청자</dt>
+          <dd>{savedReservation.name}</dd>
+        </div>
+        <div>
+          <dt>소속</dt>
+          <dd>
+            {savedReservation.campus || savedReservation.district}
+            {savedReservation.team ? ` · ${savedReservation.team}` : ''}
+          </dd>
+        </div>
+        <div>
+          <dt>희망 행선지</dt>
+          <dd>
+            {savedReservation.stationPreferences
+              .map((preference) => preference.station.name)
+              .join(' · ')}
+          </dd>
+        </div>
+        <div>
+          <dt>처리 결과</dt>
+          <dd>신청 · 결제 기록 삭제, 배차 대상 제외</dd>
+        </div>
+      </dl>
+      <div className={styles.deleteRefundWarning}>
+        <AlertTriangle size={18} aria-hidden="true" />
+        <span>
+          결제 기록 삭제는 실제 환불 처리를 의미하지 않습니다. 이미 입금했다면
+          관리자에게 환불 여부를 확인해주세요.
+        </span>
+      </div>
+      {reservationDeleteError && (
+        <p className={styles.deleteConfirmError} role="alert">
+          {reservationDeleteError}
+        </p>
+      )}
+      <div className={styles.deleteConfirmActions}>
+        <button
+          type="button"
+          className={styles.deleteConfirmCancel}
+          onClick={() => setIsDeleteConfirmModalOpen(false)}
+          disabled={isDeletingReservation}
+          autoFocus
+        >
+          신청 유지
+        </button>
+        <button
+          type="button"
+          className={styles.deleteConfirmSubmit}
+          onClick={() => void confirmCancelReservation()}
+          disabled={isDeletingReservation}
+        >
+          {isDeletingReservation ? (
+            <>
+              <LoaderCircle className={styles.deleteSpinner} size={18} />
+              삭제 중...
+            </>
+          ) : (
+            <>
+              <Trash2 size={18} />
+              신청 영구 삭제
+            </>
+          )}
+        </button>
+      </div>
+    </section>
+  </div>
+)}
 
 {isStationCandidateModalOpen && (
   <div
@@ -2147,7 +2293,7 @@ const handleConfirmCandidateStations = () => {
           <div>
             <dt>입금자명</dt>
             <dd>
-              공백 없이 이름 뒤에 휴대폰 뒷4자리 (예:{' '}
+              공백 없이 이름 뒤에 휴대폰 뒷 4자리 (예:{' '}
               {name.trim() || '홍길동'}
               {phone.replace(/\D/g, '').slice(-4) || '1234'})
             </dd>

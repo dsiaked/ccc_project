@@ -20,7 +20,7 @@ test('allocation reset serializes job creation and explicitly clears dependencie
   );
   assert.match(
     migration,
-    /insert into public\.admin_action_audit_logs[\s\S]*'allocation_optimization_jobs'/i
+    /if to_regclass\('public\.admin_action_audit_logs'\) is not null then[\s\S]*insert into public\.admin_action_audit_logs[\s\S]*'allocation_optimization_jobs'/i
   );
 });
 
@@ -61,6 +61,10 @@ test('successful allocation reset restores the calculation-ready view', () => {
   assert.match(
     page,
     /jobsStateRevisionRef\.current \+= 1;[\s\S]*const deletedCount = await resetExactAllocationJobs\(\);[\s\S]*resetCalculationView\(\);[\s\S]*setCalculationViewReset\(true\);/
+  );
+  assert.match(
+    page,
+    /catch \(resetError\) \{[\s\S]*setError\(formatError\(resetError\)\);[\s\S]*await loadRecentJobs\(currentJob\?\.id\)\.catch\(\(\) => undefined\);/
   );
   assert.match(
     page,

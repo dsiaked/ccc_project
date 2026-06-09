@@ -11,14 +11,17 @@ import subprocess
 import sys
 import threading
 import urllib.error
-import urllib.parse
 import urllib.request
 from ctypes import wintypes
 from pathlib import Path
 from typing import Callable
 
 from exact_optimizer.local_worker import main as run_local_worker
-from exact_optimizer.worker import build_supabase_headers, normalize_service_role_key
+from exact_optimizer.worker import (
+    build_supabase_headers,
+    normalize_service_role_key,
+    normalize_supabase_url,
+)
 
 
 APP_NAME = "CCC Bus Allocation Optimizer"
@@ -220,19 +223,6 @@ def save_config(supabase_url: str, service_role_key: str) -> None:
         "service_role_key": protect_secret(service_role_key),
     }
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-
-
-def normalize_supabase_url(value: str) -> str:
-    url = value.strip().rstrip("/")
-    parsed = urllib.parse.urlsplit(url)
-    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-        raise ValueError("Supabase URL은 https://프로젝트참조.supabase.co 형식으로 입력해주세요.")
-    if parsed.path not in {"", "/"} or parsed.query or parsed.fragment:
-        raise ValueError(
-            "Supabase URL에는 /rest/v1 또는 대시보드 경로를 넣지 마세요. "
-            "예: https://프로젝트참조.supabase.co"
-        )
-    return urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, "", "", ""))
 
 
 def _http_error_detail(error: urllib.error.HTTPError) -> str:

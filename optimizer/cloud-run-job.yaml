@@ -24,6 +24,8 @@ spec:
                   value: https://pjbvxoesgwhbxfsfjliw.supabase.co
                 - name: ALLOCATION_OPTIMIZER_EXECUTION_MODE
                   value: cloud
+                - name: ALLOCATION_OPTIMIZER_MAX_SECONDS
+                  value: "3600"
                 - name: SUPABASE_SERVICE_ROLE_KEY
                   valueFrom:
                     secretKeyRef:

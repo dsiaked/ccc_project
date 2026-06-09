@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
+  AlertTriangle,
   Banknote,
   Bus,
   Building2,
   CheckCircle2,
   Clock,
+  LoaderCircle,
   MapPin,
   Ticket,
   User,
@@ -38,32 +40,57 @@ const TicketPage = () => {
   const [loadError, setLoadError] = useState('');
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [cancelling, setCancelling] = useState(false);
+  const cancelInFlightRef = useRef(false);
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [cancelError, setCancelError] = useState('');
   const [isLoginRequiredModalOpen, setIsLoginRequiredModalOpen] =
     useState(false);
   const activityDateLabel = reservation?.updatedAt ? '최종 수정 일시' : '신청 일시';
   const activityDate = reservation?.updatedAt || reservation?.requestedAt;
   const remainingSeatClaim = reservation?.remainingSeatClaim;
 
-  const handleCancelRemainingSeat = async () => {
-    if (!reservation?.remainingSeatClaim) return;
-    if (
-      !window.confirm(
-        '잔여 좌석 신청을 취소할까요? 좌석은 다시 공개됩니다. 이미 입금했다면 환불이 자동 처리되는지 확정할 수 없으므로 관리자에게 문의하고 환불 여부를 반드시 확인해 주세요.'
-      )
-    )
-      return;
+  const handleCancelRemainingSeat = () => {
+    if (!reservation?.remainingSeatClaim || cancelling) return;
+    setCancelError('');
+    setCancelDialogOpen(true);
+  };
 
+  const confirmCancelRemainingSeat = async () => {
+    if (
+      !reservation?.remainingSeatClaim ||
+      cancelling ||
+      cancelInFlightRef.current
+    ) {
+      return;
+    }
+
+    cancelInFlightRef.current = true;
     setCancelling(true);
+    setCancelError('');
     try {
       await cancelRemainingSeatClaim(reservation.id);
       navigate('/remaining-seats', { replace: true });
     } catch (error) {
       console.error('잔여 좌석 신청 취소 실패:', error);
-      alert('잔여 좌석 신청을 취소하지 못했습니다.');
+      setCancelError('잔여 좌석 신청을 취소하지 못했습니다. 잠시 후 다시 시도해주세요.');
     } finally {
+      cancelInFlightRef.current = false;
       setCancelling(false);
     }
   };
+
+  useEffect(() => {
+    if (!cancelDialogOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !cancelling) {
+        setCancelDialogOpen(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [cancelDialogOpen, cancelling]);
 
   useEffect(() => {
     let isMounted = true;
@@ -132,7 +159,7 @@ const TicketPage = () => {
           <div className={styles.iconCircle}>
             <Ticket size={32} color="#ffffff" />
           </div>
-          <h1 className={styles.title}>귀가 버스 신청 현황</h1>
+          <h1 className={styles.title}>버스 신청 현황</h1>
           <p className={styles.subtitle}>
             신청한 귀가 버스 정보와 확정된 버스표를 확인할 수 있습니다
           </p>
@@ -160,7 +187,7 @@ const TicketPage = () => {
           <section className={styles.ticketCard}>
             <div className={styles.ticketHeader}>
               <div>
-                <p className={styles.badge}>귀가 버스 신청</p>
+                <p className={styles.badge}>버스 신청</p>
                 <h2 className={styles.ticketTitle}>2026 CCC 여름수련회 귀가 버스</h2>
               </div>
 
@@ -209,7 +236,7 @@ const TicketPage = () => {
                 <div className={styles.claimSummaryGrid}>
                   <div>
                     <Clock size={18} aria-hidden="true" />
-                    <span>출발 시간</span>
+                    <span>출발 일시</span>
                     <strong>{remainingSeatClaim.departureTime}</strong>
                   </div>
                   <div>
@@ -333,7 +360,7 @@ const TicketPage = () => {
               {remainingSeatClaim && (
                 <button
                   className={styles.dangerButton}
-                  onClick={() => void handleCancelRemainingSeat()}
+                  onClick={handleCancelRemainingSeat}
                   disabled={cancelling}
                 >
                   {cancelling ? '취소 중...' : '입금 대기 신청 취소'}
@@ -357,7 +384,7 @@ const TicketPage = () => {
             <Ticket size={44} color="#98a2b3" />
             <h2 className={styles.emptyTitle}>
               {reservationDeadline.isClosed
-                ? '귀가 버스 신청이 마감되었습니다'
+                ? '버스 신청이 마감되었습니다'
                 : '아직 신청 정보가 없습니다'}
             </h2>
             <p className={styles.emptyText}>
@@ -375,11 +402,99 @@ const TicketPage = () => {
             >
               {reservationDeadline.isClosed
                 ? '잔여 좌석 확인하기'
-                : '귀가 버스 신청하기'}
+                : '버스 신청하기'}
             </button>
           </section>
         )}
       </main>
+
+      {cancelDialogOpen && remainingSeatClaim && (
+        <div
+          className={styles.modalBackdrop}
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !cancelling) {
+              setCancelDialogOpen(false);
+            }
+          }}
+        >
+          <section
+            className={styles.cancelDialog}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="remaining-seat-cancel-title"
+            aria-describedby="remaining-seat-cancel-description"
+          >
+            <span className={styles.cancelDialogIcon} aria-hidden="true">
+              <AlertTriangle size={26} />
+            </span>
+            <p className={styles.cancelDialogEyebrow}>잔여 좌석 신청 취소</p>
+            <h2 id="remaining-seat-cancel-title">
+              입금 대기 신청을 취소할까요?
+            </h2>
+            <p id="remaining-seat-cancel-description">
+              취소하면 확보한 좌석은 즉시 다시 공개됩니다. 이미 입금했다면 환불은
+              자동 처리되지 않을 수 있으므로 관리자에게 문의하고 환불 여부를
+              반드시 확인해주세요.
+            </p>
+            <dl className={styles.cancelDialogSummary}>
+              <div>
+                <dt>버스</dt>
+                <dd>{formatBusLabel(remainingSeatClaim.busLabel)}</dd>
+              </div>
+              <div>
+                <dt>도착지</dt>
+                <dd>{remainingSeatClaim.destination}</dd>
+              </div>
+              <div>
+                <dt>좌석</dt>
+                <dd>{remainingSeatClaim.seatNumber}</dd>
+              </div>
+              <div>
+                <dt>입금 안내 금액</dt>
+                <dd>{remainingSeatClaim.amount.toLocaleString()}원</dd>
+              </div>
+              <div>
+                <dt>처리 결과</dt>
+                <dd>신청 취소 · 좌석 다시 공개</dd>
+              </div>
+            </dl>
+            <div className={styles.refundWarning}>
+              <AlertTriangle size={18} aria-hidden="true" />
+              <span>신청 취소는 환불 완료를 의미하지 않습니다.</span>
+            </div>
+            {cancelError && (
+              <p className={styles.cancelError} role="alert">
+                {cancelError}
+              </p>
+            )}
+            <div className={styles.cancelDialogActions}>
+              <button
+                type="button"
+                className={styles.modalCancelButton}
+                onClick={() => setCancelDialogOpen(false)}
+                disabled={cancelling}
+                autoFocus
+              >
+                신청 유지
+              </button>
+              <button
+                type="button"
+                className={styles.modalConfirmButton}
+                onClick={() => void confirmCancelRemainingSeat()}
+                disabled={cancelling}
+              >
+                {cancelling ? (
+                  <>
+                    <LoaderCircle className={styles.spin} size={18} /> 취소 중...
+                  </>
+                ) : (
+                  '신청 취소하고 좌석 공개'
+                )}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
 
       {isLoginRequiredModalOpen && (
         <LoginRequiredModal

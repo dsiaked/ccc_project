@@ -14,7 +14,7 @@ import { getCampusScopesForAdmin, type AdminCampusScope } from '../../lib/adminS
 import {
   cancelAdminInvitationCode,
   cleanupAdminInvitationCodes,
-  createAdminInvitationCode,
+  createAdminInvitationCodes,
   getAdminInvitationCodes,
   type AdminInvitationCode,
   type CreatedInvitationCode,
@@ -42,14 +42,28 @@ const formatDateTime = (value: string) =>
     timeStyle: 'short',
   }).format(new Date(value));
 
+const getErrorMessage = (error: unknown, fallback: string) => {
+  if (error instanceof Error) return error.message;
+  if (
+    error &&
+    typeof error === 'object' &&
+    'message' in error &&
+    typeof error.message === 'string'
+  ) {
+    return error.message;
+  }
+
+  return fallback;
+};
+
 const AdminInvitationCodesPage = () => {
   const navigate = useNavigate();
   const [invitations, setInvitations] = useState<AdminInvitationCode[]>([]);
   const [campuses, setCampuses] = useState<AdminCampusScope[]>([]);
   const [role, setRole] = useState<InvitationRole>('campus_admin');
   const [campusId, setCampusId] = useState('');
-  const [createdInvitation, setCreatedInvitation] =
-    useState<CreatedInvitationCode | null>(null);
+  const [createdInvitations, setCreatedInvitations] = useState<CreatedInvitationCode[]>([]);
+  const [issueCount, setIssueCount] = useState(1);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [actionId, setActionId] = useState('');
@@ -79,11 +93,7 @@ const AdminInvitationCodesPage = () => {
       setInvitations(nextInvitations);
       setCampuses(nextCampuses);
     } catch (loadError) {
-      setError(
-        loadError instanceof Error
-          ? loadError.message
-          : '권한 등록 코드 목록을 불러오지 못했습니다.'
-      );
+      setError(getErrorMessage(loadError, '권한 등록 코드 목록을 불러오지 못했습니다.'));
     } finally {
       setLoading(false);
     }
@@ -99,7 +109,7 @@ const AdminInvitationCodesPage = () => {
 
   const handleCreate = async () => {
     if (role === 'campus_admin' && !campusId) {
-      setError('캠퍼스 회계 순장님 권한 등록 코드를 발급할 캠퍼스를 선택해 주세요.');
+      setError('캠퍼스 회계 순장님 권한 등록 코드를 발급할 캠퍼스를 선택해주세요.');
       return;
     }
 
@@ -108,37 +118,48 @@ const AdminInvitationCodesPage = () => {
     setMessage('');
 
     try {
-      const created = await createAdminInvitationCode(
+      const created = await createAdminInvitationCodes(
         role,
-        role === 'campus_admin' ? campusId : null
+        role === 'campus_admin' ? campusId : null,
+        role === 'boarding_manager' ? issueCount : 1
       );
-      setCreatedInvitation(created);
-      setMessage('권한 등록 코드를 발급했습니다. 원문은 지금만 확인할 수 있습니다.');
+      setCreatedInvitations(created);
+      setMessage(
+        `권한 등록 코드 ${created.length.toLocaleString()}개를 발급했습니다. 발급 내역에서도 원문을 확인하고 복사할 수 있습니다.`
+      );
       await loadData();
     } catch (createError) {
-      setError(
-        createError instanceof Error
-          ? createError.message
-          : '권한 등록 코드를 발급하지 못했습니다.'
-      );
+      setError(getErrorMessage(createError, '권한 등록 코드를 발급하지 못했습니다.'));
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleCopy = async () => {
-    if (!createdInvitation) return;
+    if (createdInvitations.length === 0) return;
 
     try {
-      await navigator.clipboard.writeText(createdInvitation.code);
-      setMessage('권한 등록 코드를 복사했습니다.');
+      await navigator.clipboard.writeText(
+        createdInvitations.map((invitation) => invitation.code).join('\n')
+      );
+      setMessage(`권한 등록 코드 ${createdInvitations.length.toLocaleString()}개를 복사했습니다.`);
+    } catch {
+      setError('클립보드에 복사하지 못했습니다.');
+    }
+  };
+
+  const handleCopyCode = async (code: string) => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setError('');
+      setMessage(`${code} 코드를 복사했습니다.`);
     } catch {
       setError('클립보드에 복사하지 못했습니다.');
     }
   };
 
   const handleCancel = async (invitation: AdminInvitationCode) => {
-    if (!window.confirm(`${invitation.codeHint} 권한 등록 코드를 취소할까요?`)) return;
+    if (!window.confirm(`${invitation.code ?? invitation.codeHint} 권한 등록 코드를 취소할까요?`)) return;
 
     setActionId(invitation.id);
     setError('');
@@ -151,11 +172,7 @@ const AdminInvitationCodesPage = () => {
       setMessage('권한 등록 코드를 취소했습니다.');
       await loadData();
     } catch (cancelError) {
-      setError(
-        cancelError instanceof Error
-          ? cancelError.message
-          : '권한 등록 코드를 취소하지 못했습니다.'
-      );
+      setError(getErrorMessage(cancelError, '권한 등록 코드를 취소하지 못했습니다.'));
     } finally {
       setActionId('');
     }
@@ -182,9 +199,10 @@ const AdminInvitationCodesPage = () => {
       await loadData();
     } catch (cleanupError) {
       setError(
-        cleanupError instanceof Error
-          ? cleanupError.message
-          : '지난 권한 등록 코드 기록을 정리하지 못했습니다.'
+        getErrorMessage(
+          cleanupError,
+          '지난 권한 등록 코드 기록을 정리하지 못했습니다.'
+        )
       );
     } finally {
       setActionId('');
@@ -220,16 +238,32 @@ const AdminInvitationCodesPage = () => {
         {error && <p className={styles.error} role="alert">{error}</p>}
         {message && <p className={styles.success} role="status">{message}</p>}
 
-        {createdInvitation && (
+        {createdInvitations.length > 0 && (
           <section className={styles.createdCard}>
             <div>
-              <strong>방금 발급한 권한 등록 코드</strong>
-              <span>이 화면을 벗어나면 원문을 다시 볼 수 없습니다.</span>
+              <strong>
+                방금 발급한 권한 등록 코드 {createdInvitations.length.toLocaleString()}개
+              </strong>
+              <span>발급 내역에서도 원문을 다시 확인하고 복사할 수 있습니다.</span>
             </div>
-            <code>{createdInvitation.code}</code>
+            <div className={styles.createdCodes}>
+              {createdInvitations.map((invitation) => (
+                <div key={invitation.id} className={styles.createdCode}>
+                  <code>{invitation.code}</code>
+                  <button
+                    type="button"
+                    onClick={() => void handleCopyCode(invitation.code)}
+                    aria-label={`${invitation.code} 복사`}
+                  >
+                    <Clipboard size={15} />
+                    복사
+                  </button>
+                </div>
+              ))}
+            </div>
             <button type="button" onClick={() => void handleCopy()}>
               <Clipboard size={16} />
-              복사
+              전체 복사
             </button>
           </section>
         )}
@@ -244,8 +278,10 @@ const AdminInvitationCodesPage = () => {
             <select
               value={role}
               onChange={(event) => {
-                setRole(event.target.value as InvitationRole);
-                setCreatedInvitation(null);
+                const nextRole = event.target.value as InvitationRole;
+                setRole(nextRole);
+                setIssueCount(1);
+                setCreatedInvitations([]);
               }}
             >
               <option value="campus_admin">캠퍼스 회계 순장님</option>
@@ -265,9 +301,27 @@ const AdminInvitationCodesPage = () => {
               </select>
             </label>
           )}
+          <label>
+            발급 개수
+            <input
+              type="number"
+              min={1}
+              max={50}
+              value={role === 'boarding_manager' ? issueCount : 1}
+              disabled={role !== 'boarding_manager'}
+              onChange={(event) => {
+                const nextCount = Math.trunc(Number(event.target.value));
+                setIssueCount(Math.min(50, Math.max(1, nextCount || 1)));
+              }}
+            />
+          </label>
           <button type="button" onClick={() => void handleCreate()} disabled={submitting}>
             <Plus size={17} />
-            {submitting ? '발급하는 중...' : '권한 등록 코드 발급'}
+            {submitting
+              ? '발급하는 중...'
+              : role === 'boarding_manager' && issueCount > 1
+                ? `권한 등록 코드 ${issueCount.toLocaleString()}개 발급`
+                : '권한 등록 코드 발급'}
           </button>
         </section>
 
@@ -275,7 +329,7 @@ const AdminInvitationCodesPage = () => {
           <div className={styles.listHeader}>
             <div>
               <h2>발급 내역</h2>
-              <p>원문 대신 식별 가능한 일부 문자만 표시합니다.</p>
+              <p>새로 발급한 코드 원문을 확인하고 바로 복사할 수 있습니다.</p>
             </div>
             <div className={styles.listHeaderActions}>
               <strong>{invitations.length.toLocaleString()}개</strong>
@@ -299,7 +353,8 @@ const AdminInvitationCodesPage = () => {
               {invitations.map((invitation) => (
                 <article key={invitation.id}>
                   <div>
-                    <code>{invitation.codeHint}</code>
+                    <code>{invitation.code ?? invitation.codeHint}</code>
+                    {!invitation.code && <small>기존 발급 코드라 원문을 복구할 수 없습니다.</small>}
                     <strong>{roleLabels[invitation.role]}</strong>
                     {invitation.campusId && (
                       <span>{campusNames.get(invitation.campusId) ?? '캠퍼스 정보 없음'}</span>
@@ -313,14 +368,25 @@ const AdminInvitationCodesPage = () => {
                       만료 {formatDateTime(invitation.expiresAt)}
                     </time>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => void handleCancel(invitation)}
-                    disabled={invitation.status !== 'active' || Boolean(actionId)}
-                  >
-                    <XCircle size={16} />
-                    취소
-                  </button>
+                  <div className={styles.rowActions}>
+                    <button
+                      type="button"
+                      onClick={() => invitation.code && void handleCopyCode(invitation.code)}
+                      disabled={!invitation.code}
+                      title={invitation.code ? '코드 복사' : '기존 코드 원문은 복구할 수 없습니다.'}
+                    >
+                      <Clipboard size={16} />
+                      복사
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleCancel(invitation)}
+                      disabled={invitation.status !== 'active' || Boolean(actionId)}
+                    >
+                      <XCircle size={16} />
+                      취소
+                    </button>
+                  </div>
                 </article>
               ))}
             </div>

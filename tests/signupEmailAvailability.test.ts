@@ -3,29 +3,32 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const signupPage = readFileSync('src/pages/SignupPage.tsx', 'utf8');
-const availabilityMigration = readFileSync(
-  'supabase/migrations/20260610200001_137_enable_signup_email_availability_check.sql',
-  'utf8'
+const setupSql = readFileSync(
+  'sql/setup/149_disable_signup_email_enumeration.sql',
+  'utf8',
+);
+const migrationSql = readFileSync(
+  'supabase/migrations/20260610230010_149_disable_signup_email_enumeration.sql',
+  'utf8',
 );
 
-test('signup requires a successful email availability check before continuing', () => {
-  assert.match(
-    signupPage,
-    /supabase\.rpc\(\s*'email_exists',\s*\{ p_email: normalizedEmail \}/
-  );
-  assert.match(signupPage, /emailCheckStatus !== 'available'/);
-  assert.match(signupPage, /disabled=\{emailCheckStatus !== 'available'\}/);
-  assert.match(
-    signupPage,
-    /if \(currentStep === 0\) \{\s*handleNextStep\(\);\s*return;\s*\}/
-  );
-  assert.match(signupPage, /사용 가능한 이메일입니다/);
-  assert.match(signupPage, /이미 가입된 이메일입니다/);
+test('signup email-enumeration setup SQL matches its migration', () => {
+  assert.equal(setupSql, migrationSql);
 });
 
-test('browser signup clients can call the email availability RPC', () => {
+test('browser signup clients cannot call the email existence RPC', () => {
   assert.match(
-    availabilityMigration,
-    /grant execute on function public\.email_exists\(text\) to anon, authenticated/i
+    setupSql,
+    /revoke all on function public\.email_exists\(text\) from public, anon, authenticated/i,
+  );
+});
+
+test('signup does not reveal whether an email is already registered', () => {
+  assert.doesNotMatch(signupPage, /supabase\.rpc\(\s*'email_exists'/);
+  assert.doesNotMatch(signupPage, /이미 가입된 이메일입니다/);
+  assert.doesNotMatch(signupPage, /emailCheckStatus/);
+  assert.match(
+    signupPage,
+    /if \(isAlreadyRegisteredSignupError\(signUpError\)\) \{\s*clearSignupDraft\(\);\s*setSignupResult\('verification-required'\)/,
   );
 });
