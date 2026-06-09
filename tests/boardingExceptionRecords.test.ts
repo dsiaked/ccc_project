@@ -29,7 +29,7 @@ const reasonEditSetup = readFileSync(
   'utf8'
 );
 const reasonEditMigration = readFileSync(
-  'supabase/migrations/20260610230022_155_boarding_exception_reason_edits.sql',
+  'supabase/migrations/20260610230019_155_boarding_exception_reason_edits.sql',
   'utf8'
 );
 

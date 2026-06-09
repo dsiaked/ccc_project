@@ -13,7 +13,7 @@ const migrationSql = readFileSync(
 );
 
 test('signup email-enumeration setup SQL matches its migration', () => {
-  assert.equal(setupSql, migrationSql);
+  assert.equal(setupSql.replaceAll('\r\n', '\n'), migrationSql.replaceAll('\r\n', '\n'));
 });
 
 test('browser signup clients cannot call the email existence RPC', () => {

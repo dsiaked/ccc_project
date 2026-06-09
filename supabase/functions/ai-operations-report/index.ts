@@ -197,6 +197,8 @@ Deno.serve(async (request) => {
     return json({ error: createError?.message || '보고서 기록을 만들지 못했습니다.' }, 500);
   }
 
+  let summary: Record<string, unknown> = {};
+
   try {
     if (!openAiApiKey) {
       throw new Error('OPENAI_API_KEY 서버 비밀값이 설정되지 않았습니다.');
@@ -225,7 +227,7 @@ Deno.serve(async (request) => {
     if (activityError) throw activityError;
     if (auditError) throw auditError;
 
-    const summary = aggregateLogs(activityRows ?? [], auditRows ?? []);
+    summary = aggregateLogs(activityRows ?? [], auditRows ?? []);
     const aiResponse = await fetch('https://api.openai.com/v1/responses', {
       method: 'POST',
       headers: {
@@ -285,6 +287,8 @@ Deno.serve(async (request) => {
       .from('ai_operations_reports')
       .update({
         status: 'failed',
+        input_summary: summary,
+        model,
         error_message: message.slice(0, 2000),
         completed_at: new Date().toISOString(),
       })

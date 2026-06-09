@@ -16,6 +16,9 @@ export const recordActivityEvent = async (
   route?: string,
   metadata: ActivityEventMetadata = {}
 ) => {
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (userError || !userData.user) return;
+
   const { error } = await supabase.rpc('record_activity_event', {
     p_event_name: eventName,
     p_category: category,

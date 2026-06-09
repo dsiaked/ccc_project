@@ -97,6 +97,15 @@ const requireAllocationAdminSession = async () => {
   if (error || !data.session) {
     throw new Error('관리자 로그인 세션이 만료되었습니다. 다시 로그인해주세요.');
   }
+
+  const { data: userData, error: userError } = await supabase.auth.getUser(
+    data.session.access_token
+  );
+  if (userError || !userData.user) {
+    throw new Error('관리자 로그인 세션이 만료되었습니다. 다시 로그인해주세요.');
+  }
+
+  return data.session.access_token;
 };
 
 const throwAllocationWriteError = (error: AllocationRpcError) => {
@@ -221,9 +230,13 @@ export const launchExactAllocationJob = async (
   if (executionMode === 'local') {
     return { jobId, workerId: 'local-worker', operationName: null };
   }
+  const accessToken = await requireAllocationAdminSession();
   const { data, error } = await supabase.functions.invoke(
     'allocation-optimizer-launcher',
-    { body: { jobId } }
+    {
+      body: { jobId },
+      headers: { Authorization: `Bearer ${accessToken}` },
+    }
   );
   if (error) throw error;
   return data as { jobId: string; workerId: string; operationName: string | null };
@@ -256,6 +269,7 @@ export const cancelExactAllocationJob = async (jobId: string) => {
 };
 
 export const resetExactAllocationJobs = async () => {
+  await requireAllocationAdminSession();
   const { data, error } = await supabase.rpc(
     'reset_allocation_optimization_jobs'
   );

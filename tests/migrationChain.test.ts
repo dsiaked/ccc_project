@@ -398,7 +398,7 @@ for (const [setupFile, migrationFile] of [
   ],
   [
     '155_boarding_exception_reason_edits.sql',
-    '20260610230022_155_boarding_exception_reason_edits.sql',
+    '20260610230019_155_boarding_exception_reason_edits.sql',
   ],
   [
     '158_allow_allocation_confirmation_cancel_before_deadline.sql',
