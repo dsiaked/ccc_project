@@ -14,7 +14,7 @@ test('allocation confirmation uses a safety modal with operational scope', () =>
   assert.match(page, /확정 탑승자/);
   assert.match(page, /운행 버스/);
   assert.match(page, /현재 경고/);
-  assert.match(page, /잔여 좌석 입금 대기/);
+  assert.match(page, /잔여 좌석 미입금/);
   assert.match(page, /버스표 공개 · 배차 편집 잠금/);
   assert.match(page, /autoFocus/);
   assert.doesNotMatch(

@@ -1,0 +1,40 @@
+.pageContainer { min-height: 100vh; background: #f4f7fb; }
+.main { width: 100%; max-width: 1400px; margin: 0 auto; padding: 100px 24px 56px; }
+.backButton { display: flex; align-items: center; gap: 6px; margin-bottom: 16px; border: 0; background: transparent; color: #475467; font: inherit; font-weight: 800; cursor: pointer; }
+.hero { display: flex; gap: 16px; align-items: center; margin-bottom: 18px; padding: 24px; border-radius: 14px; background: #172554; color: white; }
+.hero > svg { flex: 0 0 auto; }
+.hero span { color: #bfdbfe; font-size: 12px; font-weight: 900; }
+.hero h1 { margin: 4px 0; font-size: 28px; }
+.hero p { margin: 0; color: #dbeafe; font-size: 13px; }
+.generator { display: grid; gap: 14px; margin-bottom: 18px; padding: 18px; border: 1px solid #dbe3ee; border-radius: 12px; background: white; }
+.privacyNotice { display: flex; align-items: center; gap: 10px; padding: 11px 13px; border-radius: 8px; background: #ecfdf3; color: #166534; }
+.privacyNotice p { margin: 0; font-size: 12px; }
+.dateFields { display: flex; align-items: end; gap: 12px; }
+.dateFields label { display: grid; gap: 6px; }
+.dateFields span { color: #475467; font-size: 11px; font-weight: 900; }
+.dateFields input { min-height: 40px; border: 1px solid #d0d5dd; border-radius: 8px; padding: 0 10px; font: inherit; }
+.dateFields button { display: flex; align-items: center; gap: 7px; min-height: 40px; border: 0; border-radius: 8px; padding: 0 16px; background: #2563eb; color: white; font: inherit; font-size: 12px; font-weight: 900; cursor: pointer; }
+.dateFields button:disabled { cursor: default; opacity: .55; }
+.error, .failed { padding: 14px; border: 1px solid #fecaca; border-radius: 8px; background: #fff7f7; color: #b42318; font-size: 12px; font-weight: 800; }
+.workspace { display: grid; grid-template-columns: 280px minmax(0, 1fr); min-height: 560px; border: 1px solid #dbe3ee; border-radius: 12px; background: white; overflow: hidden; }
+.reportList { border-right: 1px solid #e4e7ec; background: #f8fafc; }
+.listHeader { display: flex; justify-content: space-between; align-items: center; padding: 15px; border-bottom: 1px solid #e4e7ec; }
+.listHeader button { display: grid; place-items: center; border: 0; background: transparent; color: #475467; cursor: pointer; }
+.reportList > button { display: grid; width: 100%; gap: 5px; border: 0; border-bottom: 1px solid #e4e7ec; padding: 14px 15px; background: transparent; color: #344054; text-align: left; cursor: pointer; }
+.reportList > button:hover, .selectedReport { background: #eff6ff !important; }
+.reportList strong { font-size: 12px; }
+.reportList span { color: #667085; font-size: 10px; }
+.reportList em { width: fit-content; border-radius: 999px; padding: 3px 7px; font-size: 9px; font-style: normal; font-weight: 900; }
+.completed { background: #dcfce7; color: #15803d; }
+.pending { background: #fef3c7; color: #92400e; }
+.failed { background: #fee2e2; color: #b42318; }
+.reportViewer { min-width: 0; padding: 22px; }
+.reportViewer header { display: flex; justify-content: space-between; gap: 12px; align-items: start; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid #e4e7ec; }
+.reportViewer header span { color: #2563eb; font-size: 11px; font-weight: 900; }
+.reportViewer h2 { margin: 4px 0 0; color: #101828; font-size: 20px; }
+.reportViewer code { color: #667085; font-size: 10px; }
+.markdown { margin: 0; color: #344054; font-family: inherit; font-size: 13px; line-height: 1.75; white-space: pre-wrap; overflow-wrap: anywhere; }
+.empty { margin: 0; padding: 42px 16px; color: #667085; font-size: 12px; text-align: center; }
+.spinning { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (max-width: 800px) { .main { padding: 88px 12px 40px; } .dateFields { align-items: stretch; flex-direction: column; } .workspace { grid-template-columns: 1fr; } .reportList { max-height: 260px; overflow: auto; border-right: 0; border-bottom: 1px solid #e4e7ec; } }

@@ -8,7 +8,7 @@ const setupSql = readFileSync(
   'utf8',
 );
 const migrationSql = readFileSync(
-  'supabase/migrations/20260610230010_149_disable_signup_email_enumeration.sql',
+  'supabase/migrations/20260610230016_149_disable_signup_email_enumeration.sql',
   'utf8',
 );
 

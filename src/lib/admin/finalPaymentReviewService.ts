@@ -5,13 +5,13 @@ import {
 } from '../adminService';
 import { supabase } from '../supabase';
 
-export type FinalPaymentStatus = 'missing' | 'pending' | 'refunded';
+export type FinalPaymentStatus = 'missing' | 'pending' | 'completed' | 'refunded';
 export type IndividualReviewReason =
   | 'remaining_seat'
   | 'outside_seoul'
   | 'admin_created';
 
-export interface UnpaidReservation {
+export interface IndividualReviewReservation {
   id: string;
   userId: string;
   paymentId: string | null;
@@ -29,10 +29,12 @@ export interface UnpaidReservation {
 
 export interface FinalPaymentReview {
   ticketPrice: number;
+  totalPaymentTargets: number;
+  paidPaymentTargets: number;
   totalIndividualReviewTargets: number;
   paidIndividualReviewTargets: number;
   campusTransfers: CampusTransferStat[];
-  unpaidReservations: UnpaidReservation[];
+  individualReviewReservations: IndividualReviewReservation[];
 }
 
 type PaymentRow = {
@@ -215,13 +217,11 @@ export async function getFinalPaymentReview(): Promise<FinalPaymentReview> {
     return reviewReasons.length > 0 ? [{ ...row, reviewReasons }] : [];
   });
 
-  const unpaidReservations = individualReviewTargets.flatMap<UnpaidReservation>(
-    (row) => {
+  const individualReviewReservations =
+    individualReviewTargets.map<IndividualReviewReservation>((row) => {
       const payment = getPayment(row.payments);
 
-      if (payment?.status === 'completed') return [];
-
-      return [{
+      return {
         id: row.id,
         userId: row.user_id,
         paymentId: payment?.id ?? null,
@@ -233,23 +233,29 @@ export async function getFinalPaymentReview(): Promise<FinalPaymentReview> {
         campus: row.campus ?? '',
         reservationStatus: row.status === 'confirmed' ? 'confirmed' : 'requested',
         paymentStatus:
-          payment?.status === 'refunded'
+          payment?.status === 'completed'
+            ? 'completed'
+            : payment?.status === 'refunded'
             ? 'refunded'
             : payment?.status === 'pending'
               ? 'pending'
               : 'missing',
         confirmedTicket: Boolean(row.confirmed_ticket),
         reviewReasons: row.reviewReasons,
-      }];
-    }
-  );
+      };
+    });
 
   return {
     ticketPrice,
+    totalPaymentTargets: reservations.length,
+    paidPaymentTargets: reservations.filter(
+      (reservation) => getPayment(reservation.payments)?.status === 'completed'
+    ).length,
     totalIndividualReviewTargets: individualReviewTargets.length,
-    paidIndividualReviewTargets:
-      individualReviewTargets.length - unpaidReservations.length,
+    paidIndividualReviewTargets: individualReviewReservations.filter(
+      (reservation) => reservation.paymentStatus === 'completed'
+    ).length,
     campusTransfers: transfers,
-    unpaidReservations,
+    individualReviewReservations,
   };
 }

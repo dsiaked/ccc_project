@@ -1,4 +1,4 @@
-import { supabase } from '../supabase';
+import { supabase } from '../supabase.js';
 
 export type BoardingStatus = 'unchecked' | 'boarded' | 'no_show';
 export type BoardingEventActorType =
@@ -58,6 +58,41 @@ export interface BoardingSnapshot {
   buses: BoardingBus[];
   passengers: BoardingPassenger[];
   events: BoardingEvent[];
+}
+
+export interface BoardingMoveTargetBus {
+  id: string;
+  label: string;
+  destination: string;
+  capacity: number;
+  remainingCapacity: number;
+  departedAt?: string | null;
+  canManage: boolean;
+}
+
+export interface BoardingMoveRequest {
+  id: string;
+  reservationId: string;
+  passengerName: string;
+  passengerPhone: string;
+  sourceBusId: string;
+  sourceBusLabel: string;
+  targetBusId: string;
+  targetBusLabel: string;
+  reason: string;
+  status: 'pending' | 'approved' | 'rejected';
+  requestedByName?: string | null;
+  requestedAt: string;
+  respondedByName?: string | null;
+  respondedAt?: string | null;
+  responseReason?: string | null;
+  canRespond: boolean;
+  isMine: boolean;
+}
+
+export interface BoardingMoveRequestSnapshot {
+  targetBuses: BoardingMoveTargetBus[];
+  requests: BoardingMoveRequest[];
 }
 
 export interface BoardingManagerUser {
@@ -155,7 +190,7 @@ export const setPassengerBoardingStatus = async (
   if (!isMissingBoardingTransitionReasonRpc(error)) {
     throw new Error(error.message);
   }
-  if (reason.trim()) {
+  if (reason.trim() && status !== 'no_show') {
     throw new Error(boardingTransitionReasonUpgradeMessage);
   }
 
@@ -163,6 +198,14 @@ export const setPassengerBoardingStatus = async (
     p_reservation_id: reservationId,
     p_status: status,
   });
+  if (
+    legacyError &&
+    status === 'no_show' &&
+    reason.trim() &&
+    legacyError.message.includes('No-show status is available after bus departure')
+  ) {
+    throw new Error(boardingTransitionReasonUpgradeMessage);
+  }
   if (legacyError) throw new Error(legacyError.message);
 };
 
@@ -184,6 +227,13 @@ export const updatePassengerBoardingNote = async (
   if (error) throw new Error(error.message);
 };
 
+export const getBoardingMoveRequestSnapshot = async () => {
+  const { data, error } = await supabase.rpc('get_boarding_move_request_snapshot');
+  if (!error) return (data ?? null) as BoardingMoveRequestSnapshot | null;
+  if (isMissingBoardingManagerAssignmentRpc(error)) return null;
+  throw new Error(error.message);
+};
+
 export const setBoardingPassengerStatus = async (
   passenger: Pick<BoardingPassenger, 'reservationId' | 'passengerKind'>,
   status: BoardingStatus,
@@ -202,7 +252,7 @@ export const setBoardingPassengerStatus = async (
   if (!isMissingBoardingTransitionReasonRpc(error)) {
     throw new Error(error.message);
   }
-  if (reason.trim()) {
+  if (reason.trim() && status !== 'no_show') {
     throw new Error(boardingTransitionReasonUpgradeMessage);
   }
 
@@ -210,6 +260,14 @@ export const setBoardingPassengerStatus = async (
     p_walk_in_id: passenger.reservationId,
     p_status: status,
   });
+  if (
+    legacyError &&
+    status === 'no_show' &&
+    reason.trim() &&
+    legacyError.message.includes('No-show status is available after bus departure')
+  ) {
+    throw new Error(boardingTransitionReasonUpgradeMessage);
+  }
   if (legacyError) throw new Error(legacyError.message);
 };
 
@@ -222,6 +280,32 @@ export const moveBoardingPassenger = async (
     p_reservation_id: reservationId,
     p_target_bus_id: targetBusId,
     p_reason: reason,
+  });
+  if (error) throw new Error(error.message);
+};
+
+export const requestBoardingPassengerMove = async (
+  reservationId: string,
+  targetBusId: string,
+  reason: string
+) => {
+  const { error } = await supabase.rpc('request_boarding_passenger_move', {
+    p_reservation_id: reservationId,
+    p_target_bus_id: targetBusId,
+    p_reason: reason,
+  });
+  if (error) throw new Error(error.message);
+};
+
+export const respondToBoardingMoveRequest = async (
+  requestId: string,
+  approve: boolean,
+  responseReason = ''
+) => {
+  const { error } = await supabase.rpc('respond_to_boarding_move_request', {
+    p_request_id: requestId,
+    p_approve: approve,
+    p_response_reason: responseReason,
   });
   if (error) throw new Error(error.message);
 };

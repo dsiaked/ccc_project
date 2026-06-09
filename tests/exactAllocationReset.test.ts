@@ -64,7 +64,7 @@ test('successful allocation reset restores the calculation-ready view', () => {
   );
   assert.match(
     page,
-    /catch \(resetError\) \{[\s\S]*setError\(formatError\(resetError\)\);[\s\S]*await loadRecentJobs\(currentJob\?\.id\)\.catch\(\(\) => undefined\);/
+    /catch \(resetError\) \{[\s\S]*setResetDialogError\(formatError\(resetError\)\);[\s\S]*await loadRecentJobs\(currentJob\?\.id\)\.catch\(\(\) => undefined\);/
   );
   assert.match(
     page,
@@ -82,4 +82,35 @@ test('successful allocation reset restores the calculation-ready view', () => {
     page,
     /requestRevision === jobsStateRevisionRef\.current[\s\S]*setCalculationViewReset\(false\);[\s\S]*setCurrentJob\(detail\);/
   );
+});
+
+test('allocation reset uses a scoped safety modal and blocks active jobs', () => {
+  const page = readFileSync(
+    'src/pages/admin/AdminExactAllocationPage.tsx',
+    'utf8'
+  );
+
+  assert.match(page, /setResetDialogOpen\(true\)/);
+  assert.match(page, /role="dialog"/);
+  assert.match(page, /완료되거나 실패한 최적화 계산 기록과 재사용 캐시를 삭제합니다/);
+  assert.match(page, /이미 생성된 배차 초안과 확정 배차안은 유지됩니다/);
+  assert.match(page, /진행 중인 계산을 먼저 취소하고 완료 상태를 확인한 뒤 리셋해주세요/);
+  assert.match(page, /disabled=\{resetting \|\| activeJob\}/);
+  assert.match(page, /className=\{styles\.secondary\}[\s\S]*autoFocus/);
+  assert.doesNotMatch(page, /window\.confirm/);
+});
+
+test('allocation reset modal blocks duplicate execution and keeps errors visible', () => {
+  const page = readFileSync(
+    'src/pages/admin/AdminExactAllocationPage.tsx',
+    'utf8'
+  );
+
+  assert.match(page, /const resetInFlightRef = useRef\(false\)/);
+  assert.match(
+    page,
+    /resetInFlightRef\.current = true[\s\S]*resetExactAllocationJobs\(\)[\s\S]*resetInFlightRef\.current = false/
+  );
+  assert.match(page, /className=\{styles\.resetDialogError\} role="alert"/);
+  assert.match(page, /onClick=\{\(\) => void confirmReset\(\)\}/);
 });

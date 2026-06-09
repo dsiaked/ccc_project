@@ -53,6 +53,8 @@ import {
 import {
   bulkSendPersonalNotifications,
   bulkUpdatePersonalUserPayments,
+  assignPersonalBoardingManager,
+  cancelPersonalBoardingManager,
   getPersonalUserManagementDetail,
   recordPersonalUserAction,
   revertPersonalUserAction,
@@ -64,10 +66,6 @@ import {
   type PersonalUserManagementDetail,
   type PersonalUserPaymentStatus,
 } from '../../lib/admin/personalUserManagementService';
-import {
-  assignBoardingManager,
-  cancelBoardingManager,
-} from '../../lib/admin/boardingManagementService';
 import type {
   ConfirmedTicket,
   ReturnBusReservation,
@@ -823,11 +821,11 @@ const AdminPersonalTicketPage = () => {
       return;
     }
 
-    const confirmed = await requestOperationReason(
+    const reason = await requestOperationReason(
       '개인 앱 알림 발송',
       `${selectedReservation.name}님에게 "${title}" 알림을 발송합니다. 발송 후 취소할 수 없습니다.`
     );
-    if (!confirmed) return;
+    if (!reason) return;
 
     setSavingOperation(true);
     try {
@@ -836,6 +834,7 @@ const AdminPersonalTicketPage = () => {
         title,
         content,
         category: 'admin',
+        reason,
       });
       setNotificationTitle('');
       setNotificationContent('');
@@ -920,8 +919,8 @@ const AdminPersonalTicketPage = () => {
 
     setSavingRole(true);
     try {
-      if (assigning) await assignBoardingManager(selectedReservation.userId);
-      else await cancelBoardingManager(selectedReservation.userId);
+      if (assigning) await assignPersonalBoardingManager(selectedReservation.userId);
+      else await cancelPersonalBoardingManager(selectedReservation.userId);
       await recordPersonalUserAction({
         targetUserId: selectedReservation.userId,
         reservationId: selectedReservation.dbId,
@@ -996,6 +995,7 @@ const AdminPersonalTicketPage = () => {
         targetUserIds: targets.map((item) => item.userId),
         title: notificationTitle.trim(),
         content: notificationContent.trim(),
+        reason,
       });
       setSelectedReservationIds([]);
       await loadManagementDetail();
@@ -1090,6 +1090,14 @@ const AdminPersonalTicketPage = () => {
       );
       await loadReservations();
       await loadManagementDetail();
+      setNotificationTitle(
+        willCancel ? '신청 취소 안내' : '신청 취소 해제 안내'
+      );
+      setNotificationContent(
+        willCancel
+          ? '버스 신청이 취소되었습니다. 입금하신 경우 환불 절차를 확인해주세요.'
+          : '버스 신청 취소 상태가 해제되었습니다.'
+      );
 
       alert(willCancel ? '신청자를 취소 처리했습니다.' : '취소 상태를 해제했습니다.');
     } catch (error) {
@@ -1887,7 +1895,7 @@ const AdminPersonalTicketPage = () => {
                             ? '환불 필요'
                           : managementDetail.paymentStatus === 'refunded'
                             ? '환불 완료'
-                            : '입금 대기'}
+                            : '미입금'}
                       </strong>
                     </div>
                     <div>

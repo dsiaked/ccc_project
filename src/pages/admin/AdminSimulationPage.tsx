@@ -488,7 +488,7 @@ const buildStagePreview = (
       metrics: [
         ['활성 신청', `${activeReservationCount.toLocaleString()}건`],
         ['입금 완료', `${completedPaymentCount.toLocaleString()}건`],
-        ['입금 대기', `${(operation?.payments.pending ?? 0).toLocaleString()}건`],
+        ['미입금', `${(operation?.payments.pending ?? 0).toLocaleString()}건`],
         ['미입금 추정', `${Math.max(0, activeReservationCount - completedPaymentCount).toLocaleString()}건`],
       ],
       rows: [

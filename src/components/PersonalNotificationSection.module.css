@@ -51,6 +51,57 @@
   font-weight: 900;
 }
 
+.errorState {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #b42318;
+  border-color: #fda29b;
+  background: #fef3f2;
+}
+
+.errorState div {
+  flex: 1;
+}
+
+.errorState h2,
+.errorState p,
+.errorMessage {
+  margin: 0;
+}
+
+.errorState h2 {
+  color: #7a271a;
+  font-size: 15px;
+}
+
+.errorState p,
+.errorMessage {
+  color: #b42318;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.retryButton {
+  padding: 8px 12px;
+  border: 1px solid #f04438;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #b42318;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.retryButton:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.errorMessage {
+  margin: -4px 0 12px;
+}
+
 .list {
   display: grid;
   gap: 9px;
@@ -98,6 +149,15 @@
   .section {
     width: calc(100% - 24px);
     padding: 14px;
+  }
+
+  .errorState {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .retryButton {
+    margin-left: 30px;
   }
 
   .item div {

@@ -4,7 +4,7 @@ import test from 'node:test';
 
 const boardingPage = readFileSync('src/pages/admin/AdminBoardingPage.tsx', 'utf8');
 const latestBoardingSnapshotMigration = readFileSync(
-  'supabase/migrations/20260610230001_140_boarding_field_exceptions.sql',
+  'supabase/migrations/20260610230013_152_fix_boarding_station_preferences.sql',
   'utf8'
 );
 
@@ -53,13 +53,14 @@ test('latest boarding snapshot limits buses and passengers through assignment ch
   );
 });
 
-test('boarding roster renders passengers as compact seat cards', () => {
+test('boarding roster renders passengers as compact cards without roster numbers', () => {
   const boardingStyles = readFileSync(
     'src/pages/admin/AdminBoardingPage.module.css',
     'utf8'
   );
 
-  assert.match(boardingPage, /className=\{styles\.passengerSeat\}/);
+  assert.doesNotMatch(boardingPage, /className=\{styles\.passengerSeat\}/);
+  assert.doesNotMatch(boardingStyles, /\.passengerSeat/);
   assert.match(boardingPage, /className=\{styles\.passengerName\}/);
   assert.match(boardingPage, /className=\{styles\.detailButton\}/);
   assert.match(
@@ -94,6 +95,22 @@ test('boarding passenger details open in a dedicated accessible panel', () => {
   );
 });
 
+test('mobile back closes passenger details without leaving boarding management', () => {
+  assert.match(
+    boardingPage,
+    /window\.history\.pushState\([\s\S]*boardingPassengerDetail/
+  );
+  assert.match(boardingPage, /window\.addEventListener\('popstate', handlePopState\)/);
+  assert.match(
+    boardingPage,
+    /const closePassengerDetails = \(\) => \{[\s\S]*window\.history\.back\(\)/
+  );
+  assert.match(
+    boardingPage,
+    /const handlePopState = \(\) => \{[\s\S]*setSelectedPassengerId\(''\)/
+  );
+});
+
 test('manual no-show processing opens passenger details and requires a newly written reason', () => {
   assert.match(
     boardingPage,
@@ -107,6 +124,11 @@ test('manual no-show processing opens passenger details and requires a newly wri
   );
   assert.match(boardingPage, /사유 저장 · 미탑승 처리/);
   assert.match(boardingPage, /'no_show',\s*true,\s*note/);
+  assert.match(
+    boardingPage,
+    /const selectedPassengerActionStatus: BoardingStatus = isWritingNoShowReason[\s\S]*\? 'no_show'/
+  );
+  assert.match(boardingPage, /aria-pressed=\{selectedPassengerActionStatus === 'no_show'\}/);
   assert.doesNotMatch(
     boardingPage,
     /boardingStatus === 'no_show' \|\| !passengerBus\?\.departedAt/
@@ -158,11 +180,11 @@ test('boarding departure action appears after the passenger list', () => {
 test('boarding passenger details show first and second destination preferences', () => {
   assert.match(
     latestBoardingSnapshotMigration,
-    /'stationPreferences',\s*\(\s*select coalesce\([\s\S]*?reservation\.station_preferences/i
+    /jsonb_typeof\(reservation\.station_preferences\) = 'array'[\s\S]*?reservation\.data -> 'stationPreferences'/i
   );
   assert.match(
     latestBoardingSnapshotMigration,
-    /'assignedDestination', reservation\.confirmed_ticket ->> 'dropoffStation'/i
+    /'assignedDestination', coalesce\([\s\S]*?reservation\.confirmed_ticket ->> 'dropoffStation'[\s\S]*?bus ->> 'destination'/i
   );
   assert.match(boardingPage, /귀가역 지망 정보/);
   assert.match(boardingPage, /\{\[0, 1\]\.map/);

@@ -31,28 +31,31 @@ type CampusFilter =
   | 'all'
   | 'review-needed'
   | 'personal-unpaid'
+  | 'personal-paid'
   | 'transfer-sent'
-  | 'transfer-unconfirmed'
   | 'confirmed';
 type PersonFilter = 'all' | FinalPaymentStatus;
 type ReviewTab = 'campuses' | 'people';
-type UnpaidPerson = FinalPaymentReview['unpaidReservations'][number];
+type IndividualReviewPerson =
+  FinalPaymentReview['individualReviewReservations'][number];
 
 const campusFilterLabels: Record<CampusFilter, string> = {
   all: '전체 캠퍼스',
   'review-needed': '처리 필요 캠퍼스',
   'personal-unpaid': '개인 미입금 있음',
+  'personal-paid': '개인 미입금 없음',
   'transfer-sent': '캠퍼스 송금 보고 완료',
-  'transfer-unconfirmed': '본부 확인 필요',
   confirmed: '본부 확인 완료',
 };
 
 const emptyReview: FinalPaymentReview = {
   ticketPrice: 0,
+  totalPaymentTargets: 0,
+  paidPaymentTargets: 0,
   totalIndividualReviewTargets: 0,
   paidIndividualReviewTargets: 0,
   campusTransfers: [],
-  unpaidReservations: [],
+  individualReviewReservations: [],
 };
 
 const formatCurrency = (amount: number) => `${amount.toLocaleString()}원`;
@@ -110,7 +113,7 @@ const AdminFinalPaymentReviewPage = () => {
   const [pendingCampusRevert, setPendingCampusRevert] =
     useState<CampusTransferStat | null>(null);
   const [pendingPersonConfirmation, setPendingPersonConfirmation] =
-    useState<UnpaidPerson | null>(null);
+    useState<IndividualReviewPerson | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState<ReviewTab>('campuses');
@@ -150,10 +153,9 @@ const AdminFinalPaymentReviewPage = () => {
           (campusFilter === 'review-needed' && needsCampusReview(campus)) ||
           (campusFilter === 'personal-unpaid' &&
             campus.paidPeople < campus.totalPeople) ||
+          (campusFilter === 'personal-paid' &&
+            campus.paidPeople >= campus.totalPeople) ||
           (campusFilter === 'transfer-sent' && campus.status === 'sent') ||
-          (campusFilter === 'transfer-unconfirmed' &&
-            (campus.status !== 'confirmed' ||
-              campus.hasAdditionalSettlement)) ||
           (campusFilter === 'confirmed' &&
             campus.status === 'confirmed' &&
             !campus.hasAdditionalSettlement);
@@ -175,7 +177,7 @@ const AdminFinalPaymentReviewPage = () => {
 
   const people = useMemo(
     () =>
-      review.unpaidReservations.filter((person) => {
+      review.individualReviewReservations.filter((person) => {
         const target = [
           person.name,
           person.phone,
@@ -191,7 +193,7 @@ const AdminFinalPaymentReviewPage = () => {
           (!keyword || target.includes(keyword))
         );
       }),
-    [keyword, personFilter, review.unpaidReservations]
+    [keyword, personFilter, review.individualReviewReservations]
   );
 
   const campusSummary = useMemo(() => {
@@ -199,14 +201,8 @@ const AdminFinalPaymentReviewPage = () => {
       (campus) => !needsCampusReview(campus)
     ).length;
     const reviewNeeded = review.campusTransfers.filter(needsCampusReview).length;
-    const expectedAmount = review.campusTransfers.reduce(
-      (sum, campus) => sum + campus.totalAmount,
-      0
-    );
-    const confirmedAmount = review.campusTransfers.reduce(
-      (sum, campus) => sum + (campus.actualConfirmedAmount ?? 0),
-      0
-    );
+    const expectedAmount = review.totalPaymentTargets * review.ticketPrice;
+    const confirmedAmount = review.paidPaymentTargets * review.ticketPrice;
 
     return {
       confirmed,
@@ -215,7 +211,12 @@ const AdminFinalPaymentReviewPage = () => {
       confirmedAmount,
       total: review.campusTransfers.length,
     };
-  }, [review.campusTransfers]);
+  }, [
+    review.campusTransfers,
+    review.paidPaymentTargets,
+    review.ticketPrice,
+    review.totalPaymentTargets,
+  ]);
 
   const campusSettlementRate =
     campusSummary.expectedAmount > 0
@@ -225,9 +226,17 @@ const AdminFinalPaymentReviewPage = () => {
     Math.max(campusSettlementRate, 0),
     100
   );
-  const unpaidAmount = review.unpaidReservations.length * review.ticketPrice;
+  const unpaidIndividualReviewReservations = useMemo(
+    () =>
+      review.individualReviewReservations.filter(
+        (person) => person.paymentStatus !== 'completed'
+      ),
+    [review.individualReviewReservations]
+  );
+  const unpaidAmount =
+    unpaidIndividualReviewReservations.length * review.ticketPrice;
   const hasNoUnpaidPeople =
-    !loading && !errorMessage && review.unpaidReservations.length === 0;
+    !loading && !errorMessage && unpaidIndividualReviewReservations.length === 0;
 
   const getCurrentUserId = async () => {
     const {
@@ -429,12 +438,12 @@ const AdminFinalPaymentReviewPage = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [pendingBulkCampusConfirmation, processingId]);
 
-  const needsRemainingSeatConfirmation = (person: UnpaidPerson) =>
+  const needsRemainingSeatConfirmation = (person: IndividualReviewPerson) =>
     person.reviewReasons.includes('remaining_seat') &&
     person.remainingSeatStatus !== 'confirmed' &&
     !(person.reservationStatus === 'confirmed' && person.confirmedTicket);
 
-  const handleConfirmPerson = (person: UnpaidPerson) => {
+  const handleConfirmPerson = (person: IndividualReviewPerson) => {
     if (processingId || personConfirmationInFlightRef.current) return;
 
     setPendingPersonConfirmation(person);
@@ -506,7 +515,7 @@ const AdminFinalPaymentReviewPage = () => {
             <h1>개인 입금 · 캠퍼스별 송금 관리</h1>
             <p>
               모든 캠퍼스의 개인 입금과 송금 정산 상태를 처리하고, 별도 확인이
-              필요한 개인 미입금자를 한 화면에서 점검합니다.
+              필요한 개별 확인 대상을 한 화면에서 점검합니다.
             </p>
           </div>
           <div className={styles.heroActions}>
@@ -544,7 +553,7 @@ const AdminFinalPaymentReviewPage = () => {
           </article>
           <article className={`${styles.summaryCard} ${styles.amountSummaryCard}`}>
             <Banknote size={22} />
-            <span>정산 확인액 / 캠퍼스 예상액</span>
+            <span>입금 확인액 / 전체 입금 예정액</span>
             <div className={styles.amountProgressLabels}>
               <strong>{formatCurrency(campusSummary.confirmedAmount)}</strong>
               <b>{formatPercentage(campusSettlementRate)}</b>
@@ -552,7 +561,7 @@ const AdminFinalPaymentReviewPage = () => {
             <div
               className={styles.amountProgressTrack}
               role="progressbar"
-              aria-label="캠퍼스 예상액 대비 정산 확인액"
+              aria-label="전체 입금 예정액 대비 입금 확인액"
               aria-valuemin={0}
               aria-valuemax={100}
               aria-valuenow={Math.round(campusSettlementProgress)}
@@ -563,7 +572,8 @@ const AdminFinalPaymentReviewPage = () => {
               />
             </div>
             <small>
-              예상 {formatCurrency(campusSummary.expectedAmount)} · 신청 인원 ×{' '}
+              입금 예정액 {formatCurrency(campusSummary.expectedAmount)} = 신청 인원{' '}
+              {review.totalPaymentTargets.toLocaleString()}명 ×{' '}
               {formatCurrency(review.ticketPrice)}
             </small>
           </article>
@@ -587,7 +597,7 @@ const AdminFinalPaymentReviewPage = () => {
                 '전원 입금 완료'
               ) : (
                 <>
-                  {review.unpaidReservations.length.toLocaleString()} /{' '}
+                  {unpaidIndividualReviewReservations.length.toLocaleString()} /{' '}
                   {review.totalIndividualReviewTargets.toLocaleString()}명
                 </>
               )}
@@ -624,8 +634,8 @@ const AdminFinalPaymentReviewPage = () => {
             onClick={() => setActiveTab('people')}
           >
             <UserRoundX size={17} />
-            개인 미입금 명단
-            <span>{review.unpaidReservations.length.toLocaleString()}</span>
+            개별 확인 대상 명단
+            <span>{review.individualReviewReservations.length.toLocaleString()}</span>
           </button>
         </div>
 
@@ -646,7 +656,7 @@ const AdminFinalPaymentReviewPage = () => {
           <span>
             {activeTab === 'campuses'
               ? '현재 캠퍼스 정산 목록에서 검색합니다.'
-              : '현재 개인 미입금 명단에서 검색합니다.'}
+              : '현재 개별 확인 대상 명단에서 검색합니다.'}
           </span>
         </section>
 
@@ -661,8 +671,8 @@ const AdminFinalPaymentReviewPage = () => {
             <div>
               <h2>캠퍼스 입금·송금 정산</h2>
               <p>
-                기본으로 모든 캠퍼스를 표시합니다. 확인 필요만 보거나 송금 보고
-                건을 바로 본부 확인 처리할 수 있습니다.
+                기본으로 모든 캠퍼스를 표시합니다. 처리 필요 여부, 개인 미입금
+                여부, 송금 단계별로 골라볼 수 있습니다.
               </p>
             </div>
             <div className={styles.panelActions}>
@@ -675,8 +685,8 @@ const AdminFinalPaymentReviewPage = () => {
                 <option value="all">전체 캠퍼스</option>
                 <option value="review-needed">처리 필요 캠퍼스</option>
                 <option value="personal-unpaid">개인 미입금 있음</option>
+                <option value="personal-paid">개인 미입금 없음</option>
                 <option value="transfer-sent">캠퍼스 송금 보고 완료</option>
-                <option value="transfer-unconfirmed">본부 확인 필요</option>
                 <option value="confirmed">본부 확인 완료</option>
               </select>
               <button
@@ -817,12 +827,11 @@ const AdminFinalPaymentReviewPage = () => {
         >
           <div className={styles.panelHeader}>
             <div>
-              <h2>개인 미입금 명단</h2>
+              <h2>개별 확인 대상 명단</h2>
               <p>
                 잔여 좌석 신청자, 서울 외 지구 신청자, 관리자가 직접 추가한 사용자
-                중 미입금자입니다. 서울지구 일반 신청자는 캠퍼스 단위로
-                확인합니다. 입금 내역을 확인한 개인은 바로 완료 처리할 수
-                있습니다.
+                목록입니다. 서울지구 일반 신청자는 캠퍼스 단위로 확인합니다.
+                입금 완료 처리 후에도 이 명단에 남아 상태를 확인할 수 있습니다.
               </p>
             </div>
             <select
@@ -831,9 +840,10 @@ const AdminFinalPaymentReviewPage = () => {
                 setPersonFilter(event.target.value as PersonFilter)
               }
             >
-              <option value="all">모든 미입금자</option>
+              <option value="all">모든 확인 대상</option>
               <option value="missing">입금 정보 없음</option>
-              <option value="pending">입금 대기</option>
+              <option value="pending">미입금</option>
+              <option value="completed">입금 완료</option>
               <option value="refunded">환불 상태</option>
             </select>
           </div>
@@ -854,23 +864,23 @@ const AdminFinalPaymentReviewPage = () => {
                 {loading ? (
                   <tr>
                     <td className={styles.emptyCell} colSpan={7}>
-                      개인 미입금 자료를 불러오는 중입니다.
+                      개별 확인 대상 자료를 불러오는 중입니다.
                     </td>
                   </tr>
                 ) : people.length === 0 ? (
                   <tr>
                     <td className={styles.emptyCell} colSpan={7}>
-                      {review.unpaidReservations.length === 0 ? (
+                      {review.individualReviewReservations.length === 0 ? (
                         <>
                           <strong className={styles.emptyStateTitle}>
-                            전원 입금 완료
+                            개별 확인 대상 없음
                           </strong>
                           <span>
-                            현재 확인할 개인 미입금자가 없습니다.
+                            현재 별도로 확인할 신청자가 없습니다.
                           </span>
                         </>
                       ) : (
-                        '선택한 조건에 맞는 개인 미입금자가 없습니다.'
+                        '선택한 조건에 맞는 개별 확인 대상이 없습니다.'
                       )}
                     </td>
                   </tr>
@@ -904,9 +914,11 @@ const AdminFinalPaymentReviewPage = () => {
                         >
                           {person.paymentStatus === 'missing'
                             ? '입금 정보 없음'
+                            : person.paymentStatus === 'completed'
+                              ? '입금 완료'
                             : person.paymentStatus === 'refunded'
                               ? '환불 상태'
-                              : '입금 대기'}
+                              : '미입금'}
                         </span>
                       </td>
                       <td>
@@ -938,16 +950,20 @@ const AdminFinalPaymentReviewPage = () => {
                         </button>
                       </td>
                       <td>
-                        <button
-                          type="button"
-                          className={styles.confirmButton}
-                          onClick={() => void handleConfirmPerson(person)}
-                          disabled={Boolean(processingId)}
-                        >
-                          {processingId === `person-${person.id}`
-                            ? '처리 중...'
-                            : '입금 완료 처리'}
-                        </button>
+                        {person.paymentStatus === 'completed' ? (
+                          <span className={styles.completedText}>처리 완료</span>
+                        ) : (
+                          <button
+                            type="button"
+                            className={styles.confirmButton}
+                            onClick={() => void handleConfirmPerson(person)}
+                            disabled={Boolean(processingId)}
+                          >
+                            {processingId === `person-${person.id}`
+                              ? '처리 중...'
+                              : '입금 완료 처리'}
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))
@@ -1232,7 +1248,7 @@ const AdminFinalPaymentReviewPage = () => {
             <p id="person-confirm-description">
               {needsRemainingSeatConfirmation(pendingPersonConfirmation)
                 ? '잔여 좌석 결제를 확정하고 해당 신청의 결제·좌석 상태를 함께 완료 처리합니다.'
-                : '개인 결제 상태를 입금 완료로 변경합니다. 실제 계좌 입금 내역을 확인한 뒤 처리해주세요.'}
+                : '개인 입금 상태를 입금 완료로 변경합니다. 실제 계좌 입금 내역을 확인한 뒤 처리해주세요.'}
             </p>
             <dl className={styles.confirmSummary}>
               <div>

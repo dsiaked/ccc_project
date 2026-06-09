@@ -67,6 +67,12 @@ test('migration chain contains RPCs required by high-risk administrator flows', 
     'update_passenger_boarding_note',
     'mark_boarding_bus_departed',
     'cancel_boarding_bus_departure',
+    'get_boarding_move_request_snapshot',
+    'request_boarding_passenger_move',
+    'respond_to_boarding_move_request',
+    'get_boarding_exception_archive_snapshot',
+    'archive_boarding_exception_as_global_admin',
+    'restore_boarding_exception_as_global_admin',
     'create_campus_request_with_message',
     'update_campus_request_status_with_response',
     'mark_campus_request_read',
@@ -381,6 +387,22 @@ for (const [setupFile, migrationFile] of [
   [
     '150_require_boarding_transition_reason.sql',
     '20260610230011_150_require_boarding_transition_reason.sql',
+  ],
+  [
+    '152_fix_boarding_station_preferences.sql',
+    '20260610230013_152_fix_boarding_station_preferences.sql',
+  ],
+  [
+    '153_boarding_move_requests.sql',
+    '20260610230014_153_boarding_move_requests.sql',
+  ],
+  [
+    '155_boarding_exception_reason_edits.sql',
+    '20260610230022_155_boarding_exception_reason_edits.sql',
+  ],
+  [
+    '158_allow_allocation_confirmation_cancel_before_deadline.sql',
+    '20260610230020_158_allow_allocation_confirmation_cancel_before_deadline.sql',
   ],
 ]) {
   test(`${setupFile} matches its migration`, () => {
@@ -1073,6 +1095,10 @@ test('combined setup includes the latest campus request workflow', () => {
     'BEGIN sql/setup/140_boarding_field_exceptions.sql',
     'BEGIN sql/setup/143_fix_allocation_optimization_reset.sql',
     'BEGIN sql/setup/150_require_boarding_transition_reason.sql',
+    'BEGIN sql/setup/152_fix_boarding_station_preferences.sql',
+    'BEGIN sql/setup/153_boarding_move_requests.sql',
+    'BEGIN sql/setup/155_boarding_exception_reason_edits.sql',
+    'BEGIN sql/setup/158_allow_allocation_confirmation_cancel_before_deadline.sql',
   ];
   let previousMarkerIndex = -1;
   for (const marker of orderedMarkers) {

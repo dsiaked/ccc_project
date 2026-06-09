@@ -27,7 +27,7 @@ test('remaining seat claims require a valid payment account and positive amount'
   );
   assert.match(
     remainingSeatPage,
-    /결제 계좌 또는 금액이 등록되지 않아 신청할 수 없습니다\. 관리자에게 문의해주세요\./
+    /입금 계좌 또는 금액이 등록되지 않아 신청할 수 없습니다\. 관리자에게 문의해주세요\./
   );
 });
 

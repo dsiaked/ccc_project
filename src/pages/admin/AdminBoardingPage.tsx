@@ -23,13 +23,17 @@ import {
   addBoardingWalkIn,
   cancelBoardingBusDeparture,
   getBoardingManagementSnapshot,
+  getBoardingMoveRequestSnapshot,
   markBoardingBusDeparted,
   moveBoardingPassenger,
+  requestBoardingPassengerMove,
+  respondToBoardingMoveRequest,
   rotateBoardingCheckInCode,
   setBoardingPassengerStatus,
   syncBoardingRosterGoogleSheet,
   updatePassengerBoardingNote,
   type BoardingEvent,
+  type BoardingMoveRequestSnapshot,
   type BoardingPassenger,
   type BoardingSnapshot,
   type BoardingStatus,
@@ -106,6 +110,10 @@ const AdminBoardingPage = () => {
   const [sheetSyncing, setSheetSyncing] = useState(false);
   const [sheetSyncedAt, setSheetSyncedAt] = useState('');
   const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
+  const [moveRequestSnapshot, setMoveRequestSnapshot] =
+    useState<BoardingMoveRequestSnapshot | null>(null);
+  const [moveRequestActionId, setMoveRequestActionId] = useState('');
   const [selectedBusId, setSelectedBusId] = useState('');
   const [busSearch, setBusSearch] = useState('');
   const [uncheckedBusesOnly, setUncheckedBusesOnly] = useState(false);
@@ -139,13 +147,19 @@ const AdminBoardingPage = () => {
   const realtimeSyncTimerRef = useRef<number | null>(null);
   const sheetAutoSyncTimerRef = useRef<number | null>(null);
   const noteTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const passengerDetailHistoryEntryRef = useRef(false);
+  const passengerDetailHistoryMarkerRef = useRef('boarding-passenger-detail');
 
   const loadSnapshot = useCallback(async (quiet = false, indicateSync = quiet) => {
     if (!quiet) setLoading(true);
     else if (indicateSync) setSyncing(true);
     try {
-      const next = await getBoardingManagementSnapshot();
+      const [next, nextMoveRequests] = await Promise.all([
+        getBoardingManagementSnapshot(),
+        getBoardingMoveRequestSnapshot(),
+      ]);
       setSnapshot(next);
+      setMoveRequestSnapshot(nextMoveRequests);
       setError('');
       setSelectedBusId((current) =>
         current && next?.buses.some((bus) => bus.id === current)
@@ -190,6 +204,11 @@ const AdminBoardingPage = () => {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'boarding_bus_departures' },
+        scheduleRealtimeSync
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'boarding_move_requests' },
         scheduleRealtimeSync
       )
       .subscribe();
@@ -340,10 +359,18 @@ const AdminBoardingPage = () => {
         })
       );
   }, [busCountsByLabel, busSearch, uncheckedBusesOnly, snapshot?.buses]);
-  const exceptionTargetBus = snapshot?.buses.find((bus) => bus.id === exceptionBusId);
-  const exceptionTargetRemaining = exceptionTargetBus
-    ? getBusRemainingCapacity(exceptionTargetBus)
-    : 0;
+  const moveTargetBuses =
+    moveRequestSnapshot?.targetBuses ??
+    (snapshot?.buses.map((bus) => ({
+      ...bus,
+      remainingCapacity: getBusRemainingCapacity(bus),
+      canManage: true,
+    })) ?? []);
+  const exceptionTargetBus = moveTargetBuses.find((bus) => bus.id === exceptionBusId);
+  const exceptionTargetRemaining = exceptionTargetBus?.remainingCapacity ?? 0;
+  const pendingIncomingMoveRequests = moveRequestSnapshot?.requests.filter(
+    (request) => request.status === 'pending' && request.canRespond
+  ) ?? [];
 
   const latestEventByReservationId = useMemo(() => {
     const events = new Map<string, BoardingEvent>();
@@ -376,12 +403,24 @@ const AdminBoardingPage = () => {
     : false;
   const isWritingNoShowReason =
     selectedPassenger?.reservationId === noShowReasonPassengerId;
+  const selectedPassengerActionStatus: BoardingStatus = isWritingNoShowReason
+    ? 'no_show'
+    : selectedPassenger?.boardingStatus ?? 'unchecked';
   const canConfirmNoShow =
     isWritingNoShowReason &&
     isSelectedPassengerNoteChanged &&
     Boolean(selectedPassengerNoteDraft.trim());
 
   const closePassengerDetails = () => {
+    if (
+      passengerDetailHistoryEntryRef.current &&
+      window.history.state?.boardingPassengerDetail ===
+        passengerDetailHistoryMarkerRef.current
+    ) {
+      window.history.back();
+      return;
+    }
+
     if (selectedPassenger && isSelectedPassengerNoteChanged) {
       if (!window.confirm('저장하지 않은 현장 전달사항이 있습니다. 상세보기를 닫을까요?')) {
         return;
@@ -395,24 +434,54 @@ const AdminBoardingPage = () => {
   useEffect(() => {
     if (!selectedPassengerId) return;
 
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
+    if (!passengerDetailHistoryEntryRef.current) {
+      window.history.pushState(
+        {
+          ...window.history.state,
+          boardingPassengerDetail: passengerDetailHistoryMarkerRef.current,
+        },
+        '',
+        window.location.href
+      );
+      passengerDetailHistoryEntryRef.current = true;
+    }
+
+    const handlePopState = () => {
+      if (!passengerDetailHistoryEntryRef.current) return;
+
       if (
         selectedPassenger &&
         isSelectedPassengerNoteChanged &&
         !window.confirm('저장하지 않은 현장 전달사항이 있습니다. 상세보기를 닫을까요?')
       ) {
+        window.history.pushState(
+          {
+            ...window.history.state,
+            boardingPassengerDetail: passengerDetailHistoryMarkerRef.current,
+          },
+          '',
+          window.location.href
+        );
         return;
       }
+
+      passengerDetailHistoryEntryRef.current = false;
       setSelectedPassengerId('');
       setSavedNotePassengerId('');
       setNoShowReasonPassengerId('');
     };
 
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      window.history.back();
+    };
+
     document.body.classList.add(styles.detailPanelOpen);
+    window.addEventListener('popstate', handlePopState);
     window.addEventListener('keydown', handleKeyDown);
     return () => {
       document.body.classList.remove(styles.detailPanelOpen);
+      window.removeEventListener('popstate', handlePopState);
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [selectedPassengerId, isSelectedPassengerNoteChanged, selectedPassenger]);
@@ -487,6 +556,19 @@ const AdminBoardingPage = () => {
     noShowReasonSaved = false,
     transitionReason = ''
   ) => {
+    if (
+      passenger.reservationId === noShowReasonPassengerId &&
+      status === passenger.boardingStatus
+    ) {
+      setNoShowReasonPassengerId('');
+      return;
+    }
+    if (
+      passenger.reservationId === noShowReasonPassengerId &&
+      status !== 'no_show'
+    ) {
+      setNoShowReasonPassengerId('');
+    }
     if (status === 'no_show' && !noShowReasonSaved) {
       setSelectedPassengerId(passenger.reservationId);
       setSavedNotePassengerId('');
@@ -736,11 +818,11 @@ const AdminBoardingPage = () => {
     setExceptionMode('move');
     setExceptionPassenger(passenger);
     setExceptionBusId(
-      snapshot?.buses.find(
+      moveTargetBuses.find(
         (bus) =>
           bus.id !== passenger.busId &&
           !bus.departedAt &&
-          getBusRemainingCapacity(bus) > 0
+          bus.remainingCapacity > 0
       )?.id ?? ''
     );
     setExceptionReason('');
@@ -774,13 +856,24 @@ const AdminBoardingPage = () => {
 
     setSavingException(true);
     setError('');
+    setMessage('');
     try {
       if (exceptionMode === 'move' && exceptionPassenger) {
-        await moveBoardingPassenger(
-          exceptionPassenger.reservationId,
-          exceptionBusId,
-          exceptionReason.trim()
-        );
+        if (exceptionTargetBus?.canManage) {
+          await moveBoardingPassenger(
+            exceptionPassenger.reservationId,
+            exceptionBusId,
+            exceptionReason.trim()
+          );
+          setMessage('호차 이동을 반영했습니다.');
+        } else {
+          await requestBoardingPassengerMove(
+            exceptionPassenger.reservationId,
+            exceptionBusId,
+            exceptionReason.trim()
+          );
+          setMessage('대상 호차 담당자에게 이동 승인 요청을 보냈습니다.');
+        }
       } else if (exceptionMode === 'walk_in') {
         if (!exceptionName.trim() || !exceptionPhone.trim()) {
           throw new Error('신규 탑승자의 이름과 연락처를 입력해주세요.');
@@ -809,6 +902,29 @@ const AdminBoardingPage = () => {
     }
   };
 
+  const handleMoveRequestResponse = async (
+    requestId: string,
+    approve: boolean
+  ) => {
+    const responseReason = approve
+      ? ''
+      : window.prompt('거절 사유를 입력해주세요.')?.trim() ?? '';
+    if (!approve && !responseReason) return;
+
+    setMoveRequestActionId(requestId);
+    setError('');
+    setMessage('');
+    try {
+      await respondToBoardingMoveRequest(requestId, approve, responseReason);
+      await loadSnapshot(true);
+      setMessage(approve ? '호차 이동 요청을 승인하고 이동을 반영했습니다.' : '호차 이동 요청을 거절했습니다.');
+    } catch (actionError) {
+      setError(actionError instanceof Error ? actionError.message : '호차 이동 요청을 처리하지 못했습니다.');
+    } finally {
+      setMoveRequestActionId('');
+    }
+  };
+
   if (loading) {
     return <div className={styles.pageContainer}><AdminHeader /><main className={styles.main}>탑승 현황을 불러오는 중...</main></div>;
   }
@@ -829,6 +945,7 @@ const AdminBoardingPage = () => {
         </section>
 
         {error && <p className={styles.error} role="alert">{error}</p>}
+        {message && <p className={styles.message} role="status">{message}</p>}
 
         {!snapshot ? (
           <section className={styles.empty}><Bus size={42} /><h2>확정 배차가 없습니다</h2><p>전체 관리자가 배차를 확정하면 탑승 현황이 표시됩니다.</p></section>
@@ -952,6 +1069,61 @@ const AdminBoardingPage = () => {
                 ))}
               </div>
             </section>
+
+            {(moveRequestSnapshot?.requests.length ?? 0) > 0 && (
+              <section className={styles.moveRequestPanel} aria-label="호차 이동 요청">
+                <div className={styles.moveRequestHeading}>
+                  <div>
+                    <span>호차 이동 요청</span>
+                    <strong>
+                      승인 대기 {pendingIncomingMoveRequests.length.toLocaleString()}건
+                    </strong>
+                  </div>
+                  <p>대상 호차 담당자가 승인하면 즉시 이동 처리됩니다.</p>
+                </div>
+                <div className={styles.moveRequestList}>
+                  {moveRequestSnapshot?.requests.map((request) => (
+                    <article key={request.id} className={styles.moveRequestCard}>
+                      <div>
+                        <strong>{request.passengerName}</strong>
+                        <span>
+                          {formatBusLabel(request.sourceBusLabel)} → {formatBusLabel(request.targetBusLabel)}
+                        </span>
+                        <small>
+                          {request.requestedByName || '탑승 관리 간사님'} 요청 · {formatKoreanDateTime(request.requestedAt)}
+                        </small>
+                        <p>{request.reason}</p>
+                        {request.responseReason && <p>처리 사유: {request.responseReason}</p>}
+                      </div>
+                      <div className={styles.moveRequestActions}>
+                        <span className={styles[`moveRequestStatus_${request.status}`]}>
+                          {request.status === 'pending' ? '승인 대기' : request.status === 'approved' ? '승인 완료' : '거절됨'}
+                        </span>
+                        {request.canRespond && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => void handleMoveRequestResponse(request.id, true)}
+                              disabled={Boolean(moveRequestActionId)}
+                            >
+                              승인 · 이동 처리
+                            </button>
+                            <button
+                              type="button"
+                              className={styles.rejectMoveRequest}
+                              onClick={() => void handleMoveRequestResponse(request.id, false)}
+                              disabled={Boolean(moveRequestActionId)}
+                            >
+                              거절
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            )}
 
             <div className={styles.busToolbar}>
               <label>
@@ -1169,15 +1341,12 @@ const AdminBoardingPage = () => {
                     <option value="">전체 캠퍼스</option>
                     {campuses.map((campus) => <option key={campus}>{campus}</option>)}
                   </select>
-                  <strong className={styles.resultCount}>
-                    {selectedPassengers.length.toLocaleString()}명
-                  </strong>
                 </div>
 
                 <div className={styles.statusFilters} role="group" aria-label="탑승 상태 필터">
                   <button
                     type="button"
-                    className={!statusFilter ? styles.statusFilterActive : undefined}
+                    className={`${styles.statusFilterAll} ${!statusFilter ? styles.statusFilterActive : ''}`}
                     onClick={() => setStatusFilter('')}
                     aria-pressed={!statusFilter}
                   >
@@ -1187,7 +1356,7 @@ const AdminBoardingPage = () => {
                     <button
                       key={status}
                       type="button"
-                      className={statusFilter === status ? styles.statusFilterActive : undefined}
+                      className={`${styles[`statusFilter_${status}`]} ${statusFilter === status ? styles.statusFilterActive : ''}`}
                       onClick={() => setStatusFilter((current) => current === status ? '' : status)}
                       aria-pressed={statusFilter === status}
                     >
@@ -1209,10 +1378,6 @@ const AdminBoardingPage = () => {
                     );
                     return (
                       <article key={passenger.reservationId} className={`${styles.passenger} ${styles[`status_${passenger.boardingStatus}`]}`}>
-                        <div className={styles.passengerSeat}>
-                          <span>명단 번호</span>
-                          <strong>{passenger.seatNumber || '-'}</strong>
-                        </div>
                         <div className={styles.passengerMain}>
                           <strong className={styles.passengerName} title={passenger.name}>
                             {passenger.name}
@@ -1226,7 +1391,22 @@ const AdminBoardingPage = () => {
                           <span className={styles.statusBadge}>{statusLabels[passenger.boardingStatus]}</span>
                         </div>
                         <div className={styles.actions}>
-                          <button type="button" className={styles.boardButton} onClick={() => handleStatus(passenger, 'boarded')} disabled={isPassengerPending || passenger.boardingStatus === 'boarded'} aria-label={`${passenger.name} 탑승 확인`}><CheckCircle2 size={14} />탑승</button>
+                          <label className={`${styles.boardingCheck} ${passenger.boardingStatus === 'boarded' ? styles.boardingCheckActive : ''}`}>
+                            <input
+                              type="checkbox"
+                              checked={passenger.boardingStatus === 'boarded'}
+                              disabled={isPassengerPending}
+                              onChange={(event) =>
+                                handleStatus(
+                                  passenger,
+                                  event.currentTarget.checked ? 'boarded' : 'unchecked'
+                                )
+                              }
+                              aria-label={`${passenger.name} 탑승 상태`}
+                            />
+                            <span aria-hidden="true">✓</span>
+                            탑승
+                          </label>
                           <button type="button" className={styles.noShowButton} title="미탑승 사유를 작성한 뒤 처리합니다." onClick={() => handleStatus(passenger, 'no_show')} disabled={isPassengerPending || passenger.boardingStatus === 'no_show'} aria-label={`${passenger.name} 미탑승 처리`}><UserX size={14} />미탑승</button>
                           <button type="button" className={styles.resetButton} onClick={() => handleStatus(passenger, 'unchecked')} disabled={isPassengerPending || passenger.boardingStatus === 'unchecked'} aria-label={`${passenger.name} 탑승 미확인으로 변경`}><CircleHelp size={14} />미확인</button>
                         </div>
@@ -1309,9 +1489,9 @@ const AdminBoardingPage = () => {
                 </strong>
               </div>
               <div className={styles.detailActions}>
-                <button type="button" className={styles.boardButton} onClick={() => handleStatus(selectedPassenger, 'boarded')} disabled={pendingPassengerIds.has(selectedPassenger.reservationId) || selectedPassenger.boardingStatus === 'boarded'}><CheckCircle2 size={16} />탑승</button>
-                <button type="button" className={styles.noShowButton} title="미탑승 사유를 작성한 뒤 처리합니다." onClick={() => handleStatus(selectedPassenger, 'no_show')} disabled={pendingPassengerIds.has(selectedPassenger.reservationId) || selectedPassenger.boardingStatus === 'no_show'}><UserX size={16} />미탑승</button>
-                <button type="button" className={styles.resetButton} onClick={() => handleStatus(selectedPassenger, 'unchecked')} disabled={pendingPassengerIds.has(selectedPassenger.reservationId) || selectedPassenger.boardingStatus === 'unchecked'}><CircleHelp size={16} />미확인</button>
+                <button type="button" className={`${styles.boardButton} ${selectedPassengerActionStatus === 'boarded' ? styles.detailActionSelected : ''}`} aria-pressed={selectedPassengerActionStatus === 'boarded'} onClick={() => handleStatus(selectedPassenger, 'boarded')} disabled={pendingPassengerIds.has(selectedPassenger.reservationId) || selectedPassengerActionStatus === 'boarded'}><CheckCircle2 size={16} />탑승</button>
+                <button type="button" className={`${styles.noShowButton} ${selectedPassengerActionStatus === 'no_show' ? styles.detailActionSelected : ''}`} aria-pressed={selectedPassengerActionStatus === 'no_show'} title="미탑승 사유를 작성한 뒤 저장하면 처리됩니다." onClick={() => handleStatus(selectedPassenger, 'no_show')} disabled={pendingPassengerIds.has(selectedPassenger.reservationId) || selectedPassengerActionStatus === 'no_show'}><UserX size={16} />미탑승</button>
+                <button type="button" className={`${styles.resetButton} ${selectedPassengerActionStatus === 'unchecked' ? styles.detailActionSelected : ''}`} aria-pressed={selectedPassengerActionStatus === 'unchecked'} onClick={() => handleStatus(selectedPassenger, 'unchecked')} disabled={pendingPassengerIds.has(selectedPassenger.reservationId) || selectedPassengerActionStatus === 'unchecked'}><CircleHelp size={16} />미확인</button>
               </div>
             </section>
 
@@ -1533,8 +1713,8 @@ const AdminBoardingPage = () => {
                 <span>대상 호차</span>
                 <select value={exceptionBusId} onChange={(event) => setExceptionBusId(event.target.value)} required>
                   <option value="">호차 선택</option>
-                  {snapshot.buses.map((bus) => {
-                    const remaining = getBusRemainingCapacity(bus);
+                  {(exceptionMode === 'move' ? moveTargetBuses : moveTargetBuses.filter((bus) => bus.canManage)).map((bus) => {
+                    const remaining = bus.remainingCapacity;
                     const isCurrentBus =
                       exceptionMode === 'move' && bus.id === exceptionPassenger?.busId;
                     return (
@@ -1544,7 +1724,7 @@ const AdminBoardingPage = () => {
                         disabled={Boolean(bus.departedAt) || remaining === 0 || isCurrentBus}
                       >
                         {formatBusLabel(bus.label)} · {bus.destination} · 잔여 {remaining}명
-                        {isCurrentBus ? ' · 현재 호차' : bus.departedAt ? ' · 출발 완료' : remaining === 0 ? ' · 정원 마감' : ''}
+                        {isCurrentBus ? ' · 현재 호차' : bus.departedAt ? ' · 출발 완료' : remaining === 0 ? ' · 정원 마감' : !bus.canManage ? ' · 승인 필요' : ''}
                       </option>
                     );
                   })}
@@ -1572,13 +1752,21 @@ const AdminBoardingPage = () => {
               </label>
               <p>
                 {exceptionMode === 'move'
-                  ? '출발 완료 또는 정원이 찬 호차로는 이동할 수 없습니다.'
+                  ? exceptionTargetBus && !exceptionTargetBus.canManage
+                    ? '미담당 호차이므로 대상 호차 담당자에게 승인 요청을 보냅니다.'
+                    : '출발 완료 또는 정원이 찬 호차로는 이동할 수 없습니다.'
                   : '출발 완료 호차에는 추가할 수 없으며, 정원과 명단 번호 중복을 서버에서 확인합니다.'}
               </p>
               <footer>
                 <button type="button" onClick={closeException}>취소</button>
                 <button type="submit" disabled={savingException}>
-                  {savingException ? '반영 중...' : exceptionMode === 'move' ? '호차 이동 반영' : '현장 탑승 추가'}
+                  {savingException
+                    ? '반영 중...'
+                    : exceptionMode === 'move'
+                      ? exceptionTargetBus && !exceptionTargetBus.canManage
+                        ? '이동 승인 요청'
+                        : '호차 이동 반영'
+                      : '현장 탑승 추가'}
                 </button>
               </footer>
             </form>

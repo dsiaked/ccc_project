@@ -27,7 +27,7 @@ test('ordinary boarding transitions remain compatible while the reason RPC rolls
   assert.match(boardingService, /isMissingBoardingTransitionReasonRpc/);
   assert.match(
     boardingService,
-    /if \(reason\.trim\(\)\) \{[\s\S]*boardingTransitionReasonUpgradeMessage/
+    /if \(reason\.trim\(\) && status !== 'no_show'\) \{[\s\S]*boardingTransitionReasonUpgradeMessage/
   );
   assert.match(
     boardingService,
@@ -36,6 +36,10 @@ test('ordinary boarding transitions remain compatible while the reason RPC rolls
   assert.match(
     boardingService,
     /set_walk_in_boarding_status', \{\s*p_walk_in_id: passenger\.reservationId,\s*p_status: status,\s*\}/
+  );
+  assert.match(
+    boardingService,
+    /legacyError\.message\.includes\('No-show status is available after bus departure'\)/
   );
 });
 

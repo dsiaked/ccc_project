@@ -168,12 +168,28 @@ export const bulkSendPersonalNotifications = async (params: {
   targetUserIds: string[];
   title: string;
   content: string;
+  reason: string;
 }) => {
   const { error } = await supabase.rpc('bulk_send_personal_notifications', {
     p_target_user_ids: params.targetUserIds,
     p_title: params.title,
     p_content: params.content,
     p_category: 'admin',
+    p_reason: params.reason,
+  });
+  if (error) throw error;
+};
+
+export const assignPersonalBoardingManager = async (userId: string) => {
+  const { error } = await supabase.rpc('assign_boarding_manager_as_global_admin', {
+    p_user_id: userId,
+  });
+  if (error) throw error;
+};
+
+export const cancelPersonalBoardingManager = async (userId: string) => {
+  const { error } = await supabase.rpc('cancel_boarding_manager_as_global_admin', {
+    p_user_id: userId,
   });
   if (error) throw error;
 };
@@ -213,12 +229,14 @@ export const sendPersonalNotification = async (params: {
   title: string;
   content: string;
   category: string;
+  reason: string;
 }) => {
   const { error } = await supabase.rpc('send_personal_notification', {
     p_target_user_id: params.targetUserId,
     p_title: params.title,
     p_content: params.content,
     p_category: params.category,
+    p_reason: params.reason,
   });
 
   if (error) throw error;

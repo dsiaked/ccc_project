@@ -10,7 +10,7 @@ export interface PersonalNotification {
 }
 
 export const getMyPersonalNotifications = async (
-  limit = 5
+  limit = 20
 ): Promise<PersonalNotification[]> => {
   const {
     data: { user },

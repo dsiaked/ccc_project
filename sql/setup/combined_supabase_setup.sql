@@ -7095,6 +7095,621 @@ grant execute on function public.save_confirmed_allocation_workspace_v3(
 
 notify pgrst, 'reload schema';
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+-- =========================================================
+-- BEGIN sql/setup/155_ai_operations_reports.sql
+-- =========================================================
+
+-- =========================================================
+-- Privacy-safe activity logging and AI operations reports
+-- =========================================================
+
+create table if not exists public.activity_event_logs (
+  id uuid primary key default gen_random_uuid(),
+  actor_id uuid references auth.users(id) on delete set null,
+  actor_kind text not null check (actor_kind in ('user', 'admin', 'system')),
+  event_name text not null,
+  category text not null,
+  route text,
+  metadata jsonb not null default '{}'::jsonb,
+  occurred_at timestamptz not null default clock_timestamp(),
+  created_at timestamptz not null default clock_timestamp()
+);
+
+create index if not exists idx_activity_event_logs_occurred_id
+  on public.activity_event_logs(occurred_at desc, id desc);
+create index if not exists idx_activity_event_logs_actor_occurred
+  on public.activity_event_logs(actor_id, occurred_at desc);
+create index if not exists idx_activity_event_logs_category_occurred
+  on public.activity_event_logs(category, occurred_at desc);
+
+alter table public.activity_event_logs enable row level security;
+
+drop policy if exists "Global admins can view activity event logs"
+  on public.activity_event_logs;
+create policy "Global admins can view activity event logs"
+on public.activity_event_logs for select to authenticated
+using (public.is_global_admin());
+
+grant select on public.activity_event_logs to authenticated;
+
+create or replace function public.record_activity_event(
+  p_event_name text,
+  p_category text default 'interaction',
+  p_route text default null,
+  p_metadata jsonb default '{}'::jsonb
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_id uuid;
+  v_metadata jsonb;
+begin
+  if auth.uid() is null then
+    raise exception 'Authentication is required.';
+  end if;
+
+  if length(trim(coalesce(p_event_name, ''))) = 0
+     or length(p_event_name) > 100 then
+    raise exception 'Invalid event name.';
+  end if;
+
+  if length(trim(coalesce(p_category, ''))) = 0
+     or length(p_category) > 50 then
+    raise exception 'Invalid event category.';
+  end if;
+
+  select coalesce(jsonb_object_agg(item.key, item.value), '{}'::jsonb)
+  into v_metadata
+  from jsonb_each(coalesce(p_metadata, '{}'::jsonb)) item
+  where item.key in (
+    'source',
+    'outcome',
+    'duration_ms',
+    'resource_type',
+    'resource_id',
+    'error_code',
+    'page_title'
+  );
+
+  insert into public.activity_event_logs (
+    actor_id,
+    actor_kind,
+    event_name,
+    category,
+    route,
+    metadata
+  )
+  values (
+    auth.uid(),
+    case
+      when exists (
+        select 1
+        from public.admin_roles admin_role
+        where admin_role.user_id = auth.uid()
+      ) then 'admin'
+      else 'user'
+    end,
+    trim(p_event_name),
+    trim(p_category),
+    left(nullif(trim(coalesce(p_route, '')), ''), 300),
+    v_metadata
+  )
+  returning id into v_id;
+
+  return v_id;
+end;
+$$;
+
+revoke all on function public.record_activity_event(text, text, text, jsonb)
+  from public, anon;
+grant execute on function public.record_activity_event(text, text, text, jsonb)
+  to authenticated;
+
+create or replace function public.audit_business_activity_event()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_row jsonb;
+begin
+  v_row := case when tg_op = 'DELETE' then to_jsonb(old) else to_jsonb(new) end;
+
+  insert into public.activity_event_logs (
+    actor_id,
+    actor_kind,
+    event_name,
+    category,
+    metadata
+  )
+  values (
+    auth.uid(),
+    case
+      when auth.uid() is null then 'system'
+      when exists (
+        select 1 from public.admin_roles admin_role
+        where admin_role.user_id = auth.uid()
+      ) then 'admin'
+      else 'user'
+    end,
+    tg_table_name || '.' || lower(tg_op),
+    'data_change',
+    jsonb_strip_nulls(jsonb_build_object(
+      'resource_type', tg_table_name,
+      'resource_id', v_row ->> 'id',
+      'outcome', coalesce(v_row ->> 'status', lower(tg_op))
+    ))
+  );
+
+  return case when tg_op = 'DELETE' then old else new end;
+end;
+$$;
+
+revoke all on function public.audit_business_activity_event()
+  from public, anon, authenticated;
+
+do $$
+declare
+  v_table text;
+begin
+  foreach v_table in array array[
+    'reservations',
+    'payments',
+    'campus_transfers',
+    'bus_allocations',
+    'campus_requests',
+    'remaining_seat_claims',
+    'boarding_move_requests',
+    'boarding_exception_archives'
+  ]
+  loop
+    if to_regclass('public.' || v_table) is not null then
+      execute format(
+        'drop trigger if exists audit_business_activity_event on public.%I',
+        v_table
+      );
+      execute format(
+        'create trigger audit_business_activity_event
+         after insert or update or delete on public.%I
+         for each row execute function public.audit_business_activity_event()',
+        v_table
+      );
+    end if;
+  end loop;
+end;
+$$;
+
+create table if not exists public.ai_operations_reports (
+  id uuid primary key default gen_random_uuid(),
+  requested_by uuid references auth.users(id) on delete set null,
+  status text not null default 'pending'
+    check (status in ('pending', 'completed', 'failed')),
+  period_start timestamptz not null,
+  period_end timestamptz not null,
+  anonymized boolean not null default true,
+  input_summary jsonb not null default '{}'::jsonb,
+  report_markdown text,
+  model text,
+  error_message text,
+  created_at timestamptz not null default clock_timestamp(),
+  completed_at timestamptz
+);
+
+create index if not exists idx_ai_operations_reports_created
+  on public.ai_operations_reports(created_at desc);
+
+alter table public.ai_operations_reports enable row level security;
+
+drop policy if exists "Global admins can view AI operations reports"
+  on public.ai_operations_reports;
+create policy "Global admins can view AI operations reports"
+on public.ai_operations_reports for select to authenticated
+using (public.is_global_admin());
+
+grant select on public.ai_operations_reports to authenticated;
+
+notify pgrst, 'reload schema';
+
+-- =========================================================
+-- END sql/setup/155_ai_operations_reports.sql
+-- =========================================================
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+-- =========================================================
+-- BEGIN sql/setup/156_ccc_summer_user_links.sql
+-- =========================================================
+
+-- =========================================================
+-- CCC Summer identity links
+-- =========================================================
+-- Keep the external subject identifier and staff classification private.
+-- The service-role-only handoff function owns all reads and writes.
+
+create table if not exists public.ccc_summer_user_links (
+  subject_id text primary key,
+  user_id uuid not null unique references auth.users(id) on delete cascade,
+  is_staff boolean not null default false,
+  created_at timestamptz not null default clock_timestamp(),
+  last_synced_at timestamptz not null default clock_timestamp(),
+  constraint ccc_summer_user_links_subject_id_not_blank
+    check (nullif(btrim(subject_id), '') is not null)
+);
+
+create index if not exists idx_ccc_summer_user_links_user_id
+  on public.ccc_summer_user_links(user_id);
+
+alter table public.ccc_summer_user_links enable row level security;
+
+revoke all on table public.ccc_summer_user_links
+from public, anon, authenticated;
+
+grant select, insert, update, delete on table public.ccc_summer_user_links
+to service_role;
+
+comment on table public.ccc_summer_user_links is
+  'Private mapping between CCC Summer subjects and Supabase Auth users.';
+comment on column public.ccc_summer_user_links.is_staff is
+  'Informational CCC Summer staff classification; never grants admin access.';
+
+notify pgrst, 'reload schema';
+
+-- =========================================================
+-- END sql/setup/156_ccc_summer_user_links.sql
+-- =========================================================
+
 -- =========================================================
 -- BEGIN sql/setup/70_admin_personal_ticket_page.sql
 -- =========================================================
@@ -21647,4 +22262,1411 @@ notify pgrst, 'reload schema';
 
 -- =========================================================
 -- END sql/setup/151_personal_user_management_enhancements.sql
+-- =========================================================
+
+-- =========================================================
+-- BEGIN sql/setup/152_fix_boarding_station_preferences.sql
+-- =========================================================
+
+-- Return boarding passenger destination preferences from every supported reservation shape.
+
+create or replace function public.get_boarding_management_snapshot()
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare
+  v_allocation public.bus_allocations%rowtype;
+begin
+  if not public.is_boarding_manager() then
+    raise exception 'Only boarding managers can view boarding management.';
+  end if;
+
+  select * into v_allocation
+  from public.bus_allocations
+  where allocation_data ->> 'status' = 'confirmed';
+  if not found then return null; end if;
+
+  return jsonb_build_object(
+    'allocationId', v_allocation.id,
+    'allocationName', v_allocation.allocation_name,
+    'buses', (
+      select coalesce(jsonb_agg(
+        bus || jsonb_build_object(
+          'departedAt', departure.departed_at,
+          'departedBy', departure.departed_by,
+          'checkInCode', case when code.expires_at > clock_timestamp() then code.check_in_code else null end,
+          'checkInCodeExpiresAt', code.expires_at
+        ) order by bus ->> 'label'
+      ), '[]'::jsonb)
+      from jsonb_array_elements(v_allocation.allocation_data -> 'buses') bus
+      left join public.boarding_bus_departures departure
+        on departure.allocation_id = v_allocation.id
+       and departure.bus_id = bus ->> 'id'
+       and departure.cancelled_at is null
+      left join public.boarding_check_in_codes code
+        on code.allocation_id = v_allocation.id
+       and code.bus_id = bus ->> 'id'
+      where public.can_manage_boarding_bus(v_allocation.id, bus ->> 'id')
+    ),
+    'passengers', (
+      select coalesce(jsonb_agg(passenger order by passenger ->> 'busNumber', passenger ->> 'seatNumber'), '[]'::jsonb)
+      from (
+        select jsonb_build_object(
+          'reservationId', reservation.id,
+          'passengerKind', 'reservation',
+          'busId', public.get_confirmed_ticket_bus_id(reservation.id, reservation.confirmed_ticket),
+          'name', reservation.name,
+          'phone', reservation.phone,
+          'district', reservation.district,
+          'team', reservation.team,
+          'campus', reservation.campus,
+          'busNumber', reservation.confirmed_ticket ->> 'busNumber',
+          'seatNumber', reservation.confirmed_ticket ->> 'seatNumber',
+          'stationPreferences', (
+            select coalesce(jsonb_agg(preference_name order by preference_position), '[]'::jsonb)
+            from (
+              select
+                coalesce(
+                  nullif(preference.value #>> '{station,name}', ''),
+                  nullif(preference.value ->> 'name', ''),
+                  nullif(preference.value #>> '{}', '')
+                ) as preference_name,
+                preference.position as preference_position
+              from jsonb_array_elements(
+                case
+                  when jsonb_typeof(reservation.station_preferences) = 'array' then
+                    case
+                      when jsonb_array_length(reservation.station_preferences) > 0
+                        then reservation.station_preferences
+                      when jsonb_typeof(reservation.data -> 'stationPreferences') = 'array'
+                        then reservation.data -> 'stationPreferences'
+                      else '[]'::jsonb
+                    end
+                  when jsonb_typeof(reservation.data -> 'stationPreferences') = 'array'
+                    then reservation.data -> 'stationPreferences'
+                  else '[]'::jsonb
+                end
+              ) with ordinality as preference(value, position)
+            ) normalized_preferences
+            where nullif(preference_name, '') is not null
+          ),
+          'assignedDestination', coalesce(
+            nullif(reservation.confirmed_ticket ->> 'dropoffStation', ''),
+            (
+              select bus ->> 'destination'
+              from jsonb_array_elements(v_allocation.allocation_data -> 'buses') bus
+              where bus ->> 'id' = public.get_confirmed_ticket_bus_id(
+                reservation.id,
+                reservation.confirmed_ticket
+              )
+              limit 1
+            )
+          ),
+          'boardingStatus', reservation.boarding_status,
+          'boardingNote', reservation.boarding_note,
+          'boardingNoteUpdatedAt', reservation.boarding_note_updated_at,
+          'boardingNoteUpdatedByName', note_actor.name,
+          'updatedAt', reservation.boarding_status_updated_at,
+          'updatedByName', status_actor.name
+        ) passenger
+        from public.reservations reservation
+        left join public.profiles status_actor on status_actor.id = reservation.boarding_status_updated_by
+        left join public.profiles note_actor on note_actor.id = reservation.boarding_note_updated_by
+        where reservation.status = 'confirmed'
+          and reservation.confirmed_ticket is not null
+          and public.can_manage_boarding_reservation(reservation.id)
+        union all
+        select jsonb_build_object(
+          'reservationId', walk_in.id,
+          'passengerKind', 'walk_in',
+          'busId', walk_in.bus_id,
+          'name', walk_in.name,
+          'phone', walk_in.phone,
+          'district', '',
+          'team', '',
+          'campus', walk_in.campus,
+          'busNumber', bus ->> 'label',
+          'seatNumber', walk_in.seat_number::text,
+          'stationPreferences', '[]'::jsonb,
+          'assignedDestination', bus ->> 'destination',
+          'boardingStatus', walk_in.boarding_status,
+          'boardingNote', walk_in.boarding_note,
+          'fieldExceptionReason', walk_in.reason,
+          'updatedAt', walk_in.boarding_status_updated_at
+        ) passenger
+        from public.boarding_walk_in_passengers walk_in
+        join lateral jsonb_array_elements(v_allocation.allocation_data -> 'buses') bus
+          on bus ->> 'id' = walk_in.bus_id
+        where walk_in.allocation_id = v_allocation.id
+          and public.can_manage_boarding_bus(v_allocation.id, walk_in.bus_id)
+      ) scoped
+    ),
+    'events', (
+      select coalesce(jsonb_agg(jsonb_build_object(
+        'id', event.id,
+        'reservationId', event.reservation_id,
+        'fromStatus', event.from_status,
+        'toStatus', event.to_status,
+        'actorType', case
+          when event.note in ('탑승 확인', 'passenger_check_in_code') then 'passenger'
+          when event.note = 'bus_departed_auto_no_show' or event.note like '호차 출발%' then 'automatic'
+          else 'boarding_manager'
+        end,
+        'actorName', actor.name,
+        'createdAt', event.created_at,
+        'note', event.note
+      ) order by event.created_at desc), '[]'::jsonb)
+      from public.boarding_status_events event
+      left join public.profiles actor on actor.id = event.actor_id
+      join public.reservations reservation on reservation.id = event.reservation_id
+      where reservation.status = 'confirmed'
+        and public.can_manage_boarding_reservation(reservation.id)
+        and event.created_at >= coalesce(
+          nullif(reservation.confirmed_ticket ->> 'confirmedAt', '')::timestamptz,
+          '-infinity'::timestamptz
+        )
+    )
+  );
+end;
+$$;
+
+revoke all on function public.get_boarding_management_snapshot() from public, anon;
+grant execute on function public.get_boarding_management_snapshot() to authenticated;
+
+notify pgrst, 'reload schema';
+
+-- =========================================================
+-- END sql/setup/152_fix_boarding_station_preferences.sql
+-- =========================================================
+
+-- =========================================================
+-- BEGIN sql/setup/153_boarding_move_requests.sql
+-- =========================================================
+
+-- Let boarding managers request moves into buses they do not manage.
+
+create table if not exists public.boarding_move_requests (
+  id uuid primary key default gen_random_uuid(),
+  allocation_id uuid not null references public.bus_allocations(id) on delete cascade,
+  reservation_id uuid not null references public.reservations(id) on delete cascade,
+  source_bus_id text not null,
+  target_bus_id text not null,
+  reason text not null,
+  status text not null default 'pending'
+    check (status in ('pending', 'approved', 'rejected')),
+  requested_by uuid not null references auth.users(id) on delete restrict,
+  requested_at timestamptz not null default clock_timestamp(),
+  responded_by uuid references auth.users(id) on delete set null,
+  responded_at timestamptz,
+  response_reason text,
+  check (source_bus_id <> target_bus_id)
+);
+
+create unique index if not exists idx_boarding_move_requests_pending_reservation
+  on public.boarding_move_requests(reservation_id)
+  where status = 'pending';
+create index if not exists idx_boarding_move_requests_target_status
+  on public.boarding_move_requests(allocation_id, target_bus_id, status, requested_at desc);
+create index if not exists idx_boarding_move_requests_requester
+  on public.boarding_move_requests(requested_by, requested_at desc);
+
+alter table public.boarding_move_requests enable row level security;
+revoke all on public.boarding_move_requests from public, anon, authenticated;
+
+create or replace function public.execute_boarding_passenger_move(
+  p_reservation_id uuid,
+  p_expected_source_bus_id text,
+  p_target_bus_id text,
+  p_reason text,
+  p_actor_id uuid
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_allocation public.bus_allocations%rowtype;
+  v_reservation public.reservations%rowtype;
+  v_target_bus jsonb;
+  v_source_bus_id text;
+  v_seat_number integer;
+  v_passenger jsonb;
+  v_passengers jsonb;
+  v_now timestamptz := clock_timestamp();
+begin
+  if nullif(btrim(coalesce(p_reason, '')), '') is null then
+    raise exception 'A move reason is required.';
+  end if;
+
+  select * into v_allocation
+  from public.bus_allocations
+  where allocation_data ->> 'status' = 'confirmed'
+  for update;
+  if not found then raise exception 'Confirmed allocation not found.'; end if;
+
+  select * into v_reservation
+  from public.reservations
+  where id = p_reservation_id
+    and status = 'confirmed'
+    and confirmed_ticket is not null
+  for update;
+  if not found then raise exception 'Confirmed passenger not found.'; end if;
+
+  v_source_bus_id := public.get_confirmed_ticket_bus_id(
+    v_reservation.id,
+    v_reservation.confirmed_ticket
+  );
+  if v_source_bus_id is distinct from p_expected_source_bus_id then
+    raise exception 'The passenger bus changed after the request was created.';
+  end if;
+  if v_source_bus_id = p_target_bus_id then
+    raise exception 'The passenger is already assigned to the target bus.';
+  end if;
+
+  select bus into v_target_bus
+  from jsonb_array_elements(v_allocation.allocation_data -> 'buses') bus
+  where bus ->> 'id' = p_target_bus_id;
+  if v_target_bus is null then raise exception 'Target bus not found.'; end if;
+
+  if exists (
+    select 1 from public.boarding_bus_departures
+    where allocation_id = v_allocation.id
+      and bus_id in (v_source_bus_id, p_target_bus_id)
+      and cancelled_at is null
+  ) then
+    raise exception 'Departed buses cannot receive passenger moves.';
+  end if;
+
+  select candidate.seat_number into v_seat_number
+  from generate_series(1, (v_target_bus ->> 'capacity')::integer) candidate(seat_number)
+  where not exists (
+      select 1
+      from jsonb_array_elements(v_allocation.allocation_data -> 'passengers') passenger
+      where passenger ->> 'reservationId' <> p_reservation_id::text
+        and passenger ->> 'busId' = p_target_bus_id
+        and (passenger ->> 'seatNumber')::integer = candidate.seat_number
+    )
+    and not exists (
+      select 1 from public.boarding_walk_in_passengers walk_in
+      where walk_in.allocation_id = v_allocation.id
+        and walk_in.bus_id = p_target_bus_id
+        and walk_in.seat_number = candidate.seat_number
+    )
+  order by candidate.seat_number
+  limit 1;
+  if v_seat_number is null then
+    raise exception 'The target bus has no remaining capacity.';
+  end if;
+
+  select passenger.value into v_passenger
+  from jsonb_array_elements(v_allocation.allocation_data -> 'passengers') passenger(value)
+  where passenger.value ->> 'reservationId' = p_reservation_id::text
+  limit 1;
+  if v_passenger is null then raise exception 'Allocation passenger not found.'; end if;
+
+  v_passenger := jsonb_set(
+    jsonb_set(v_passenger, '{busId}', to_jsonb(p_target_bus_id), true),
+    '{seatNumber}',
+    to_jsonb(v_seat_number),
+    true
+  );
+
+  select coalesce(jsonb_agg(passenger.value order by passenger.ordinality), '[]'::jsonb)
+  into v_passengers
+  from jsonb_array_elements(v_allocation.allocation_data -> 'passengers')
+    with ordinality passenger(value, ordinality)
+  where passenger.value ->> 'reservationId' <> p_reservation_id::text;
+
+  update public.bus_allocations
+  set allocation_data = jsonb_set(
+        allocation_data,
+        '{passengers}',
+        v_passengers || jsonb_build_array(v_passenger),
+        true
+      ),
+      revision = revision + 1,
+      updated_at = v_now
+  where id = v_allocation.id;
+
+  update public.reservations
+  set confirmed_ticket = jsonb_set(
+        jsonb_set(
+          jsonb_set(confirmed_ticket, '{busId}', to_jsonb(p_target_bus_id), true),
+          '{busNumber}', to_jsonb(v_target_bus ->> 'label'), true
+        ),
+        '{seatNumber}', to_jsonb(v_seat_number::text), true
+      ),
+      boarding_status = 'unchecked',
+      boarding_confirmed_at = null,
+      boarding_status_updated_at = v_now,
+      boarding_status_updated_by = p_actor_id,
+      boarding_no_show_departure_id = null,
+      boarding_note = concat_ws(E'\n', nullif(boarding_note, ''), '[호차 이동] ' || btrim(p_reason)),
+      boarding_note_updated_at = v_now,
+      boarding_note_updated_by = p_actor_id,
+      updated_at = v_now
+  where id = p_reservation_id;
+
+  insert into public.boarding_status_events (
+    reservation_id, from_status, to_status, actor_id, note
+  ) values (
+    p_reservation_id, v_reservation.boarding_status, 'unchecked', p_actor_id, 'boarding_bus_moved'
+  );
+end;
+$$;
+
+create or replace function public.move_boarding_passenger_as_global_admin(
+  p_reservation_id uuid,
+  p_target_bus_id text,
+  p_reason text
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_allocation_id uuid;
+  v_source_bus_id text;
+begin
+  if not public.is_boarding_manager() then
+    raise exception 'Only boarding managers can move boarding passengers.';
+  end if;
+
+  select allocation.id, public.get_confirmed_ticket_bus_id(reservation.id, reservation.confirmed_ticket)
+  into v_allocation_id, v_source_bus_id
+  from public.bus_allocations allocation
+  join public.reservations reservation on reservation.id = p_reservation_id
+  where allocation.allocation_data ->> 'status' = 'confirmed'
+    and reservation.status = 'confirmed'
+    and reservation.confirmed_ticket is not null;
+  if v_allocation_id is null then raise exception 'Confirmed passenger not found.'; end if;
+
+  if not public.can_manage_boarding_bus(v_allocation_id, v_source_bus_id) then
+    raise exception 'You are not assigned to the source bus.';
+  end if;
+  if not public.can_manage_boarding_bus(v_allocation_id, p_target_bus_id) then
+    raise exception 'You are not assigned to the target bus.';
+  end if;
+
+  perform public.execute_boarding_passenger_move(
+    p_reservation_id, v_source_bus_id, p_target_bus_id, p_reason, auth.uid()
+  );
+end;
+$$;
+
+create or replace function public.request_boarding_passenger_move(
+  p_reservation_id uuid,
+  p_target_bus_id text,
+  p_reason text
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_allocation_id uuid;
+  v_source_bus_id text;
+  v_request_id uuid;
+begin
+  if not public.is_boarding_manager() then
+    raise exception 'Only boarding managers can request passenger moves.';
+  end if;
+  if nullif(btrim(coalesce(p_reason, '')), '') is null then
+    raise exception 'A move reason is required.';
+  end if;
+
+  select allocation.id, public.get_confirmed_ticket_bus_id(reservation.id, reservation.confirmed_ticket)
+  into v_allocation_id, v_source_bus_id
+  from public.bus_allocations allocation
+  join public.reservations reservation on reservation.id = p_reservation_id
+  where allocation.allocation_data ->> 'status' = 'confirmed'
+    and reservation.status = 'confirmed'
+    and reservation.confirmed_ticket is not null;
+  if v_allocation_id is null then raise exception 'Confirmed passenger not found.'; end if;
+  if not public.can_manage_boarding_bus(v_allocation_id, v_source_bus_id) then
+    raise exception 'You are not assigned to the source bus.';
+  end if;
+  if v_source_bus_id = p_target_bus_id then
+    raise exception 'The passenger is already assigned to the target bus.';
+  end if;
+  if not exists (
+    select 1 from public.bus_allocations allocation
+    cross join lateral jsonb_array_elements(allocation.allocation_data -> 'buses') bus
+    where allocation.id = v_allocation_id and bus ->> 'id' = p_target_bus_id
+  ) then
+    raise exception 'Target bus not found.';
+  end if;
+  if exists (
+    select 1 from public.boarding_bus_departures
+    where allocation_id = v_allocation_id
+      and bus_id in (v_source_bus_id, p_target_bus_id)
+      and cancelled_at is null
+  ) then
+    raise exception 'Departed buses cannot receive passenger moves.';
+  end if;
+
+  insert into public.boarding_move_requests (
+    allocation_id, reservation_id, source_bus_id, target_bus_id, reason, requested_by
+  ) values (
+    v_allocation_id, p_reservation_id, v_source_bus_id, p_target_bus_id, btrim(p_reason), auth.uid()
+  )
+  returning id into v_request_id;
+  return v_request_id;
+exception
+  when unique_violation then
+    raise exception 'A pending move request already exists for this passenger.';
+end;
+$$;
+
+create or replace function public.respond_to_boarding_move_request(
+  p_request_id uuid,
+  p_approve boolean,
+  p_response_reason text default null
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_request public.boarding_move_requests%rowtype;
+begin
+  if not public.is_boarding_manager() then
+    raise exception 'Only boarding managers can respond to passenger move requests.';
+  end if;
+
+  select * into v_request
+  from public.boarding_move_requests
+  where id = p_request_id
+  for update;
+  if not found then raise exception 'Move request not found.'; end if;
+  if v_request.status <> 'pending' then raise exception 'Move request is no longer pending.'; end if;
+  if not public.can_manage_boarding_bus(v_request.allocation_id, v_request.target_bus_id) then
+    raise exception 'You are not assigned to the target bus.';
+  end if;
+  if not p_approve and nullif(btrim(coalesce(p_response_reason, '')), '') is null then
+    raise exception 'A rejection reason is required.';
+  end if;
+
+  if p_approve then
+    perform public.execute_boarding_passenger_move(
+      v_request.reservation_id,
+      v_request.source_bus_id,
+      v_request.target_bus_id,
+      v_request.reason,
+      auth.uid()
+    );
+  end if;
+
+  update public.boarding_move_requests
+  set status = case when p_approve then 'approved' else 'rejected' end,
+      responded_by = auth.uid(),
+      responded_at = clock_timestamp(),
+      response_reason = nullif(btrim(coalesce(p_response_reason, '')), '')
+  where id = p_request_id;
+end;
+$$;
+
+create or replace function public.get_boarding_move_request_snapshot()
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare
+  v_allocation public.bus_allocations%rowtype;
+begin
+  if not public.is_boarding_manager() then
+    raise exception 'Only boarding managers can view passenger move requests.';
+  end if;
+
+  select * into v_allocation
+  from public.bus_allocations
+  where allocation_data ->> 'status' = 'confirmed';
+  if not found then return jsonb_build_object('targetBuses', '[]'::jsonb, 'requests', '[]'::jsonb); end if;
+
+  return jsonb_build_object(
+    'targetBuses', (
+      select coalesce(jsonb_agg(jsonb_build_object(
+        'id', bus ->> 'id',
+        'label', bus ->> 'label',
+        'destination', bus ->> 'destination',
+        'capacity', (bus ->> 'capacity')::integer,
+        'remainingCapacity', greatest(
+          0,
+          (bus ->> 'capacity')::integer
+          - (
+              select count(*) from jsonb_array_elements(v_allocation.allocation_data -> 'passengers') passenger
+              where passenger ->> 'busId' = bus ->> 'id'
+            )
+          - (
+              select count(*) from public.boarding_walk_in_passengers walk_in
+              where walk_in.allocation_id = v_allocation.id and walk_in.bus_id = bus ->> 'id'
+            )
+        ),
+        'departedAt', departure.departed_at,
+        'canManage', public.can_manage_boarding_bus(v_allocation.id, bus ->> 'id')
+      ) order by bus ->> 'label'), '[]'::jsonb)
+      from jsonb_array_elements(v_allocation.allocation_data -> 'buses') bus
+      left join public.boarding_bus_departures departure
+        on departure.allocation_id = v_allocation.id
+       and departure.bus_id = bus ->> 'id'
+       and departure.cancelled_at is null
+    ),
+    'requests', (
+      select coalesce(jsonb_agg(jsonb_build_object(
+        'id', request.id,
+        'reservationId', request.reservation_id,
+        'passengerName', reservation.name,
+        'passengerPhone', reservation.phone,
+        'sourceBusId', request.source_bus_id,
+        'sourceBusLabel', source_bus ->> 'label',
+        'targetBusId', request.target_bus_id,
+        'targetBusLabel', target_bus ->> 'label',
+        'reason', request.reason,
+        'status', request.status,
+        'requestedByName', requester.name,
+        'requestedAt', request.requested_at,
+        'respondedByName', responder.name,
+        'respondedAt', request.responded_at,
+        'responseReason', request.response_reason,
+        'canRespond', request.status = 'pending'
+          and public.can_manage_boarding_bus(request.allocation_id, request.target_bus_id),
+        'isMine', request.requested_by = auth.uid()
+      ) order by (request.status = 'pending') desc, request.requested_at desc), '[]'::jsonb)
+      from public.boarding_move_requests request
+      join public.reservations reservation on reservation.id = request.reservation_id
+      join lateral jsonb_array_elements(v_allocation.allocation_data -> 'buses') source_bus
+        on source_bus ->> 'id' = request.source_bus_id
+      join lateral jsonb_array_elements(v_allocation.allocation_data -> 'buses') target_bus
+        on target_bus ->> 'id' = request.target_bus_id
+      left join public.profiles requester on requester.id = request.requested_by
+      left join public.profiles responder on responder.id = request.responded_by
+      where request.allocation_id = v_allocation.id
+        and (
+          request.requested_by = auth.uid()
+          or public.can_manage_boarding_bus(request.allocation_id, request.target_bus_id)
+        )
+      limit 50
+    )
+  );
+end;
+$$;
+
+revoke all on function public.execute_boarding_passenger_move(uuid, text, text, text, uuid)
+  from public, anon, authenticated;
+revoke all on function public.request_boarding_passenger_move(uuid, text, text)
+  from public, anon;
+revoke all on function public.respond_to_boarding_move_request(uuid, boolean, text)
+  from public, anon;
+revoke all on function public.get_boarding_move_request_snapshot()
+  from public, anon;
+grant execute on function public.request_boarding_passenger_move(uuid, text, text)
+  to authenticated;
+grant execute on function public.respond_to_boarding_move_request(uuid, boolean, text)
+  to authenticated;
+grant execute on function public.get_boarding_move_request_snapshot()
+  to authenticated;
+
+notify pgrst, 'reload schema';
+
+-- =========================================================
+-- END sql/setup/153_boarding_move_requests.sql
+-- =========================================================
+
+-- =========================================================
+-- BEGIN sql/setup/154_boarding_exception_archives.sql
+-- =========================================================
+
+create table if not exists public.boarding_exception_archives (
+  record_key text primary key,
+  allocation_id uuid not null,
+  record_data jsonb not null,
+  archived_at timestamptz not null default now(),
+  archived_by uuid not null references auth.users(id) on delete restrict
+);
+
+create index if not exists idx_boarding_exception_archives_allocation
+  on public.boarding_exception_archives(allocation_id, archived_at desc);
+
+alter table public.boarding_exception_archives enable row level security;
+revoke all on public.boarding_exception_archives from public, anon, authenticated;
+
+create or replace function public.get_boarding_exception_archive_snapshot()
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_is_global_admin boolean := false;
+begin
+  if auth.uid() is null or not exists (
+    select 1
+    from public.admin_roles admin_role
+    where admin_role.user_id = auth.uid()
+      and admin_role.role in ('global_admin', 'boarding_manager')
+  ) then
+    raise exception 'Only boarding administrators can view boarding exception archives';
+  end if;
+
+  v_is_global_admin := public.is_global_admin();
+
+  return jsonb_build_object(
+    'archivedKeys',
+    (
+      select coalesce(jsonb_agg(archive.record_key), '[]'::jsonb)
+      from public.boarding_exception_archives archive
+    ),
+    'records',
+    case
+      when v_is_global_admin then (
+        select coalesce(
+          jsonb_agg(
+            archive.record_data || jsonb_build_object(
+              'archivedAt', archive.archived_at,
+              'archivedByName', coalesce(actor.name, '전체 관리자')
+            )
+            order by archive.archived_at desc
+          ),
+          '[]'::jsonb
+        )
+        from public.boarding_exception_archives archive
+        left join public.profiles actor on actor.id = archive.archived_by
+      )
+      else '[]'::jsonb
+    end
+  );
+end;
+$$;
+
+create or replace function public.archive_boarding_exception_as_global_admin(
+  p_record_key text,
+  p_allocation_id uuid,
+  p_record_data jsonb
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null or not public.is_global_admin() then
+    raise exception 'Only global administrators can archive boarding exceptions';
+  end if;
+
+  if nullif(btrim(p_record_key), '') is null or p_record_data is null then
+    raise exception 'A boarding exception record is required';
+  end if;
+
+  insert into public.boarding_exception_archives (
+    record_key,
+    allocation_id,
+    record_data,
+    archived_by
+  ) values (
+    btrim(p_record_key),
+    p_allocation_id,
+    p_record_data,
+    auth.uid()
+  )
+  on conflict (record_key) do update
+  set record_data = excluded.record_data,
+      archived_at = now(),
+      archived_by = auth.uid();
+end;
+$$;
+
+create or replace function public.restore_boarding_exception_as_global_admin(
+  p_record_key text
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null or not public.is_global_admin() then
+    raise exception 'Only global administrators can restore boarding exceptions';
+  end if;
+
+  delete from public.boarding_exception_archives
+  where record_key = btrim(p_record_key);
+end;
+$$;
+
+revoke all on function public.get_boarding_exception_archive_snapshot()
+  from public, anon;
+revoke all on function public.archive_boarding_exception_as_global_admin(text, uuid, jsonb)
+  from public, anon;
+revoke all on function public.restore_boarding_exception_as_global_admin(text)
+  from public, anon;
+grant execute on function public.get_boarding_exception_archive_snapshot()
+  to authenticated;
+grant execute on function public.archive_boarding_exception_as_global_admin(text, uuid, jsonb)
+  to authenticated;
+grant execute on function public.restore_boarding_exception_as_global_admin(text)
+  to authenticated;
+
+notify pgrst, 'reload schema';
+
+-- =========================================================
+-- END sql/setup/154_boarding_exception_archives.sql
+-- =========================================================
+
+-- =========================================================
+-- BEGIN sql/setup/155_boarding_exception_reason_edits.sql
+-- =========================================================
+
+-- Limit boarding exception records to assigned buses and allow scoped reason edits.
+
+create table if not exists public.boarding_exception_reason_edits (
+  record_key text primary key,
+  allocation_id uuid not null references public.bus_allocations(id) on delete cascade,
+  bus_id text not null,
+  reason text not null,
+  updated_at timestamptz not null default clock_timestamp(),
+  updated_by uuid not null references auth.users(id) on delete restrict
+);
+
+create table if not exists public.boarding_exception_reason_edit_logs (
+  id uuid primary key default gen_random_uuid(),
+  record_key text not null,
+  allocation_id uuid not null references public.bus_allocations(id) on delete cascade,
+  bus_id text not null,
+  previous_reason text,
+  next_reason text not null,
+  edited_at timestamptz not null default clock_timestamp(),
+  edited_by uuid not null references auth.users(id) on delete restrict
+);
+
+create index if not exists idx_boarding_exception_reason_edits_scope
+  on public.boarding_exception_reason_edits(allocation_id, bus_id);
+create index if not exists idx_boarding_exception_reason_edit_logs_record
+  on public.boarding_exception_reason_edit_logs(record_key, edited_at desc);
+
+alter table public.boarding_exception_reason_edits enable row level security;
+alter table public.boarding_exception_reason_edit_logs enable row level security;
+revoke all on public.boarding_exception_reason_edits from public, anon, authenticated;
+revoke all on public.boarding_exception_reason_edit_logs from public, anon, authenticated;
+
+create or replace function public.get_boarding_exception_reason_edit_snapshot()
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+begin
+  if not public.is_boarding_manager() then
+    raise exception 'Only boarding administrators can view boarding exception reason edits';
+  end if;
+
+  return coalesce(
+    (
+      select jsonb_agg(
+        jsonb_build_object(
+          'recordKey', edit.record_key,
+          'reason', edit.reason,
+          'updatedAt', edit.updated_at,
+          'updatedByName', coalesce(actor.name, '탑승 관리자')
+        )
+        order by edit.updated_at desc
+      )
+      from public.boarding_exception_reason_edits edit
+      left join public.profiles actor on actor.id = edit.updated_by
+      where public.can_manage_boarding_bus(edit.allocation_id, edit.bus_id)
+    ),
+    '[]'::jsonb
+  );
+end;
+$$;
+
+create or replace function public.update_boarding_exception_reason(
+  p_record_key text,
+  p_allocation_id uuid,
+  p_bus_id text,
+  p_reason text
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_previous_reason text;
+begin
+  if not public.is_boarding_manager() then
+    raise exception 'Only boarding administrators can update boarding exception reasons';
+  end if;
+  if nullif(btrim(coalesce(p_record_key, '')), '') is null
+    or nullif(btrim(coalesce(p_bus_id, '')), '') is null
+    or nullif(btrim(coalesce(p_reason, '')), '') is null then
+    raise exception 'A boarding exception record and reason are required';
+  end if;
+  if not public.can_manage_boarding_bus(p_allocation_id, p_bus_id) then
+    raise exception 'You are not assigned to this bus';
+  end if;
+  if not exists (
+    select 1
+    from public.bus_allocations allocation
+    cross join lateral jsonb_array_elements(allocation.allocation_data -> 'buses') bus
+    where allocation.id = p_allocation_id
+      and bus ->> 'id' = p_bus_id
+  ) then
+    raise exception 'The boarding exception bus does not exist in this allocation';
+  end if;
+  if not (
+    (
+      p_record_key like p_allocation_id::text || ':walk-in:%'
+      and exists (
+        select 1 from public.boarding_walk_in_passengers walk_in
+        where walk_in.id::text = split_part(p_record_key, ':walk-in:', 2)
+          and walk_in.allocation_id = p_allocation_id
+          and walk_in.bus_id = p_bus_id
+      )
+    )
+    or (
+      p_record_key like p_allocation_id::text || ':event:%'
+      and exists (
+        select 1
+        from public.boarding_status_events event
+        join public.reservations reservation on reservation.id = event.reservation_id
+        where event.id::text = split_part(p_record_key, ':event:', 2)
+          and public.get_confirmed_ticket_bus_id(
+            reservation.id, reservation.confirmed_ticket
+          ) = p_bus_id
+      )
+    )
+    or (
+      p_record_key like p_allocation_id::text || ':current-no-show:%'
+      and exists (
+        select 1
+        from public.reservations reservation
+        where reservation.id::text = split_part(p_record_key, ':current-no-show:', 2)
+          and reservation.boarding_status = 'no_show'
+          and public.get_confirmed_ticket_bus_id(
+            reservation.id, reservation.confirmed_ticket
+          ) = p_bus_id
+      )
+    )
+  ) then
+    raise exception 'The boarding exception record does not belong to this bus';
+  end if;
+
+  select reason into v_previous_reason
+  from public.boarding_exception_reason_edits
+  where record_key = btrim(p_record_key)
+  for update;
+
+  insert into public.boarding_exception_reason_edits (
+    record_key, allocation_id, bus_id, reason, updated_by
+  ) values (
+    btrim(p_record_key), p_allocation_id, btrim(p_bus_id), btrim(p_reason), auth.uid()
+  )
+  on conflict (record_key) do update
+  set allocation_id = excluded.allocation_id,
+      bus_id = excluded.bus_id,
+      reason = excluded.reason,
+      updated_at = clock_timestamp(),
+      updated_by = auth.uid();
+
+  insert into public.boarding_exception_reason_edit_logs (
+    record_key, allocation_id, bus_id, previous_reason, next_reason, edited_by
+  ) values (
+    btrim(p_record_key), p_allocation_id, btrim(p_bus_id),
+    v_previous_reason, btrim(p_reason), auth.uid()
+  );
+end;
+$$;
+
+create or replace function public.get_boarding_exception_archive_snapshot()
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare
+  v_is_global_admin boolean := false;
+begin
+  if not public.is_boarding_manager() then
+    raise exception 'Only boarding administrators can view boarding exception archives';
+  end if;
+
+  v_is_global_admin := public.is_global_admin();
+
+  return jsonb_build_object(
+    'archivedKeys',
+    (
+      select coalesce(jsonb_agg(archive.record_key), '[]'::jsonb)
+      from public.boarding_exception_archives archive
+      where v_is_global_admin
+        or public.can_manage_boarding_bus(
+          archive.allocation_id,
+          archive.record_data ->> 'busId'
+        )
+    ),
+    'records',
+    case
+      when v_is_global_admin then (
+        select coalesce(
+          jsonb_agg(
+            archive.record_data || jsonb_build_object(
+              'archivedAt', archive.archived_at,
+              'archivedByName', coalesce(actor.name, '전체 관리자')
+            )
+            order by archive.archived_at desc
+          ),
+          '[]'::jsonb
+        )
+        from public.boarding_exception_archives archive
+        left join public.profiles actor on actor.id = archive.archived_by
+      )
+      else '[]'::jsonb
+    end
+  );
+end;
+$$;
+
+revoke all on function public.get_boarding_exception_reason_edit_snapshot()
+  from public, anon;
+revoke all on function public.update_boarding_exception_reason(text, uuid, text, text)
+  from public, anon;
+grant execute on function public.get_boarding_exception_reason_edit_snapshot()
+  to authenticated;
+grant execute on function public.update_boarding_exception_reason(text, uuid, text, text)
+  to authenticated;
+
+notify pgrst, 'reload schema';
+
+-- =========================================================
+-- END sql/setup/155_boarding_exception_reason_edits.sql
+-- =========================================================
+
+-- =========================================================
+-- BEGIN sql/setup/156_ai_operations_reports.sql
+-- =========================================================
+
+-- =========================================================
+-- Privacy-safe activity logging and AI operations reports
+-- =========================================================
+
+create table if not exists public.activity_event_logs (
+  id uuid primary key default gen_random_uuid(),
+  actor_id uuid references auth.users(id) on delete set null,
+  actor_kind text not null check (actor_kind in ('user', 'admin', 'system')),
+  event_name text not null,
+  category text not null,
+  route text,
+  metadata jsonb not null default '{}'::jsonb,
+  occurred_at timestamptz not null default clock_timestamp(),
+  created_at timestamptz not null default clock_timestamp()
+);
+
+create index if not exists idx_activity_event_logs_occurred_id
+  on public.activity_event_logs(occurred_at desc, id desc);
+create index if not exists idx_activity_event_logs_actor_occurred
+  on public.activity_event_logs(actor_id, occurred_at desc);
+create index if not exists idx_activity_event_logs_category_occurred
+  on public.activity_event_logs(category, occurred_at desc);
+
+alter table public.activity_event_logs enable row level security;
+
+drop policy if exists "Global admins can view activity event logs"
+  on public.activity_event_logs;
+create policy "Global admins can view activity event logs"
+on public.activity_event_logs for select to authenticated
+using (public.is_global_admin());
+
+grant select on public.activity_event_logs to authenticated;
+
+create or replace function public.record_activity_event(
+  p_event_name text,
+  p_category text default 'interaction',
+  p_route text default null,
+  p_metadata jsonb default '{}'::jsonb
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_id uuid;
+  v_metadata jsonb;
+begin
+  if auth.uid() is null then
+    raise exception 'Authentication is required.';
+  end if;
+
+  if length(trim(coalesce(p_event_name, ''))) = 0
+     or length(p_event_name) > 100 then
+    raise exception 'Invalid event name.';
+  end if;
+
+  if length(trim(coalesce(p_category, ''))) = 0
+     or length(p_category) > 50 then
+    raise exception 'Invalid event category.';
+  end if;
+
+  select coalesce(jsonb_object_agg(item.key, item.value), '{}'::jsonb)
+  into v_metadata
+  from jsonb_each(coalesce(p_metadata, '{}'::jsonb)) item
+  where item.key in (
+    'source',
+    'outcome',
+    'duration_ms',
+    'resource_type',
+    'resource_id',
+    'error_code',
+    'page_title'
+  );
+
+  insert into public.activity_event_logs (
+    actor_id,
+    actor_kind,
+    event_name,
+    category,
+    route,
+    metadata
+  )
+  values (
+    auth.uid(),
+    case
+      when exists (
+        select 1
+        from public.admin_roles admin_role
+        where admin_role.user_id = auth.uid()
+      ) then 'admin'
+      else 'user'
+    end,
+    trim(p_event_name),
+    trim(p_category),
+    left(nullif(trim(coalesce(p_route, '')), ''), 300),
+    v_metadata
+  )
+  returning id into v_id;
+
+  return v_id;
+end;
+$$;
+
+revoke all on function public.record_activity_event(text, text, text, jsonb)
+  from public, anon;
+grant execute on function public.record_activity_event(text, text, text, jsonb)
+  to authenticated;
+
+create or replace function public.audit_business_activity_event()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_row jsonb;
+begin
+  v_row := case when tg_op = 'DELETE' then to_jsonb(old) else to_jsonb(new) end;
+
+  insert into public.activity_event_logs (
+    actor_id,
+    actor_kind,
+    event_name,
+    category,
+    metadata
+  )
+  values (
+    auth.uid(),
+    case
+      when auth.uid() is null then 'system'
+      when exists (
+        select 1 from public.admin_roles admin_role
+        where admin_role.user_id = auth.uid()
+      ) then 'admin'
+      else 'user'
+    end,
+    tg_table_name || '.' || lower(tg_op),
+    'data_change',
+    jsonb_strip_nulls(jsonb_build_object(
+      'resource_type', tg_table_name,
+      'resource_id', v_row ->> 'id',
+      'outcome', coalesce(v_row ->> 'status', lower(tg_op))
+    ))
+  );
+
+  return case when tg_op = 'DELETE' then old else new end;
+end;
+$$;
+
+revoke all on function public.audit_business_activity_event()
+  from public, anon, authenticated;
+
+do $$
+declare
+  v_table text;
+begin
+  foreach v_table in array array[
+    'reservations',
+    'payments',
+    'campus_transfers',
+    'bus_allocations',
+    'campus_requests',
+    'boarding_move_requests',
+    'boarding_exception_archives'
+  ]
+  loop
+    if to_regclass('public.' || v_table) is not null then
+      execute format(
+        'drop trigger if exists audit_business_activity_event on public.%I',
+        v_table
+      );
+      execute format(
+        'create trigger audit_business_activity_event
+         after insert or update or delete on public.%I
+         for each row execute function public.audit_business_activity_event()',
+        v_table
+      );
+    end if;
+  end loop;
+end;
+$$;
+
+create table if not exists public.ai_operations_reports (
+  id uuid primary key default gen_random_uuid(),
+  requested_by uuid references auth.users(id) on delete set null,
+  status text not null default 'pending'
+    check (status in ('pending', 'completed', 'failed')),
+  period_start timestamptz not null,
+  period_end timestamptz not null,
+  anonymized boolean not null default true,
+  input_summary jsonb not null default '{}'::jsonb,
+  report_markdown text,
+  model text,
+  error_message text,
+  created_at timestamptz not null default clock_timestamp(),
+  completed_at timestamptz
+);
+
+create index if not exists idx_ai_operations_reports_created
+  on public.ai_operations_reports(created_at desc);
+
+alter table public.ai_operations_reports enable row level security;
+
+drop policy if exists "Global admins can view AI operations reports"
+  on public.ai_operations_reports;
+create policy "Global admins can view AI operations reports"
+on public.ai_operations_reports for select to authenticated
+using (public.is_global_admin());
+
+grant select on public.ai_operations_reports to authenticated;
+
+notify pgrst, 'reload schema';
+
+-- =========================================================
+-- END sql/setup/156_ai_operations_reports.sql
+-- =========================================================
+
+-- =========================================================
+-- BEGIN sql/setup/157_ccc_summer_user_links.sql
+-- =========================================================
+
+-- =========================================================
+-- CCC Summer identity links
+-- =========================================================
+-- Keep the external subject identifier and staff classification private.
+-- The service-role-only handoff function owns all reads and writes.
+
+create table if not exists public.ccc_summer_user_links (
+  subject_id text primary key,
+  user_id uuid not null unique references auth.users(id) on delete cascade,
+  is_staff boolean not null default false,
+  created_at timestamptz not null default clock_timestamp(),
+  last_synced_at timestamptz not null default clock_timestamp(),
+  constraint ccc_summer_user_links_subject_id_not_blank
+    check (nullif(btrim(subject_id), '') is not null)
+);
+
+create index if not exists idx_ccc_summer_user_links_user_id
+  on public.ccc_summer_user_links(user_id);
+
+alter table public.ccc_summer_user_links enable row level security;
+
+revoke all on table public.ccc_summer_user_links
+from public, anon, authenticated;
+
+grant select, insert, update, delete on table public.ccc_summer_user_links
+to service_role;
+
+comment on table public.ccc_summer_user_links is
+  'Private mapping between CCC Summer subjects and Supabase Auth users.';
+comment on column public.ccc_summer_user_links.is_staff is
+  'Informational CCC Summer staff classification; never grants admin access.';
+
+notify pgrst, 'reload schema';
+
+-- =========================================================
+-- END sql/setup/157_ccc_summer_user_links.sql
+-- =========================================================
+
+-- =========================================================
+-- BEGIN sql/setup/158_allow_allocation_confirmation_cancel_before_deadline.sql
+-- =========================================================
+
+-- =========================================================
+-- Allow confirmed allocation cancellation before the deadline
+-- =========================================================
+
+create or replace function public.require_closed_reservation_deadline_for_bus_allocation()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_deadline_at timestamptz;
+begin
+  if tg_op = 'UPDATE'
+    and (to_jsonb(new) - 'allocation_data' - 'updated_at' - 'revision')
+      = (to_jsonb(old) - 'allocation_data' - 'updated_at' - 'revision')
+    and (new.allocation_data - 'editLock') = (old.allocation_data - 'editLock')
+    and new.revision = old.revision + 1 then
+    return new;
+  end if;
+
+  if tg_op = 'UPDATE'
+    and old.allocation_data ->> 'status' = 'confirmed'
+    and new.allocation_data ->> 'status' = 'draft'
+    and new.revision = old.revision + 1 then
+    return new;
+  end if;
+
+  select nullif(value ->> 'deadline_at', '')::timestamptz
+  into v_deadline_at
+  from public.app_settings
+  where key = 'first_reservation_deadline'
+  for share;
+
+  if v_deadline_at is null or v_deadline_at > clock_timestamp() then
+    raise exception 'Allocation is available only after the reservation deadline.';
+  end if;
+
+  return new;
+end;
+$$;
+
+revoke all on function public.require_closed_reservation_deadline_for_bus_allocation()
+  from public, anon, authenticated;
+
+notify pgrst, 'reload schema';
+
+-- =========================================================
+-- END sql/setup/158_allow_allocation_confirmation_cancel_before_deadline.sql
+-- =========================================================
+
+-- =========================================================
+-- BEGIN sql/setup/159_personal_notification_audit_reasons.sql
+-- =========================================================
+
+-- Preserve the administrator-entered reason in personal notification audit logs.
+
+drop function if exists public.bulk_send_personal_notifications(uuid[], text, text, text);
+drop function if exists public.send_personal_notification(uuid, text, text, text);
+
+create or replace function public.send_personal_notification(
+  p_target_user_id uuid,
+  p_title text,
+  p_content text,
+  p_category text default 'general',
+  p_reason text default null
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_notification_id uuid;
+begin
+  if not public.is_global_admin() then
+    raise exception 'Only global admins can send personal notifications.';
+  end if;
+
+  if nullif(btrim(p_title), '') is null or nullif(btrim(p_content), '') is null then
+    raise exception 'Notification title and content are required.';
+  end if;
+
+  insert into public.personal_notifications (
+    target_user_id, title, content, category, created_by
+  )
+  values (
+    p_target_user_id,
+    btrim(p_title),
+    btrim(p_content),
+    coalesce(nullif(btrim(p_category), ''), 'general'),
+    auth.uid()
+  )
+  returning id into v_notification_id;
+
+  perform public.record_personal_user_action(
+    p_target_user_id,
+    null,
+    'notification_sent',
+    coalesce(nullif(btrim(p_reason), ''), btrim(p_title))
+  );
+
+  return v_notification_id;
+end;
+$$;
+
+create or replace function public.bulk_send_personal_notifications(
+  p_target_user_ids uuid[],
+  p_title text,
+  p_content text,
+  p_category text default 'admin',
+  p_reason text default null
+)
+returns integer
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_id uuid;
+  v_count integer := 0;
+begin
+  if coalesce(array_length(p_target_user_ids, 1), 0) > 100 then
+    raise exception 'Bulk operation is limited to 100 users.';
+  end if;
+
+  foreach v_id in array coalesce(p_target_user_ids, array[]::uuid[]) loop
+    perform public.send_personal_notification(
+      v_id,
+      p_title,
+      p_content,
+      p_category,
+      p_reason
+    );
+    v_count := v_count + 1;
+  end loop;
+
+  return v_count;
+end;
+$$;
+
+revoke all on function public.send_personal_notification(uuid, text, text, text, text) from public, anon;
+revoke all on function public.bulk_send_personal_notifications(uuid[], text, text, text, text) from public, anon;
+grant execute on function public.send_personal_notification(uuid, text, text, text, text) to authenticated;
+grant execute on function public.bulk_send_personal_notifications(uuid[], text, text, text, text) to authenticated;
+
+notify pgrst, 'reload schema';
+
+-- =========================================================
+-- END sql/setup/159_personal_notification_audit_reasons.sql
 -- =========================================================

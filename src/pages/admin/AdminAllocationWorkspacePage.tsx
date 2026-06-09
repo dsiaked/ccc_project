@@ -319,7 +319,7 @@ const AdminAllocationWorkspacePage = () => {
           passenger.preferences.join(' '),
           isRemainingSeatPassenger(passenger) ? '잔여 좌석' : '일반 신청',
           passenger.remainingSeatStatus === 'pending_payment'
-            ? '입금 대기'
+            ? '미입금'
             : passenger.remainingSeatStatus === 'confirmed'
               ? '입금 완료'
               : '',
@@ -1759,7 +1759,7 @@ const AdminAllocationWorkspacePage = () => {
                   <div className={styles.remainingSeatSummary}>
                     <strong>잔여 좌석 탑승자 {remainingSeatPassengers.length}명</strong>
                     <span>
-                      입금 대기 {pendingRemainingSeatCount}명 · 입금 완료{' '}
+                      미입금 {pendingRemainingSeatCount}명 · 입금 완료{' '}
                       {remainingSeatPassengers.length - pendingRemainingSeatCount}명
                     </span>
                     <small>
@@ -2212,7 +2212,7 @@ const AdminAllocationWorkspacePage = () => {
                 <dd>{validation.warnings.length.toLocaleString()}건</dd>
               </div>
               <div>
-                <dt>잔여 좌석 입금 대기</dt>
+                <dt>잔여 좌석 미입금</dt>
                 <dd>{pendingRemainingSeatCount.toLocaleString()}명</dd>
               </div>
               <div>

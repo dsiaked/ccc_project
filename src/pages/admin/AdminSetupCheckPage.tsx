@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   ArrowLeft,
   ArrowRight,
+  AlertTriangle,
   Building2,
   Bus,
   CalendarClock,
@@ -12,6 +13,7 @@ import {
   Database,
   DollarSign,
   Landmark,
+  LoaderCircle,
   MapPin,
   Pencil,
   Plus,
@@ -101,10 +103,28 @@ const AdminSetupCheckPage = () => {
   const [deletingStationId, setDeletingStationId] = useState<string | null>(
     null
   );
+  const stationDeletionInFlightRef = useRef(false);
+  const [pendingStationDeletion, setPendingStationDeletion] =
+    useState<StationSetupRow | null>(null);
+  const [stationDeleteDialogError, setStationDeleteDialogError] = useState<
+    string | null
+  >(null);
   const [deletingBusOptionId, setDeletingBusOptionId] = useState<string | null>(
     null
   );
+  const busOptionDeletionInFlightRef = useRef(false);
+  const [pendingBusOptionDeletion, setPendingBusOptionDeletion] =
+    useState<BusOptionRow | null>(null);
+  const [busOptionDeleteDialogError, setBusOptionDeleteDialogError] = useState<
+    string | null
+  >(null);
   const [resettingData, setResettingData] = useState(false);
+  const dataResetInFlightRef = useRef(false);
+  const [dataResetDialogOpen, setDataResetDialogOpen] = useState(false);
+  const [dataResetConfirmInput, setDataResetConfirmInput] = useState('');
+  const [dataResetDialogError, setDataResetDialogError] = useState<
+    string | null
+  >(null);
   const [showResetPanel, setShowResetPanel] = useState(
     () => location.hash === '#data-reset'
   );
@@ -444,6 +464,14 @@ const AdminSetupCheckPage = () => {
       description: '송금, 문의, 배차 등 운영 결과',
     },
   ] as const;
+  const resetConfirmText = hasSelectedUserReset
+    ? '사용자 데이터 전체 삭제'
+    : includesSetupReset
+      ? '전체 설정 초기화'
+      : RESET_CONFIRM_TEXT;
+  const selectedResetTargets = resetTargets.filter(
+    (target) => resetOptions[target.id]
+  );
 
   const loadSetup = async () => {
     setLoading(true);
@@ -808,16 +836,26 @@ const AdminSetupCheckPage = () => {
     }
   };
 
-  const handleDeleteStation = async (station: StationSetupRow) => {
-    const confirmed = window.confirm(
-      `"${station.name}" 행선지를 삭제하시겠습니까?\n삭제 후에는 신청 화면의 행선지 목록에서 제거됩니다.`
-    );
+  const handleDeleteStation = (station: StationSetupRow) => {
+    setStationDeleteDialogError(null);
+    setPendingStationDeletion(station);
+  };
 
-    if (!confirmed) return;
+  const confirmDeleteStation = async () => {
+    if (
+      !pendingStationDeletion ||
+      deletingStationId ||
+      stationDeletionInFlightRef.current
+    ) {
+      return;
+    }
 
+    const station = pendingStationDeletion;
+    stationDeletionInFlightRef.current = true;
     setDeletingStationId(station.id);
     setMessage(null);
     setError(null);
+    setStationDeleteDialogError(null);
 
     try {
       const { error: deleteError } = await supabase.rpc(
@@ -831,13 +869,15 @@ const AdminSetupCheckPage = () => {
         current.filter((item) => item.id !== station.id)
       );
       if (stationDraft?.id === station.id) setStationDraft(null);
+      setPendingStationDeletion(null);
       setMessage(`행선지 "${station.name}"을 삭제했습니다.`);
     } catch (deleteError) {
       console.error('Failed to delete station:', deleteError);
-      setError(
+      setStationDeleteDialogError(
         `행선지 삭제 중 오류가 발생했습니다: ${getErrorMessage(deleteError)}`
       );
     } finally {
+      stationDeletionInFlightRef.current = false;
       setDeletingStationId(null);
     }
   };
@@ -927,14 +967,26 @@ const AdminSetupCheckPage = () => {
     }
   };
 
-  const handleDeleteBusOption = async (option: BusOptionRow) => {
-    if (!window.confirm(`${option.capacity}인승 버스 옵션을 삭제할까요?`)) {
+  const handleDeleteBusOption = (option: BusOptionRow) => {
+    setBusOptionDeleteDialogError(null);
+    setPendingBusOptionDeletion(option);
+  };
+
+  const confirmDeleteBusOption = async () => {
+    if (
+      !pendingBusOptionDeletion ||
+      deletingBusOptionId ||
+      busOptionDeletionInFlightRef.current
+    ) {
       return;
     }
 
+    const option = pendingBusOptionDeletion;
+    busOptionDeletionInFlightRef.current = true;
     setDeletingBusOptionId(option.id);
     setMessage(null);
     setError(null);
+    setBusOptionDeleteDialogError(null);
 
     try {
       await deleteBusOption(option.id);
@@ -942,11 +994,15 @@ const AdminSetupCheckPage = () => {
         current.filter((item) => item.id !== option.id)
       );
       if (busOptionDraft?.id === option.id) setBusOptionDraft(null);
+      setPendingBusOptionDeletion(null);
       setMessage('버스 옵션을 삭제했습니다.');
     } catch (deleteError) {
       console.error('Failed to delete bus option:', deleteError);
-      setError(`버스 옵션 삭제에 실패했습니다: ${getErrorMessage(deleteError)}`);
+      setBusOptionDeleteDialogError(
+        `버스 옵션 삭제에 실패했습니다: ${getErrorMessage(deleteError)}`
+      );
     } finally {
+      busOptionDeletionInFlightRef.current = false;
       setDeletingBusOptionId(null);
     }
   };
@@ -1058,37 +1114,31 @@ const AdminSetupCheckPage = () => {
     }
   };
 
-  const handleResetReservationData = async () => {
-    const confirmText = hasSelectedUserReset
-      ? '사용자 데이터 전체 삭제'
-      : includesSetupReset
-        ? '전체 설정 초기화'
-        : RESET_CONFIRM_TEXT;
-    const confirmedText = window.prompt(
-      `선택한 데이터를 삭제합니다.\n현재 화면 기준 ${selectedResetRows.toLocaleString()}건으로 표시됩니다.\n${
-        hasSelectedUserReset
-          ? '현재 로그인한 전체 관리자 계정과 프로필만 유지됩니다.'
-          : '인증 계정, 프로필, 전체 관리자 권한은 유지됩니다.'
-      }${
-        hasSelectedUserReset
-          ? '\n\n경고: 다른 모든 인증 계정과 연결 데이터가 영구 삭제됩니다.'
-          : includesSetupReset
-            ? '\n\n주의: 설정 데이터가 포함되어 신청 및 관리 기능에 즉시 영향을 줍니다.'
-            : ''
-      }\n\n계속하려면 "${confirmText}"를 입력해주세요.`
-    );
-
-    if (confirmedText !== confirmText) {
-      setError(
-        `초기화를 취소했습니다. 정확히 "${confirmText}"를 입력해야 합니다.`
-      );
-      setMessage(null);
+  const handleResetReservationData = () => {
+    if (resettingData || dataResetInFlightRef.current || selectedResetRows <= 0) {
       return;
     }
 
+    setDataResetConfirmInput('');
+    setDataResetDialogError(null);
+    setDataResetDialogOpen(true);
+  };
+
+  const confirmResetReservationData = async () => {
+    if (
+      resettingData ||
+      dataResetInFlightRef.current ||
+      selectedResetRows <= 0 ||
+      dataResetConfirmInput !== resetConfirmText
+    ) {
+      return;
+    }
+
+    dataResetInFlightRef.current = true;
     setResettingData(true);
     setMessage(null);
     setError(null);
+    setDataResetDialogError(null);
 
     try {
       const deletedStats = await resetReservationData(resetOptions);
@@ -1098,18 +1148,60 @@ const AdminSetupCheckPage = () => {
       );
 
       await loadSetup();
+      setDataResetDialogOpen(false);
+      setDataResetConfirmInput('');
       setMessage(
         `선택한 데이터 ${deletedTotal.toLocaleString()}건을 초기화했습니다.`
       );
     } catch (resetError) {
       console.error('Failed to reset reservation data:', resetError);
-      setError(
+      setDataResetDialogError(
         `신청정보 초기화 중 오류가 발생했습니다: ${getErrorMessage(resetError)}`
       );
     } finally {
+      dataResetInFlightRef.current = false;
       setResettingData(false);
     }
   };
+
+  useEffect(() => {
+    if (!dataResetDialogOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !resettingData) {
+        setDataResetDialogOpen(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [dataResetDialogOpen, resettingData]);
+
+  useEffect(() => {
+    if (!pendingStationDeletion) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !deletingStationId) {
+        setPendingStationDeletion(null);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [pendingStationDeletion, deletingStationId]);
+
+  useEffect(() => {
+    if (!pendingBusOptionDeletion) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !deletingBusOptionId) {
+        setPendingBusOptionDeletion(null);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [pendingBusOptionDeletion, deletingBusOptionId]);
 
   const renderSetupItem = (
     item: (typeof setupItems)[number],
@@ -1891,9 +1983,7 @@ const AdminSetupCheckPage = () => {
                                   <button
                                     type="button"
                                     className={styles.rowDeleteButton}
-                                    onClick={() =>
-                                      void handleDeleteStation(station)
-                                    }
+                                    onClick={() => handleDeleteStation(station)}
                                     disabled={deletingStationId === station.id}
                                   >
                                     <Trash2 size={14} />
@@ -2154,9 +2244,7 @@ const AdminSetupCheckPage = () => {
                                   <button
                                     type="button"
                                     className={styles.rowDeleteButton}
-                                    onClick={() =>
-                                      void handleDeleteBusOption(option)
-                                    }
+                                    onClick={() => handleDeleteBusOption(option)}
                                     disabled={
                                       deletingBusOptionId === option.id
                                     }
@@ -2340,8 +2428,8 @@ const AdminSetupCheckPage = () => {
             <button
               type="button"
               className={styles.dangerButton}
-              onClick={() => void handleResetReservationData()}
-              disabled={resettingData}
+              onClick={handleResetReservationData}
+              disabled={resettingData || selectedResetRows <= 0}
             >
               <Trash2 size={16} />
               {resettingData ? '초기화 중...' : '선택 정보 초기화'}
@@ -2351,6 +2439,271 @@ const AdminSetupCheckPage = () => {
         </section>
 
       </main>
+      {pendingStationDeletion && (
+        <div
+          className={styles.dataResetBackdrop}
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !deletingStationId) {
+              setPendingStationDeletion(null);
+            }
+          }}
+        >
+          <section
+            className={styles.dataResetDialog}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="station-delete-dialog-title"
+            aria-describedby="station-delete-dialog-description"
+          >
+            <span className={styles.dataResetDialogIcon} aria-hidden="true">
+              <MapPin size={26} />
+            </span>
+            <p className={styles.dataResetDialogEyebrow}>행선지 영구 삭제</p>
+            <h2 id="station-delete-dialog-title">
+              &quot;{pendingStationDeletion.name}&quot; 행선지를 삭제할까요?
+            </h2>
+            <p id="station-delete-dialog-description">
+              이 행선지는 데이터베이스에서 영구 삭제되며 신청 화면의 선택
+              목록에서도 즉시 사라집니다.
+            </p>
+            <div className={styles.stationDeleteSummary}>
+              <div>
+                <span>노선</span>
+                <strong>{pendingStationDeletion.line || '미입력'}</strong>
+              </div>
+              <div>
+                <span>주소</span>
+                <strong>{pendingStationDeletion.address || '미입력'}</strong>
+              </div>
+            </div>
+            <div className={styles.dataResetWarning}>
+              <AlertTriangle size={19} aria-hidden="true" />
+              <span>
+                기존 신청 등 다른 데이터가 이 행선지를 참조하고 있으면 삭제가
+                거부될 수 있습니다. 삭제 후에는 복구할 수 없습니다.
+              </span>
+            </div>
+            {stationDeleteDialogError && (
+              <p className={styles.dataResetDialogError} role="alert">
+                {stationDeleteDialogError}
+              </p>
+            )}
+            <div className={styles.dataResetDialogActions}>
+              <button
+                type="button"
+                className={styles.dataResetCancel}
+                autoFocus
+                onClick={() => setPendingStationDeletion(null)}
+                disabled={Boolean(deletingStationId)}
+              >
+                행선지 유지
+              </button>
+              <button
+                type="button"
+                className={styles.dataResetSubmit}
+                onClick={() => void confirmDeleteStation()}
+                disabled={Boolean(deletingStationId)}
+              >
+                {deletingStationId ? (
+                  <>
+                    <LoaderCircle className={styles.dataResetSpinner} size={18} />
+                    삭제 중...
+                  </>
+                ) : (
+                  '행선지 영구 삭제'
+                )}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+      {pendingBusOptionDeletion && (
+        <div
+          className={styles.dataResetBackdrop}
+          onMouseDown={(event) => {
+            if (
+              event.target === event.currentTarget &&
+              !deletingBusOptionId
+            ) {
+              setPendingBusOptionDeletion(null);
+            }
+          }}
+        >
+          <section
+            className={styles.dataResetDialog}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="bus-option-delete-dialog-title"
+            aria-describedby="bus-option-delete-dialog-description"
+          >
+            <span className={styles.dataResetDialogIcon} aria-hidden="true">
+              <Bus size={26} />
+            </span>
+            <p className={styles.dataResetDialogEyebrow}>버스 옵션 영구 삭제</p>
+            <h2 id="bus-option-delete-dialog-title">
+              {pendingBusOptionDeletion.capacity.toLocaleString()}인승 버스
+              옵션을 삭제할까요?
+            </h2>
+            <p id="bus-option-delete-dialog-description">
+              이 옵션은 데이터베이스에서 영구 삭제됩니다. 새 옵션을 등록하기
+              전까지 버스 옵션 설정은 미완료 상태가 됩니다.
+            </p>
+            <div className={styles.busOptionDeleteSummary}>
+              <div>
+                <span>좌석 수</span>
+                <strong>
+                  {pendingBusOptionDeletion.capacity.toLocaleString()}명
+                </strong>
+              </div>
+              <div>
+                <span>예상 가격</span>
+                <strong>
+                  {pendingBusOptionDeletion.estimated_price.toLocaleString()}원
+                </strong>
+              </div>
+              <div>
+                <span>사용 가능 최대</span>
+                <strong>
+                  {(pendingBusOptionDeletion.max_count ?? 999).toLocaleString()}대
+                </strong>
+              </div>
+            </div>
+            <div className={styles.dataResetWarning}>
+              <AlertTriangle size={19} aria-hidden="true" />
+              <span>
+                삭제 후에는 이 좌석 수와 가격을 배차 계산 기준으로 사용할 수
+                없습니다. 삭제한 옵션은 복구할 수 없습니다.
+              </span>
+            </div>
+            {busOptionDeleteDialogError && (
+              <p className={styles.dataResetDialogError} role="alert">
+                {busOptionDeleteDialogError}
+              </p>
+            )}
+            <div className={styles.dataResetDialogActions}>
+              <button
+                type="button"
+                className={styles.dataResetCancel}
+                autoFocus
+                onClick={() => setPendingBusOptionDeletion(null)}
+                disabled={Boolean(deletingBusOptionId)}
+              >
+                버스 옵션 유지
+              </button>
+              <button
+                type="button"
+                className={styles.dataResetSubmit}
+                onClick={() => void confirmDeleteBusOption()}
+                disabled={Boolean(deletingBusOptionId)}
+              >
+                {deletingBusOptionId ? (
+                  <>
+                    <LoaderCircle className={styles.dataResetSpinner} size={18} />
+                    삭제 중...
+                  </>
+                ) : (
+                  '버스 옵션 영구 삭제'
+                )}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+      {dataResetDialogOpen && (
+        <div
+          className={styles.dataResetBackdrop}
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !resettingData) {
+              setDataResetDialogOpen(false);
+            }
+          }}
+        >
+          <section
+            className={styles.dataResetDialog}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="data-reset-dialog-title"
+            aria-describedby="data-reset-dialog-description"
+          >
+            <span className={styles.dataResetDialogIcon} aria-hidden="true">
+              <Trash2 size={26} />
+            </span>
+            <p className={styles.dataResetDialogEyebrow}>DB 정보 영구 초기화</p>
+            <h2 id="data-reset-dialog-title">선택한 데이터를 삭제할까요?</h2>
+            <p id="data-reset-dialog-description">
+              현재 화면 기준 {selectedResetRows.toLocaleString()}건이 삭제 대상으로
+              표시됩니다. 삭제 후에는 복구할 수 없습니다.
+            </p>
+            <div className={styles.dataResetTargetList}>
+              {selectedResetTargets.map((target) => (
+                <div key={target.id}>
+                  <span>{target.label}</span>
+                  <strong>{target.count.toLocaleString()}건</strong>
+                  <small>{target.detail}</small>
+                </div>
+              ))}
+            </div>
+            <div className={styles.dataResetWarning}>
+              <AlertTriangle size={19} aria-hidden="true" />
+              <span>
+                {hasSelectedUserReset
+                  ? '현재 로그인한 전체 관리자 계정과 프로필만 유지되며, 다른 인증 계정과 연결 데이터는 영구 삭제됩니다.'
+                  : includesSetupReset
+                    ? '설정 데이터가 포함되어 신청 및 관리 기능에 즉시 영향을 줍니다. 인증 계정과 전체 관리자 권한은 유지됩니다.'
+                    : '인증 계정, 프로필, 전체 관리자 권한은 유지됩니다.'}
+              </span>
+            </div>
+            <label className={styles.dataResetConfirmLabel}>
+              계속하려면 아래 문구를 정확히 입력하세요.
+              <strong>{resetConfirmText}</strong>
+              <input
+                autoFocus
+                value={dataResetConfirmInput}
+                disabled={resettingData}
+                onChange={(event) => {
+                  setDataResetConfirmInput(event.target.value);
+                  setDataResetDialogError(null);
+                }}
+              />
+            </label>
+            {dataResetDialogError && (
+              <p className={styles.dataResetDialogError} role="alert">
+                {dataResetDialogError}
+              </p>
+            )}
+            <div className={styles.dataResetDialogActions}>
+              <button
+                type="button"
+                className={styles.dataResetCancel}
+                onClick={() => setDataResetDialogOpen(false)}
+                disabled={resettingData}
+              >
+                선택 유지
+              </button>
+              <button
+                type="button"
+                className={styles.dataResetSubmit}
+                onClick={() => void confirmResetReservationData()}
+                disabled={
+                  resettingData || dataResetConfirmInput !== resetConfirmText
+                }
+              >
+                {resettingData ? (
+                  <>
+                    <LoaderCircle className={styles.dataResetSpinner} size={18} />
+                    초기화 중...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 size={18} />
+                    선택 정보 영구 초기화
+                  </>
+                )}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
     </div>
   );
 };

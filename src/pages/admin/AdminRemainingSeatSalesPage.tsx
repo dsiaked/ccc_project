@@ -399,7 +399,7 @@ const AdminRemainingSeatSalesPage = () => {
           <div className={styles.panelHeader}>
             <div>
               <span>우선 처리</span>
-              <h2>입금 대기 신청</h2>
+              <h2>미입금 신청</h2>
             </div>
             <strong>{pendingClaims.length}건</strong>
           </div>
@@ -412,7 +412,7 @@ const AdminRemainingSeatSalesPage = () => {
                 <article key={item.reservationId} className={styles.claimCard}>
                   <div className={styles.claimMain}>
                     <div>
-                      <span className={styles.pendingBadge}>입금 대기</span>
+                      <span className={styles.pendingBadge}>미입금</span>
                       <h3>{item.name || '이름 없음'}</h3>
                       <p>{item.campus || '캠퍼스 없음'} · {item.phone || '연락처 없음'}</p>
                     </div>
@@ -492,7 +492,7 @@ const AdminRemainingSeatSalesPage = () => {
                       <span>현재 남음 / 최초</span>
                       <strong>{item.available}석 / {item.initialAvailable}석</strong>
                     </div>
-                    <div><span>입금 대기</span><strong>{item.pending}석</strong></div>
+                    <div><span>미입금</span><strong>{item.pending}석</strong></div>
                     <div><span>확정 완료</span><strong>{item.completed}석</strong></div>
                   </div>
                 </article>
@@ -684,7 +684,7 @@ const AdminRemainingSeatSalesPage = () => {
                 <dd>{pendingClaimCancellation.claim.destination}행</dd>
               </div>
               <div>
-                <dt>입금 대기 금액</dt>
+                <dt>미입금 금액</dt>
                 <dd>{pendingClaimCancellation.claim.amount.toLocaleString()}원</dd>
               </div>
               <div>

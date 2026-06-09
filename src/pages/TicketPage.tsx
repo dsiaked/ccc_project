@@ -363,7 +363,7 @@ const TicketPage = () => {
                   onClick={handleCancelRemainingSeat}
                   disabled={cancelling}
                 >
-                  {cancelling ? '취소 중...' : '입금 대기 신청 취소'}
+                  {cancelling ? '취소 중...' : '미입금 신청 취소'}
                 </button>
               )}
 
@@ -429,7 +429,7 @@ const TicketPage = () => {
             </span>
             <p className={styles.cancelDialogEyebrow}>잔여 좌석 신청 취소</p>
             <h2 id="remaining-seat-cancel-title">
-              입금 대기 신청을 취소할까요?
+              미입금 신청을 취소할까요?
             </h2>
             <p id="remaining-seat-cancel-description">
               취소하면 확보한 좌석은 즉시 다시 공개됩니다. 이미 입금했다면 환불은

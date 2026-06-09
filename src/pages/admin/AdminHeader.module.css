@@ -233,6 +233,10 @@
   display: none;
 }
 
+.header.collapsed .topRoleSwitcher {
+  display: none;
+}
+
 .header.collapsed .viewSwitcher {
   grid-template-columns: 1fr;
 }
@@ -362,6 +366,11 @@
   gap: 10px;
   padding-top: 14px;
   border-top: 1px solid #374151;
+}
+
+.topRoleSwitcher {
+  padding-bottom: 14px;
+  border-bottom: 1px solid #374151;
 }
 
 .campusSwitcher {
@@ -534,6 +543,10 @@
     display: grid;
   }
 
+  .header.collapsed .topRoleSwitcher {
+    display: block;
+  }
+
   .header.collapsed .nav {
     gap: 6px;
   }
@@ -568,6 +581,12 @@
     border-top: 0;
   }
 
+  .topRoleSwitcher {
+    grid-area: switcher;
+    padding-bottom: 0;
+    border-bottom: 0;
+  }
+
   .campusSwitcher span {
     display: none;
   }
@@ -587,6 +606,7 @@
   .header.collapsed {
     grid-template-areas:
       "logo actions"
+      "switcher switcher"
       "nav nav";
     padding: max(8px, env(safe-area-inset-top)) 10px 8px;
   }

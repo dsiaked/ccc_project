@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Banknote,
   Bus,
+  CircleAlert,
   ChevronDown,
   ClipboardList,
   ClipboardCheck,
@@ -79,6 +80,14 @@ const navItems: AdminNavItem[] = [
     label: '탑승 확인 관리',
     path: '/admin/boarding',
     icon: ClipboardList,
+    stageGroup: 'boarding',
+    targetGroup: 'boardingManager',
+    allowedRoles: ['global_admin', 'boarding_manager'],
+  },
+  {
+    label: '특수상황 기록',
+    path: '/admin/boarding/exceptions',
+    icon: CircleAlert,
     stageGroup: 'boarding',
     targetGroup: 'boardingManager',
     allowedRoles: ['global_admin', 'boarding_manager'],
@@ -514,6 +523,30 @@ const AdminHeader = () => {
     effectiveSidebarView === 'stage'
       ? activeItem?.stageGroup
       : activeItem?.targetGroup;
+  const roleSwitcher =
+    adminRole !== 'global_admin' && switchableRoles.length > 1 ? (
+      <label className={styles.campusSwitcher}>
+        <span>사용 권한</span>
+        <select
+          value={activeRoleId}
+          aria-label="사용 권한 선택"
+          disabled={Boolean(switchingRoleId)}
+          onChange={(event) =>
+            void handleAdminRoleChange(event.target.value)
+          }
+        >
+          {switchableRoles.map((role) => (
+            <option key={role.id} value={role.id}>
+              {role.role === 'boarding_manager'
+                ? '탑승 관리 간사님 역할'
+                : `캠퍼스 회계 순장님 · ${[role.district, role.team, role.campus]
+                    .filter(Boolean)
+                    .join(' / ')}`}
+            </option>
+          ))}
+        </select>
+      </label>
+    ) : null;
 
   return (
     <>
@@ -557,6 +590,10 @@ const AdminHeader = () => {
           </span>
         )}
       </div>
+
+      {isCampusAdmin && roleSwitcher && (
+        <div className={styles.topRoleSwitcher}>{roleSwitcher}</div>
+      )}
 
       {!isCampusAdmin && (
         <div
@@ -669,29 +706,7 @@ const AdminHeader = () => {
       </nav>
 
       <div className={styles.headerActions}>
-        {adminRole !== 'global_admin' && switchableRoles.length > 1 && (
-          <label className={styles.campusSwitcher}>
-            <span>사용 권한</span>
-            <select
-              value={activeRoleId}
-              aria-label="사용 권한 선택"
-              disabled={Boolean(switchingRoleId)}
-              onChange={(event) =>
-                void handleAdminRoleChange(event.target.value)
-              }
-            >
-              {switchableRoles.map((role) => (
-                <option key={role.id} value={role.id}>
-                  {role.role === 'boarding_manager'
-                    ? '탑승 관리 간사님 역할'
-                    : `캠퍼스 회계 순장님 · ${[role.district, role.team, role.campus]
-                        .filter(Boolean)
-                        .join(' / ')}`}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
+        {!isCampusAdmin && roleSwitcher}
 
         <button
           type="button"

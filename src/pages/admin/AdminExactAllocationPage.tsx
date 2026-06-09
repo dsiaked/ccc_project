@@ -200,6 +200,9 @@ const AdminExactAllocationPage = () => {
   const [configSaved, setConfigSaved] = useState(false);
   const [starting, setStarting] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const resetInFlightRef = useRef(false);
+  const [resetDialogOpen, setResetDialogOpen] = useState(false);
+  const [resetDialogError, setResetDialogError] = useState<string | null>(null);
   const [creatingDraft, setCreatingDraft] = useState(false);
   const [creatingManualDraft, setCreatingManualDraft] = useState(false);
   const [manualDraftModalOpen, setManualDraftModalOpen] = useState(false);
@@ -553,35 +556,60 @@ const AdminExactAllocationPage = () => {
     }
   };
 
-  const handleReset = async () => {
+  const handleReset = () => {
+    if (resetting || resetInFlightRef.current || recentJobs.length === 0) return;
+    setResetDialogError(null);
+    setResetDialogOpen(true);
+  };
+
+  const confirmReset = async () => {
     if (
-      !window.confirm(
-        '완료된 최적화 계산 기록과 재사용 캐시를 모두 삭제합니다. 생성된 배차 초안과 확정 배차안은 유지됩니다. 계속할까요?'
-      )
+      resetting ||
+      resetInFlightRef.current ||
+      recentJobs.length === 0 ||
+      activeJob
     ) {
       return;
     }
+
+    resetInFlightRef.current = true;
     setResetting(true);
     setError(null);
     setCalculationError(null);
+    setResetDialogError(null);
     setResetMessage(null);
     jobsStateRevisionRef.current += 1;
     try {
       const deletedCount = await resetExactAllocationJobs();
       resetCalculationView();
       setCalculationViewReset(true);
+      setResetDialogOpen(false);
       setResetMessage(
         deletedCount > 0
           ? `계산 기록과 재사용 캐시 ${deletedCount.toLocaleString()}건을 리셋했습니다.`
           : '리셋할 계산 기록이 없습니다.'
       );
     } catch (resetError) {
-      setError(formatError(resetError));
+      setResetDialogError(formatError(resetError));
       await loadRecentJobs(currentJob?.id).catch(() => undefined);
     } finally {
+      resetInFlightRef.current = false;
       setResetting(false);
     }
   };
+
+  useEffect(() => {
+    if (!resetDialogOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !resetting) {
+        setResetDialogOpen(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [resetDialogOpen, resetting]);
 
   const handleCreateDraft = async () => {
     if (!currentJob || currentJob.status !== 'OPTIMAL') return;
@@ -1727,6 +1755,100 @@ const AdminExactAllocationPage = () => {
                 </button>
               </footer>
             </form>
+          </section>
+        </div>
+      )}
+      {resetDialogOpen && (
+        <div
+          className={styles.modalBackdrop}
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !resetting) {
+              setResetDialogOpen(false);
+            }
+          }}
+        >
+          <section
+            className={styles.resetDialog}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="exact-allocation-reset-title"
+            aria-describedby="exact-allocation-reset-description"
+          >
+            <span className={styles.resetDialogIcon} aria-hidden="true">
+              <RotateCcw size={24} />
+            </span>
+            <p className={styles.resetDialogEyebrow}>최적화 계산 기록 리셋</p>
+            <h2 id="exact-allocation-reset-title">
+              계산 기록과 재사용 캐시를 삭제할까요?
+            </h2>
+            <p id="exact-allocation-reset-description">
+              완료되거나 실패한 최적화 계산 기록과 재사용 캐시를 삭제합니다.
+              이미 생성된 배차 초안과 확정 배차안은 유지됩니다.
+            </p>
+            <dl className={styles.resetDialogSummary}>
+              <div>
+                <dt>계산 기록</dt>
+                <dd>{recentJobs.length.toLocaleString()}건 삭제 대상</dd>
+              </div>
+              <div>
+                <dt>배차 초안</dt>
+                <dd>{draftWorkspaces.length.toLocaleString()}개 유지</dd>
+              </div>
+              <div>
+                <dt>확정 배차안</dt>
+                <dd>{confirmedWorkspaces.length.toLocaleString()}개 유지</dd>
+              </div>
+              <div>
+                <dt>진행 중 계산</dt>
+                <dd>{activeJob ? `${currentJob?.status ?? '실행 중'} · 먼저 취소 필요` : '없음'}</dd>
+              </div>
+              <div>
+                <dt>리셋 후 상태</dt>
+                <dd>새 최적화 계산 가능</dd>
+              </div>
+            </dl>
+            {activeJob && (
+              <div className={styles.resetDialogWarning}>
+                <TriangleAlert size={18} aria-hidden="true" />
+                <span>
+                  진행 중인 계산을 먼저 취소하고 완료 상태를 확인한 뒤 리셋해주세요.
+                </span>
+              </div>
+            )}
+            {resetDialogError && (
+              <p className={styles.resetDialogError} role="alert">
+                {resetDialogError}
+              </p>
+            )}
+            <div className={styles.resetDialogActions}>
+              <button
+                type="button"
+                className={styles.secondary}
+                onClick={() => setResetDialogOpen(false)}
+                disabled={resetting}
+                autoFocus
+              >
+                기록 유지
+              </button>
+              <button
+                type="button"
+                className={styles.danger}
+                onClick={() => void confirmReset()}
+                disabled={resetting || activeJob}
+              >
+                {resetting ? (
+                  <>
+                    <LoaderCircle className={styles.resetSpinner} size={17} />
+                    리셋 중...
+                  </>
+                ) : (
+                  <>
+                    <RotateCcw size={17} />
+                    계산 기록 리셋
+                  </>
+                )}
+              </button>
+            </div>
           </section>
         </div>
       )}

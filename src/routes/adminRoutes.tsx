@@ -53,11 +53,17 @@ const AdminSimulationPage = lazy(
   () => import('../pages/admin/AdminSimulationPage')
 );
 const AdminBoardingPage = lazy(() => import('../pages/admin/AdminBoardingPage'));
+const AdminBoardingExceptionsPage = lazy(
+  () => import('../pages/admin/AdminBoardingExceptionsPage')
+);
 const AdminBoardingManagerPage = lazy(
   () => import('../pages/admin/AdminBoardingManagerPage')
 );
 const AdminAuditLogsPage = lazy(
   () => import('../pages/admin/AdminAuditLogsPage')
+);
+const AdminAiOperationsReportsPage = lazy(
+  () => import('../pages/admin/AdminAiOperationsReportsPage')
 );
 const AdminToolsPage = lazy(() => import('../pages/admin/AdminToolsPage'));
 const AdminInvitationCodesPage = lazy(
@@ -108,6 +114,10 @@ const canonicalAdminRoutes = [
     element: adminRoute(<AdminBoardingPage />, boardingAccess),
   },
   {
+    path: 'boarding/exceptions',
+    element: adminRoute(<AdminBoardingExceptionsPage />, boardingAccess),
+  },
+  {
     path: 'access/boarding-managers',
     element: adminRoute(<AdminBoardingManagerPage />, globalAdminOnly),
   },
@@ -138,6 +148,10 @@ const canonicalAdminRoutes = [
   {
     path: 'system/audit-logs',
     element: adminRoute(<AdminAuditLogsPage />, globalAdminOnly),
+  },
+  {
+    path: 'system/ai-reports',
+    element: adminRoute(<AdminAiOperationsReportsPage />, globalAdminOnly),
   },
   {
     path: 'system/invitation-codes',
@@ -265,6 +279,11 @@ const legacyAdminRoutes = [
   {
     path: 'audit-logs',
     to: '/admin/system/audit-logs',
+    roles: globalAdminOnly,
+  },
+  {
+    path: 'ai-reports',
+    to: '/admin/system/ai-reports',
     roles: globalAdminOnly,
   },
   {

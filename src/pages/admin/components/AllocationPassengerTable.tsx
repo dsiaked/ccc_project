@@ -37,7 +37,7 @@ const PassengerRow = memo(function PassengerRow({
   const assignedBus = buses.find((bus) => bus.id === passenger.busId);
   const remainingSeatLabel =
     passenger.remainingSeatStatus === 'pending_payment'
-      ? '잔여 좌석 · 입금 대기'
+      ? '잔여 좌석 · 미입금'
       : '잔여 좌석 · 입금 완료';
 
   return (

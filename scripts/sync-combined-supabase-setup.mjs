@@ -85,6 +85,14 @@ const setupFiles = [
   '149_disable_signup_email_enumeration.sql',
   '150_require_boarding_transition_reason.sql',
   '151_personal_user_management_enhancements.sql',
+  '152_fix_boarding_station_preferences.sql',
+  '153_boarding_move_requests.sql',
+  '154_boarding_exception_archives.sql',
+  '155_boarding_exception_reason_edits.sql',
+  '156_ai_operations_reports.sql',
+  '157_ccc_summer_user_links.sql',
+  '158_allow_allocation_confirmation_cancel_before_deadline.sql',
+  '159_personal_notification_audit_reasons.sql',
 ];
 
 let combined = readFileSync(combinedPath, 'utf8').replaceAll('\r\n', '\n');

@@ -2312,7 +2312,7 @@ const handleConfirmCandidateStations = () => {
           className={styles.confirmModalNoBtn}
           onClick={() => setShowDepositRequiredMessage(true)}
         >
-          아직 입금 전이에요
+          아직 미입금 상태예요
         </button>
         <button
           type="button"

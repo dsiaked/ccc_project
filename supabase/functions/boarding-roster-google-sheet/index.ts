@@ -93,6 +93,8 @@ const statusLabels: Record<BoardingStatus, string> = {
   no_show: '미탑승',
 };
 
+const columnWidths = [70, 82, 90, 130, 100, 90, 120, 140, 150, 180, 100, 260];
+
 const colors = {
   white: { red: 1, green: 1, blue: 1 },
   header: { red: 0.09, green: 0.15, blue: 0.33 },
@@ -536,11 +538,13 @@ Deno.serve(async (request) => {
             cell: {
               userEnteredFormat: {
                 backgroundColor: colors.white,
+                verticalAlignment: 'MIDDLE',
+                wrapStrategy: 'WRAP',
                 textFormat: { foregroundColor: { red: 0.1, green: 0.15, blue: 0.25 } },
               },
             },
             fields:
-              'userEnteredFormat.backgroundColor,userEnteredFormat.textFormat.foregroundColor',
+              'userEnteredFormat.backgroundColor,userEnteredFormat.verticalAlignment,userEnteredFormat.wrapStrategy,userEnteredFormat.textFormat.foregroundColor',
           },
         },
         {
@@ -578,13 +582,25 @@ Deno.serve(async (request) => {
             },
           },
         },
+        ...columnWidths.map((pixelSize, columnIndex) => ({
+          updateDimensionProperties: {
+            range: {
+              sheetId,
+              dimension: 'COLUMNS',
+              startIndex: columnIndex,
+              endIndex: columnIndex + 1,
+            },
+            properties: { pixelSize },
+            fields: 'pixelSize',
+          },
+        })),
         {
           autoResizeDimensions: {
             dimensions: {
               sheetId,
-              dimension: 'COLUMNS',
+              dimension: 'ROWS',
               startIndex: 0,
-              endIndex: headers.length,
+              endIndex: requiredRows,
             },
           },
         },

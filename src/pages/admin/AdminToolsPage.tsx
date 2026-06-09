@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react';
 import {
   AlertTriangle,
+  Bot,
   Building2,
   FlaskConical,
   History,
@@ -67,6 +68,11 @@ const toolGroups: ToolGroup[] = [
         title: '관리자 작업 기록',
         path: '/admin/system/audit-logs',
         icon: History,
+      },
+      {
+        title: 'AI 운영 최종보고서',
+        path: '/admin/system/ai-reports',
+        icon: Bot,
       },
     ],
   },

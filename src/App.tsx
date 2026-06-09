@@ -6,6 +6,7 @@ import {
   AppLoadingScreen,
   AppSetupScreen,
 } from './components/AppStatusScreen';
+import ActivityTracker from './components/ActivityTracker';
 import { publicRoutes } from './routes/publicRoutes';
 import { getSupabaseConfigStatus } from './utils/appConfig';
 
@@ -23,6 +24,7 @@ const App = () => {
   return (
     <AppErrorBoundary>
       <BrowserRouter>
+        <ActivityTracker />
         <Suspense fallback={<AppLoadingScreen />}>
           <Routes>
             {publicRoutes.map((route) => (

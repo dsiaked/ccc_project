@@ -27,6 +27,18 @@ const notificationSection = readFileSync(
   'src/components/PersonalNotificationSection.tsx',
   'utf8'
 );
+const notificationService = readFileSync(
+  'src/lib/personalNotificationService.ts',
+  'utf8'
+);
+const notificationAuditSetupSql = readFileSync(
+  'sql/setup/159_personal_notification_audit_reasons.sql',
+  'utf8'
+);
+const notificationAuditMigrationSql = readFileSync(
+  'supabase/migrations/20260610230023_159_personal_notification_audit_reasons.sql',
+  'utf8'
+);
 
 test('personal user management setup SQL matches its migration', () => {
   assert.equal(migrationSql.replaceAll('\r\n', '\n'), setupSql.replaceAll('\r\n', '\n'));
@@ -77,4 +89,24 @@ test('personal user page exposes tabs, attention filter, templates, permissions,
   assert.match(adminPage, /위험 작업 확인/);
   assert.match(notificationSection, /개인 알림함/);
   assert.match(notificationSection, /markPersonalNotificationRead/);
+});
+
+test('personal notification center exposes failures and preserves partial read results', () => {
+  assert.match(notificationService, /limit = 20/);
+  assert.match(notificationSection, /Promise\.allSettled/);
+  assert.match(notificationSection, /readIds\.includes/);
+  assert.match(notificationSection, /개인 알림을 불러오지 못했습니다/);
+  assert.match(notificationSection, /role="alert"/);
+  assert.match(notificationSection, /다시 시도/);
+});
+
+test('personal notification audit logs preserve the administrator reason', () => {
+  assert.equal(
+    notificationAuditMigrationSql.replaceAll('\r\n', '\n'),
+    notificationAuditSetupSql.replaceAll('\r\n', '\n')
+  );
+  assert.match(notificationAuditSetupSql, /p_reason text default null/);
+  assert.match(notificationAuditSetupSql, /coalesce\(nullif\(btrim\(p_reason\), ''\), btrim\(p_title\)\)/);
+  assert.match(adminPage, /sendPersonalNotification\(\{[\s\S]*reason,/);
+  assert.match(adminPage, /bulkSendPersonalNotifications\(\{[\s\S]*reason,/);
 });

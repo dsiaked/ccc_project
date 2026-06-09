@@ -11,14 +11,44 @@ import styles from './PersonalNotificationSection.module.css';
 const PersonalNotificationSection = () => {
   const [notifications, setNotifications] = useState<PersonalNotification[]>([]);
   const [isOpen, setIsOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [readError, setReadError] = useState(false);
+
+  const loadNotifications = async () => {
+    setIsLoading(true);
+    setLoadError(false);
+    try {
+      setNotifications(await getMyPersonalNotifications());
+    } catch (error) {
+      console.error('개인 알림 조회 실패:', error);
+      setLoadError(true);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
+    let active = true;
+
     getMyPersonalNotifications()
-      .then(setNotifications)
-      .catch((error) => console.error('개인 알림 조회 실패:', error));
+      .then((items) => {
+        if (active) setNotifications(items);
+      })
+      .catch((error) => {
+        console.error('개인 알림 조회 실패:', error);
+        if (active) setLoadError(true);
+      })
+      .finally(() => {
+        if (active) setIsLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
-  if (notifications.length === 0) return null;
+  if (notifications.length === 0 && !loadError) return null;
   const unreadCount = notifications.filter((item) => !item.readAt).length;
 
   const toggleNotificationCenter = async () => {
@@ -26,17 +56,44 @@ const PersonalNotificationSection = () => {
     setIsOpen(nextOpen);
     if (!nextOpen || unreadCount === 0) return;
 
+    setReadError(false);
     const unreadIds = notifications
       .filter((item) => !item.readAt)
       .map((item) => item.id);
-    await Promise.all(unreadIds.map(markPersonalNotificationRead));
+    const results = await Promise.allSettled(
+      unreadIds.map(markPersonalNotificationRead)
+    );
+    const readIds = unreadIds.filter(
+      (_, index) => results[index].status === 'fulfilled'
+    );
+    if (readIds.length !== unreadIds.length) setReadError(true);
     const readAt = new Date().toISOString();
     setNotifications((current) =>
       current.map((item) =>
-        unreadIds.includes(item.id) ? { ...item, readAt } : item
+        readIds.includes(item.id) ? { ...item, readAt } : item
       )
     );
   };
+
+  if (loadError && notifications.length === 0) {
+    return (
+      <section className={`${styles.section} ${styles.errorState}`} aria-live="polite">
+        <Bell size={20} />
+        <div>
+          <h2>개인 알림을 불러오지 못했습니다.</h2>
+          <p>잠시 후 다시 시도해주세요.</p>
+        </div>
+        <button
+          type="button"
+          className={styles.retryButton}
+          disabled={isLoading}
+          onClick={() => void loadNotifications()}
+        >
+          {isLoading ? '불러오는 중' : '다시 시도'}
+        </button>
+      </section>
+    );
+  }
 
   return (
     <section id="personal-notifications" className={styles.section} aria-labelledby="personal-notification-title">
@@ -56,6 +113,11 @@ const PersonalNotificationSection = () => {
         )}
         {isOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
       </button>
+      {readError && (
+        <p className={styles.errorMessage} role="alert">
+          일부 알림의 읽음 상태를 저장하지 못했습니다. 다시 열어 시도해주세요.
+        </p>
+      )}
       {isOpen && (
         <div className={styles.list}>
           {notifications.map((notification) => (

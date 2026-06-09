@@ -31,7 +31,7 @@ const getErrorMessage = (error: unknown) =>
     : '잔여 좌석 처리 중 오류가 발생했습니다.';
 
 const PAYMENT_INFO_UNAVAILABLE_MESSAGE =
-  '선택한 버스의 결제 계좌 또는 금액이 등록되지 않아 신청할 수 없습니다. 관리자에게 문의해주세요.';
+  '선택한 버스의 입금 계좌 또는 금액이 등록되지 않아 신청할 수 없습니다. 관리자에게 문의해주세요.';
 
 const hasValidPaymentInfo = (option: RemainingSeatOption) =>
   typeof option.transferAccount === 'string' &&
@@ -386,7 +386,7 @@ const RemainingSeatPage = () => {
                 disabled={saving}
                 autoFocus
               >
-                아직 입금 전이에요
+                아직 미입금 상태예요
               </button>
               <button
                 type="button"

@@ -41,3 +41,23 @@ test('allocation planning assertion is a normal void function', () => {
   assert.match(assertionBody, /returns void/i);
   assert.doesNotMatch(assertionBody, /\btg_op\b|\bnew\b|\bold\b/i);
 });
+
+test('confirmed allocation cancellation remains available before the deadline', () => {
+  const migration = readFileSync(
+    'supabase/migrations/20260610230020_158_allow_allocation_confirmation_cancel_before_deadline.sql',
+    'utf8'
+  );
+  const triggerFunction =
+    migration.match(
+      /function public\.require_closed_reservation_deadline_for_bus_allocation\(\)([\s\S]*?)\$\$;/
+    )?.[1] ?? '';
+
+  assert.match(
+    triggerFunction,
+    /tg_op = 'UPDATE'[\s\S]*old\.allocation_data ->> 'status' = 'confirmed'[\s\S]*new\.allocation_data ->> 'status' = 'draft'[\s\S]*return new;/i
+  );
+  assert.match(
+    triggerFunction,
+    /if v_deadline_at is null or v_deadline_at > clock_timestamp\(\) then[\s\S]*raise exception 'Allocation is available only after the reservation deadline\.'/i
+  );
+});

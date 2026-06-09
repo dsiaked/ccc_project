@@ -51,11 +51,13 @@
 .transfer_pending, .payment_missing { background: #fee4e2; color: #b42318; }
 .transfer_sent, .payment_pending { background: #fef0c7; color: #b54708; }
 .transfer_confirmed { background: #dcfae6; color: #067647; }
+.payment_completed { background: #dcfae6; color: #067647; }
 .transfer_additional { background: #fffaeb; color: #b54708; }
 .payment_refunded { background: #e4e7ec; color: #475467; }
 .dangerText { color: #d92d20; }
 .rowActions { display: flex; align-items: center; gap: 6px; }
 .waitingText { margin: 0 !important; color: #667085 !important; font-size: 11px !important; font-weight: 800; white-space: nowrap; }
+.completedText { margin: 0 !important; color: #067647 !important; font-size: 11px !important; font-weight: 900; white-space: nowrap; }
 .textButton { margin-top: 5px; padding: 0; border: 0; background: transparent; color: #175cd3; font: inherit; font-size: 11px; font-weight: 800; cursor: pointer; }
 .emptyCell { padding: 40px !important; color: #667085 !important; text-align: center !important; }
 .emptyStateTitle { margin-bottom: 6px; color: #067647 !important; font-size: 16px; }
