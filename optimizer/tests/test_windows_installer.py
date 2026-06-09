@@ -5,6 +5,9 @@ import sys
 import unittest
 from unittest.mock import patch
 
+if sys.platform != "win32":
+    raise unittest.SkipTest("Windows installer tests require Windows.")
+
 from exact_optimizer.windows_installer import (
     read_hidden_console_input,
     run_installed_worker,
