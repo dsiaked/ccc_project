@@ -36,10 +36,46 @@ test('allocation page prioritizes an active job and explains reset results', () 
 
   assert.match(
     page,
-    /const activeJob = jobs\.find\(\(job\) => activeStatuses\.has\(job\.status\)\);[\s\S]*if \(activeJob\) return activeJob;/
+    /const activeJob = jobs\.find\(\(job\) => activeStatuses\.has\(job\.status\)\);[\s\S]*const targetJob =\s*activeJob \?\?/
   );
   assert.match(page, /const deletedCount = await resetExactAllocationJobs\(\)/);
   assert.match(page, /계산 기록과 재사용 캐시 \$\{deletedCount\.toLocaleString\(\)\}건을 리셋했습니다/);
   assert.match(service, /진행 중인 계산을 먼저 취소한 뒤 다시 리셋해주세요/);
   assert.match(service, /최신 Supabase 마이그레이션을 적용해주세요/);
+  assert.match(
+    service,
+    /throw new Error\(detail \|\| error\.code \|\| '계산 기록 리셋에 실패했습니다\.'\)/
+  );
+});
+
+test('successful allocation reset restores the calculation-ready view', () => {
+  const page = readFileSync(
+    'src/pages/admin/AdminExactAllocationPage.tsx',
+    'utf8'
+  );
+
+  assert.match(
+    page,
+    /const resetCalculationView = useCallback\(\(\) => \{[\s\S]*setCurrentJob\(null\);[\s\S]*setRecentJobs\(\[\]\);[\s\S]*setLinkedWorkspace\(null\);[\s\S]*setAllocationName\(''\);[\s\S]*setResumeDetailedBalance\(true\);[\s\S]*setSkippedDetailedPhases\(\[\]\);/
+  );
+  assert.match(
+    page,
+    /jobsStateRevisionRef\.current \+= 1;[\s\S]*const deletedCount = await resetExactAllocationJobs\(\);[\s\S]*resetCalculationView\(\);[\s\S]*setCalculationViewReset\(true\);/
+  );
+  assert.match(
+    page,
+    /const requestRevision = jobsStateRevisionRef\.current;[\s\S]*if \(requestRevision !== jobsStateRevisionRef\.current\) return;/
+  );
+  assert.match(
+    page,
+    /const activeJob =\s*!calculationViewReset[\s\S]*activeStatuses\.has\(currentJob\.status\);/
+  );
+  assert.match(
+    page,
+    /const optimalResult =\s*!calculationViewReset && currentJob\?\.status === 'OPTIMAL'/
+  );
+  assert.match(
+    page,
+    /requestRevision === jobsStateRevisionRef\.current[\s\S]*setCalculationViewReset\(false\);[\s\S]*setCurrentJob\(detail\);/
+  );
 });

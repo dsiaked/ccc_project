@@ -66,6 +66,7 @@ class ExactOptimizerTests(unittest.TestCase):
             num_search_workers = 0
             random_seed = 0
             max_time_in_seconds = 0.0
+            search_branching = cp_model.AUTOMATIC_SEARCH
 
         class FakeSolver:
             parameters = FakeParameters()
@@ -76,7 +77,8 @@ class ExactOptimizerTests(unittest.TestCase):
             def StatusName(self, status: cp_model.CpSolverStatus) -> str:
                 return "FEASIBLE"
 
-        with patch("exact_optimizer.model.cp_model.CpSolver", return_value=FakeSolver()):
+        fake_solver = FakeSolver()
+        with patch("exact_optimizer.model.cp_model.CpSolver", return_value=fake_solver):
             with self.assertRaisesRegex(PhaseSolveError, "FEASIBLE"):
                 _solve_phase(
                     model=cp_model.CpModel(),
@@ -85,8 +87,13 @@ class ExactOptimizerTests(unittest.TestCase):
                     objectives=[],
                     progress=None,
                     cancellation_check=None,
+                    search_workers=1,
                     max_time_seconds=1,
                 )
+        self.assertEqual(
+            fake_solver.parameters.search_branching,
+            cp_model.AUTOMATIC_SEARCH,
+        )
 
     def test_uses_half_of_available_cpu_cores(self) -> None:
         with patch("exact_optimizer.model.os.cpu_count", return_value=12):
@@ -423,6 +430,36 @@ class ExactOptimizerTests(unittest.TestCase):
 
         self.assertEqual(result.status, "FAILED")
         self.assertIn("At least one passenger is required.", result.error_message or "")
+
+    def test_returns_failed_when_final_detailed_phase_is_not_proven(self) -> None:
+        data = OptimizationInput(
+            passengers=tuple(
+                passenger(
+                    f"p-{index}",
+                    "A",
+                    "B",
+                    campus=f"Campus {index % 2}",
+                    team=f"Team {index % 3}",
+                )
+                for index in range(8)
+            ),
+            bus=BusConfiguration(capacity=4, price=100),
+        )
+        original_solve_phase = model_module._solve_phase
+
+        def fail_final_phase(**kwargs):
+            if kwargs["name"].startswith("destination_occupancy_imbalance"):
+                raise PhaseSolveError(kwargs["name"], "FEASIBLE")
+            return original_solve_phase(**kwargs)
+
+        with patch("exact_optimizer.model._solve_phase", side_effect=fail_final_phase):
+            result = optimize(data, detailed_balance=True)
+
+        self.assertEqual(result.status, "FAILED")
+        self.assertIn(
+            "destination_occupancy_imbalance",
+            result.error_message or "",
+        )
 
     def test_rejects_result_with_mismatched_bus_configuration(self) -> None:
         data = OptimizationInput(

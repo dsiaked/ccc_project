@@ -195,9 +195,9 @@ const ConfirmedTicketPage = ({
       const message = error instanceof Error ? error.message : '';
       setBoardingError(
         message.includes('incorrect or expired')
-          ? '탑승 코드가 올바르지 않거나 만료되었습니다. 선탑자에게 코드를 다시 확인해주세요.'
+          ? '탑승 코드가 올바르지 않거나 만료되었습니다. 탑승 관리 간사님에게 코드를 다시 확인해주세요.'
           : message.includes('already departed')
-            ? '이미 출발 완료된 버스입니다. 선탑자에게 탑승 상태 확인을 요청해주세요.'
+            ? '이미 출발 완료된 버스입니다. 탑승 관리 간사님에게 탑승 상태 확인을 요청해주세요.'
             : '탑승 코드를 확인하지 못했습니다. 잠시 후 다시 시도해주세요.'
       );
     } finally {
@@ -231,7 +231,7 @@ const ConfirmedTicketPage = ({
           <div className={styles.verificationBarContent}>
             <span className={styles.liveDot} aria-hidden="true" />
             <strong>LIVE TICKET</strong>
-            <span>실시간 유효 티켓</span>
+            <span>실시간 유효 버스표</span>
             <time dateTime={liveTime.toISOString()}>
               {liveTime.toLocaleTimeString('ko-KR', {
                 hour: '2-digit',
@@ -270,7 +270,7 @@ const ConfirmedTicketPage = ({
               <div className={styles.infoBlock}>
                 <MapPin size={20} color="#dc2626" className={styles.infoIcon} />
                 <div className={styles.infoBlockContent}>
-                  <span className={styles.infoLabel}>탑승 장소</span>
+                  <span className={styles.infoLabel}>탑승장소</span>
                   <span className={styles.infoValue}>{ticket.boardingPlace}</span>
                 </div>
               </div>
@@ -352,12 +352,12 @@ const ConfirmedTicketPage = ({
             <CircleCheckBig size={32} aria-hidden="true" />
             <div>
               <h2>
-                {boardingConfirmedAt ? '탑승 체크인 완료' : '버스 탑승 체크인'}
+                {boardingConfirmedAt ? '탑승 확인' : '버스 탑승 체크인'}
               </h2>
               <p>
                 {boardingConfirmedAt
                   ? `${formatKoreanDateTime(boardingConfirmedAt)}에 확인했습니다.`
-                  : '버스에 탑승한 뒤 선탑자가 안내하는 4자리 코드를 입력하세요.'}
+                  : '버스에 탑승한 뒤 탑승 관리 간사님이 안내하는 4자리 코드를 입력하세요.'}
               </p>
             </div>
           </div>
@@ -367,7 +367,7 @@ const ConfirmedTicketPage = ({
               className={styles.boardingConfirmButton}
               disabled
             >
-              탑승 확인됨
+              탑승 확인
             </button>
           ) : (
             <form
@@ -416,7 +416,7 @@ const ConfirmedTicketPage = ({
           <div>
             <p className={styles.noticeTitle}>출발 전 체크리스트</p>
             <ul className={styles.noticeList}>
-              <li>출발 30분 전에 탑승 장소에 도착해주세요</li>
+              <li>출발 30분 전에 탑승장소에 도착해주세요</li>
               <li>확정된 호차를 확인하고 해당 호차의 빈 좌석에 탑승해주세요</li>
               {ticket.managerNote && (
                 <li>{ticket.managerNote}</li>

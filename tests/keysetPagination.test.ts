@@ -20,6 +20,20 @@ test('allocation workspace reservation collection uses a composite cursor', () =
   assert.doesNotMatch(source, /\.range\(/);
 });
 
+test('allocation result reservation collection uses a composite cursor', () => {
+  const source = readSource('src/pages/admin/AdminAllocationResultPage.tsx');
+  const collector = source.slice(
+    source.indexOf('const getAllReservationRows = async'),
+    source.indexOf('const csvCell')
+  );
+
+  assert.match(collector, /created_at\.gt\.\$\{cursor\.created_at\}/);
+  assert.match(collector, /id\.gt\.\$\{cursor\.id\}/);
+  assert.match(collector, /\.limit\(RESERVATION_FETCH_PAGE_SIZE\)/);
+  assert.match(collector, /if \(page\.length < RESERVATION_FETCH_PAGE_SIZE\) return rows/);
+  assert.doesNotMatch(collector, /\.range\(/);
+});
+
 test('admin ticket bulk collectors use keyset pagination', () => {
   const source = readSource('src/pages/admin/AdminTicketPage.tsx');
 

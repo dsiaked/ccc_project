@@ -52,8 +52,8 @@ export const PASSENGER_QUICK_FILTERS: Array<{
 const VALIDATION_ERROR_GROUPS = [
   {
     id: 'unassigned',
-    title: '1. 미배차 승객',
-    description: '버스가 지정되지 않은 승객을 먼저 배차하세요.',
+    title: '1. 미배차 탑승자',
+    description: '버스가 지정되지 않은 탑승자를 먼저 배차하세요.',
     matches: (error: string) => error.includes('미배차 상태'),
   },
   {
@@ -74,13 +74,13 @@ const VALIDATION_ERROR_GROUPS = [
       error.includes('버스 이름이 중복') ||
       error.includes('행선지가 없습니다') ||
       error.includes('출발 시간이 없습니다') ||
-      error.includes('탑승 장소가 없습니다') ||
+      error.includes('탑승장소가 없습니다') ||
       error.includes('최대'),
   },
   {
     id: 'assignment-preference',
     title: '4. 지망·배차 오류',
-    description: '승객 지망 정보와 배차 대상을 확인하세요.',
+    description: '탑승자 지망 정보와 배차 대상을 확인하세요.',
     matches: (error: string) =>
       error.includes('1·2지망') ||
       error.includes('중복 배차') ||
@@ -129,8 +129,8 @@ export const CONFIRMATION_PREFLIGHT_LABELS: Record<
   workspace_status: '배차안 저장 상태',
   payload_structure: '배차안 데이터 구조',
   bus_details: '버스 필수 정보',
-  assignments: '승객 배차·좌석·행선지',
-  unique_reservations: '승객 중복 배차',
+  assignments: '탑승자 배차·좌석·행선지',
+  unique_reservations: '탑승자 중복 배차',
   unique_seats: '좌석 중복 배정',
   active_reservations: '최신 활성 신청자 일치',
 };

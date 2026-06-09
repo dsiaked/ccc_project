@@ -7,8 +7,8 @@ import type {
 import { formatBusLabel } from './busLabel';
 
 const statusLabels: Record<BoardingStatus, string> = {
-  unchecked: '확인 대기',
-  boarded: '탑승',
+  unchecked: '탑승 미확인',
+  boarded: '탑승 확인',
   no_show: '미탑승',
 };
 
@@ -91,8 +91,8 @@ const getPassengerHighlightClass = (
 
 const exceptionLegend = `
   <div class="legend">
-    <span class="exception-unchecked">확인 대기</span>
-    <span class="exception-departed-unchecked">출발 후 확인 대기</span>
+    <span class="exception-unchecked">탑승 미확인</span>
+    <span class="exception-departed-unchecked">출발 후 탑승 미확인</span>
     <span class="exception-no-show">미탑승</span>
     <span class="exception-note">비고 있음</span>
   </div>`;
@@ -115,7 +115,7 @@ const headers = [
   '캠퍼스',
   '행선지',
   '출발 시간',
-  '탑승 장소',
+  '탑승장소',
   '탑승 상태',
   '비고',
 ];
@@ -235,7 +235,7 @@ export const printFullBoardingRosterPdf = (snapshot: BoardingSnapshot) => {
             <h2>${escapeHtml(formatBusLabel(bus.label))} · ${escapeHtml(bus.destination)}</h2>
             <p>${escapeHtml(bus.departureTime)} · ${escapeHtml(bus.boardingPlace)}</p>
           </div>
-          <p class="counts">총 ${counts.total}명 · 탑승 ${counts.boarded} · 확인 대기 ${counts.unchecked} · 미탑승 ${counts.no_show}</p>
+          <p class="counts">총 ${counts.total}명 · 탑승 확인 ${counts.boarded} · 탑승 미확인 ${counts.unchecked} · 미탑승 ${counts.no_show}</p>
         </div>
         ${exceptionLegend}
         <table>

@@ -69,6 +69,45 @@
   color: #344054;
 }
 
+.titleActions button:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+
+.resultMeta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  margin: 0 0 16px;
+  overflow: hidden;
+  border: 1px solid #dbe3ee;
+  border-radius: 8px;
+  background: #dbe3ee;
+}
+
+.resultMeta div {
+  min-width: 0;
+  padding: 12px 14px;
+  background: #ffffff;
+}
+
+.resultMeta dt {
+  margin-bottom: 5px;
+  color: #667085;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.resultMeta dd {
+  overflow: hidden;
+  margin: 0;
+  color: #344054;
+  font-size: 13px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .summaryGrid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -127,6 +166,27 @@
   border-right: 1px solid #fdba74;
 }
 
+.warningBar button,
+.errorBox button {
+  min-height: 30px;
+  padding: 0 9px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.7);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.warningBar button:hover,
+.errorBox button:hover {
+  background: #ffffff;
+}
+
+.errorBox button {
+  margin-left: auto;
+}
+
 .busSection,
 .busDetail,
 .listSection {
@@ -135,6 +195,7 @@
   border: 1px solid #e4e7ec;
   border-radius: 8px;
   background: #ffffff;
+  scroll-margin-top: 24px;
 }
 
 .sectionHeading {
@@ -195,6 +256,29 @@
 .busTabs button small {
   color: #667085;
   font-size: 12px;
+}
+
+.busTabTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.busTabTitle strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.busTabs button .busAlert {
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding: 2px 5px;
+  border-radius: 999px;
+  background: #fef2f2;
+  color: #b42318;
+  font-size: 10px;
+  font-weight: 800;
 }
 
 .busTabs .activeBus {
@@ -258,6 +342,12 @@
 
 .adminCreatedDot {
   background: #99f6e4;
+}
+
+.seatMapNotice {
+  margin: 0 0 10px;
+  color: #667085;
+  font-size: 12px;
 }
 
 .seatMap {
@@ -457,6 +547,31 @@
   cursor: pointer;
 }
 
+.filterEmpty {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  padding: 32px 20px;
+  border: 1px dashed #d0d5dd;
+  border-radius: 8px;
+  background: #f9fafb;
+  color: #667085;
+  font-size: 13px;
+  text-align: center;
+}
+
+.filterEmpty button {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #344054;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
 .pagination,
 .pageButtons {
   display: flex;
@@ -526,6 +641,20 @@
   padding: 16px;
 }
 
+.backButton:focus-visible,
+.titleActions button:focus-visible,
+.warningBar button:focus-visible,
+.errorBox button:focus-visible,
+.busTabs button:focus-visible,
+.searchBox:focus-within,
+.filters select:focus-visible,
+.iconButton:focus-visible,
+.filterEmpty button:focus-visible,
+.pageButtons button:focus-visible {
+  outline: 3px solid rgba(37, 99, 235, 0.32);
+  outline-offset: 2px;
+}
+
 @media (max-width: 768px) {
   .main {
     padding: 80px 12px 24px;
@@ -549,6 +678,10 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .resultMeta {
+    grid-template-columns: 1fr;
+  }
+
   .summaryItem {
     padding: 14px;
   }
@@ -557,6 +690,7 @@
   .busDetail,
   .listSection {
     padding: 14px;
+    scroll-margin-top: 180px;
   }
 
   .busTabs {

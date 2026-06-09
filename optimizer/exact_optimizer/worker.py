@@ -73,7 +73,8 @@ def build_supabase_headers(service_role_key: str) -> dict[str, str]:
 class SupabaseRepository:
     def __init__(self, url: str, service_role_key: str) -> None:
         self.base_url = url.rstrip("/")
-        self.service_role_key = service_role_key
+        self.service_role_key = normalize_service_role_key(service_role_key)
+        self.headers = build_supabase_headers(self.service_role_key)
 
     def _request(
         self,
@@ -89,7 +90,7 @@ class SupabaseRepository:
             data=payload,
             method=method,
             headers={
-                **build_supabase_headers(self.service_role_key),
+                **self.headers,
                 **({"Prefer": prefer} if prefer else {}),
             },
         )

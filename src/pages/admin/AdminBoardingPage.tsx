@@ -39,8 +39,8 @@ import AdminHeader from './AdminHeader';
 import styles from './AdminBoardingPage.module.css';
 
 const statusLabels: Record<BoardingStatus, string> = {
-  unchecked: '확인 대기',
-  boarded: '탑승',
+  unchecked: '탑승 미확인',
+  boarded: '탑승 확인',
   no_show: '미탑승',
 };
 
@@ -80,12 +80,13 @@ const getChangeActorLabel = (event: BoardingEvent) => {
       : '출발 완료 자동 처리';
   }
 
-  return event.actorName ? `선탑자 ${event.actorName} 처리` : '선탑자 처리';
+  return event.actorName ? `탑승 관리 간사님 ${event.actorName} 처리` : '탑승 관리 간사님 처리';
 };
 
 const AdminBoardingPage = () => {
   const { adminRole } = useAdminAuth();
   const isGlobalAdmin = adminRole?.role === 'global_admin';
+  const boardingScopeLabel = isGlobalAdmin ? '전체 확정 호차' : '내 담당 호차';
   const [snapshot, setSnapshot] = useState<BoardingSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -400,7 +401,7 @@ const AdminBoardingPage = () => {
       toStatus: status,
       actorType: 'boarding_manager',
       createdAt: changedAt,
-      note: '선탑자 상태 변경',
+      note: '탑승 관리 간사님 상태 변경',
     };
 
     setPendingPassengerIds((current) => {
@@ -516,7 +517,7 @@ const AdminBoardingPage = () => {
 
     if (
       !window.confirm(
-        `${formatBusLabel(selectedBus.label)} 출발 완료를 선언할까요?\n남은 확인 대기 ${counts.unchecked}명은 미탑승 처리됩니다.`
+        `${formatBusLabel(selectedBus.label)} 출발 완료를 선언할까요?\n남은 탑승 미확인 ${counts.unchecked}명은 미탑승 처리됩니다.`
       )
     ) {
       return;
@@ -531,7 +532,7 @@ const AdminBoardingPage = () => {
     if (!selectedBus) return;
     if (
       !window.confirm(
-        `${formatBusLabel(selectedBus.label)} 출발 완료를 취소할까요?\n일괄 미탑승 처리된 승객은 확인 대기로 복구됩니다.`
+        `${formatBusLabel(selectedBus.label)} 출발 완료를 취소할까요?\n일괄 미탑승 처리된 탑승자는 탑승 미확인으로 복구됩니다.`
       )
     ) {
       return;
@@ -580,7 +581,7 @@ const AdminBoardingPage = () => {
           <div>
             <span>Boarding Control</span>
             <h1>탑승 확인 관리</h1>
-            <p>전체 확정 호차의 탑승·확인 대기·미탑승 인원을 실시간으로 확인합니다.</p>
+            <p>{boardingScopeLabel}의 탑승·탑승 미확인·미탑승 인원을 실시간으로 확인합니다.</p>
           </div>
           <button type="button" onClick={() => void loadSnapshot(true)} disabled={syncing}>
             <RefreshCw size={16} /> {syncing ? '동기화 중' : '새로고침'}
@@ -596,9 +597,14 @@ const AdminBoardingPage = () => {
             <div className={styles.allocationTitle}>
               <div>
                 <strong>{snapshot.allocationName}</strong>
-                <span>좌석 번호는 명단 확인용이며 실제 지정 좌석이 아닙니다.</span>
+                <span>
+                  {isGlobalAdmin
+                    ? '좌석 번호는 명단 확인용이며 실제 지정 좌석이 아닙니다.'
+                    : '배정받은 담당 호차만 표시됩니다. 좌석 번호는 명단 확인용입니다.'}
+                </span>
               </div>
-              <div className={styles.exportActions}>
+              {isGlobalAdmin && (
+                <div className={styles.exportActions}>
                 <button
                   type="button"
                   onClick={() => downloadFullBoardingRosterExcel(snapshot)}
@@ -655,15 +661,16 @@ const AdminBoardingPage = () => {
                     {formatKoreanDateTime(sheetSyncedAt)} 동기화 완료
                   </span>
                 )}
-              </div>
+                </div>
+              )}
             </div>
 
-            <section className={styles.overview} aria-label="전체 탑승 확인 현황">
+            <section className={styles.overview} aria-label={`${boardingScopeLabel} 탑승 확인 현황`}>
               <dl className={styles.overviewStats}>
-                <div><dt>운행 차량</dt><dd>{snapshot.buses.length.toLocaleString()}대</dd></div>
-                <div><dt>전체 인원</dt><dd>{overallCounts.total.toLocaleString()}명</dd></div>
-                <div><dt>탑승</dt><dd>{overallCounts.boarded.toLocaleString()}명</dd></div>
-                <div><dt>확인 대기</dt><dd>{overallCounts.unchecked.toLocaleString()}명</dd></div>
+                <div><dt>{isGlobalAdmin ? '운행 차량' : '담당 호차'}</dt><dd>{snapshot.buses.length.toLocaleString()}대</dd></div>
+                <div><dt>{isGlobalAdmin ? '전체 인원' : '담당 인원'}</dt><dd>{overallCounts.total.toLocaleString()}명</dd></div>
+                <div><dt>탑승 확인</dt><dd>{overallCounts.boarded.toLocaleString()}명</dd></div>
+                <div><dt>탑승 미확인</dt><dd>{overallCounts.unchecked.toLocaleString()}명</dd></div>
                 <div className={overallCounts.noShow ? styles.overviewAlert : undefined}>
                   <dt>미탑승</dt><dd>{overallCounts.noShow.toLocaleString()}명</dd>
                 </div>
@@ -676,8 +683,8 @@ const AdminBoardingPage = () => {
                 <input
                   value={busSearch}
                   onChange={(event) => setBusSearch(event.target.value)}
-                  placeholder="호차 또는 행선지 검색"
-                  aria-label="호차 또는 행선지 검색"
+                  placeholder={`${boardingScopeLabel} 또는 행선지 검색`}
+                  aria-label={`${boardingScopeLabel} 또는 행선지 검색`}
                   autoComplete="off"
                 />
                 {busSearch && (
@@ -748,7 +755,7 @@ const AdminBoardingPage = () => {
                     </div>
                     <div className={styles.busCounts}>
                       <span>확인 {checkedCount} / {counts.total}명</span>
-                      <span>확인 대기 {counts.unchecked}</span>
+                      <span>탑승 미확인 {counts.unchecked}</span>
                       {counts.noShow > 0 && <span className={styles.noShow}>미탑승 {counts.noShow}</span>}
                     </div>
                   </button>
@@ -775,8 +782,8 @@ const AdminBoardingPage = () => {
               <section className={styles.roster}>
                 <div className={styles.rosterHeader}>
                   <div>
-                    <span>{isGlobalSearch ? '전체 호차 검색' : '선택 호차'}</span>
-                    <h2>{isGlobalSearch ? '전체 호차 검색 결과' : `${formatBusLabel(selectedBus.label)} 탑승자 명단`}</h2>
+                    <span>{isGlobalSearch ? `${boardingScopeLabel} 검색` : '선택 호차'}</span>
+                    <h2>{isGlobalSearch ? `${boardingScopeLabel} 검색 결과` : `${formatBusLabel(selectedBus.label)} 탑승자 명단`}</h2>
                     <p>
                       {isGlobalSearch
                         ? '검색 결과에는 여러 호차의 탑승자가 포함될 수 있습니다.'
@@ -801,7 +808,7 @@ const AdminBoardingPage = () => {
                     </button>
                   ) : (
                     <button className={styles.departure} type="button" onClick={handleDeparture} disabled={Boolean(departureActionKey)}>
-                      남은 확인 대기 전원 미탑승 · 출발 완료
+                      남은 탑승 미확인 전원 미탑승 · 출발 완료
                     </button>
                   )}
                 </div>
@@ -811,8 +818,8 @@ const AdminBoardingPage = () => {
                     <div className={styles.checkInCodeCopy}>
                       <KeyRound size={22} aria-hidden="true" />
                       <div>
-                        <strong>승객 탑승 코드</strong>
-                        <span>버스에 탑승한 승객에게 이 4자리 코드를 안내하세요.</span>
+                        <strong>탑승자 탑승 코드</strong>
+                        <span>버스에 탑승한 탑승자에게 이 4자리 코드를 안내하세요.</span>
                       </div>
                     </div>
                     <div className={styles.checkInCodeValue} aria-live="polite">
@@ -851,8 +858,8 @@ const AdminBoardingPage = () => {
                         setSearch(event.target.value);
                         setCampusFilter('');
                       }}
-                      placeholder="전체 호차에서 이름, 연락처, 소속, 호차 검색"
-                      aria-label="전체 호차 탑승자 검색"
+                      placeholder={`${boardingScopeLabel}에서 이름, 연락처, 소속, 호차 검색`}
+                      aria-label={`${boardingScopeLabel} 탑승자 검색`}
                       autoComplete="off"
                     />
                     {search && (
@@ -921,18 +928,34 @@ const AdminBoardingPage = () => {
                     const passengerBus = busesByLabel.get(passenger.busNumber);
                     return (
                       <article key={passenger.reservationId} className={`${styles.passenger} ${styles[`status_${passenger.boardingStatus}`]}`}>
+                        <div className={styles.passengerSeat}>
+                          <span>명단 번호</span>
+                          <strong>{passenger.seatNumber || '-'}</strong>
+                        </div>
                         <div className={styles.passengerMain}>
-                          <div className={styles.nameRow}>
-                            <strong>{passenger.name}</strong>
-                            <span className={styles.statusBadge}>{statusLabels[passenger.boardingStatus]}</span>
-                          </div>
+                          <strong className={styles.passengerName} title={passenger.name}>
+                            {passenger.name}
+                          </strong>
+                          <span className={styles.passengerCampus} title={passenger.campus}>
+                            {passenger.campus}
+                          </span>
+                          <span className={styles.statusBadge}>{statusLabels[passenger.boardingStatus]}</span>
+                        </div>
+                        <div className={styles.actions}>
+                          <button type="button" className={styles.boardButton} onClick={() => handleStatus(passenger, 'boarded')} disabled={isPassengerPending || passenger.boardingStatus === 'boarded'} aria-label={`${passenger.name} 탑승 확인`}><CheckCircle2 size={14} />탑승</button>
+                          <button type="button" className={styles.noShowButton} title={!passengerBus?.departedAt ? '출발 완료 후 미탑승 처리할 수 있습니다.' : undefined} onClick={() => handleStatus(passenger, 'no_show')} disabled={isPassengerPending || passenger.boardingStatus === 'no_show' || !passengerBus?.departedAt} aria-label={`${passenger.name} 미탑승 처리`}><UserX size={14} />미탑승</button>
+                          <button type="button" className={styles.resetButton} onClick={() => handleStatus(passenger, 'unchecked')} disabled={isPassengerPending || passenger.boardingStatus === 'unchecked'} aria-label={`${passenger.name} 탑승 미확인으로 변경`}><CircleHelp size={14} />미확인</button>
+                        </div>
+                        <details className={styles.passengerDetails}>
+                          <summary>
+                            <span>{passenger.boardingNote ? '상세 · 비고 있음' : '상세 보기'}</span>
+                            {passenger.boardingNote && <small>{passenger.boardingNote}</small>}
+                          </summary>
                           <div className={styles.meta}>
                             <span>{formatBusLabel(passenger.busNumber)}</span>
-                            <span>{passenger.campus}</span>
                             <a href={`tel:${passenger.phone}`} aria-label={`${passenger.name}님에게 전화`}>
                               {passenger.phone}
                             </a>
-                            <span>명단 번호 {passenger.seatNumber || '-'}</span>
                           </div>
                           {latestEvent ? (
                             <div className={`${styles.changeSummary} ${styles[`change_${getChangeActorType(latestEvent)}`]}`}>
@@ -949,17 +972,6 @@ const AdminBoardingPage = () => {
                               <span>{formatKoreanDateTime(passenger.updatedAt)}</span>
                             </div>
                           ) : null}
-                        </div>
-                        <div className={styles.actions}>
-                          <button type="button" className={styles.boardButton} onClick={() => handleStatus(passenger, 'boarded')} disabled={isPassengerPending || passenger.boardingStatus === 'boarded'}><CheckCircle2 size={15} />탑승</button>
-                          <button type="button" className={styles.noShowButton} title={!passengerBus?.departedAt ? '출발 완료 후 미탑승 처리할 수 있습니다.' : undefined} onClick={() => handleStatus(passenger, 'no_show')} disabled={isPassengerPending || passenger.boardingStatus === 'no_show' || !passengerBus?.departedAt}><UserX size={15} />미탑승</button>
-                          <button type="button" className={styles.resetButton} onClick={() => handleStatus(passenger, 'unchecked')} disabled={isPassengerPending || passenger.boardingStatus === 'unchecked'}><CircleHelp size={15} />확인 대기로</button>
-                        </div>
-                        <details className={styles.noteDetails}>
-                          <summary>
-                            <span>{passenger.boardingNote ? '비고 있음' : '비고 추가'}</span>
-                            {passenger.boardingNote && <small>{passenger.boardingNote}</small>}
-                          </summary>
                           <form
                             className={styles.noteEditor}
                             onSubmit={(event) => {

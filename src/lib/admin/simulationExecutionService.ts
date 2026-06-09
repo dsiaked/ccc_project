@@ -135,7 +135,7 @@ const execute = async (request: SimulationExecutionRequest) => {
         '실제 로그인 계정 생성'
       );
       completedMessage =
-        '서울지구·기타지구 일반 회원 생성과 캠퍼스 회계 순장님 권한 준비를 완료했습니다.';
+        '서울지구·서울 외 지구 일반 회원 생성과 캠퍼스 회계 순장님 권한 준비를 완료했습니다.';
     } else if (request.stage === 'reservations') {
       result = await runBatchedStage(request, 'reservations', 200, '개별 신청');
       completedMessage =

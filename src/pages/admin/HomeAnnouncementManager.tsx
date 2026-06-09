@@ -20,8 +20,29 @@ const formatDateTime = (value: string) =>
     timeStyle: 'short',
   }).format(new Date(value));
 
-const toDateTimeLocal = (value: string | null) =>
-  value ? new Date(value).toISOString().slice(0, 16) : '';
+const toDateTimeLocal = (value: string | null) => {
+  if (!value) return '';
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return '';
+
+  const timezoneOffsetMs = date.getTimezoneOffset() * 60 * 1000;
+
+  return new Date(date.getTime() - timezoneOffsetMs)
+    .toISOString()
+    .slice(0, 16);
+};
+
+const fromDateTimeLocal = (value: string) => {
+  if (!value) return null;
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return null;
+
+  return date.toISOString();
+};
 
 let cachedHomeAnnouncements: HomeAnnouncement[] | null = null;
 
@@ -286,8 +307,8 @@ const HomeAnnouncementManager = () => {
                     <button type="button" className={styles.primaryButton} disabled={saving} onClick={() => void updateAnnouncement(announcement, {
                       title: editTitle.trim(),
                       content: editContent.trim(),
-                      publishStartAt: editStartAt ? new Date(editStartAt).toISOString() : null,
-                      publishEndAt: editEndAt ? new Date(editEndAt).toISOString() : null,
+                      publishStartAt: fromDateTimeLocal(editStartAt),
+                      publishEndAt: fromDateTimeLocal(editEndAt),
                     })}><Save size={15} />저장</button>
                   </div>
                 </div>

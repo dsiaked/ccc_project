@@ -940,7 +940,7 @@ Deno.serve(async (request) => {
         const coordinatorSequence = (index % EXTERNAL_AFFILIATIONS.length) + 1;
         return {
           email: `sim-user-${pad(sequence)}@ccc-bus.test`,
-          name: `시뮬레이션 기타지구 사용자 ${pad(sequence)}`,
+          name: `시뮬레이션 서울 외 지구 사용자 ${pad(sequence)}`,
           phone: `010-9${String(sequence).padStart(7, '0').slice(-7)}`,
           district_id: null,
           district: affiliation.district,
@@ -1159,7 +1159,7 @@ Deno.serve(async (request) => {
           verifiedExternalProfiles !== externalSpecs.length
         ) {
           throw new Error(
-            `2단계 검증 실패: 프로필 ${verifiedProfiles}/${specs.length}, 기타지구 프로필 ${verifiedExternalProfiles}/${externalSpecs.length}, 전체 캠퍼스 회계 순장님 권한 ${verifiedAdminRoles}/${allCampuses.length}, 생성한 시뮬레이션 권한 ${verifiedSimulationAdminRoles}/${uncoveredCampuses.length}`,
+            `2단계 검증 실패: 프로필 ${verifiedProfiles}/${specs.length}, 서울 외 지구 프로필 ${verifiedExternalProfiles}/${externalSpecs.length}, 전체 캠퍼스 회계 순장님 권한 ${verifiedAdminRoles}/${allCampuses.length}, 생성한 시뮬레이션 권한 ${verifiedSimulationAdminRoles}/${uncoveredCampuses.length}`,
           );
         }
         Object.assign(summary, {
@@ -1926,7 +1926,7 @@ Deno.serve(async (request) => {
               })
               .in('id', boardedIdChunk)
           ).error,
-          '탑승 완료 상태 반영 실패',
+          '탑승 확인 상태 반영 실패',
         );
       }
       for (const [departureId, noShowIds] of noShowIdsByDeparture) {
@@ -1944,7 +1944,7 @@ Deno.serve(async (request) => {
                 })
                 .in('id', noShowIdChunk)
             ).error,
-            '노쇼 상태 반영 실패',
+            '미탑승 상태 반영 실패',
           );
         }
       }
@@ -1956,7 +1956,7 @@ Deno.serve(async (request) => {
           from_status: 'unchecked',
           to_status: 'boarded',
           actor_id: user.id,
-          note: '시뮬레이션 탑승 완료',
+          note: '시뮬레이션 탑승 확인',
           created_at: now,
         })),
         ...noShowIds.map((reservationId) => ({
@@ -1964,7 +1964,7 @@ Deno.serve(async (request) => {
           from_status: 'unchecked',
           to_status: 'no_show',
           actor_id: user.id,
-          note: '시뮬레이션 호차 출발 후 노쇼',
+          note: '시뮬레이션 호차 출발 후 미탑승',
           created_at: now,
         })),
       ];

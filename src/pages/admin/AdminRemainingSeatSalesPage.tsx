@@ -87,7 +87,6 @@ const AdminRemainingSeatSalesPage = () => {
     enabled: true,
     hiddenBusIds: [],
   });
-  const [paymentInfo, setPaymentInfo] = useState({ account: '', price: 0 });
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState('');
   const [loadError, setLoadError] = useState('');
@@ -100,21 +99,16 @@ const AdminRemainingSeatSalesPage = () => {
     }
 
     try {
-      const [latestAllocation, reservationResult, nextSettings, paymentSettingResult] = await Promise.all([
+      const [latestAllocation, reservationResult, nextSettings] = await Promise.all([
         getLatestConfirmedBusAllocation(),
         supabase
           .from('reservations')
           .select('id, user_id, name, phone, campus, status, data')
           .order('created_at', { ascending: false }),
         getRemainingSeatSalesSettings(),
-        supabase
-          .from('app_settings')
-          .select('key, value')
-          .in('key', ['bus_ticket_price', 'seoul_district_transfer_account']),
       ]);
 
       if (reservationResult.error) throw reservationResult.error;
-      if (paymentSettingResult.error) throw paymentSettingResult.error;
 
       const nextClaims = ((reservationResult.data ?? []) as ReservationRow[])
         .filter((row) => row.data?.remainingSeatClaim)
@@ -131,15 +125,6 @@ const AdminRemainingSeatSalesPage = () => {
       setAllocation(latestAllocation as AllocationRow | null);
       setClaims(nextClaims);
       setSettings(nextSettings);
-      const paymentSettings = Object.fromEntries(
-        (paymentSettingResult.data ?? []).map((item) => [item.key, item.value])
-      ) as Record<string, Record<string, unknown>>;
-      setPaymentInfo({
-        account: String(
-          paymentSettings.seoul_district_transfer_account?.account_number ?? ''
-        ),
-        price: Number(paymentSettings.bus_ticket_price?.price ?? 0),
-      });
     } catch (error) {
       console.error('잔여 좌석 관리 데이터 조회 실패:', error);
       if (showLoading) {
@@ -307,10 +292,6 @@ const AdminRemainingSeatSalesPage = () => {
           <div>
             <span>전체 잔여 좌석 신청</span>
             <strong>{settings.enabled ? '신청 가능' : '신청 마감'}</strong>
-            <p>
-              서울지구 계좌 {paymentInfo.account || '설정 필요'} · 좌석 가격{' '}
-              {paymentInfo.price.toLocaleString()}원
-            </p>
           </div>
           <button
             type="button"

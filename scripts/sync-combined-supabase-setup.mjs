@@ -70,6 +70,9 @@ const setupFiles = [
   '134_safe_reset_allocation_optimization_jobs.sql',
   '135_split_allocation_deadline_triggers.sql',
   '136_allow_external_reservations_without_team.sql',
+  '137_enable_signup_email_availability_check.sql',
+  '138_admin_invitation_codes.sql',
+  '139_fix_allocation_draft_reservation_normalization.sql',
 ];
 
 let combined = readFileSync(combinedPath, 'utf8').replaceAll('\r\n', '\n');

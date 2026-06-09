@@ -58,8 +58,8 @@ are intentionally patching an older DB.
 
 5c. `55_atomic_allocation_confirmation.sql`
    - 배차 초안 확정과 확정 취소를 단일 DB 트랜잭션 RPC로 처리
-   - 활성 승객 명단과 버스·좌석 배정을 DB에서 다시 검증
-   - 확정 중 일부 승객만 반영되는 부분 성공 상태 방지
+   - 활성 탑승자 명단과 버스·좌석 배정을 DB에서 다시 검증
+   - 확정 중 일부 탑승자만 반영되는 부분 성공 상태 방지
 
 5d. `56_post_deadline_remaining_seat_claim.sql`
    - 신청 마감 후 미신청자가 확정 배차안의 잔여 좌석을 직접 선택
@@ -210,15 +210,15 @@ are intentionally patching an older DB.
   - Fixes authenticated `bus_allocations` requests returning HTTP 500 when allocation policies evaluate `admin_roles` RLS directly.
 
 - `111_classify_automatic_boarding_events.sql`
-  - 최신 canonical bus ID 패치 이후 출발 시 자동 미탑승 이벤트가 선탑자 수동 처리로 잘못 표시되는 문제를 보정
-  - 탑승 관리 스냅샷의 승객 범위도 canonical bus ID 권한 함수로 다시 제한
+  - 최신 canonical bus ID 패치 이후 출발 시 자동 미탑승 이벤트가 탑승 관리 간사님 수동 처리로 잘못 표시되는 문제를 보정
+  - 탑승 관리 스냅샷의 탑승자 범위도 canonical bus ID 권한 함수로 다시 제한
 
 - `53_bus_option_max_count.sql`
   - 기존 DB의 버스 옵션에 종류별 사용 가능 최대 대수 컬럼 추가
 
 - `54_fix_destination_stats_all_active_reservations.sql`
-  - 배차 수요 집계에서 확정 상태 승객이 누락되는 문제 보정
-  - 취소되지 않은 모든 예매 승객을 결제 여부와 관계없이 배차 수요에 포함
+  - 배차 수요 집계에서 확정 상태 탑승자가 누락되는 문제 보정
+  - 취소되지 않은 모든 신청 탑승자를 입금 여부와 관계없이 배차 수요에 포함
 
 ## 관리 원칙
 

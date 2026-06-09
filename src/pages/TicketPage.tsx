@@ -46,7 +46,12 @@ const TicketPage = () => {
 
   const handleCancelRemainingSeat = async () => {
     if (!reservation?.remainingSeatClaim) return;
-    if (!window.confirm('입금 대기 중인 잔여 좌석 신청을 취소할까요? 좌석은 다시 공개됩니다.')) return;
+    if (
+      !window.confirm(
+        '잔여 좌석 신청을 취소할까요? 좌석은 다시 공개됩니다. 이미 입금했다면 환불이 자동 처리되는지 확정할 수 없으므로 관리자에게 문의하고 환불 여부를 반드시 확인해 주세요.'
+      )
+    )
+      return;
 
     setCancelling(true);
     try {
@@ -209,7 +214,7 @@ const TicketPage = () => {
                   </div>
                   <div>
                     <MapPin size={18} aria-hidden="true" />
-                    <span>탑승 장소</span>
+                    <span>탑승장소</span>
                     <strong>{remainingSeatClaim.boardingPlace}</strong>
                   </div>
                 </div>

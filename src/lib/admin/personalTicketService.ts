@@ -322,7 +322,7 @@ export async function getPersonalTicketPage(
         )
       ) {
         throw new Error(
-          '개인 티켓 페이지 조회 DB 함수가 없습니다. Supabase SQL Editor에서 sql/setup/130_personal_ticket_district_filter.sql을 적용해주세요.',
+          '개인 버스표 페이지 조회 DB 함수가 없습니다. Supabase SQL Editor에서 sql/setup/130_personal_ticket_district_filter.sql을 적용해주세요.',
           { cause: legacyError }
         );
       }

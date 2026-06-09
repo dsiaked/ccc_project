@@ -33,7 +33,7 @@ describe('describeAllocationWorkspaceChanges', () => {
       passengers: [passenger('p-1', '홍길동', 'bus-1', 1)],
     });
 
-    assert.deepEqual(changes, ['최초 저장 상태: 버스 1대, 승객 1명.']);
+    assert.deepEqual(changes, ['최초 저장 상태: 버스 1대, 탑승자 1명.']);
   });
 
   it('summarizes bus settings and passenger assignment changes', () => {
@@ -57,7 +57,7 @@ describe('describeAllocationWorkspaceChanges', () => {
     );
     assert.equal(
       changes[1],
-      '승객 변경: 추가 0명, 제외 0명, 호차 이동 1명, 좌석 변경 0명.'
+      '탑승자 변경: 추가 0명, 제외 0명, 호차 이동 1명, 좌석 변경 0명.'
     );
     assert.ok(changes.includes('1호차: 출발 시각 10:00 → 11:00'));
     assert.ok(changes.includes('홍길동: 1호차 1번 → 2호차 3번'));

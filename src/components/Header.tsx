@@ -25,8 +25,8 @@ const adminShortcutCopyByRole: Record<
     buttonLabel: '캠퍼스 회계 순장님 페이지',
   },
   boarding_manager: {
-    description: '담당 호차의 탑승 현황과 승객 상태를 관리할 수 있습니다.',
-    buttonLabel: '선탑자 페이지',
+    description: '담당 호차의 탑승 현황과 탑승자 상태를 관리할 수 있습니다.',
+    buttonLabel: '탑승 관리 간사님 페이지',
   },
 };
 

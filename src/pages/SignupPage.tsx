@@ -12,11 +12,16 @@ import {
   type CampusOption,
 } from '../lib/organizationService';
 import {
+  parseInvitationCodes,
+  validateInvitationCodes,
+} from '../lib/invitationCodeService';
+import {
   clearSignupDraft as clearSignupDraftStorage,
   loadSignupDraft as loadSignupDraftFromStorage,
   saveSignupDraft as saveSignupDraftToSession,
   type SignupDraft,
 } from '../utils/signupDraftStorage';
+import { isAlreadyRegisteredSignupError } from '../utils/signupAuthError';
 import styles from './SignupPage.module.css';
 
 const validateEmail = (value: string) => /^\S+@\S+\.\S+$/.test(value);
@@ -56,6 +61,9 @@ const SignupPage = () => {
 
   const [email, setEmail] = useState(initialDraft.email);
   const [emailMessage, setEmailMessage] = useState<string | null>(null);
+  const [emailCheckStatus, setEmailCheckStatus] = useState<
+    'idle' | 'checking' | 'available' | 'unavailable' | 'error'
+  >('idle');
 
   const [password, setPassword] = useState('');
   const [passwordConfirm, setPasswordConfirm] = useState('');
@@ -81,6 +89,7 @@ const SignupPage = () => {
   const [coordinatorPhone, setCoordinatorPhone] = useState(
     initialDraft.coordinatorPhone
   );
+  const [invitationCodeInput, setInvitationCodeInput] = useState('');
   const isExternal = districtId === EXTERNAL_DISTRICT_ID;
 
   const [loadingOptions, setLoadingOptions] = useState(false);
@@ -229,13 +238,69 @@ const SignupPage = () => {
 
   const resetEmailCheck = () => {
     setEmailMessage(null);
+    setEmailCheckStatus('idle');
+  };
+
+  const handleEmailCheck = async () => {
+    const normalizedEmail = email.trim().toLowerCase();
+
+    setError(null);
+    setSuccess(null);
+
+    if (!validateEmail(normalizedEmail)) {
+      setEmailCheckStatus('error');
+      setEmailMessage('유효한 이메일을 입력해주세요.');
+      return;
+    }
+
+    setEmailCheckStatus('checking');
+    setEmailMessage(null);
+
+    try {
+      const { data: emailExists, error: emailCheckError } = await supabase.rpc(
+        'email_exists',
+        { p_email: normalizedEmail }
+      );
+
+      if (emailCheckError) {
+        console.error('이메일 중복 확인 실패:', emailCheckError);
+        setEmailCheckStatus('error');
+        setEmailMessage(
+          '이메일 중복 확인에 실패했습니다. 잠시 후 다시 시도해주세요.'
+        );
+        return;
+      }
+
+      if (emailExists) {
+        setEmailCheckStatus('unavailable');
+        setEmailMessage(
+          '이미 가입된 이메일입니다. 로그인하거나 비밀번호 찾기를 이용해주세요.'
+        );
+        return;
+      }
+
+      setEmailCheckStatus('available');
+      setEmailMessage('사용 가능한 이메일입니다.');
+    } catch (emailCheckError) {
+      console.error('이메일 중복 확인 실패:', emailCheckError);
+      setEmailCheckStatus('error');
+      setEmailMessage(
+        '이메일 중복 확인에 실패했습니다. 잠시 후 다시 시도해주세요.'
+      );
+    }
   };
 
   const handleNextStep = () => {
     setError(null);
 
     if (!validateEmail(email.trim().toLowerCase())) {
+      setEmailCheckStatus('error');
       setEmailMessage('유효한 이메일을 입력해주세요.');
+      return;
+    }
+
+    if (emailCheckStatus !== 'available') {
+      setEmailMessage('이메일 중복 확인을 먼저 완료해주세요.');
       return;
     }
 
@@ -254,6 +319,12 @@ const SignupPage = () => {
 
   const handleSignup = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+
+    if (currentStep === 0) {
+      handleNextStep();
+      return;
+    }
+
     setError(null);
     setSuccess(null);
 
@@ -311,7 +382,7 @@ const SignupPage = () => {
         !coordinatorName.trim() ||
         !coordinatorPhone.trim())
     ) {
-      setError('기타 지구 소속과 담당 간사 정보를 모두 입력해주세요.');
+      setError('서울 외 지구 소속과 담당 간사 정보를 모두 입력해주세요.');
       return;
     }
 
@@ -350,6 +421,21 @@ const SignupPage = () => {
     setLoading(true);
 
     try {
+      const invitationCodes = parseInvitationCodes(invitationCodeInput);
+
+      if (invitationCodes.length > 0) {
+        const validation = await validateInvitationCodes(invitationCodes);
+
+        if (!validation.valid) {
+          setError(
+            `${validation.errorIndex ? `${validation.errorIndex}번째 코드: ` : ''}${
+              validation.errorMessage ?? '권한 등록 코드를 확인해 주세요.'
+            }`
+          );
+          return;
+        }
+      }
+
       const { data, error: signUpError } = await supabase.auth.signUp({
         email: normalizedEmail,
         password,
@@ -371,12 +457,22 @@ const SignupPage = () => {
             affiliation_type: isExternal ? 'external' : 'seoul',
             coordinator_name: isExternal ? coordinatorName.trim() : '',
             coordinator_phone: isExternal ? coordinatorPhone.trim() : '',
+            invitation_codes: invitationCodes,
           },
           emailRedirectTo: `${window.location.origin}/auth/callback`,
         },
       });
 
       if (signUpError) {
+        if (isAlreadyRegisteredSignupError(signUpError)) {
+          setCurrentStep(0);
+          setEmailCheckStatus('unavailable');
+          setEmailMessage(
+            '이미 가입된 이메일입니다. 로그인하거나 비밀번호 찾기를 이용해주세요.'
+          );
+          return;
+        }
+
         console.error('회원가입 요청 실패:', signUpError);
         setError('회원가입을 완료할 수 없습니다. 입력 정보를 확인하고 다시 시도해주세요.');
         return;
@@ -391,6 +487,15 @@ const SignupPage = () => {
       clearSignupDraft();
       setSignupResult('complete');
     } catch (error) {
+      if (isAlreadyRegisteredSignupError(error)) {
+        setCurrentStep(0);
+        setEmailCheckStatus('unavailable');
+        setEmailMessage(
+          '이미 가입된 이메일입니다. 로그인하거나 비밀번호 찾기를 이용해주세요.'
+        );
+        return;
+      }
+
       console.error('회원가입 실패:', error);
       setError('회원가입 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
     } finally {
@@ -528,13 +633,32 @@ const SignupPage = () => {
                 }}
                 autoComplete="email"
                 aria-describedby={emailMessage ? 'signup-email-message' : undefined}
-                aria-invalid={Boolean(emailMessage)}
+                aria-invalid={
+                  emailCheckStatus === 'unavailable' || emailCheckStatus === 'error'
+                }
+                disabled={emailCheckStatus === 'checking'}
                 required
               />
+              <button
+                type="button"
+                className={styles.emailCheckButton}
+                onClick={handleEmailCheck}
+                disabled={emailCheckStatus === 'checking'}
+              >
+                {emailCheckStatus === 'checking' ? '확인 중...' : '중복 확인'}
+              </button>
             </div>
 
             {emailMessage && (
-              <p id="signup-email-message" className={styles.errorMessage} role="alert">
+              <p
+                id="signup-email-message"
+                className={
+                  emailCheckStatus === 'available'
+                    ? styles.successMessage
+                    : styles.errorMessage
+                }
+                role={emailCheckStatus === 'available' ? 'status' : 'alert'}
+              >
                 {emailMessage}
               </p>
             )}
@@ -671,7 +795,7 @@ const SignupPage = () => {
                   {option.name}
                 </option>
               ))}
-              <option value={EXTERNAL_DISTRICT_ID}>기타 지구</option>
+              <option value={EXTERNAL_DISTRICT_ID}>서울 외 지구</option>
             </select>
           </div>
 
@@ -808,6 +932,29 @@ const SignupPage = () => {
             </>
           )}
 
+          {currentStep === 1 && (
+            <div className={styles.inputGroup}>
+              <label className={styles.label} htmlFor="signup-invitation-codes">
+                권한 등록 코드 (선택)
+              </label>
+              <textarea
+                id="signup-invitation-codes"
+                className={styles.invitationCodeInput}
+                value={invitationCodeInput}
+                onChange={(event) => {
+                  setInvitationCodeInput(event.target.value);
+                  setError(null);
+                }}
+                placeholder="여러 코드는 줄바꿈이나 쉼표로 구분하세요."
+                rows={4}
+              />
+              <p className={styles.phoneGuide}>
+                유효하지 않거나 만료된 코드가 하나라도 있으면 회원가입이 진행되지
+                않습니다.
+              </p>
+            </div>
+          )}
+
           {error && <p className={styles.formError} role="alert">{error}</p>}
 
           {success && (
@@ -819,6 +966,7 @@ const SignupPage = () => {
               type="button"
               className={styles.submitButton}
               onClick={handleNextStep}
+              disabled={emailCheckStatus !== 'available'}
             >
               다음
             </button>

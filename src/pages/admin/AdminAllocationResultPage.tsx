@@ -26,6 +26,8 @@ import { formatBusLabel } from '../../utils/busLabel';
 import styles from './AdminAllocationResultPage.module.css';
 
 type PaymentStatus = 'pending' | 'completed' | 'refunded' | 'none';
+type PaymentFilter = PaymentStatus | 'all' | 'attention';
+type WarningType = 'empty' | 'duplicate' | 'overCapacity' | 'payment';
 
 interface PaymentRow {
   status: Exclude<PaymentStatus, 'none'>;
@@ -33,6 +35,7 @@ interface PaymentRow {
 
 interface ReservationRow {
   id: string;
+  created_at: string;
   user_id: string;
   name: string | null;
   phone: string | null;
@@ -61,19 +64,33 @@ interface AllocationRoute {
   busLabel: string;
   capacity: number;
   destinations?: Array<{ name: string }>;
+  departureTime?: string;
+  boardingPlace?: string;
 }
 
 interface AllocationBus {
   label: string;
   capacity: number;
   destination: string;
+  departureTime?: string;
+  boardingPlace?: string;
 }
 
 interface AllocationRow {
+  id: string;
+  allocation_name: string;
+  updated_at: string;
   allocation_data: {
     buses?: AllocationBus[];
     routePlan?: AllocationRoute[];
+    confirmedAt?: string;
   } | null;
+}
+
+interface AllocationInfo {
+  name: string;
+  confirmedAt: string;
+  syncedAt: Date;
 }
 
 interface BusGroup {
@@ -87,22 +104,44 @@ interface BusGroup {
   duplicateSeats: string[];
 }
 
+interface AllocationWarning {
+  type: WarningType;
+  label: string;
+  busNumber?: string;
+}
+
 const PAGE_SIZE = 20;
+const RESERVATION_FETCH_PAGE_SIZE = 1000;
 
 const paymentLabels: Record<PaymentStatus, string> = {
   completed: '입금 완료',
   pending: '미입금',
   refunded: '환불',
-  none: '결제 정보 없음',
+  none: '입금 정보 없음',
 };
 
 const getErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : '배차 결과를 불러오지 못했습니다.';
 
+const formatDateTime = (value: string | Date) =>
+  new Date(value).toLocaleString('ko-KR', {
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
 const seatValue = (seatNumber?: string) => {
   const parsed = Number.parseInt(seatNumber ?? '', 10);
   return Number.isFinite(parsed) ? parsed : Number.MAX_SAFE_INTEGER;
 };
+
+const getBusIssueCount = (bus: BusGroup) =>
+  bus.duplicateSeats.length +
+  (bus.passengers.length > bus.capacity ? 1 : 0) +
+  bus.passengers.filter((passenger) => passenger.paymentStatus !== 'completed')
+    .length;
 
 const toReservationItem = (
   row: ReservationRow,
@@ -124,6 +163,38 @@ const toReservationItem = (
     isRemainingSeat: Boolean(saved.remainingSeatClaim),
     isAdminCreated: adminCreatedUserIds.has(row.user_id),
   };
+};
+
+const getAllReservationRows = async (): Promise<ReservationRow[]> => {
+  const rows: ReservationRow[] = [];
+  let cursor: Pick<ReservationRow, 'created_at' | 'id'> | null = null;
+
+  while (true) {
+    let query = supabase
+      .from('reservations')
+      .select(
+        'id, created_at, user_id, name, phone, campus, station_preferences, status, confirmed_ticket, data, payments(status)'
+      )
+      .order('created_at', { ascending: true })
+      .order('id', { ascending: true })
+      .limit(RESERVATION_FETCH_PAGE_SIZE);
+
+    if (cursor) {
+      query = query.or(
+        `created_at.gt.${cursor.created_at},and(created_at.eq.${cursor.created_at},id.gt.${cursor.id})`
+      );
+    }
+
+    const { data, error } = await query;
+
+    if (error) throw error;
+
+    const page = (data ?? []) as unknown as ReservationRow[];
+    rows.push(...page);
+
+    if (page.length < RESERVATION_FETCH_PAGE_SIZE) return rows;
+    cursor = page[page.length - 1];
+  }
 };
 
 const csvCell = (value: string | number) =>
@@ -198,13 +269,17 @@ const AdminAllocationResultPage = () => {
   )?.allocation;
   const [reservations, setReservations] = useState<ReservationItem[]>([]);
   const [routes, setRoutes] = useState<AllocationRoute[]>([]);
+  const [allocationInfo, setAllocationInfo] = useState<AllocationInfo | null>(
+    null
+  );
   const [selectedBusNumber, setSelectedBusNumber] = useState('');
   const [search, setSearch] = useState('');
-  const [paymentFilter, setPaymentFilter] = useState('all');
+  const [paymentFilter, setPaymentFilter] = useState<PaymentFilter>('all');
   const [destinationFilter, setDestinationFilter] = useState('all');
   const [passengerPage, setPassengerPage] = useState(1);
   const [unassignedPage, setUnassignedPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
@@ -212,17 +287,10 @@ const AdminAllocationResultPage = () => {
     setLoadError(null);
 
     try {
-      const [latestAllocation, reservationResult] = await Promise.all([
+      const [latestAllocation, reservationRows] = await Promise.all([
         getLatestConfirmedBusAllocation(),
-        supabase
-          .from('reservations')
-          .select(
-            'id, user_id, name, phone, campus, station_preferences, status, confirmed_ticket, data, payments(status)'
-          )
-          .order('created_at', { ascending: true }),
+        getAllReservationRows(),
       ]);
-
-      if (reservationResult.error) throw reservationResult.error;
 
       const profileResult = await supabase
         .from('profiles')
@@ -232,12 +300,14 @@ const AdminAllocationResultPage = () => {
         (profileResult.data ?? []).map((profile) => profile.id)
       );
 
-      const allocationData = (latestAllocation as AllocationRow | null)
-        ?.allocation_data;
+      const allocation = latestAllocation as AllocationRow | null;
+      const allocationData = allocation?.allocation_data;
       const workspaceRoutes = allocationData?.buses?.map((bus) => ({
         busLabel: bus.label,
         capacity: bus.capacity,
         destinations: [{ name: bus.destination }],
+        departureTime: bus.departureTime,
+        boardingPlace: bus.boardingPlace,
       }));
       setRoutes(
         navigationAllocation?.routePlan ??
@@ -246,10 +316,21 @@ const AdminAllocationResultPage = () => {
           []
       );
       setReservations(
-        ((reservationResult.data ?? []) as unknown as ReservationRow[]).map(
-          (reservation) => toReservationItem(reservation, adminCreatedUserIds)
+        reservationRows.map((reservation) =>
+          toReservationItem(reservation, adminCreatedUserIds)
         )
       );
+      setAllocationInfo(
+        allocation
+          ? {
+              name: allocation.allocation_name,
+              confirmedAt:
+                allocationData?.confirmedAt ?? allocation.updated_at,
+              syncedAt: new Date(),
+            }
+          : null
+      );
+      setHasLoaded(true);
     } catch (error) {
       console.error('Failed to load allocation result:', error);
       setLoadError(getErrorMessage(error));
@@ -275,16 +356,27 @@ const AdminAllocationResultPage = () => {
 
   const busGroups = useMemo<BusGroup[]>(() => {
     const routeByBus = new Map(routes.map((route) => [route.busLabel, route]));
-    const groups = new Map<string, ReservationItem[]>();
+    const passengersByBus = new Map<string, ReservationItem[]>();
 
     confirmedPassengers.forEach((reservation) => {
       const busNumber = reservation.confirmedTicket?.busNumber?.trim();
       if (!busNumber) return;
-      groups.set(busNumber, [...(groups.get(busNumber) ?? []), reservation]);
+      const passengers = passengersByBus.get(busNumber);
+      if (passengers) {
+        passengers.push(reservation);
+      } else {
+        passengersByBus.set(busNumber, [reservation]);
+      }
     });
 
-    return [...groups.entries()]
-      .map(([busNumber, passengers]) => {
+    const busNumbers = new Set([
+      ...routes.map((route) => route.busLabel),
+      ...passengersByBus.keys(),
+    ]);
+
+    return [...busNumbers]
+      .map((busNumber) => {
+        const passengers = passengersByBus.get(busNumber) ?? [];
         const sortedPassengers = [...passengers].sort(
           (a, b) =>
             seatValue(a.confirmedTicket?.seatNumber) -
@@ -307,6 +399,11 @@ const AdminAllocationResultPage = () => {
           route?.capacity && route.capacity > 0
             ? route.capacity
             : Math.max(maxSeat, sortedPassengers.length);
+        const passengerDestinations = sortedPassengers
+          .map((passenger) => passenger.confirmedTicket?.dropoffStation ?? '')
+          .filter(Boolean);
+        const routeDestinations =
+          route?.destinations?.map((destination) => destination.name) ?? [];
         const seatCounts = new Map<string, number>();
         sortedPassengers.forEach((passenger) => {
           const seat = passenger.confirmedTicket?.seatNumber?.trim();
@@ -319,17 +416,17 @@ const AdminAllocationResultPage = () => {
           passengers: sortedPassengers,
           destinations: [
             ...new Set(
-              sortedPassengers
-                .map(
-                  (passenger) => passenger.confirmedTicket?.dropoffStation ?? ''
-                )
-                .filter(Boolean)
+              [...routeDestinations, ...passengerDestinations].filter(Boolean)
             ),
           ],
           departureTime:
-            sortedPassengers[0]?.confirmedTicket?.departureTime ?? '-',
+            route?.departureTime ??
+            sortedPassengers[0]?.confirmedTicket?.departureTime ??
+            '-',
           boardingPlace:
-            sortedPassengers[0]?.confirmedTicket?.boardingPlace ?? '-',
+            route?.boardingPlace ??
+            sortedPassengers[0]?.confirmedTicket?.boardingPlace ??
+            '-',
           emptySeats: Math.max(0, capacity - sortedPassengers.length),
           duplicateSeats: [...seatCounts.entries()]
             .filter(([, count]) => count > 1)
@@ -349,6 +446,11 @@ const AdminAllocationResultPage = () => {
   const selectedBus =
     busGroups.find((bus) => bus.busNumber === effectiveSelectedBusNumber) ??
     null;
+  const effectiveDestinationFilter =
+    destinationFilter === 'all' ||
+    selectedBus?.destinations.includes(destinationFilter)
+      ? destinationFilter
+      : 'all';
 
   const unassigned = useMemo(
     () =>
@@ -377,12 +479,14 @@ const AdminAllocationResultPage = () => {
       return (
         (!keyword || searchable.includes(keyword)) &&
         (paymentFilter === 'all' ||
-          passenger.paymentStatus === paymentFilter) &&
-        (destinationFilter === 'all' ||
-          ticket?.dropoffStation === destinationFilter)
+          (paymentFilter === 'attention'
+            ? passenger.paymentStatus !== 'completed'
+            : passenger.paymentStatus === paymentFilter)) &&
+        (effectiveDestinationFilter === 'all' ||
+          ticket?.dropoffStation === effectiveDestinationFilter)
       );
     });
-  }, [destinationFilter, paymentFilter, search, selectedBus]);
+  }, [effectiveDestinationFilter, paymentFilter, search, selectedBus]);
 
   const effectivePassengerPage = Math.min(
     passengerPage,
@@ -411,8 +515,8 @@ const AdminAllocationResultPage = () => {
     [busGroups, confirmedPassengers.length, unassigned.length]
   );
 
-  const warnings = useMemo(() => {
-    const result: string[] = [];
+  const warnings = useMemo<AllocationWarning[]>(() => {
+    const result: AllocationWarning[] = [];
     const duplicateCount = busGroups.reduce(
       (sum, bus) => sum + bus.duplicateSeats.length,
       0
@@ -424,13 +528,71 @@ const AdminAllocationResultPage = () => {
       (passenger) => passenger.paymentStatus !== 'completed'
     );
 
-    if (summary.empty > 0) result.push(`빈 좌석 ${summary.empty}석`);
-    if (duplicateCount > 0) result.push(`중복 좌석 ${duplicateCount}건`);
+    if (summary.empty > 0) {
+      result.push({
+        type: 'empty',
+        label: `빈 좌석 ${summary.empty}석`,
+        busNumber: busGroups.find((bus) => bus.emptySeats > 0)?.busNumber,
+      });
+    }
+    if (duplicateCount > 0) {
+      result.push({
+        type: 'duplicate',
+        label: `중복 좌석 ${duplicateCount}건`,
+        busNumber: busGroups.find((bus) => bus.duplicateSeats.length > 0)
+          ?.busNumber,
+      });
+    }
     if (overCapacity.length > 0)
-      result.push(`정원 초과 버스 ${overCapacity.length}대`);
-    if (unpaid.length > 0) result.push(`미입금 확정자 ${unpaid.length}명`);
+      result.push({
+        type: 'overCapacity',
+        label: `정원 초과 버스 ${overCapacity.length}대`,
+        busNumber: overCapacity[0]?.busNumber,
+      });
+    if (unpaid.length > 0) {
+      result.push({
+        type: 'payment',
+        label: `입금 확인 필요 ${unpaid.length}명`,
+        busNumber: unpaid[0]?.confirmedTicket?.busNumber,
+      });
+    }
     return result;
   }, [busGroups, confirmedPassengers, summary.empty]);
+
+  const hasPassengerFilters =
+    search.trim().length > 0 ||
+    paymentFilter !== 'all' ||
+    effectiveDestinationFilter !== 'all';
+
+  const selectBus = (busNumber: string) => {
+    setSelectedBusNumber(busNumber);
+    setDestinationFilter('all');
+    setPassengerPage(1);
+  };
+
+  const clearPassengerFilters = () => {
+    setSearch('');
+    setPaymentFilter('all');
+    setDestinationFilter('all');
+    setPassengerPage(1);
+  };
+
+  const openWarning = (warning: AllocationWarning) => {
+    if (warning.busNumber) selectBus(warning.busNumber);
+    if (warning.type === 'payment') setPaymentFilter('attention');
+
+    window.requestAnimationFrame(() => {
+      document
+        .getElementById(
+          warning.type === 'empty' ||
+            warning.type === 'duplicate' ||
+            warning.type === 'overCapacity'
+            ? 'allocation-seat-map'
+            : 'allocation-passenger-list'
+        )
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  };
 
   const downloadCsv = () => {
     const rows = [
@@ -481,53 +643,89 @@ const AdminAllocationResultPage = () => {
             <p>확정된 호차별 좌석과 탑승 명단을 검토합니다.</p>
           </div>
           <div className={styles.titleActions}>
-            <button type="button" onClick={() => void loadData()}>
+            <button
+              type="button"
+              disabled={loading}
+              onClick={() => void loadData()}
+            >
               <RefreshCw size={16} />
-              새로고침
+              {loading ? '동기화 중...' : '새로고침'}
             </button>
-            <button type="button" onClick={downloadCsv}>
+            <button
+              type="button"
+              disabled={!hasLoaded || confirmedPassengers.length === 0}
+              onClick={downloadCsv}
+            >
               <Download size={16} />
-              CSV
+              배정 명단 CSV
             </button>
           </div>
         </div>
+
+        {allocationInfo && (
+          <dl className={styles.resultMeta} aria-label="확정 배차 정보">
+            <div>
+              <dt>배차안</dt>
+              <dd>{allocationInfo.name}</dd>
+            </div>
+            <div>
+              <dt>확정 시각</dt>
+              <dd>{formatDateTime(allocationInfo.confirmedAt)}</dd>
+            </div>
+            <div>
+              <dt>화면 동기화</dt>
+              <dd>{formatDateTime(allocationInfo.syncedAt)}</dd>
+            </div>
+          </dl>
+        )}
 
         {loadError && (
           <div className={styles.errorBox}>
             <AlertTriangle size={18} />
             <span>{loadError}</span>
+            <button type="button" onClick={() => void loadData()}>
+              다시 시도
+            </button>
           </div>
         )}
 
-        <section className={styles.summaryGrid} aria-label="배차 결과 요약">
-          {[
-            ['총 버스 수', summary.buses, '대'],
-            ['확정 탑승자', summary.confirmed, '명'],
-            ['미배차 신청자', summary.unassigned, '명'],
-            ['빈 좌석', summary.empty, '석'],
-          ].map(([label, value, unit]) => (
-            <div key={label} className={styles.summaryItem}>
-              <span>{label}</span>
-              <strong>
-                {value}
-                <small>{unit}</small>
-              </strong>
-            </div>
-          ))}
-        </section>
+        {hasLoaded && (
+          <section className={styles.summaryGrid} aria-label="배차 결과 요약">
+            {[
+              ['총 버스 수', summary.buses, '대'],
+              ['확정 탑승자', summary.confirmed, '명'],
+              ['미배차 신청자', summary.unassigned, '명'],
+              ['빈 좌석', summary.empty, '석'],
+            ].map(([label, value, unit]) => (
+              <div key={label} className={styles.summaryItem}>
+                <span>{label}</span>
+                <strong>
+                  {value}
+                  <small>{unit}</small>
+                </strong>
+              </div>
+            ))}
+          </section>
+        )}
 
-        {warnings.length > 0 && (
-          <div className={styles.warningBar}>
+        {hasLoaded && warnings.length > 0 && (
+          <div className={styles.warningBar} aria-label="배차 결과 확인 필요 항목">
             <AlertTriangle size={18} />
             {warnings.map((warning) => (
-              <span key={warning}>{warning}</span>
+              <button
+                type="button"
+                key={warning.type}
+                onClick={() => openWarning(warning)}
+              >
+                {warning.label}
+              </button>
             ))}
           </div>
         )}
 
-        {loading ? (
+        {loading && !hasLoaded ? (
           <div className={styles.emptyState}>배차 결과를 불러오는 중입니다.</div>
-        ) : busGroups.length === 0 ? (
+        ) : !hasLoaded ? null : busGroups.length === 0 ? (
           <div className={styles.emptyState}>
             확정 버스표가 있는 배차 결과가 없습니다.
           </div>
@@ -543,17 +741,22 @@ const AdminAllocationResultPage = () => {
                   <button
                     type="button"
                     key={bus.busNumber}
+                    aria-pressed={bus.busNumber === effectiveSelectedBusNumber}
                     className={
                       bus.busNumber === effectiveSelectedBusNumber
                         ? styles.activeBus
                         : undefined
                     }
-                    onClick={() => {
-                      setSelectedBusNumber(bus.busNumber);
-                      setPassengerPage(1);
-                    }}
+                    onClick={() => selectBus(bus.busNumber)}
                   >
-                    <strong>{formatBusLabel(bus.busNumber)}</strong>
+                    <span className={styles.busTabTitle}>
+                      <strong>{formatBusLabel(bus.busNumber)}</strong>
+                      {getBusIssueCount(bus) > 0 && (
+                        <small className={styles.busAlert}>
+                          확인 {getBusIssueCount(bus)}
+                        </small>
+                      )}
+                    </span>
                     <span>
                       {bus.passengers.length}/{bus.capacity}명 · 빈 좌석{' '}
                       {bus.emptySeats}
@@ -566,16 +769,16 @@ const AdminAllocationResultPage = () => {
 
             {selectedBus && (
               <>
-                <section className={styles.busDetail}>
+                <section className={styles.busDetail} id="allocation-seat-map">
                   <div className={styles.sectionHeading}>
                     <Bus size={19} />
-                    <h2>{formatBusLabel(selectedBus.busNumber)} 좌석 배치</h2>
+                    <h2>{formatBusLabel(selectedBus.busNumber)} 좌석 번호 현황</h2>
                   </div>
                   <div className={styles.busMeta}>
                     <span>정원 {selectedBus.capacity}명</span>
                     <span>탑승 {selectedBus.passengers.length}명</span>
                     <span>출발 {selectedBus.departureTime}</span>
-                    <span>탑승 장소 {selectedBus.boardingPlace}</span>
+                    <span>탑승장소 {selectedBus.boardingPlace}</span>
                   </div>
                   <div className={styles.legend}>
                     <span><i className={styles.assignedDot} />배정</span>
@@ -584,7 +787,10 @@ const AdminAllocationResultPage = () => {
                     <span><i className={styles.remainingSeatDot} />잔여 좌석 신청자</span>
                     <span><i className={styles.adminCreatedDot} />관리자 추가 계정</span>
                   </div>
-                  <div className={styles.seatMap}>
+                  <p className={styles.seatMapNotice}>
+                    실제 차량 배치도가 아닌 좌석 번호 기준 현황입니다.
+                  </p>
+                  <div className={styles.seatMap} aria-label="좌석 번호별 배정 현황">
                     {Array.from({ length: selectedBus.capacity }, (_, index) => {
                       const seatNumber = String(index + 1);
                       const passenger = selectedBus.passengers.find(
@@ -621,7 +827,10 @@ const AdminAllocationResultPage = () => {
                   </div>
                 </section>
 
-                <section className={styles.listSection}>
+                <section
+                  className={styles.listSection}
+                  id="allocation-passenger-list"
+                >
                   <div className={styles.sectionHeading}>
                     <Users size={19} />
                     <h2>{formatBusLabel(selectedBus.busNumber)} 탑승자 명단</h2>
@@ -642,19 +851,20 @@ const AdminAllocationResultPage = () => {
                     <select
                       value={paymentFilter}
                       onChange={(event) => {
-                        setPaymentFilter(event.target.value);
+                        setPaymentFilter(event.target.value as PaymentFilter);
                         setPassengerPage(1);
                       }}
                       aria-label="입금 상태 필터"
                     >
                       <option value="all">모든 입금 상태</option>
+                      <option value="attention">입금 확인 필요</option>
                       <option value="completed">입금 완료</option>
                       <option value="pending">미입금</option>
                       <option value="refunded">환불</option>
-                      <option value="none">결제 정보 없음</option>
+                      <option value="none">입금 정보 없음</option>
                     </select>
                     <select
-                      value={destinationFilter}
+                      value={effectiveDestinationFilter}
                       onChange={(event) => {
                         setDestinationFilter(event.target.value);
                         setPassengerPage(1);
@@ -669,63 +879,85 @@ const AdminAllocationResultPage = () => {
                       ))}
                     </select>
                   </div>
-                  <div className={styles.tableWrap}>
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>좌석</th>
-                          <th>이름</th>
-                          <th>캠퍼스</th>
-                          <th>연락처</th>
-                          <th>결제</th>
-                          <th>확정 행선지</th>
-                          <th>수정</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {pagedPassengers.map((passenger) => (
-                          <tr key={passenger.id}>
-                            <td>{passenger.confirmedTicket?.seatNumber ?? '-'}</td>
-                            <td>
-                              <span className={styles.passengerName}>
-                                {passenger.name}
-                                {passenger.isRemainingSeat && (
-                                  <small className={styles.remainingSeatBadge}>잔여 좌석</small>
-                                )}
-                                {passenger.isAdminCreated && (
-                                  <small className={styles.adminCreatedBadge}>관리자 추가</small>
-                                )}
-                              </span>
-                            </td>
-                            <td>{passenger.campus}</td>
-                            <td>{passenger.phone}</td>
-                            <td>
-                              <span
-                                className={`${styles.paymentBadge} ${
-                                  styles[passenger.paymentStatus]
-                                }`}
-                              >
-                                {paymentLabels[passenger.paymentStatus]}
-                              </span>
-                            </td>
-                            <td>
-                              {passenger.confirmedTicket?.dropoffStation ?? '-'}
-                            </td>
-                            <td>
-                              <button
-                                type="button"
-                                className={styles.iconButton}
-                                title="사용자 관리에서 수정"
-                                onClick={() => navigate('/admin/users')}
-                              >
-                                <Pencil size={15} />
-                              </button>
-                            </td>
+                  {filteredPassengers.length === 0 ? (
+                    <div className={styles.filterEmpty}>
+                      <strong>
+                        {hasPassengerFilters
+                          ? '조건에 맞는 탑승자가 없습니다.'
+                          : '이 버스에 배정된 탑승자가 없습니다.'}
+                      </strong>
+                      {hasPassengerFilters && (
+                        <button type="button" onClick={clearPassengerFilters}>
+                          필터 초기화
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <div className={styles.tableWrap}>
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>좌석</th>
+                            <th>이름</th>
+                            <th>캠퍼스</th>
+                            <th>연락처</th>
+                            <th>입금</th>
+                            <th>확정 행선지</th>
+                            <th>수정</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                        </thead>
+                        <tbody>
+                          {pagedPassengers.map((passenger) => (
+                            <tr key={passenger.id}>
+                              <td>{passenger.confirmedTicket?.seatNumber ?? '-'}</td>
+                              <td>
+                                <span className={styles.passengerName}>
+                                  {passenger.name}
+                                  {passenger.isRemainingSeat && (
+                                    <small className={styles.remainingSeatBadge}>잔여 좌석</small>
+                                  )}
+                                  {passenger.isAdminCreated && (
+                                    <small className={styles.adminCreatedBadge}>관리자 추가</small>
+                                  )}
+                                </span>
+                              </td>
+                              <td>{passenger.campus}</td>
+                              <td>{passenger.phone}</td>
+                              <td>
+                                <span
+                                  className={`${styles.paymentBadge} ${
+                                    styles[passenger.paymentStatus]
+                                  }`}
+                                >
+                                  {paymentLabels[passenger.paymentStatus]}
+                                </span>
+                              </td>
+                              <td>
+                                {passenger.confirmedTicket?.dropoffStation ?? '-'}
+                              </td>
+                              <td>
+                                <button
+                                  type="button"
+                                  className={styles.iconButton}
+                                  title={`${passenger.name} 사용자 관리에서 수정`}
+                                  aria-label={`${passenger.name} 사용자 관리에서 수정`}
+                                  onClick={() =>
+                                    navigate(
+                                      `/admin/users?search=${encodeURIComponent(
+                                        passenger.phone || passenger.name
+                                      )}`
+                                    )
+                                  }
+                                >
+                                  <Pencil size={15} />
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                   <Pagination
                     page={effectivePassengerPage}
                     totalItems={filteredPassengers.length}
@@ -737,55 +969,57 @@ const AdminAllocationResultPage = () => {
           </>
         )}
 
-        <section className={styles.listSection}>
-          <div className={styles.sectionHeading}>
-            <AlertTriangle size={19} />
-            <h2>미배차 신청자</h2>
-            <span>{unassigned.length}명</span>
-          </div>
-          {unassigned.length === 0 ? (
-            <div className={styles.inlineEmpty}>미배차 신청자가 없습니다.</div>
-          ) : (
-            <div className={styles.tableWrap}>
-              <table>
-                <thead>
-                  <tr>
-                    <th>이름</th>
-                    <th>캠퍼스</th>
-                    <th>1지망</th>
-                    <th>2지망</th>
-                    <th>미배차 사유</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pagedUnassigned.map((reservation) => (
-                    <tr key={reservation.id}>
-                      <td>{reservation.name}</td>
-                      <td>{reservation.campus}</td>
-                      {([1, 2] as const).map((rank) => (
-                        <td key={rank}>
-                          {reservation.stationPreferences.find(
-                            (preference) => preference.rank === rank
-                          )?.station.name ?? '-'}
-                        </td>
-                      ))}
-                      <td>
-                        {reservation.stationPreferences.length === 0
-                          ? '행선지 선호 정보 없음'
-                          : '배차 가능한 좌석 또는 선호 행선지 미매칭'}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+        {hasLoaded && (
+          <section className={styles.listSection}>
+            <div className={styles.sectionHeading}>
+              <AlertTriangle size={19} />
+              <h2>미배차 신청자</h2>
+              <span>{unassigned.length}명</span>
             </div>
-          )}
-          <Pagination
-            page={effectiveUnassignedPage}
-            totalItems={unassigned.length}
-            onChange={setUnassignedPage}
-          />
-        </section>
+            {unassigned.length === 0 ? (
+              <div className={styles.inlineEmpty}>미배차 신청자가 없습니다.</div>
+            ) : (
+              <div className={styles.tableWrap}>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>이름</th>
+                      <th>캠퍼스</th>
+                      <th>1지망</th>
+                      <th>2지망</th>
+                      <th>확인 필요 내용</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pagedUnassigned.map((reservation) => (
+                      <tr key={reservation.id}>
+                        <td>{reservation.name}</td>
+                        <td>{reservation.campus}</td>
+                        {([1, 2] as const).map((rank) => (
+                          <td key={rank}>
+                            {reservation.stationPreferences.find(
+                              (preference) => preference.rank === rank
+                            )?.station.name ?? '-'}
+                          </td>
+                        ))}
+                        <td>
+                          {reservation.stationPreferences.length === 0
+                            ? '행선지 선호 정보 없음'
+                            : '좌석·선호 행선지·배정 조건 확인 필요'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <Pagination
+              page={effectiveUnassignedPage}
+              totalItems={unassigned.length}
+              onChange={setUnassignedPage}
+            />
+          </section>
+        )}
       </main>
     </div>
   );

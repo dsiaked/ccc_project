@@ -17,7 +17,7 @@ test('personal ticket management supports filtering users by district', () => {
   );
 
   assert.match(page, /aria-label="지구"/u);
-  assert.match(page, /서울지구 외 · 전체/u);
+  assert.match(page, /서울 외 지구 · 전체/u);
   assert.match(page, /district:\s*districtFilter/u);
   assert.match(service, /p_district:\s*params\.district/u);
   assert.match(migration, /p_district text default 'all'/iu);

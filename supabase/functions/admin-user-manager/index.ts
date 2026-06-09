@@ -102,7 +102,7 @@ Deno.serve(async (request) => {
       !/^010-\d{4}-\d{4}$/.test(coordinatorPhone)
     ) {
       return json(
-        { error: '타지구의 지구명, 캠퍼스명, 담당 간사 정보가 필요합니다.' },
+        { error: '서울 외 지구의 지구명, 캠퍼스명, 담당 간사 정보가 필요합니다.' },
         400,
       );
     }

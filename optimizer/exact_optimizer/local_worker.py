@@ -54,14 +54,35 @@ def main() -> int:
         or f"local-{socket.gethostname()}-{uuid.uuid4().hex[:8]}"
     )
     print(f"Local allocation optimizer ready: {worker_id}", flush=True)
+    consecutive_poll_failures = 0
 
     try:
         while True:
-            job_ids = (
-                [args.job_id]
-                if args.job_id
-                else repository.get_pending_job_ids(execution_mode="local")
-            )
+            try:
+                job_ids = (
+                    [args.job_id]
+                    if args.job_id
+                    else repository.get_pending_job_ids(execution_mode="local")
+                )
+                consecutive_poll_failures = 0
+            except Exception as error:
+                if args.once:
+                    print(f"Pending job poll failed: {error}", file=sys.stderr, flush=True)
+                    return 1
+                consecutive_poll_failures += 1
+                retry_seconds = min(
+                    60.0,
+                    max(0.5, args.poll_seconds)
+                    * (2 ** min(consecutive_poll_failures - 1, 5)),
+                )
+                print(
+                    f"Pending job poll failed: {error}. "
+                    f"Retrying in {retry_seconds:g} seconds.",
+                    file=sys.stderr,
+                    flush=True,
+                )
+                time.sleep(retry_seconds)
+                continue
             if not job_ids:
                 if args.once:
                     return 0

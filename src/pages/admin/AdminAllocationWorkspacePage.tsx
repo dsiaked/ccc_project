@@ -220,6 +220,18 @@ const AdminAllocationWorkspacePage = () => {
     return () => window.removeEventListener('beforeunload', onBeforeUnload);
   }, [dirty]);
 
+  const navigateToAllocations = useCallback(() => {
+    if (
+      dirty &&
+      !window.confirm(
+        '저장하지 않은 변경사항이 있습니다. 배차 계산으로 이동할까요?'
+      )
+    ) {
+      return;
+    }
+    navigate('/admin/allocations');
+  }, [dirty, navigate]);
+
   const selectedBus = workspace?.buses.find((bus) => bus.id === selectedBusId);
   const deferredWorkspace = useDeferredValue(workspace);
   const validation = useMemo(
@@ -384,17 +396,19 @@ const AdminAllocationWorkspacePage = () => {
   const updateWorkspace = useCallback((
     updater: (current: AllocationWorkspaceData) => AllocationWorkspaceData
   ) => {
+    if (readOnly) return;
     setWorkspace((current) => (current ? updater(current) : current));
     setDirty(true);
     setConfirmationPreflight(null);
     setConfirmationFailure(null);
-  }, []);
+  }, [readOnly]);
 
   const updateBus = (
     busId: string,
     key: keyof AllocationWorkspaceBus,
     value: string | number
   ) => {
+    if (readOnly) return;
     updateWorkspace((current) => {
       const buses = current.buses.map((bus) =>
         bus.id === busId ? { ...bus, [key]: value } : bus
@@ -417,6 +431,7 @@ const AdminAllocationWorkspacePage = () => {
   };
 
   const updateSharedBusField = (field: SharedBusField, value: string) => {
+    if (readOnly) return;
     updateWorkspace((current) => ({
       ...current,
       buses: current.buses.map((bus) => ({ ...bus, [field]: value })),
@@ -424,6 +439,7 @@ const AdminAllocationWorkspacePage = () => {
   };
 
   const assignPassenger = useCallback((passengerId: string, busId: string | null) => {
+    if (readOnly) return;
     const passenger = workspace?.passengers.find(
       (item) => item.reservationId === passengerId
     );
@@ -437,7 +453,7 @@ const AdminAllocationWorkspacePage = () => {
       : 0;
     if (targetBus && targetPassengerCount >= targetBus.capacity) {
       setError(
-        `${formatBusLabel(targetBus.label)}은 만석이므로 승객을 더 배정할 수 없습니다.`
+        `${formatBusLabel(targetBus.label)}은 만석이므로 탑승자를 더 배정할 수 없습니다.`
       );
       return;
     }
@@ -456,31 +472,38 @@ const AdminAllocationWorkspacePage = () => {
         ),
       };
     });
-  }, [updateWorkspace, workspace]);
+  }, [readOnly, updateWorkspace, workspace]);
 
   const dropPassenger = (
     event: React.DragEvent<HTMLElement>,
     busId: string | null
   ) => {
     event.preventDefault();
+    if (readOnly) return;
     const passengerId = event.dataTransfer.getData('text/allocation-passenger');
     if (passengerId) assignPassenger(passengerId, busId);
   };
 
   const updatePassengerSeat = useCallback((passengerId: string, seatNumber: number | null) => {
+    if (readOnly) return;
     updateWorkspace((current) => {
       return {
         ...current,
-        passengers: current.passengers.map((passenger) =>
-          passenger.reservationId === passengerId
-            ? { ...passenger, seatNumber }
-            : passenger
-        ),
+        passengers: current.passengers.map((passenger) => {
+          if (passenger.reservationId !== passengerId) return passenger;
+          const bus = current.buses.find((item) => item.id === passenger.busId);
+          const limitedSeatNumber =
+            seatNumber === null || !bus
+              ? null
+              : Math.min(bus.capacity, Math.max(1, Math.trunc(seatNumber)));
+          return { ...passenger, seatNumber: limitedSeatNumber };
+        }),
       };
     });
-  }, [updateWorkspace]);
+  }, [readOnly, updateWorkspace]);
 
   const addBus = () => {
+    if (readOnly) return;
     updateWorkspace((current) => {
       const template = current.buses[0];
       const busNumber = current.buses.length + 1;
@@ -512,7 +535,8 @@ const AdminAllocationWorkspacePage = () => {
   };
 
   const deleteBus = (busId: string) => {
-    if (!window.confirm('이 버스를 삭제하고 탑승객을 미배차 상태로 옮길까요?')) return;
+    if (readOnly) return;
+    if (!window.confirm('이 버스를 삭제하고 탑승자를 미배차 상태로 옮길까요?')) return;
     updateWorkspace((current) => {
       const buses = current.buses.filter((bus) => bus.id !== busId);
       const passengers = current.passengers.map((passenger) =>
@@ -581,7 +605,7 @@ const AdminAllocationWorkspacePage = () => {
   };
 
   const restoreVersion = async (versionId: string) => {
-    if (!workspace) return;
+    if (!workspace || readOnly) return;
     const version = workspaceVersions.find((item) => item.id === versionId);
     if (!version || !window.confirm(`${version.label} 상태로 복원할까요?`)) return;
     setSaving(true);
@@ -672,7 +696,7 @@ const AdminAllocationWorkspacePage = () => {
       !canConfirm ||
       saving
     ) return;
-    if (!window.confirm('전체 배차를 확정할까요? 탑승객에게 확정 버스표가 공개됩니다.')) {
+    if (!window.confirm('전체 배차를 확정할까요? 탑승자에게 확정 버스표가 공개됩니다.')) {
       return;
     }
     setSaving(true);
@@ -766,7 +790,7 @@ const AdminAllocationWorkspacePage = () => {
 
   const cancelConfirmation = async () => {
     if (!row || !workspace || saving) return;
-    if (!window.confirm('배차 확정을 취소할까요? 탑승객의 확정 버스표가 숨겨집니다.')) {
+    if (!window.confirm('배차 확정을 취소할까요? 탑승자의 확정 버스표가 숨겨집니다.')) {
       return;
     }
     setSaving(true);
@@ -809,7 +833,7 @@ const AdminAllocationWorkspacePage = () => {
                 <button type="button" onClick={() => window.location.reload()}>
                   다시 불러오기
                 </button>
-                <button type="button" onClick={() => navigate('/admin/allocations')}>
+                <button type="button" onClick={navigateToAllocations}>
                   <ArrowLeft size={16} /> 배차 계산으로
                 </button>
               </div>
@@ -936,7 +960,7 @@ const AdminAllocationWorkspacePage = () => {
       : null,
     outOfPreferencePassengerIds.length > 0 &&
     !workspace.allowOutOfPreferenceOverride
-      ? `1·2지망 외 배정 승객 ${outOfPreferencePassengerIds.length}명을 별도로 승인해야 합니다.`
+      ? `1·2지망 외 배정 탑승자 ${outOfPreferencePassengerIds.length}명을 별도로 승인해야 합니다.`
       : null,
   ].filter((reason): reason is string => reason !== null);
   const confirmDisabledReason =
@@ -1039,7 +1063,7 @@ const AdminAllocationWorkspacePage = () => {
       <main className={styles.main}>
         <header className={styles.header}>
           <div>
-            <button type="button" className={styles.back} onClick={() => navigate('/admin/allocations')}>
+            <button type="button" className={styles.back} onClick={navigateToAllocations}>
               <ArrowLeft size={17} /> 배차 계산으로
             </button>
             <h1>{row.allocation_name}</h1>
@@ -1115,8 +1139,8 @@ const AdminAllocationWorkspacePage = () => {
               </strong>
               <span>
                 {completionNotice === 'confirmed'
-                  ? '승객 버스표에 확정 배차가 반영되었습니다.'
-                  : '승객 버스표가 숨겨지고 배차 초안으로 전환되었습니다.'}
+                  ? '탑승자 버스표에 확정 배차가 반영되었습니다.'
+                  : '탑승자 버스표가 숨겨지고 배차 초안으로 전환되었습니다.'}
               </span>
             </div>
             <button
@@ -1139,12 +1163,12 @@ const AdminAllocationWorkspacePage = () => {
           <div className={styles.readOnlyBanner}>
             신청 변경 또는 관리자 조정으로 기존 최적해보다 버스가 늘었습니다. 현재{' '}
             {workspace.buses.length}대 / 기준 {workspace.optimalBaseline.totalBuses}대이며,
-            확정 전에 추가 버스와 승객 배정을 확인해주세요.
+            확정 전에 추가 버스와 탑승자 배정을 확인해주세요.
           </div>
         )}
 
         <section className={styles.metrics}>
-          <article><Users size={20} /><strong>{workspace.passengers.length}명</strong><span>전체 승객</span></article>
+          <article><Users size={20} /><strong>{workspace.passengers.length}명</strong><span>전체 탑승자</span></article>
           <article><Bus size={20} /><strong>{workspace.buses.length}대</strong><span>운행 버스</span></article>
           <article><CheckCircle2 size={20} /><strong>{getFirstChoiceCoverage(workspace).toFixed(1)}%</strong><span>1지망 반영률</span></article>
           <article><strong>{totals.totalCost.toLocaleString()}원</strong><span>총비용</span></article>
@@ -1166,7 +1190,7 @@ const AdminAllocationWorkspacePage = () => {
             className={activeEditorTab === 'passengers' ? styles.activeEditorTab : undefined}
             onClick={() => setActiveEditorTab('passengers')}
           >
-            <Users size={17} /> 전체 승객
+            <Users size={17} /> 전체 탑승자
             {issueTargets.passengerIds.size > 0 && <em>{issueTargets.passengerIds.size}</em>}
           </button>
         </nav>
@@ -1176,7 +1200,7 @@ const AdminAllocationWorkspacePage = () => {
             <div className={styles.sharedBusInfoHeader}>
               <div>
                 <strong>공통 운행정보</strong>
-                <span>출발 시간과 탑승 장소는 모든 버스에 동일하게 적용됩니다.</span>
+                <span>출발 시간과 탑승장소는 모든 버스에 동일하게 적용됩니다.</span>
               </div>
               <small>{workspace.buses.length}대 일괄 적용</small>
             </div>
@@ -1184,14 +1208,16 @@ const AdminAllocationWorkspacePage = () => {
               <label className={hasMissingDepartureTime ? styles.fieldWithError : undefined}>
                 출발 시간
                 <input
+                  disabled={readOnly}
                   value={sharedDepartureTime.value}
                   placeholder={sharedDepartureTime.isMixed ? '버스마다 다름 - 입력하면 모두 통일됩니다' : '예: 오후 2시'}
                   onChange={(event) => updateSharedBusField('departureTime', event.target.value)}
                 />
               </label>
               <label className={hasMissingBoardingPlace ? styles.fieldWithError : undefined}>
-                탑승 장소
+                탑승장소
                 <input
+                  disabled={readOnly}
                   value={sharedBoardingPlace.value}
                   placeholder={sharedBoardingPlace.isMixed ? '버스마다 다름 - 입력하면 모두 통일됩니다' : '예: 본관 앞'}
                   onChange={(event) => updateSharedBusField('boardingPlace', event.target.value)}
@@ -1288,7 +1314,7 @@ const AdminAllocationWorkspacePage = () => {
                       setSelectedBusId(bus.id);
                       setSelectedPassengerSearch('');
                     }}
-                    onDragOver={(event) => event.preventDefault()}
+                    onDragOver={(event) => !readOnly && event.preventDefault()}
                     onDrop={(event) => dropPassenger(event, bus.id)}
                   >
                     <span className={styles.busCardHeader}>
@@ -1338,7 +1364,7 @@ const AdminAllocationWorkspacePage = () => {
                 className={`${styles.unassigned} ${
                   issueTargets.hasUnassignedIssue ? styles.unassignedWithError : ''
                 }`}
-                onDragOver={(event) => event.preventDefault()}
+                onDragOver={(event) => !readOnly && event.preventDefault()}
                 onDrop={(event) => dropPassenger(event, null)}
               >
                 <strong>미배차 {unassignedPassengers.length}명</strong>
@@ -1362,15 +1388,15 @@ const AdminAllocationWorkspacePage = () => {
             ) : (
               <>
                 <div className={styles.busForm}>
-                  <label className={issueTargets.busFields.get(selectedBus.id)?.has('label') ? styles.fieldWithError : undefined}>버스 이름<input value={selectedBus.label} onChange={(event) => updateBus(selectedBus.id, 'label', event.target.value)} /></label>
-                  <label className={issueTargets.busFields.get(selectedBus.id)?.has('destination') ? styles.fieldWithError : undefined}>행선지<select value={selectedBus.destination} onChange={(event) => updateBus(selectedBus.id, 'destination', event.target.value)}><option value="">선택</option>{destinationOptions.map((destination) => <option key={destination} value={destination}>{destination}</option>)}</select></label>
-                  <button type="button" className={styles.deleteButton} onClick={() => deleteBus(selectedBus.id)}><Trash2 size={15} /> 버스 삭제</button>
+                  <label className={issueTargets.busFields.get(selectedBus.id)?.has('label') ? styles.fieldWithError : undefined}>버스 이름<input disabled={readOnly} value={selectedBus.label} onChange={(event) => updateBus(selectedBus.id, 'label', event.target.value)} /></label>
+                  <label className={issueTargets.busFields.get(selectedBus.id)?.has('destination') ? styles.fieldWithError : undefined}>행선지<select disabled={readOnly} value={selectedBus.destination} onChange={(event) => updateBus(selectedBus.id, 'destination', event.target.value)}><option value="">선택</option>{destinationOptions.map((destination) => <option key={destination} value={destination}>{destination}</option>)}</select></label>
+                  <button type="button" className={styles.deleteButton} disabled={readOnly} onClick={() => deleteBus(selectedBus.id)}><Trash2 size={15} /> 버스 삭제</button>
                 </div>
 
                 <div className={styles.passengerHeader}>
                   <div>
                     <span className={styles.selectedBusEyebrow}>선택 호차 탑승 명단</span>
-                    <h2>{formatBusLabel(selectedBus.label)} 승객 {selectedPassengers.length}명</h2>
+                    <h2>{formatBusLabel(selectedBus.label)} 탑승자 {selectedPassengers.length}명</h2>
                   </div>
                   <span>좌석 1번부터 {selectedBus.capacity}번까지</span>
                 </div>
@@ -1430,14 +1456,15 @@ const AdminAllocationWorkspacePage = () => {
                     buses={workspace.buses}
                     passengerCountByBus={passengerCountByBus}
                     passengerIssueFields={issueTargets.passengerFields}
+                    readOnly={readOnly}
                     onAssign={assignPassenger}
                     onSeat={updatePassengerSeat}
                   />
                 ) : (
                   <div className={styles.selectedPassengerEmpty}>
                     {selectedPassengers.length === 0
-                      ? `${formatBusLabel(selectedBus.label)}에 배차된 승객이 없습니다.`
-                      : '검색 조건에 맞는 승객이 없습니다.'}
+                      ? `${formatBusLabel(selectedBus.label)}에 배차된 탑승자가 없습니다.`
+                      : '검색 조건에 맞는 탑승자가 없습니다.'}
                   </div>
                 )}
               </>
@@ -1448,11 +1475,11 @@ const AdminAllocationWorkspacePage = () => {
         {activeEditorTab === 'passengers' && <section className={`${styles.allPassengerSection} ${readOnly ? styles.readOnly : ''}`}>
           <div className={styles.allPassengerHeader}>
             <div>
-              <h2>승객 검색 배차 편집</h2>
-              <p>이름, 캠퍼스, 팀, 지망, 버스, 좌석으로 승객을 찾아 배차를 변경하세요.</p>
+              <h2>탑승자 검색 배차 편집</h2>
+              <p>이름, 캠퍼스, 팀, 지망, 버스, 좌석으로 탑승자를 찾아 배차를 변경하세요.</p>
             </div>
           </div>
-          <div className={styles.passengerQuickFilters} aria-label="승객 빠른 필터">
+          <div className={styles.passengerQuickFilters} aria-label="탑승자 빠른 필터">
             {PASSENGER_QUICK_FILTERS.map((filter) => (
               <button
                 type="button"
@@ -1474,7 +1501,7 @@ const AdminAllocationWorkspacePage = () => {
             <input
               value={allPassengerSearch}
               onChange={(event) => setAllPassengerSearch(event.target.value)}
-              placeholder="승객 이름, 캠퍼스, 팀, 지망, 버스, 좌석 검색"
+              placeholder="탑승자 이름, 캠퍼스, 팀, 지망, 버스, 좌석 검색"
             />
             {allPassengerSearch && (
               <button type="button" onClick={() => setAllPassengerSearch('')}>
@@ -1485,7 +1512,7 @@ const AdminAllocationWorkspacePage = () => {
 
           {visibleAllPassengers.length === 0 ? (
             <div className={styles.passengerSearchEmpty}>
-              <strong>검색 조건에 맞는 승객이 없습니다.</strong>
+              <strong>검색 조건에 맞는 탑승자가 없습니다.</strong>
             </div>
           ) : (
             <>
@@ -1500,6 +1527,7 @@ const AdminAllocationWorkspacePage = () => {
                 passengerIssueFields={issueTargets.passengerFields}
                 revealPassengerId={passengerToReveal}
                 onRevealComplete={() => setPassengerToReveal(null)}
+                readOnly={readOnly}
                 onAssign={assignPassenger}
                 onSeat={updatePassengerSeat}
               />
@@ -1542,13 +1570,13 @@ const AdminAllocationWorkspacePage = () => {
                 </div>
                 {remainingSeatPassengers.length > 0 && (
                   <div className={styles.remainingSeatSummary}>
-                    <strong>잔여 좌석 승객 {remainingSeatPassengers.length}명</strong>
+                    <strong>잔여 좌석 탑승자 {remainingSeatPassengers.length}명</strong>
                     <span>
                       입금 대기 {pendingRemainingSeatCount}명 · 입금 완료{' '}
                       {remainingSeatPassengers.length - pendingRemainingSeatCount}명
                     </span>
                     <small>
-                      잔여 좌석 승객은 직접 선택한 버스와 좌석을 사용하며 1·2지망
+                      잔여 좌석 탑승자는 직접 선택한 버스와 좌석을 사용하며 1·2지망
                       검증에서 제외됩니다.
                     </small>
                   </div>
@@ -1557,6 +1585,7 @@ const AdminAllocationWorkspacePage = () => {
                   <label className={`${styles.override} ${workspace.allowMinimumPassengerOverride ? styles.overrideApproved : ''}`}>
                     <input
                       type="checkbox"
+                      disabled={readOnly}
                       checked={workspace.allowMinimumPassengerOverride}
                       onChange={(event) => updateWorkspace((current) => ({ ...current, allowMinimumPassengerOverride: event.target.checked }))}
                     />
@@ -1576,6 +1605,7 @@ const AdminAllocationWorkspacePage = () => {
                   <label className={`${styles.override} ${workspace.allowOutOfPreferenceOverride ? styles.overrideApproved : ''}`}>
                     <input
                       type="checkbox"
+                      disabled={readOnly}
                       checked={Boolean(workspace.allowOutOfPreferenceOverride)}
                       onChange={(event) => updateWorkspace((current) => ({ ...current, allowOutOfPreferenceOverride: event.target.checked }))}
                     />
@@ -1589,7 +1619,7 @@ const AdminAllocationWorkspacePage = () => {
                     <em>{workspace.allowOutOfPreferenceOverride ? '승인 완료' : '승인 필요'}</em>
                   </label>
                 ) : (
-                  <p className={styles.ok}>1·2지망 외 배정 승객이 없습니다.</p>
+                  <p className={styles.ok}>1·2지망 외 배정 탑승자가 없습니다.</p>
                 )}
               </div>
               <div className={styles.validationResultColumn}>
@@ -1673,6 +1703,7 @@ const AdminAllocationWorkspacePage = () => {
                     <button
                       type="button"
                       className={styles.timelineRestoreButton}
+                      disabled={readOnly}
                       onClick={() => void restoreVersion(item.version!.id)}
                     >
                       <RotateCcw size={14} /> 이 시점으로 복원
@@ -1865,7 +1896,7 @@ const AdminAllocationWorkspacePage = () => {
                   <span className={styles.confirmedEyebrow}>CONFIRMED</span>
                   <h3>배차 확정이 완료되었습니다</h3>
                   <p>
-                    승객에게 확정 버스표가 공개된 상태입니다. 확정을 취소하기
+                    탑승자에게 확정 버스표가 공개된 상태입니다. 확정을 취소하기
                     전까지 이 배차안과 다른 배차 운영 기능은 잠깁니다.
                   </p>
                 </div>
@@ -1880,7 +1911,7 @@ const AdminAllocationWorkspacePage = () => {
                   </strong>
                 </div>
                 <div>
-                  <span>확정 승객</span>
+                  <span>확정 탑승자</span>
                   <strong>{workspace.passengers.length.toLocaleString()}명</strong>
                 </div>
                 <div>
@@ -1896,7 +1927,7 @@ const AdminAllocationWorkspacePage = () => {
                 <div>
                   <strong>확정 상태를 되돌려야 하나요?</strong>
                   <span>
-                    취소하면 승객 버스표가 즉시 숨겨지고 배차 초안으로 돌아갑니다.
+                    취소하면 탑승자 버스표가 즉시 숨겨지고 배차 초안으로 돌아갑니다.
                   </span>
                 </div>
                 <div className={styles.cancelConfirmationControls}>

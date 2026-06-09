@@ -1,0 +1,147 @@
+.pageContainer {
+  min-height: 100vh;
+  background: #f4f7fb;
+}
+
+.main {
+  width: 100%;
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 104px 24px 56px;
+}
+
+.pageHeader {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  margin-bottom: 28px;
+}
+
+.headerIcon {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-content: center;
+  border-radius: 12px;
+  background: #172554;
+  color: #ffffff;
+}
+
+.pageHeader h1 {
+  margin: 0;
+  color: #101828;
+  font-size: 28px;
+  font-weight: 900;
+}
+
+.pageHeader p {
+  margin: 4px 0 0;
+  color: #667085;
+  font-size: 13px;
+}
+
+.groups {
+  display: grid;
+  gap: 28px;
+}
+
+.group h2 {
+  margin: 0 0 11px;
+  color: #475467;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.buttonGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.toolButton {
+  display: flex;
+  min-height: 92px;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid #dbe3ee;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 4px 14px rgba(16, 24, 40, 0.04);
+  color: #2563eb;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 900;
+  cursor: pointer;
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease,
+    transform 150ms ease;
+}
+
+.toolButton span {
+  color: #172554;
+}
+
+.toolButton:hover {
+  transform: translateY(-2px);
+  border-color: #93b4ef;
+  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.1);
+}
+
+.dangerButton {
+  border-color: #fecaca;
+  color: #dc2626;
+}
+
+.dangerButton span {
+  color: #991b1b;
+}
+
+.dangerButton:hover {
+  border-color: #f87171;
+  box-shadow: 0 8px 20px rgba(220, 38, 38, 0.09);
+}
+
+.toolButton:focus-visible {
+  outline: 3px solid rgba(37, 99, 235, 0.22);
+  outline-offset: 2px;
+}
+
+@media (max-width: 900px) {
+  .buttonGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .main {
+    padding: 84px 12px 40px;
+  }
+
+  .pageHeader {
+    margin-bottom: 22px;
+  }
+
+  .pageHeader h1 {
+    font-size: 24px;
+  }
+
+  .groups {
+    gap: 22px;
+  }
+
+  .buttonGrid {
+    gap: 9px;
+  }
+
+  .toolButton {
+    min-height: 82px;
+    flex-direction: column;
+    gap: 7px;
+    padding: 12px 8px;
+    font-size: 12px;
+  }
+
+}

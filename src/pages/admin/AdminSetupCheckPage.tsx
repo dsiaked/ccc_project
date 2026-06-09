@@ -19,6 +19,7 @@ import {
   Save,
   ShieldCheck,
   Trash2,
+  UserCog,
   X,
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -104,7 +105,9 @@ const AdminSetupCheckPage = () => {
     null
   );
   const [resettingData, setResettingData] = useState(false);
-  const [showResetPanel, setShowResetPanel] = useState(false);
+  const [showResetPanel, setShowResetPanel] = useState(
+    () => location.hash === '#data-reset'
+  );
   const [showCompletedSettings, setShowCompletedSettings] = useState(false);
   const [campuses, setCampuses] = useState<CampusSetupRow[]>([]);
   const [campusPaymentAccounts, setCampusPaymentAccounts] = useState<
@@ -116,6 +119,7 @@ const AdminSetupCheckPage = () => {
   const [busOptions, setBusOptions] = useState<BusOptionRow[]>([]);
   const [busTicketPrice, setBusTicketPrice] = useState(0);
   const [busTicketPriceInput, setBusTicketPriceInput] = useState('');
+  const [boardingManagerCount, setBoardingManagerCount] = useState(0);
   const [deadlineAt, setDeadlineAt] = useState<string | null>(null);
   const [accountNumber, setAccountNumber] = useState('');
   const [accountNumberInput, setAccountNumberInput] = useState('');
@@ -206,6 +210,20 @@ const AdminSetupCheckPage = () => {
       actionLabel: '관리자 현황 및 설정',
       actionPath: '/admin/access/campus-admins',
       isReady: summary.campusCount > 0 && summary.missingAdminCount === 0,
+    },
+    {
+      id: 'boarding-managers',
+      icon: UserCog,
+      title: '탑승 관리 간사님 관리',
+      description:
+        '탑승 확인을 담당할 탑승 관리 간사님 권한과 담당 호차를 지정합니다.',
+      status:
+        boardingManagerCount > 0
+          ? `${boardingManagerCount.toLocaleString()}명 지정`
+          : '탑승 관리 간사님 미지정',
+      actionLabel: '탑승 관리 간사님 관리',
+      actionPath: '/admin/access/boarding-managers',
+      isReady: boardingManagerCount > 0,
     },
     {
       id: 'destinations',
@@ -435,6 +453,7 @@ const AdminSetupCheckPage = () => {
       const [
         campusResult,
         adminRoleResult,
+        boardingManagerRoleResult,
         stationResult,
         ticketPrice,
         reservationDataStats,
@@ -455,6 +474,10 @@ const AdminSetupCheckPage = () => {
           .select('district, team, campus')
           .eq('role', 'campus_admin'),
         supabase
+          .from('admin_roles')
+          .select('id')
+          .eq('role', 'boarding_manager'),
+        supabase
           .from('stations')
           .select('id, name, line, address, lat, lng, is_active')
           .eq('is_active', true)
@@ -471,6 +494,7 @@ const AdminSetupCheckPage = () => {
 
       if (campusResult.error) throw campusResult.error;
       if (adminRoleResult.error) throw adminRoleResult.error;
+      if (boardingManagerRoleResult.error) throw boardingManagerRoleResult.error;
       if (stationResult.error) throw stationResult.error;
 
       const targets = participationSetting.targets;
@@ -506,6 +530,7 @@ const AdminSetupCheckPage = () => {
       setBusOptions(savedBusOptions as BusOptionRow[]);
       setBusTicketPrice(ticketPrice);
       setBusTicketPriceInput(String(ticketPrice));
+      setBoardingManagerCount(boardingManagerRoleResult.data?.length ?? 0);
       setDeadlineAt(reservationDeadline.deadlineAt);
       setAccountNumber(districtTransferAccountNumber);
       setAccountNumberInput(districtTransferAccountNumber);
@@ -533,6 +558,16 @@ const AdminSetupCheckPage = () => {
         ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 0);
   }, [activeDetailId, detailPortalTarget, loading]);
+
+  useEffect(() => {
+    if (loading || location.hash !== '#data-reset') return;
+
+    window.setTimeout(() => {
+      document
+        .getElementById('data-reset')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 0);
+  }, [loading, location.hash]);
 
   const toggleSetupDetail = (id: SetupDetailId) => {
     setStationDraft(null);
@@ -1082,6 +1117,19 @@ const AdminSetupCheckPage = () => {
     emphasize = false
   ) => {
     const Icon = item.icon;
+    const detailId: SetupDetailId | null =
+      item.id === 'organization'
+        ? 'organization'
+        : item.id === 'campus-payment-accounts'
+          ? 'campus-payment-accounts'
+          : item.id === 'campus-admins'
+            ? 'campus-admins'
+            : item.id === 'destinations'
+              ? 'destinations'
+              : item.id === 'bus-options'
+                ? 'bus-options'
+                : null;
+    const hasDetailPanel = detailId !== null;
 
     return (
       <div key={item.id} className={styles.setupItemGroup}>
@@ -1162,34 +1210,44 @@ const AdminSetupCheckPage = () => {
                   !item.isReady ? styles.priorityActionButton : ''
                 }`}
                 onClick={() => {
-                  if (
-                    item.id === 'organization' ||
-                    item.id === 'campus-payment-accounts' ||
-                    item.id === 'campus-admins' ||
-                    item.id === 'destinations' ||
-                    item.id === 'bus-options'
-                  ) {
-                    toggleSetupDetail(item.id);
+                  if (hasDetailPanel) {
+                    toggleSetupDetail(detailId);
                   } else {
                     navigate(item.actionPath);
                   }
                 }}
-                aria-label={`${item.title} ${
-                  activeDetailId === item.id ? '접기' : item.isReady ? '펼치기' : '설정하기'
-                }`}
-                aria-expanded={activeDetailId === item.id}
+                aria-label={
+                  hasDetailPanel
+                    ? `${item.title} ${
+                        activeDetailId === item.id
+                          ? '접기'
+                          : item.isReady
+                            ? '펼치기'
+                            : '설정하기'
+                      }`
+                    : `${item.title} ${item.actionLabel}`
+                }
+                aria-expanded={
+                  hasDetailPanel ? activeDetailId === item.id : undefined
+                }
               >
                 <span>
-                  {activeDetailId === item.id
-                    ? '접기'
-                    : item.isReady
-                      ? '펼치기'
-                      : '설정하기'}
+                  {hasDetailPanel
+                    ? activeDetailId === item.id
+                      ? '접기'
+                      : item.isReady
+                        ? '펼치기'
+                        : '설정하기'
+                    : item.actionLabel}
                 </span>
-                {activeDetailId === item.id ? (
-                  <ChevronUp size={16} />
+                {hasDetailPanel ? (
+                  activeDetailId === item.id ? (
+                    <ChevronUp size={16} />
+                  ) : (
+                    <ChevronDown size={16} />
+                  )
                 ) : (
-                  <ChevronDown size={16} />
+                  <ArrowRight size={16} />
                 )}
               </button>
             )}
@@ -1233,8 +1291,8 @@ const AdminSetupCheckPage = () => {
             <span className={styles.eyebrow}>Step 0</span>
             <h1>운영 설정·초기화</h1>
             <p>
-              신청을 받기 전에 조직 구조, 관리자 권한, 요금, 송금 계좌,
-              행선지, 버스 옵션과 신청 마감 일시를 설정합니다.
+              신청을 받기 전에 조직 구조, 관리자 권한, 탑승 관리 간사님, 요금, 송금
+              계좌, 행선지, 버스 옵션과 신청 마감 일시를 설정합니다.
             </p>
           </div>
 
@@ -2174,6 +2232,11 @@ const AdminSetupCheckPage = () => {
               <span>신청 마감</span>
               <strong>{formatReservationDeadline(deadlineAt)}</strong>
             </div>
+
+            <div>
+              <span>탑승 관리 간사님</span>
+              <strong>{boardingManagerCount.toLocaleString()}명 지정</strong>
+            </div>
           </div>
         </section>
 
@@ -2187,6 +2250,7 @@ const AdminSetupCheckPage = () => {
         </div>
 
         <section
+          id="data-reset"
           className={`${styles.resetPanel} ${
             showResetPanel ? styles.resetPanelOpen : ''
           }`}

@@ -119,8 +119,8 @@ test('simulation account preview displays external-district subscribers', () => 
     simulationService,
     /generalUserCount - externalUserCount/
   );
-  assert.match(simulationPage, /기타지구 일반 회원/);
-  assert.match(simulationPage, /기타 지구 가입자/);
+  assert.match(simulationPage, /서울 외 지구 일반 회원/);
+  assert.match(simulationPage, /서울 외 지구 가입자/);
 });
 
 test('simulation account preview does not count covered campuses as new admins', () => {
@@ -136,7 +136,7 @@ test('simulation account preview does not count covered campuses as new admins',
     simulationService,
     /campusAdminCount: coveredCampusIds\.has\(campus\.campus_id\) \? 0 : 1/
   );
-  assert.match(simulationPage, /기존 회계 순장님 권한 재사용/);
+  assert.match(simulationPage, /기존 캠퍼스 회계 순장님 권한 재사용/);
 });
 
 test('simulation account preview and runner use the saved campus scope', () => {

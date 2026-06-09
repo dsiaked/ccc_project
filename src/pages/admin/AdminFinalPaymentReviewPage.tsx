@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Banknote,
   Building2,
@@ -64,7 +64,7 @@ const getErrorMessage = (error: unknown, fallback = '알 수 없는 오류') => 
 
 const reviewReasonLabels: Record<IndividualReviewReason, string> = {
   remaining_seat: '잔여 좌석 신청',
-  outside_seoul: '서울지구 외',
+  outside_seoul: '서울 외 지구',
   admin_created: '관리자 직접 추가',
 };
 
@@ -89,6 +89,7 @@ const AdminFinalPaymentReviewPage = () => {
   const [review, setReview] = useState<FinalPaymentReview>(emptyReview);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
+  const campusConfirmationInFlightRef = useRef(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState<ReviewTab>('campuses');
@@ -218,16 +219,32 @@ const AdminFinalPaymentReviewPage = () => {
   };
 
   const handleConfirmCampus = async (campus: CampusTransferStat) => {
-    if (processingId || campus.id.startsWith('empty-')) return;
+    if (
+      processingId ||
+      campusConfirmationInFlightRef.current ||
+      campus.id.startsWith('empty-')
+    ) {
+      return;
+    }
+
+    const actualConfirmedAmount = campus.paidPeople * review.ticketPrice;
+    const confirmed = window.confirm(
+      `${campus.district} / ${campus.team} / ${campus.campus}의 본부 입금을 확인할까요?\n\n확인 금액: ${formatCurrency(
+        actualConfirmedAmount
+      )}`
+    );
+
+    if (!confirmed || campusConfirmationInFlightRef.current) return;
 
     try {
+      campusConfirmationInFlightRef.current = true;
       setProcessingId(campus.id);
       const userId = await getCurrentUserId();
 
       await confirmCampusTransferById({
         transferId: campus.id,
         confirmedBy: userId,
-        actualConfirmedAmount: campus.paidPeople * review.ticketPrice,
+        actualConfirmedAmount,
       });
       await loadReview();
     } catch (error) {
@@ -236,6 +253,7 @@ const AdminFinalPaymentReviewPage = () => {
         `본부 입금 확인 중 오류가 발생했습니다: ${getErrorMessage(error)}`
       );
     } finally {
+      campusConfirmationInFlightRef.current = false;
       setProcessingId(null);
     }
   };
@@ -609,7 +627,7 @@ const AdminFinalPaymentReviewPage = () => {
                                 onClick={() => void handleConfirmCampus(campus)}
                                 disabled={isProcessing}
                               >
-                                본부 입금 확인
+                                {isProcessing ? '처리 중...' : '본부 입금 확인'}
                               </button>
                             )}
                             {campus.status === 'confirmed' && (
@@ -652,7 +670,7 @@ const AdminFinalPaymentReviewPage = () => {
             <div>
               <h2>개인 미입금 명단</h2>
               <p>
-                잔여 좌석 신청자, 서울지구 외 신청자, 관리자가 직접 추가한 사용자
+                잔여 좌석 신청자, 서울 외 지구 신청자, 관리자가 직접 추가한 사용자
                 중 미입금자입니다. 서울지구 일반 신청자는 캠퍼스 단위로
                 확인합니다. 입금 내역을 확인한 개인은 바로 완료 처리할 수
                 있습니다.

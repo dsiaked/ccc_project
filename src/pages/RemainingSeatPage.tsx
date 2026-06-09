@@ -30,13 +30,23 @@ const getErrorMessage = (error: unknown) =>
     ? error.message
     : '잔여 좌석 처리 중 오류가 발생했습니다.';
 
+const PAYMENT_INFO_UNAVAILABLE_MESSAGE =
+  '선택한 버스의 결제 계좌 또는 금액이 등록되지 않아 신청할 수 없습니다. 관리자에게 문의해 주세요.';
+
+const hasValidPaymentInfo = (option: RemainingSeatOption) =>
+  typeof option.transferAccount === 'string' &&
+  Boolean(option.transferAccount.trim()) &&
+  Number.isFinite(option.price) &&
+  option.price > 0;
+
 const RemainingSeatPage = () => {
   const navigate = useNavigate();
   const [options, setOptions] = useState<RemainingSeatOption[]>([]);
   const [selectedKey, setSelectedKey] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [errorMessage, setErrorMessage] = useState('');
+  const [loadErrorMessage, setLoadErrorMessage] = useState('');
+  const [claimErrorMessage, setClaimErrorMessage] = useState('');
   const [depositorName, setDepositorName] = useState('');
   const [hasActiveReservation, setHasActiveReservation] = useState(false);
   const [isPaymentConfirmOpen, setIsPaymentConfirmOpen] = useState(false);
@@ -45,7 +55,7 @@ const RemainingSeatPage = () => {
 
   const loadOptions = async () => {
     setLoading(true);
-    setErrorMessage('');
+    setLoadErrorMessage('');
     setHasActiveReservation(false);
 
     try {
@@ -85,7 +95,7 @@ const RemainingSeatPage = () => {
       );
     } catch (error) {
       console.error('잔여 좌석 조회 실패:', error);
-      setErrorMessage(getErrorMessage(error));
+      setLoadErrorMessage(getErrorMessage(error));
     } finally {
       setLoading(false);
     }
@@ -102,24 +112,35 @@ const RemainingSeatPage = () => {
     options.find(
       (option) => `${option.allocationId}:${option.busId}` === selectedKey
     ) ?? null;
-  const commonSeatDetails = selectedOption ?? options[0] ?? null;
+  const commonSeatDetails = selectedOption;
+  const selectedPaymentInfoUnavailable =
+    selectedOption !== null && !hasValidPaymentInfo(selectedOption);
 
   const handleClaim = () => {
     if (!selectedOption) return;
+    if (!hasValidPaymentInfo(selectedOption)) {
+      setClaimErrorMessage(PAYMENT_INFO_UNAVAILABLE_MESSAGE);
+      return;
+    }
     if (!depositorName.trim()) {
-      setErrorMessage('입금자명을 입력해주세요.');
+      setClaimErrorMessage('입금자명을 입력해주세요.');
       return;
     }
 
-    setErrorMessage('');
+    setClaimErrorMessage('');
     setIsPaymentConfirmOpen(true);
   };
 
   const handleConfirmPaid = async () => {
     if (!selectedOption) return;
+    if (!hasValidPaymentInfo(selectedOption)) {
+      setIsPaymentConfirmOpen(false);
+      setClaimErrorMessage(PAYMENT_INFO_UNAVAILABLE_MESSAGE);
+      return;
+    }
 
     setSaving(true);
-    setErrorMessage('');
+    setClaimErrorMessage('');
 
     try {
       await claimRemainingSeat(
@@ -132,7 +153,7 @@ const RemainingSeatPage = () => {
     } catch (error) {
       console.error('잔여 좌석 신청 실패:', error);
       setIsPaymentConfirmOpen(false);
-      setErrorMessage(getErrorMessage(error));
+      setClaimErrorMessage(getErrorMessage(error));
       await loadOptions();
     } finally {
       setSaving(false);
@@ -167,9 +188,15 @@ const RemainingSeatPage = () => {
           </div>
         </section>
 
-        {errorMessage && (
+        {loadErrorMessage && (
           <div className={styles.errorBox} role="alert">
-            {errorMessage}
+            {loadErrorMessage}
+          </div>
+        )}
+
+        {claimErrorMessage && (
+          <div className={styles.errorBox} role="alert">
+            {claimErrorMessage}
           </div>
         )}
 
@@ -210,7 +237,10 @@ const RemainingSeatPage = () => {
                     className={`${styles.optionCard} ${
                       isSelected ? styles.selectedOption : ''
                     }`}
-                    onClick={() => setSelectedKey(key)}
+                    onClick={() => {
+                      setSelectedKey(key);
+                      setClaimErrorMessage('');
+                    }}
                     aria-pressed={isSelected}
                   >
                     <div className={styles.optionTop}>
@@ -260,6 +290,11 @@ const RemainingSeatPage = () => {
                     </div>
                   </div>
                 )}
+                {selectedPaymentInfoUnavailable && (
+                  <div className={styles.errorBox} role="alert">
+                    {PAYMENT_INFO_UNAVAILABLE_MESSAGE}
+                  </div>
+                )}
                 <label className={styles.depositorField}>
                   <span>입금자명</span>
                   <input
@@ -275,7 +310,12 @@ const RemainingSeatPage = () => {
               <button
                 type="button"
                 onClick={handleClaim}
-                disabled={!selectedOption || !depositorName.trim() || saving}
+                disabled={
+                  !selectedOption ||
+                  selectedPaymentInfoUnavailable ||
+                  !depositorName.trim() ||
+                  saving
+                }
               >
                 <CheckCircle2 size={18} />
                 {saving ? '좌석 확보 중...' : '좌석 임시 확보하기'}
@@ -344,6 +384,7 @@ const RemainingSeatPage = () => {
                 className={styles.modalCancelButton}
                 onClick={() => setIsPaymentConfirmOpen(false)}
                 disabled={saving}
+                autoFocus
               >
                 아직 입금 전이에요
               </button>
@@ -351,8 +392,7 @@ const RemainingSeatPage = () => {
                 type="button"
                 className={styles.modalConfirmButton}
                 onClick={() => void handleConfirmPaid()}
-                disabled={saving}
-                autoFocus
+                disabled={saving || !hasValidPaymentInfo(selectedOption)}
               >
                 <CheckCircle2 size={18} />
                 {saving ? '좌석 확보 중...' : '입금 완료했어요'}

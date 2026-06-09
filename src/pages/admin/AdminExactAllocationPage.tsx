@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowRight,
   BookOpen,
@@ -44,6 +44,7 @@ import styles from './AdminExactAllocationPage.module.css';
 
 const activeStatuses = new Set(['PENDING', 'RUNNING', 'CANCEL_REQUESTED']);
 const executionModeStorageKey = 'ccc-bus-allocation-execution-mode';
+const workerClaimWarningSeconds = 30;
 
 const getInitialExecutionMode = (): ExactAllocationExecutionMode => {
   const savedMode = window.localStorage.getItem(executionModeStorageKey);
@@ -216,18 +217,60 @@ const AdminExactAllocationPage = () => {
   const [allocationName, setAllocationName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [calculationError, setCalculationError] = useState<string | null>(null);
+  const [detailedBalanceError, setDetailedBalanceError] = useState<string | null>(
+    null
+  );
   const [resetMessage, setResetMessage] = useState<string | null>(null);
+  const [calculationViewReset, setCalculationViewReset] = useState(false);
   const [clock, setClock] = useState(() => Date.now());
-  const activeJob = currentJob !== null && activeStatuses.has(currentJob.status);
+  const jobsStateRevisionRef = useRef(0);
+  const activeJob =
+    !calculationViewReset &&
+    currentJob !== null &&
+    activeStatuses.has(currentJob.status);
 
-  const loadRecentJobs = useCallback(async () => {
+  const resetCalculationView = useCallback(() => {
+    setCurrentJob(null);
+    setRecentJobs([]);
+    setLinkedWorkspace(null);
+    setAllocationName('');
+    setResumeDetailedBalance(true);
+    setSkippedDetailedPhases([]);
+    setCalculationError(null);
+    setDetailedBalanceError(null);
+    setClock(Date.now());
+  }, []);
+
+  const loadRecentJobs = useCallback(async (preferredJobId?: string) => {
+    const requestRevision = jobsStateRevisionRef.current;
     const jobs = await getRecentExactAllocationJobs();
+    if (requestRevision !== jobsStateRevisionRef.current) return;
     setRecentJobs(jobs);
+
+    const activeJob = jobs.find((job) => activeStatuses.has(job.status));
+    const targetJob =
+      activeJob ??
+      jobs.find((job) => job.id === preferredJobId) ??
+      jobs[0] ??
+      null;
+
+    if (!targetJob) {
+      setCurrentJob(null);
+      return;
+    }
+
+    const detail = await getExactAllocationJob(targetJob.id);
+    if (requestRevision !== jobsStateRevisionRef.current) return;
     setCurrentJob((current) => {
-      const activeJob = jobs.find((job) => activeStatuses.has(job.status));
-      if (activeJob) return activeJob;
-      if (!current) return jobs[0] ?? null;
-      return jobs.find((job) => job.id === current.id) ?? jobs[0] ?? null;
+      if (
+        current &&
+        current.id !== targetJob.id &&
+        !activeStatuses.has(targetJob.status) &&
+        current.id !== preferredJobId
+      ) {
+        return current;
+      }
+      return detail ?? targetJob;
     });
   }, []);
 
@@ -276,13 +319,14 @@ const AdminExactAllocationPage = () => {
     if (!currentJob || !activeStatuses.has(currentJob.status)) return;
 
     const intervalId = window.setInterval(() => {
+      const requestRevision = jobsStateRevisionRef.current;
       void getExactAllocationJob(currentJob.id)
         .then((job) => {
-          if (!job) return;
+          if (!job || requestRevision !== jobsStateRevisionRef.current) return;
           setCurrentJob(job);
-          if (!activeStatuses.has(job.status)) void loadRecentJobs();
+          if (!activeStatuses.has(job.status)) void loadRecentJobs(job.id);
         })
-        .catch((pollError) => setError(formatError(pollError)));
+        .catch((pollError) => setCalculationError(formatError(pollError)));
     }, 2000);
 
     return () => window.clearInterval(intervalId);
@@ -298,7 +342,9 @@ const AdminExactAllocationPage = () => {
     if (!currentJob || activeStatuses.has(currentJob.status)) return;
 
     const intervalId = window.setInterval(() => {
-      void loadRecentJobs().catch((pollError) => setError(formatError(pollError)));
+      void loadRecentJobs(currentJob.id).catch((pollError) =>
+        setCalculationError(formatError(pollError))
+      );
     }, 10000);
 
     return () => window.clearInterval(intervalId);
@@ -350,7 +396,9 @@ const AdminExactAllocationPage = () => {
   const confirmedWorkspace = confirmedWorkspaces[0] ?? null;
   const allocationPlanningLocked = confirmedWorkspace !== null;
   const optimalResult =
-    currentJob?.status === 'OPTIMAL' ? currentJob.result ?? null : null;
+    !calculationViewReset && currentJob?.status === 'OPTIMAL'
+      ? currentJob.result ?? null
+      : null;
   const draftCreationDisabledReason = creatingDraft
     ? '배차 초안을 검증하고 생성하는 중입니다.'
     : loadingLinkedWorkspace
@@ -389,6 +437,9 @@ const AdminExactAllocationPage = () => {
       Math.floor((clock - elapsedStartTime) / 1000)
     );
   }, [clock, currentJob]);
+  const waitingForWorker = currentJob?.status === 'PENDING';
+  const workerClaimDelayed =
+    waitingForWorker && displayedElapsedSeconds >= workerClaimWarningSeconds;
   const visiblePhaseGroups =
     currentJob?.optimization_scope === 'DETAILED'
       ? phaseGroups
@@ -452,6 +503,7 @@ const AdminExactAllocationPage = () => {
 
   const handleStart = async () => {
     setCalculationError(null);
+    setDetailedBalanceError(null);
     if (!hasSingleBusOption) {
       setCalculationError(
         '버스 옵션 관리에서 버스 옵션을 하나만 등록한 뒤 계산을 시작해주세요.'
@@ -472,12 +524,13 @@ const AdminExactAllocationPage = () => {
       setConfig(savedConfig);
       setSavedRecommendedMinimum(savedConfig.recommended_minimum_passengers);
       const jobId = await createExactAllocationJob(executionMode);
+      setCalculationViewReset(false);
       const job = await getExactAllocationJob(jobId);
       if (job) setCurrentJob(job);
       if (job?.status === 'PENDING') {
         await launchExactAllocationJob(jobId, executionMode);
       }
-      await loadRecentJobs();
+      await loadRecentJobs(jobId);
     } catch (startError) {
       setCalculationError(formatError(startError));
       await loadRecentJobs().catch(() => undefined);
@@ -494,9 +547,9 @@ const AdminExactAllocationPage = () => {
       await cancelExactAllocationJob(currentJob.id);
       const job = await getExactAllocationJob(currentJob.id);
       if (job) setCurrentJob(job);
-      await loadRecentJobs();
+      await loadRecentJobs(currentJob.id);
     } catch (cancelError) {
-      setError(formatError(cancelError));
+      setCalculationError(formatError(cancelError));
     }
   };
 
@@ -512,11 +565,11 @@ const AdminExactAllocationPage = () => {
     setError(null);
     setCalculationError(null);
     setResetMessage(null);
+    jobsStateRevisionRef.current += 1;
     try {
       const deletedCount = await resetExactAllocationJobs();
-      setCurrentJob(null);
-      setRecentJobs([]);
-      setLinkedWorkspace(null);
+      resetCalculationView();
+      setCalculationViewReset(true);
       setResetMessage(
         deletedCount > 0
           ? `계산 기록과 재사용 캐시 ${deletedCount.toLocaleString()}건을 리셋했습니다.`
@@ -590,6 +643,7 @@ const AdminExactAllocationPage = () => {
     if (!currentJob || currentJob.status !== 'OPTIMAL') return;
     setStartingDetailedBalance(true);
     setError(null);
+    setDetailedBalanceError(null);
     try {
       const resumeFromJobId = resumeDetailedBalance
         ? currentJob.optimization_scope === 'DETAILED'
@@ -611,9 +665,9 @@ const AdminExactAllocationPage = () => {
       if (job?.status === 'PENDING') {
         await launchExactAllocationJob(jobId, executionMode);
       }
-      await loadRecentJobs();
+      await loadRecentJobs(jobId);
     } catch (balanceError) {
-      setError(formatError(balanceError));
+      setDetailedBalanceError(formatError(balanceError));
       await loadRecentJobs().catch(() => undefined);
     } finally {
       setStartingDetailedBalance(false);
@@ -657,7 +711,7 @@ const AdminExactAllocationPage = () => {
               </p>
               <div>
                 <small>버스 {confirmedWorkspace.bus_count.toLocaleString()}대</small>
-                <small>승객 {confirmedWorkspace.passenger_count.toLocaleString()}명</small>
+                <small>탑승자 {confirmedWorkspace.passenger_count.toLocaleString()}명</small>
                 <small>{confirmedWorkspace.total_cost.toLocaleString()}원</small>
               </div>
             </div>
@@ -746,7 +800,7 @@ const AdminExactAllocationPage = () => {
                   </span>
                   <span className={styles.draftItemMetrics}>
                     <small>버스 {workspace.bus_count.toLocaleString()}대</small>
-                    <small>승객 {workspace.passenger_count.toLocaleString()}명</small>
+                    <small>탑승자 {workspace.passenger_count.toLocaleString()}명</small>
                     <small>{workspace.total_cost.toLocaleString()}원</small>
                   </span>
                   <span className={styles.draftItemFooter}>
@@ -777,17 +831,21 @@ const AdminExactAllocationPage = () => {
           <div className={styles.sectionHeader}>
             <div>
               <span className={styles.calculationStateBadge}>
-                {activeJob ? '계산 중' : '계산 전'}
+                {waitingForWorker ? '워커 대기' : activeJob ? '계산 중' : '계산 전'}
               </span>
               <h2>
-                {activeJob ? (
+                {waitingForWorker ? (
+                  <><LoaderCircle size={18} /> 최적화 워커 연결 대기</>
+                ) : activeJob ? (
                   <><LoaderCircle size={18} /> 최적해 계산 중</>
                 ) : (
                   '최적해 계산 준비'
                 )}
               </h2>
               <p className={styles.muted}>
-                {activeJob
+                {waitingForWorker
+                  ? '계산 작업은 생성됐지만 아직 워커가 가져가지 않았습니다. 이 대기 시간은 최적해 계산 시간에 포함되지 않습니다.'
+                  : activeJob
                   ? '현재 단계와 진행률을 확인할 수 있습니다. 페이지를 벗어나도 계산은 계속됩니다.'
                   : '계산 기준과 실행 위치를 확인한 뒤 최적해 계산을 시작합니다.'}
               </p>
@@ -811,6 +869,54 @@ const AdminExactAllocationPage = () => {
               </div>
             </div>
           </div>
+
+          {!calculationViewReset && currentJob?.status === 'INFEASIBLE' && (
+            <div className={styles.warningList}>
+              <div className={styles.warning}>
+                <strong>배차 불가능 · 부족 버스 정보</strong>
+                <p>
+                  동일 규격 버스 대수는 무제한이므로 단순 버스 부족이 원인은 아닙니다.
+                  1·2지망 데이터와 목적지별 배차 가능 조건을 확인해주세요.
+                </p>
+                {currentJob.error_message && (
+                  <small>{formatExactAllocationErrorMessage(currentJob.error_message)}</small>
+                )}
+              </div>
+            </div>
+          )}
+          {!calculationViewReset &&
+            currentJob?.status === 'FAILED' &&
+            currentJob.error_message && (
+            <div className={styles.warningList}>
+              <div className={styles.warning}>
+                <strong>계산 실패</strong>
+                <p>{formatExactAllocationErrorMessage(currentJob.error_message)}</p>
+              </div>
+            </div>
+          )}
+          {activeJob && calculationError && (
+            <div className={styles.calculationError} role="alert">
+              <TriangleAlert size={15} />
+              <span>{calculationError}</span>
+            </div>
+          )}
+          {activeJob && detailedBalanceError && (
+            <div className={styles.calculationError} role="alert">
+              <TriangleAlert size={15} />
+              <span>{detailedBalanceError}</span>
+            </div>
+          )}
+
+          {workerClaimDelayed && (
+            <div className={styles.calculationError} role="alert">
+              <TriangleAlert size={15} />
+              <span>
+                {executionMode === 'local'
+                  ? '로컬 Worker가 30초 이상 작업을 가져가지 못했습니다. Worker 실행 상태와 Supabase 연결 설정을 확인해주세요.'
+                  : 'Cloud Run Worker가 30초 이상 시작되지 않았습니다. Launcher 배포 상태와 Cloud Run Job 설정을 확인해주세요.'}
+              </span>
+            </div>
+          )}
 
           {!activeJob && (
           <>
@@ -1149,7 +1255,7 @@ const AdminExactAllocationPage = () => {
                   <strong>{displayedProgress}%</strong>
                 </article>
                 <article>
-                  <span>경과 시간</span>
+                  <span>{waitingForWorker ? '워커 대기 시간' : '계산 시간'}</span>
                   <strong>
                     {reusedResult
                       ? '계산 생략'
@@ -1225,48 +1331,34 @@ const AdminExactAllocationPage = () => {
                         </p>
                       )}
                   </div>
-                  <button
-                    className={styles.secondary}
-                    type="button"
-                    disabled={
-                      currentJob.status !== 'OPTIMAL' ||
-                      startingDetailedBalance ||
-                      Boolean(activeJob) ||
-                      reservationsChanged
-                    }
-                    onClick={handleStartDetailedBalance}
-                  >
-                    {startingDetailedBalance
-                      ? '상세 균형 작업 생성 중...'
-                      : currentJob.optimization_scope === 'DETAILED'
-                        ? '설정대로 이어서 계산'
-                        : '상세 균형 최적화 실행'}
-                  </button>
+                  <div className={styles.detailedBalanceActions}>
+                    <button
+                      className={styles.secondary}
+                      type="button"
+                      disabled={
+                        currentJob.status !== 'OPTIMAL' ||
+                        startingDetailedBalance ||
+                        Boolean(activeJob) ||
+                        reservationsChanged
+                      }
+                      onClick={handleStartDetailedBalance}
+                    >
+                      {startingDetailedBalance
+                        ? '상세 균형 작업 생성 중...'
+                        : currentJob.optimization_scope === 'DETAILED'
+                          ? '설정대로 이어서 계산'
+                          : '상세 균형 최적화 실행'}
+                    </button>
+                    {detailedBalanceError && (
+                      <div className={styles.calculationError} role="alert">
+                        <TriangleAlert size={15} />
+                        <span>{detailedBalanceError}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </>
-          )}
-          {currentJob?.status === 'INFEASIBLE' && (
-            <div className={styles.warningList}>
-              <div className={styles.warning}>
-                <strong>배차 불가능 · 부족 버스 정보</strong>
-                <p>
-                  동일 규격 버스 대수는 무제한이므로 단순 버스 부족이 원인은 아닙니다.
-                  1·2지망 데이터와 목적지별 배차 가능 조건을 확인해주세요.
-                </p>
-                {currentJob.error_message && (
-                  <small>{formatExactAllocationErrorMessage(currentJob.error_message)}</small>
-                )}
-              </div>
-            </div>
-          )}
-          {currentJob?.status === 'FAILED' && currentJob.error_message && (
-            <div className={styles.warningList}>
-              <div className={styles.warning}>
-                <strong>계산 실패</strong>
-                <p>{formatExactAllocationErrorMessage(currentJob.error_message)}</p>
-              </div>
-            </div>
           )}
         </section>
         ) : null}
@@ -1286,38 +1378,40 @@ const AdminExactAllocationPage = () => {
                     : '최저비용 조건을 유지하면서 캠퍼스·팀·탑승 인원 상세 균형까지 계산한 결과입니다.'}
                 </p>
               </div>
-              <div className={styles.actions}>
-                <button
-                  className={styles.secondary}
-                  type="button"
-                  disabled={resetting || recentJobs.length === 0}
-                  onClick={handleReset}
-                >
-                  <RotateCcw size={15} /> {resetting ? '리셋 중...' : '계산 기록 리셋'}
-                </button>
-                <button
-                  className={styles.secondary}
-                  type="button"
-                  disabled={calculationStartDisabledReason !== null}
-                  title={calculationStartDisabledReason ?? undefined}
-                  onClick={handleStart}
-                >
-                  <Play size={15} /> {starting ? '계산 작업 생성 중...' : '다시 계산'}
-                </button>
+              <div className={styles.calculationActions}>
+                <div className={styles.actions}>
+                  <button
+                    className={styles.secondary}
+                    type="button"
+                    disabled={resetting || recentJobs.length === 0}
+                    onClick={handleReset}
+                  >
+                    <RotateCcw size={15} /> {resetting ? '리셋 중...' : '계산 기록 리셋'}
+                  </button>
+                  <button
+                    className={styles.secondary}
+                    type="button"
+                    disabled={calculationStartDisabledReason !== null}
+                    title={calculationStartDisabledReason ?? undefined}
+                    onClick={handleStart}
+                  >
+                    <Play size={15} /> {starting ? '계산 작업 생성 중...' : '다시 계산'}
+                  </button>
+                </div>
+                {calculationError && (
+                  <div className={styles.calculationError} role="alert">
+                    <TriangleAlert size={15} />
+                    <span>{calculationError}</span>
+                  </div>
+                )}
+                {calculationStartDisabledReason && (
+                  <p className={styles.actionDisabledReason}>
+                    <TriangleAlert size={15} />
+                    {calculationStartDisabledReason}
+                  </p>
+                )}
               </div>
             </div>
-            {calculationError && (
-              <div className={styles.calculationError} role="alert">
-                <TriangleAlert size={15} />
-                <span>{calculationError}</span>
-              </div>
-            )}
-            {calculationStartDisabledReason && (
-              <p className={styles.actionDisabledReason}>
-                <TriangleAlert size={15} />
-                {calculationStartDisabledReason}
-              </p>
-            )}
             {reservationsChanged && (
               <div className={styles.reservationChangeNotice}>
                 <TriangleAlert size={22} />
@@ -1455,23 +1549,31 @@ const AdminExactAllocationPage = () => {
                   </div>
                 </details>
               </div>
-              <button
-                className={styles.secondary}
-                type="button"
-                disabled={startingDetailedBalance || reservationsChanged}
-                title={
-                  reservationsChanged
-                    ? '계산 이후 신청 정보가 변경되어 상세 균형 계산을 실행할 수 없습니다.'
-                    : undefined
-                }
-                onClick={handleStartDetailedBalance}
-              >
-                {startingDetailedBalance
-                  ? '상세 균형 작업 생성 중...'
-                  : currentJob?.optimization_scope === 'DETAILED'
-                    ? '설정대로 이어서 계산'
-                    : '상세 균형 최적화 실행'}
-              </button>
+              <div className={styles.detailedBalanceActions}>
+                <button
+                  className={styles.secondary}
+                  type="button"
+                  disabled={startingDetailedBalance || reservationsChanged}
+                  title={
+                    reservationsChanged
+                      ? '계산 이후 신청 정보가 변경되어 상세 균형 계산을 실행할 수 없습니다.'
+                      : undefined
+                  }
+                  onClick={handleStartDetailedBalance}
+                >
+                  {startingDetailedBalance
+                    ? '상세 균형 작업 생성 중...'
+                    : currentJob?.optimization_scope === 'DETAILED'
+                      ? '설정대로 이어서 계산'
+                      : '상세 균형 최적화 실행'}
+                </button>
+                {detailedBalanceError && (
+                  <div className={styles.calculationError} role="alert">
+                    <TriangleAlert size={15} />
+                    <span>{detailedBalanceError}</span>
+                  </div>
+                )}
+              </div>
             </div>
             <details className={styles.calculationDetails}>
               <summary>계산 상세 보기</summary>
@@ -1511,11 +1613,19 @@ const AdminExactAllocationPage = () => {
                 className={styles.historyItem}
                 key={job.id}
                 type="button"
-                onClick={() =>
+                disabled={resetting}
+                onClick={() => {
+                  const requestRevision = jobsStateRevisionRef.current;
                   void getExactAllocationJob(job.id).then((detail) => {
-                    if (detail) setCurrentJob(detail);
-                  })
-                }
+                    if (
+                      detail &&
+                      requestRevision === jobsStateRevisionRef.current
+                    ) {
+                      setCalculationViewReset(false);
+                      setCurrentJob(detail);
+                    }
+                  });
+                }}
               >
                 <strong>
                   {job.optimization_scope === 'DETAILED' ? '상세 균형' : '기본 최저비용'}

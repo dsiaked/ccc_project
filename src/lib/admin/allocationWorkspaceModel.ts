@@ -369,7 +369,7 @@ export const mergeActivePassengersIntoDraft = (
         at: now,
         actorId: 'system',
         action: 'active_reservations_refreshed',
-        detail: `활성 신청을 반영했습니다. 신규 ${newPassengerIds.size}명, 취소 승객 ${cancelledCount}명, 자동 추가 버스 ${addedBusCount}대.`,
+        detail: `활성 신청을 반영했습니다. 신규 ${newPassengerIds.size}명, 취소 탑승자 ${cancelledCount}명, 자동 추가 버스 ${addedBusCount}대.`,
       },
     ],
   };
@@ -453,7 +453,7 @@ export const validateWorkspace = (
     errors.push('출발 시간이 없습니다.');
   }
   if (workspace.buses.some((bus) => !bus.boardingPlace.trim())) {
-    errors.push('탑승 장소가 없습니다.');
+    errors.push('탑승장소가 없습니다.');
   }
 
   workspace.buses.forEach((bus) => {

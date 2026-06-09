@@ -738,7 +738,7 @@ const AdminTicketPage = () => {
   const hasActiveFilters = coverageViewFilter !== 'campus';
   const filterLabels: Record<CoverageViewFilter, string> = {
     campus: '캠퍼스 전체',
-    individual: '개인 · 기타지구',
+    individual: '개인 · 서울 외 지구',
     team: '팀',
     district: '지구',
     all: '전체 단위',
@@ -784,7 +784,7 @@ const AdminTicketPage = () => {
             <p className={styles.eyebrow}>버스표 운영 현황</p>
             <h1>가입·신청 현황</h1>
             <p>
-              서울지구는 캠퍼스별로, 기타 지구는 개인 단위로 가입·신청 현황을
+              서울지구는 캠퍼스별로, 서울 외 지구는 개인 단위로 가입·신청 현황을
               비교해 배차 전 확인이 필요한 대상을 점검합니다.
             </p>
           </div>
@@ -872,7 +872,7 @@ const AdminTicketPage = () => {
                 입금률은 신청 인원 중 입금이 완료된 비율(입금 인원 ÷ 신청 인원)입니다.
                 신청률은 가입 인원 중 버스를 신청한 비율(신청 인원 ÷ 가입 인원)이며,
                 가입률은 예상 참여 인원 중 가입을 완료한 비율(가입 인원 ÷ 참여 인원)입니다.
-                서울지구 캠퍼스와 기타 지구 개인 데이터를 바탕으로 팀과 지구 비율도
+                서울지구 캠퍼스와 서울 외 지구 개인 데이터를 바탕으로 팀과 지구 비율도
                 자동 합산합니다.
               </p>
             </div>
@@ -899,7 +899,7 @@ const AdminTicketPage = () => {
                 <option value="payment-needed">미입금 있는 캠퍼스</option>
                 <option value="low-reservation">신청률 50% 미만 캠퍼스</option>
                 <option value="low-subscriber">가입률 50% 미만 캠퍼스</option>
-                <option value="individual">개인 · 기타지구</option>
+                <option value="individual">개인 · 서울 외 지구</option>
                 <option value="team">팀 단위</option>
                 <option value="district">지구 단위</option>
                 <option value="all">전체 단위</option>
@@ -1000,7 +1000,7 @@ const AdminTicketPage = () => {
                               : row.scope === 'team'
                                 ? '팀'
                                 : isIndividualUnit
-                                  ? '개인 - 기타지구'
+                                  ? '개인 - 서울 외 지구'
                                   : '캠퍼스'}
                           </span>
                         </td>

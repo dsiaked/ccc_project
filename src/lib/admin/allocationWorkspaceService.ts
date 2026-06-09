@@ -559,7 +559,7 @@ export const validateWorkspaceLegacy = (
     errors.push('출발 시간이 없습니다.');
   }
   if (workspace.buses.some((bus) => !bus.boardingPlace.trim())) {
-    errors.push('탑승 장소가 없습니다.');
+    errors.push('탑승장소가 없습니다.');
   }
 
   workspace.buses.forEach((bus) => {
@@ -956,11 +956,11 @@ const throwAllocationRpcError = (error: {
     'Only draft or confirmed allocations can be saved as confirmed.':
       '이미 삭제되었거나 확정할 수 없는 상태의 배차안입니다.',
     'Confirmed allocations need at least one bus and passenger.':
-      '배차 확정에는 버스와 승객이 각각 한 명 이상 필요합니다.',
+      '배차 확정에는 버스와 탑승자가 각각 한 명 이상 필요합니다.',
     'Every bus needs valid required details.':
       '필수 정보가 누락되었거나 정원이 올바르지 않은 버스가 있습니다.',
     'Every passenger needs a bus and valid seat number.':
-      '버스 또는 유효한 좌석 번호가 지정되지 않은 승객이 있습니다.',
+      '버스 또는 유효한 좌석 번호가 지정되지 않은 탑승자가 있습니다.',
     'Duplicate reservation IDs exist in the allocation.':
       '같은 신청자가 배차안에 중복으로 포함되어 있습니다.',
     'Invalid bus, seat, or destination assignment exists.':

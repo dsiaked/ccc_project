@@ -105,7 +105,7 @@ const AdminLoginPage = () => {
 
             <h1 className={styles.title}>관리자 로그인</h1>
             <p className={styles.subtitle}>
-              캠퍼스 회계 순장님, 선탑자 또는 전체 관리자 계정으로 로그인해주세요.
+              캠퍼스 회계 순장님, 탑승 관리 간사님 또는 전체 관리자 계정으로 로그인해주세요.
             </p>
           </div>
 

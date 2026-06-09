@@ -10,7 +10,7 @@ import {
 
 test('workspace validation errors are grouped by corrective action', () => {
   const groups = groupValidationErrors([
-    '승객 A가 미배차 상태입니다.',
+    '탑승자 A가 미배차 상태입니다.',
     '버스 A의 좌석이 중복되었습니다.',
     '알 수 없는 차단 오류',
   ]);
@@ -18,7 +18,7 @@ test('workspace validation errors are grouped by corrective action', () => {
   assert.deepEqual(
     groups.map(({ id, items }) => ({ id, items })),
     [
-      { id: 'unassigned', items: ['승객 A가 미배차 상태입니다.'] },
+      { id: 'unassigned', items: ['탑승자 A가 미배차 상태입니다.'] },
       { id: 'capacity-seat', items: ['버스 A의 좌석이 중복되었습니다.'] },
       { id: 'other', items: ['알 수 없는 차단 오류'] },
     ]

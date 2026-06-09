@@ -6,6 +6,9 @@ on:
   push:
     branches:
       - dev
+concurrency:
+  group: firebase-hosting-live-dev
+  cancel-in-progress: true
 jobs:
   build_and_deploy:
     runs-on: ubuntu-latest

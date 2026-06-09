@@ -883,6 +883,33 @@ def optimize(
             )
         return solve_secondary(name, expression)
 
+    def solve_lexicographic_objectives(
+        phases: tuple[tuple[str, cp_model.LinearExpr, int], ...],
+        *,
+        search_workers: int | None = None,
+    ) -> cp_model.CpSolver:
+        combined_expression = phases[0][1]
+        for _, expression, upper_bound in phases[1:]:
+            combined_expression = (
+                combined_expression * (upper_bound + 1) + expression
+            )
+        solver = _solve_phase(
+            model=model,
+            expression=combined_expression,
+            name="_and_".join(name for name, _, _ in phases),
+            objectives=[],
+            progress=None,
+            cancellation_check=cancellation_check,
+            search_workers=search_workers,
+        )
+        for name, expression, _ in phases:
+            value = solver.Value(expression)
+            model.Add(expression == value)
+            objectives.append(ObjectiveValue(name=name, value=value))
+            if progress:
+                progress(name, value)
+        return solver
+
     def add_group_metrics(
         group_name: str,
         group_values: tuple[str, ...],
@@ -944,6 +971,8 @@ def optimize(
             model.Add(
                 _sum(group_uses) >= ceil(group_size / data.bus.capacity)
             )
+            model.Add(_sum(group_counts) == group_size)
+            model.Add(_sum(group_uses) <= group_size)
             count_variables_by_group.append(
                 (group_index, maximum_count_per_bus, group_count_variables)
             )
@@ -1054,47 +1083,66 @@ def optimize(
         tuple(cohort[0] for cohort, _ in cohorts),
         cohort_sizes,
     )
-    try:
-        next_solver = solve_or_skip(
+    campus_distribution_imbalance = add_distribution_imbalance_metric(
+        "campus",
+        campus_count_variables,
+    )
+    campus_isolated_groups = add_isolated_group_metric(
+        "campus",
+        campus_count_variables,
+    )
+    campus_odd_groups = add_odd_group_metric(
+        "campus",
+        campus_count_variables,
+    )
+    campus_count_variable_count = sum(
+        len(count_variables)
+        for _, _, count_variables in campus_count_variables
+    )
+    campus_phases = (
+        (
             "campus_bus_uses",
             campus_bus_uses,
-            primary_secondary_phase=True,
-        )
-        if next_solver is not None:
-            solver = next_solver
-    except PhaseSolveError as error:
-        return AllocationResult(status="FAILED", error_message=str(error))
-
-    if "campus_distribution_imbalance" in skipped_detailed_phases:
-        if progress:
-            progress("campus_distribution_imbalance", None)
+            campus_count_variable_count,
+        ),
+        (
+            "campus_distribution_imbalance",
+            campus_distribution_imbalance,
+            sum(maximum for _, maximum, _ in campus_count_variables),
+        ),
+        (
+            "campus_isolated_groups",
+            campus_isolated_groups,
+            campus_count_variable_count,
+        ),
+        (
+            "campus_odd_groups",
+            campus_odd_groups,
+            campus_count_variable_count,
+        ),
+    )
+    if not {
+        "campus_bus_uses",
+        "campus_distribution_imbalance",
+        "campus_isolated_groups",
+        "campus_odd_groups",
+    }.intersection(skipped_detailed_phases):
+        try:
+            solver = solve_lexicographic_objectives(campus_phases)
+        except PhaseSolveError as error:
+            return AllocationResult(status="FAILED", error_message=str(error))
     else:
-        try:
-            solver = solve_secondary(
-                "campus_distribution_imbalance",
-                add_distribution_imbalance_metric(
-                    "campus",
-                    campus_count_variables,
-                ),
-            )
-        except PhaseSolveError as error:
-            return AllocationResult(status="FAILED", error_message=str(error))
-
-    for name, add_metric in (
-        ("campus_isolated_groups", add_isolated_group_metric),
-        ("campus_odd_groups", add_odd_group_metric),
-    ):
-        if name in skipped_detailed_phases:
-            if progress:
-                progress(name, None)
-            continue
-        try:
-            solver = solve_secondary(
-                name,
-                add_metric("campus", campus_count_variables),
-            )
-        except PhaseSolveError as error:
-            return AllocationResult(status="FAILED", error_message=str(error))
+        for phase_index, (name, expression, _) in enumerate(campus_phases):
+            try:
+                next_solver = solve_or_skip(
+                    name,
+                    expression,
+                    primary_secondary_phase=phase_index == 0,
+                )
+                if next_solver is not None:
+                    solver = next_solver
+            except PhaseSolveError as error:
+                return AllocationResult(status="FAILED", error_message=str(error))
 
     campus_values = tuple(cohort[0] for cohort, _ in cohorts)
     team_values = tuple(
@@ -1120,20 +1168,48 @@ def optimize(
             team_values,
             cohort_sizes,
         )
-        next_solver = solve_or_skip("team_bus_uses", team_bus_uses)
-        if next_solver is not None:
-            solver = next_solver
-        if "team_distribution_imbalance" in skipped_detailed_phases:
-            if progress:
-                progress("team_distribution_imbalance", None)
+        team_distribution_imbalance = add_distribution_imbalance_metric(
+            "team",
+            team_count_variables,
+        )
+        if not {
+            "team_bus_uses",
+            "team_distribution_imbalance",
+        }.intersection(skipped_detailed_phases):
+            try:
+                solver = solve_lexicographic_objectives(
+                    (
+                        (
+                            "team_bus_uses",
+                            team_bus_uses,
+                            sum(
+                                len(count_variables)
+                                for _, _, count_variables in team_count_variables
+                            ),
+                        ),
+                        (
+                            "team_distribution_imbalance",
+                            team_distribution_imbalance,
+                            sum(
+                                maximum
+                                for _, maximum, _ in team_count_variables
+                            ),
+                        ),
+                    )
+                )
+            except PhaseSolveError as error:
+                return AllocationResult(status="FAILED", error_message=str(error))
         else:
-            solver = solve_secondary(
-                "team_distribution_imbalance",
-                add_distribution_imbalance_metric(
-                    "team",
-                    team_count_variables,
-                ),
-            )
+            for name, expression in (
+                ("team_bus_uses", team_bus_uses),
+                ("team_distribution_imbalance", team_distribution_imbalance),
+            ):
+                try:
+                    next_solver = solve_or_skip(name, expression)
+                    if next_solver is not None:
+                        solver = next_solver
+                except PhaseSolveError as error:
+                    return AllocationResult(status="FAILED", error_message=str(error))
 
     destination_imbalances = []
     for destination, destination_slots in sorted(slots_by_destination.items()):
@@ -1143,13 +1219,34 @@ def optimize(
         minimum = model.NewIntVar(
             0, data.bus.capacity, f"destination_min_{destination_index[destination]}"
         )
+        model.AddMaxEquality(
+            maximum,
+            [occupancy[slot.key] for slot in destination_slots],
+        )
+        adjusted_occupancies = []
         for slot in destination_slots:
-            model.Add(maximum >= occupancy[slot.key])
+            adjusted_occupancy = model.NewIntVar(
+                0,
+                data.bus.capacity,
+                f"destination_adjusted_{destination_index[destination]}_{slot.slot_index}",
+            )
             model.Add(
-                minimum
-                <= occupancy[slot.key]
+                adjusted_occupancy
+                == occupancy[slot.key]
                 + data.bus.capacity * (1 - active[slot.key])
             )
+            adjusted_occupancies.append(adjusted_occupancy)
+        inactive_destination_minimum = model.NewIntVar(
+            0,
+            data.bus.capacity,
+            f"destination_inactive_min_{destination_index[destination]}",
+        )
+        model.Add(
+            inactive_destination_minimum
+            == data.bus.capacity * active[destination_slots[0].key]
+        )
+        adjusted_occupancies.append(inactive_destination_minimum)
+        model.AddMinEquality(minimum, adjusted_occupancies)
         imbalance = model.NewIntVar(
             0,
             data.bus.capacity,
@@ -1157,25 +1254,50 @@ def optimize(
         )
         model.Add(imbalance == maximum - minimum)
         destination_imbalances.append(imbalance)
-    next_solver = solve_or_skip(
-        "destination_occupancy_imbalance",
-        _sum(destination_imbalances),
-    )
-    if next_solver is not None:
-        solver = next_solver
+    destination_occupancy_imbalance = _sum(destination_imbalances)
 
     deterministic_terms = []
+    maximum_deterministic_term_by_cohort: dict[int, int] = defaultdict(int)
     for (cohort_index, slot_key), variable in assignment.items():
         slot_order = slot_order_by_key[slot_key]
-        deterministic_terms.append(
-            variable * ((cohort_index + 1) * (slot_order + 1))
+        coefficient = (cohort_index + 1) * (slot_order + 1)
+        deterministic_terms.append(variable * coefficient)
+        maximum_deterministic_term_by_cohort[cohort_index] = max(
+            maximum_deterministic_term_by_cohort[cohort_index],
+            coefficient,
         )
-    model.ClearHints()
-    solver = solve_secondary(
-        "deterministic_tie_break",
-        _sum(deterministic_terms),
-        search_workers=1,
+    deterministic_tie_break = _sum(deterministic_terms)
+    deterministic_tie_break_upper_bound = sum(
+        cohort_sizes[cohort_index] * coefficient
+        for cohort_index, coefficient in maximum_deterministic_term_by_cohort.items()
     )
+    try:
+        if "destination_occupancy_imbalance" in skipped_detailed_phases:
+            if progress:
+                progress("destination_occupancy_imbalance", None)
+            solver = solve_secondary(
+                "deterministic_tie_break",
+                deterministic_tie_break,
+                search_workers=1,
+            )
+        else:
+            solver = solve_lexicographic_objectives(
+                (
+                    (
+                        "destination_occupancy_imbalance",
+                        destination_occupancy_imbalance,
+                        len(destinations) * data.bus.capacity,
+                    ),
+                    (
+                        "deterministic_tie_break",
+                        deterministic_tie_break,
+                        deterministic_tie_break_upper_bound,
+                    ),
+                ),
+                search_workers=1,
+            )
+    except PhaseSolveError as error:
+        return AllocationResult(status="FAILED", error_message=str(error))
 
     selected_slots = [slot for slot in slots if solver.Value(active[slot.key]) == 1]
     bus_id_by_slot = {

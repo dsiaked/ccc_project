@@ -482,7 +482,7 @@ begin
       passenger ->> 'name',
       jsonb_build_object(
         'key', 'assignments',
-        'message', coalesce(nullif(passenger ->> 'name', ''), '이름 없는 승객')
+        'message', coalesce(nullif(passenger ->> 'name', ''), '이름 없는 탑승자')
           || ': 배차 버스, 좌석 번호 또는 목적지가 올바르지 않습니다.',
         'passenger_id', passenger ->> 'reservationId',
         'bus_id', passenger ->> 'busId'
@@ -519,7 +519,7 @@ begin
     from (
       select
         passenger ->> 'reservationId' as reservation_id,
-        max(coalesce(nullif(passenger ->> 'name', ''), '이름 없는 승객')) as passenger_name,
+        max(coalesce(nullif(passenger ->> 'name', ''), '이름 없는 탑승자')) as passenger_name,
         count(*) as duplicate_count
       from jsonb_array_elements(p_allocation_data -> 'passengers') passenger
       group by passenger ->> 'reservationId'
@@ -578,8 +578,8 @@ begin
       passenger ->> 'name',
       jsonb_build_object(
         'key', 'active_reservations',
-        'message', coalesce(nullif(passenger ->> 'name', ''), '이름 없는 승객')
-          || ': 취소되었거나 최신 활성 예약에서 제외된 승객입니다.',
+        'message', coalesce(nullif(passenger ->> 'name', ''), '이름 없는 탑승자')
+          || ': 취소되었거나 최신 활성 예약에서 제외된 탑승자입니다.',
         'passenger_id', passenger ->> 'reservationId'
       )
     from jsonb_array_elements(p_allocation_data -> 'passengers') passenger
@@ -837,7 +837,7 @@ begin
               select jsonb_agg(
                 passenger.value || jsonb_build_object(
                   'reservationId', 'anonymous-' || passenger.ordinality,
-                  'name', '승객 A-' || lpad(passenger.ordinality::text, 3, '0'),
+                  'name', '탑승자 A-' || lpad(passenger.ordinality::text, 3, '0'),
                   'campus', '',
                   'team', ''
                 )
@@ -862,7 +862,7 @@ begin
             'at', v_now::text,
             'actorId', v_actor_id::text,
             'action', 'archived',
-            'detail', '새 배차 확정에 따라 승객 정보를 익명화하고 과거 기록으로 보관했습니다.'
+            'detail', '새 배차 확정에 따라 탑승자 정보를 익명화하고 과거 기록으로 보관했습니다.'
           ))
       ),
       updated_at = v_now,

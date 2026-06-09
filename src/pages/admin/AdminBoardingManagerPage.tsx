@@ -112,7 +112,7 @@ const AdminBoardingManagerPage = () => {
   }, []);
 
   const handleCancelManager = async (user: BoardingManagerUser) => {
-    if (!window.confirm(`${user.name}님의 선탑자 권한을 해제할까요?`)) return;
+    if (!window.confirm(`${user.name}님의 탑승 관리 간사님 권한을 해제할까요?`)) return;
 
     setActionUserId(user.userId);
     setMessage('');
@@ -128,7 +128,7 @@ const AdminBoardingManagerPage = () => {
       setAssignmentDrafts((current) => ({ ...current, [user.userId]: [] }));
       setEditingUserId((current) => (current === user.userId ? '' : current));
       setMessageType('success');
-      setMessage(`${user.name}님의 선탑자 권한을 해제했습니다.`);
+      setMessage(`${user.name}님의 탑승 관리 간사님 권한을 해제했습니다.`);
     } catch (error) {
       setMessageType('error');
       setMessage(error instanceof Error ? error.message : '권한을 변경하지 못했습니다.');
@@ -142,7 +142,7 @@ const AdminBoardingManagerPage = () => {
       selectedCandidateIds.includes(user.userId)
     );
     if (selectedUsers.length === 0) return;
-    if (!window.confirm(`선택한 ${selectedUsers.length.toLocaleString()}명을 선탑자로 지정할까요?`)) {
+    if (!window.confirm(`선택한 ${selectedUsers.length.toLocaleString()}명을 탑승 관리 간사님으로 지정할까요?`)) {
       return;
     }
 
@@ -169,7 +169,7 @@ const AdminBoardingManagerPage = () => {
 
     if (failedResults.length === 0) {
       setMessageType('success');
-      setMessage(`${selectedUsers.length.toLocaleString()}명을 선탑자로 지정했습니다.`);
+      setMessage(`${selectedUsers.length.toLocaleString()}명을 탑승 관리 간사님으로 지정했습니다.`);
     } else {
       setMessageType('error');
       setMessage(
@@ -233,8 +233,8 @@ const AdminBoardingManagerPage = () => {
           <ShieldCheck size={32} />
           <div>
             <span>Boarding Manager</span>
-            <h1>선탑자 권한·담당 호차 관리</h1>
-            <p>지정된 선탑자를 관리하고, 필요한 사용자를 검색해 새 선탑자로 지정합니다.</p>
+            <h1>탑승 관리 간사님 권한·담당 호차 관리</h1>
+            <p>지정된 탑승 관리 간사님을 관리하고, 필요한 사용자를 검색해 새 탑승 관리 간사님으로 지정합니다.</p>
           </div>
         </section>
 
@@ -249,7 +249,7 @@ const AdminBoardingManagerPage = () => {
 
         {!loading && !assignmentOptions.isAvailable && (
           <p className={styles.migrationNotice} role="status">
-            선탑자 권한 관리는 사용할 수 있지만 담당 호차 지정 기능은 아직 DB에 설치되지 않았습니다.
+            탑승 관리 간사님 권한 관리는 사용할 수 있지만 담당 호차 지정 기능은 아직 DB에 설치되지 않았습니다.
             Supabase에 <code>sql/setup/96_boarding_manager_bus_assignments.sql</code>을 적용해 주세요.
           </p>
         )}
@@ -259,8 +259,8 @@ const AdminBoardingManagerPage = () => {
             <div>
               <span className={styles.sectionIcon}><Bus size={17} /></span>
               <div>
-                <h2>지정된 선탑자</h2>
-                <p>담당 호차가 없는 선탑자를 먼저 확인하세요.</p>
+                <h2>지정된 탑승 관리 간사님</h2>
+                <p>담당 호차가 없는 탑승 관리 간사님을 먼저 확인하세요.</p>
               </div>
             </div>
             <strong>{managers.length.toLocaleString()}명</strong>
@@ -268,9 +268,9 @@ const AdminBoardingManagerPage = () => {
 
           <div className={styles.managerList}>
             {loading ? (
-              <p className={styles.empty}>선탑자를 불러오는 중...</p>
+              <p className={styles.empty}>탑승 관리 간사님을 불러오는 중...</p>
             ) : managers.length === 0 ? (
-              <p className={styles.empty}>지정된 선탑자가 없습니다.</p>
+              <p className={styles.empty}>지정된 탑승 관리 간사님이 없습니다.</p>
             ) : (
               [...managers]
                 .sort((a, b) => a.assignedBusIds.length - b.assignedBusIds.length)
@@ -393,7 +393,7 @@ const AdminBoardingManagerPage = () => {
           >
             <span className={styles.sectionIcon}><Users size={17} /></span>
             <span>
-              <strong>선탑자 추가</strong>
+              <strong>탑승 관리 간사님 추가</strong>
               <small>사용자를 검색해 여러 명을 한 번에 지정합니다.</small>
             </span>
             {showCandidates ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
@@ -413,7 +413,7 @@ const AdminBoardingManagerPage = () => {
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
                   placeholder="이름, 이메일, 연락처, 캠퍼스 검색"
-                  aria-label="선탑자 지정 대상 검색"
+                  aria-label="탑승 관리 간사님 지정 대상 검색"
                 />
                 <button type="submit" disabled={loading}>{loading ? '검색 중' : '검색'}</button>
               </form>

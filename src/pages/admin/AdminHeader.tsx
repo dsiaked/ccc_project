@@ -17,8 +17,10 @@ import {
   FlaskConical,
   History,
   Home,
+  KeyRound,
   UserCog,
   Users,
+  Wrench,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -83,6 +85,14 @@ const navItems: AdminNavItem[] = [
     allowedRoles: ['global_admin', 'boarding_manager'],
   },
   {
+    label: '탑승 관리 간사님 권한·담당 호차 관리',
+    path: '/admin/access/boarding-managers',
+    icon: UserCog,
+    stageGroup: 'boarding',
+    targetGroup: 'boardingManager',
+    allowedRoles: ['global_admin'],
+  },
+  {
     label: '개인 입금 · 캠퍼스별 송금 관리',
     path: '/admin/payments/final-review',
     icon: ClipboardCheck,
@@ -140,25 +150,25 @@ const navItems: AdminNavItem[] = [
     allowedRoles: ['global_admin'],
   },
   {
-    label: '캠퍼스 회계 순장님 관리',
-    path: '/admin/access/campus-admins',
-    icon: UserCog,
-    stageGroup: 'prepare',
-    targetGroup: 'campus',
-    allowedRoles: ['global_admin'],
-  },
-  {
-    label: '선탑자 관리',
-    path: '/admin/access/boarding-managers',
-    icon: UserCog,
-    stageGroup: 'prepare',
-    targetGroup: 'boardingManager',
-    allowedRoles: ['global_admin'],
-  },
-  {
     label: '운영 설정',
     path: '/admin/settings',
     icon: ClipboardCheck,
+    stageGroup: 'prepare',
+    targetGroup: 'global',
+    allowedRoles: ['global_admin'],
+  },
+  {
+    label: '관리자 도구',
+    path: '/admin/system',
+    icon: Wrench,
+    stageGroup: 'prepare',
+    targetGroup: 'global',
+    allowedRoles: ['global_admin'],
+  },
+  {
+    label: '권한 등록 코드 관리',
+    path: '/admin/system/invitation-codes',
+    icon: KeyRound,
     stageGroup: 'prepare',
     targetGroup: 'global',
     allowedRoles: ['global_admin'],
@@ -194,7 +204,7 @@ const targetNavGroups = [
   { id: 'global', label: '전체 운영' },
   { id: 'individual', label: '개인' },
   { id: 'campus', label: '캠퍼스' },
-  { id: 'boardingManager', label: '선탑자' },
+  { id: 'boardingManager', label: '탑승 관리 간사님' },
 ] as const;
 
 const sidebarCollapsedStorageKey = 'admin-sidebar-collapsed';
@@ -682,7 +692,7 @@ const AdminHeader = () => {
               {switchableRoles.map((role) => (
                 <option key={role.id} value={role.id}>
                   {role.role === 'boarding_manager'
-                    ? '선탑자 역할'
+                    ? '탑승 관리 간사님 역할'
                     : `캠퍼스 회계 순장님 · ${[role.district, role.team, role.campus]
                         .filter(Boolean)
                         .join(' / ')}`}

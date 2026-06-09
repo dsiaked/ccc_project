@@ -2292,7 +2292,7 @@ begin
       passenger ->> 'name',
       jsonb_build_object(
         'key', 'assignments',
-        'message', coalesce(nullif(passenger ->> 'name', ''), '이름 없는 승객')
+        'message', coalesce(nullif(passenger ->> 'name', ''), '이름 없는 탑승자')
           || ': 배차 버스, 좌석 번호 또는 목적지가 올바르지 않습니다.',
         'passenger_id', passenger ->> 'reservationId',
         'bus_id', passenger ->> 'busId'
@@ -2329,7 +2329,7 @@ begin
     from (
       select
         passenger ->> 'reservationId' as reservation_id,
-        max(coalesce(nullif(passenger ->> 'name', ''), '이름 없는 승객')) as passenger_name,
+        max(coalesce(nullif(passenger ->> 'name', ''), '이름 없는 탑승자')) as passenger_name,
         count(*) as duplicate_count
       from jsonb_array_elements(p_allocation_data -> 'passengers') passenger
       group by passenger ->> 'reservationId'
@@ -2388,8 +2388,8 @@ begin
       passenger ->> 'name',
       jsonb_build_object(
         'key', 'active_reservations',
-        'message', coalesce(nullif(passenger ->> 'name', ''), '이름 없는 승객')
-          || ': 취소되었거나 최신 활성 예약에서 제외된 승객입니다.',
+        'message', coalesce(nullif(passenger ->> 'name', ''), '이름 없는 탑승자')
+          || ': 취소되었거나 최신 활성 예약에서 제외된 탑승자입니다.',
         'passenger_id', passenger ->> 'reservationId'
       )
     from jsonb_array_elements(p_allocation_data -> 'passengers') passenger
@@ -2632,7 +2632,7 @@ begin
             select jsonb_agg(
               passenger.value || jsonb_build_object(
                 'reservationId', 'anonymous-' || passenger.ordinality,
-                'name', '승객 A-' || lpad(passenger.ordinality::text, 3, '0'),
+                'name', '탑승자 A-' || lpad(passenger.ordinality::text, 3, '0'),
                 'campus', '',
                 'team', ''
               )
@@ -2655,7 +2655,7 @@ begin
             'at', v_now::text,
             'actorId', v_actor_id::text,
             'action', 'archived',
-            'detail', '새 배차 확정에 따라 승객 정보를 익명화하고 과거 기록으로 보관했습니다.'
+            'detail', '새 배차 확정에 따라 탑승자 정보를 익명화하고 과거 기록으로 보관했습니다.'
           ))
       ),
       updated_at = v_now,
@@ -10974,7 +10974,7 @@ begin
   insert into public.boarding_status_events (
     reservation_id, from_status, to_status, actor_id, note
   ) values (
-    p_reservation_id, v_current.boarding_status, p_status, auth.uid(), '선탑자 상태 변경'
+    p_reservation_id, v_current.boarding_status, p_status, auth.uid(), '탑승 관리 간사님 상태 변경'
   );
 end;
 $$;
@@ -12716,7 +12716,7 @@ begin
   insert into public.boarding_status_events (
     reservation_id, from_status, to_status, actor_id, note
   ) values (
-    p_reservation_id, v_current.boarding_status, p_status, auth.uid(), '선탑자 상태 변경'
+    p_reservation_id, v_current.boarding_status, p_status, auth.uid(), '탑승 관리 간사님 상태 변경'
   );
 end;
 $$;
@@ -18716,4 +18716,930 @@ notify pgrst, 'reload schema';
 
 -- =========================================================
 -- END sql/setup/136_allow_external_reservations_without_team.sql
+-- =========================================================
+
+-- =========================================================
+-- BEGIN sql/setup/137_enable_signup_email_availability_check.sql
+-- =========================================================
+
+-- Signup step 1 intentionally checks whether an email is already registered.
+grant execute on function public.email_exists(text) to anon, authenticated;
+
+notify pgrst, 'reload schema';
+
+-- =========================================================
+-- END sql/setup/137_enable_signup_email_availability_check.sql
+-- =========================================================
+
+-- =========================================================
+-- BEGIN sql/setup/138_admin_invitation_codes.sql
+-- =========================================================
+
+-- =========================================================
+-- Administrator invitation codes
+-- =========================================================
+
+create table if not exists public.admin_invitation_codes (
+  id uuid primary key default gen_random_uuid(),
+  code_hash bytea not null unique,
+  code_hint text not null,
+  role text not null check (role in ('campus_admin', 'boarding_manager')),
+  campus_id uuid references public.campuses(id) on delete cascade,
+  created_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default clock_timestamp(),
+  expires_at timestamptz not null default (clock_timestamp() + interval '14 days'),
+  used_by uuid references auth.users(id) on delete set null,
+  used_at timestamptz,
+  cancelled_by uuid references auth.users(id) on delete set null,
+  cancelled_at timestamptz,
+  constraint admin_invitation_codes_role_scope_check check (
+    (role = 'campus_admin' and campus_id is not null)
+    or (role = 'boarding_manager' and campus_id is null)
+  ),
+  constraint admin_invitation_codes_usage_check check (
+    (used_by is null and used_at is null)
+    or used_at is not null
+  )
+);
+
+alter table public.admin_invitation_codes
+  drop constraint if exists admin_invitation_codes_usage_check;
+alter table public.admin_invitation_codes
+  add constraint admin_invitation_codes_usage_check check (
+    (used_by is null and used_at is null)
+    or used_at is not null
+  );
+
+create index if not exists idx_admin_invitation_codes_created
+  on public.admin_invitation_codes(created_at desc);
+create index if not exists idx_admin_invitation_codes_campus
+  on public.admin_invitation_codes(campus_id, created_at desc)
+  where role = 'campus_admin';
+
+alter table public.admin_invitation_codes enable row level security;
+
+drop trigger if exists audit_admin_invitation_code_operation
+  on public.admin_invitation_codes;
+create trigger audit_admin_invitation_code_operation
+after insert or update or delete on public.admin_invitation_codes
+for each row execute function public.audit_admin_operation();
+
+drop policy if exists "Global admins can view invitation codes"
+  on public.admin_invitation_codes;
+create policy "Global admins can view invitation codes"
+on public.admin_invitation_codes for select to authenticated
+using (public.is_global_admin());
+
+grant select on public.admin_invitation_codes to authenticated;
+revoke insert, update, delete on public.admin_invitation_codes
+  from public, anon, authenticated;
+
+create or replace function public.normalize_admin_invitation_code(p_code text)
+returns text
+language sql
+immutable
+set search_path = public
+as $$
+  select upper(regexp_replace(coalesce(p_code, ''), '[^a-zA-Z0-9]', '', 'g'));
+$$;
+
+revoke all on function public.normalize_admin_invitation_code(text)
+  from public, anon, authenticated;
+
+create or replace function public.validate_admin_invitation_codes(p_codes text[])
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_codes text[] := coalesce(p_codes, array[]::text[]);
+  v_normalized text;
+  v_invitation public.admin_invitation_codes%rowtype;
+  v_index integer;
+  v_results jsonb := '[]'::jsonb;
+  v_campus_name text;
+begin
+  if cardinality(v_codes) > 10 then
+    return jsonb_build_object(
+      'valid', false,
+      'errorCode', 'too_many_codes',
+      'errorMessage', 'Up to 10 invitation codes can be used at once.'
+    );
+  end if;
+
+  for v_index in 1..cardinality(v_codes) loop
+    v_normalized := public.normalize_admin_invitation_code(v_codes[v_index]);
+
+    if char_length(v_normalized) <> 24 then
+      return jsonb_build_object(
+        'valid', false,
+        'errorCode', 'invalid_code',
+        'errorIndex', v_index,
+        'errorMessage', 'Invitation code is invalid.'
+      );
+    end if;
+
+    if exists (
+      select 1
+      from unnest(v_codes[1:v_index - 1]) previous_code
+      where public.normalize_admin_invitation_code(previous_code) = v_normalized
+    ) then
+      return jsonb_build_object(
+        'valid', false,
+        'errorCode', 'duplicate_code',
+        'errorIndex', v_index,
+        'errorMessage', 'The same invitation code was entered more than once.'
+      );
+    end if;
+
+    select * into v_invitation
+    from public.admin_invitation_codes invitation
+    where invitation.code_hash = digest(v_normalized, 'sha256');
+
+    if not found then
+      return jsonb_build_object(
+        'valid', false,
+        'errorCode', 'invalid_code',
+        'errorIndex', v_index,
+        'errorMessage', 'Invitation code is invalid.'
+      );
+    end if;
+    if v_invitation.cancelled_at is not null then
+      return jsonb_build_object(
+        'valid', false,
+        'errorCode', 'cancelled_code',
+        'errorIndex', v_index,
+        'errorMessage', 'Invitation code was cancelled.'
+      );
+    end if;
+    if v_invitation.used_at is not null then
+      return jsonb_build_object(
+        'valid', false,
+        'errorCode', 'used_code',
+        'errorIndex', v_index,
+        'errorMessage', 'Invitation code was already used.'
+      );
+    end if;
+    if v_invitation.expires_at <= clock_timestamp() then
+      return jsonb_build_object(
+        'valid', false,
+        'errorCode', 'expired_code',
+        'errorIndex', v_index,
+        'errorMessage', 'Invitation code expired.'
+      );
+    end if;
+
+    if v_invitation.role = 'campus_admin' and exists (
+      select 1 from public.admin_roles role
+      where role.role = 'campus_admin'
+        and role.campus_id = v_invitation.campus_id
+    ) then
+      return jsonb_build_object(
+        'valid', false,
+        'errorCode', 'campus_already_assigned',
+        'errorIndex', v_index,
+        'errorMessage', 'This campus already has an active campus administrator.'
+      );
+    end if;
+
+    select campus.name into v_campus_name
+    from public.campuses campus
+    where campus.id = v_invitation.campus_id;
+
+    v_results := v_results || jsonb_build_array(jsonb_build_object(
+      'index', v_index,
+      'role', v_invitation.role,
+      'campusId', v_invitation.campus_id,
+      'campus', v_campus_name
+    ));
+  end loop;
+
+  return jsonb_build_object('valid', true, 'invitations', v_results);
+end;
+$$;
+
+revoke all on function public.validate_admin_invitation_codes(text[]) from public;
+grant execute on function public.validate_admin_invitation_codes(text[])
+  to anon, authenticated;
+
+create or replace function public.redeem_admin_invitation_codes_for_user(
+  p_user_id uuid,
+  p_codes text[]
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_validation jsonb;
+  v_code text;
+  v_normalized text;
+  v_invitation public.admin_invitation_codes%rowtype;
+  v_campus record;
+  v_granted jsonb := '[]'::jsonb;
+begin
+  if p_user_id is null or not exists (
+    select 1 from auth.users where id = p_user_id
+  ) then
+    raise exception 'Invitation code user was not found.';
+  end if;
+
+  if cardinality(coalesce(p_codes, array[]::text[])) = 0 then
+    return jsonb_build_object('granted', v_granted);
+  end if;
+
+  perform 1
+  from public.admin_invitation_codes invitation
+  where invitation.code_hash in (
+    select digest(public.normalize_admin_invitation_code(code), 'sha256')
+    from unnest(p_codes) code
+  )
+  order by invitation.id
+  for update;
+
+  v_validation := public.validate_admin_invitation_codes(p_codes);
+  if not coalesce((v_validation ->> 'valid')::boolean, false) then
+    raise exception '%', v_validation ->> 'errorMessage';
+  end if;
+
+  foreach v_code in array p_codes loop
+    v_normalized := public.normalize_admin_invitation_code(v_code);
+
+    select * into strict v_invitation
+    from public.admin_invitation_codes invitation
+    where invitation.code_hash = digest(v_normalized, 'sha256');
+
+    if v_invitation.role = 'campus_admin' then
+      select
+        district.id as district_id,
+        district.name as district,
+        team.id as team_id,
+        team.name as team,
+        campus.id as campus_id,
+        campus.name as campus
+      into strict v_campus
+      from public.campuses campus
+      join public.teams team on team.id = campus.team_id
+      join public.districts district on district.id = team.district_id
+      where campus.id = v_invitation.campus_id;
+
+      insert into public.admin_roles (
+        user_id, role,
+        district_id, district, team_id, team, campus_id, campus,
+        granted_by, updated_at
+      )
+      values (
+        p_user_id, 'campus_admin',
+        v_campus.district_id, v_campus.district,
+        v_campus.team_id, v_campus.team,
+        v_campus.campus_id, v_campus.campus,
+        v_invitation.created_by, clock_timestamp()
+      );
+    else
+      if exists (
+        select 1 from public.admin_roles role
+        where role.user_id = p_user_id
+          and role.role = 'boarding_manager'
+      ) then
+        raise exception 'This user is already a boarding manager.';
+      end if;
+
+      insert into public.admin_roles (
+        user_id, role, granted_by, updated_at
+      )
+      values (
+        p_user_id, 'boarding_manager',
+        v_invitation.created_by, clock_timestamp()
+      );
+    end if;
+
+    update public.admin_invitation_codes
+    set used_by = p_user_id, used_at = clock_timestamp()
+    where id = v_invitation.id;
+
+    v_granted := v_granted || jsonb_build_array(jsonb_build_object(
+      'role', v_invitation.role,
+      'campusId', v_invitation.campus_id
+    ));
+  end loop;
+
+  return jsonb_build_object('granted', v_granted);
+end;
+$$;
+
+revoke all on function public.redeem_admin_invitation_codes_for_user(uuid, text[])
+  from public, anon, authenticated;
+
+create or replace function public.redeem_admin_invitation_codes(p_codes text[])
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null then
+    raise exception 'Login is required.';
+  end if;
+
+  return public.redeem_admin_invitation_codes_for_user(auth.uid(), p_codes);
+end;
+$$;
+
+revoke all on function public.redeem_admin_invitation_codes(text[])
+  from public, anon;
+grant execute on function public.redeem_admin_invitation_codes(text[])
+  to authenticated;
+
+create or replace function public.create_admin_invitation_code(
+  p_role text,
+  p_campus_id uuid default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_raw text := upper(encode(gen_random_bytes(12), 'hex'));
+  v_code text;
+  v_invitation public.admin_invitation_codes%rowtype;
+begin
+  if not public.is_global_admin() then
+    raise exception 'Only global admins can create invitation codes.';
+  end if;
+  if p_role not in ('campus_admin', 'boarding_manager') then
+    raise exception 'Unsupported invitation role.';
+  end if;
+  if p_role = 'campus_admin' and p_campus_id is null then
+    raise exception 'Campus administrator invitations require a campus.';
+  end if;
+  if p_role = 'boarding_manager' and p_campus_id is not null then
+    raise exception 'Boarding manager invitations cannot have a campus.';
+  end if;
+  if p_role = 'campus_admin' and not exists (
+    select 1 from public.campuses where id = p_campus_id
+  ) then
+    raise exception 'Campus was not found.';
+  end if;
+  if p_role = 'campus_admin' then
+    perform pg_advisory_xact_lock(
+      hashtextextended('admin-invitation-campus:' || p_campus_id::text, 0)
+    );
+  end if;
+  if p_role = 'campus_admin' and exists (
+    select 1 from public.admin_roles role
+    where role.role = 'campus_admin' and role.campus_id = p_campus_id
+  ) then
+    raise exception 'This campus already has an active campus administrator.';
+  end if;
+  if p_role = 'campus_admin' and exists (
+    select 1 from public.admin_invitation_codes invitation
+    where invitation.role = 'campus_admin'
+      and invitation.campus_id = p_campus_id
+      and invitation.used_at is null
+      and invitation.cancelled_at is null
+      and invitation.expires_at > clock_timestamp()
+  ) then
+    raise exception 'This campus already has an active invitation code.';
+  end if;
+
+  v_code := concat(
+    substr(v_raw, 1, 6), '-',
+    substr(v_raw, 7, 6), '-',
+    substr(v_raw, 13, 6), '-',
+    substr(v_raw, 19, 6)
+  );
+
+  insert into public.admin_invitation_codes (
+    code_hash, code_hint, role, campus_id, created_by
+  )
+  values (
+    digest(v_raw, 'sha256'),
+    concat(substr(v_raw, 1, 4), '-****-', substr(v_raw, 21, 4)),
+    p_role,
+    p_campus_id,
+    auth.uid()
+  )
+  returning * into v_invitation;
+
+  return jsonb_build_object(
+    'id', v_invitation.id,
+    'code', v_code,
+    'expiresAt', v_invitation.expires_at
+  );
+end;
+$$;
+
+revoke all on function public.create_admin_invitation_code(text, uuid)
+  from public, anon;
+grant execute on function public.create_admin_invitation_code(text, uuid)
+  to authenticated;
+
+create or replace function public.cancel_admin_invitation_code(p_invitation_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_updated_id uuid;
+begin
+  if not public.is_global_admin() then
+    raise exception 'Only global admins can cancel invitation codes.';
+  end if;
+
+  update public.admin_invitation_codes
+  set cancelled_by = auth.uid(), cancelled_at = clock_timestamp()
+  where id = p_invitation_id
+    and used_at is null
+    and cancelled_at is null
+    and expires_at > clock_timestamp()
+  returning id into v_updated_id;
+
+  return v_updated_id is not null;
+end;
+$$;
+
+revoke all on function public.cancel_admin_invitation_code(uuid)
+  from public, anon;
+grant execute on function public.cancel_admin_invitation_code(uuid)
+  to authenticated;
+
+create or replace function public.cleanup_admin_invitation_codes()
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_deleted_invitations integer;
+  v_deleted_audit_logs integer;
+begin
+  if not public.is_global_admin() then
+    raise exception 'Only global admins can clean up invitation codes.';
+  end if;
+
+  delete from public.admin_invitation_codes invitation
+  where invitation.cancelled_at is not null
+    or (
+      invitation.used_at is null
+      and invitation.expires_at <= clock_timestamp()
+    )
+    or invitation.used_at <= clock_timestamp() - interval '30 days';
+
+  get diagnostics v_deleted_invitations = row_count;
+
+  delete from public.admin_action_audit_logs audit_log
+  where audit_log.resource_type = 'admin_invitation_codes'
+    and audit_log.created_at <= clock_timestamp() - interval '1 year';
+
+  get diagnostics v_deleted_audit_logs = row_count;
+
+  return jsonb_build_object(
+    'deletedInvitations', v_deleted_invitations,
+    'deletedAuditLogs', v_deleted_audit_logs
+  );
+end;
+$$;
+
+revoke all on function public.cleanup_admin_invitation_codes()
+  from public, anon;
+grant execute on function public.cleanup_admin_invitation_codes()
+  to authenticated;
+
+create or replace function public.handle_new_auth_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_affiliation_type text :=
+    case
+      when new.raw_user_meta_data ->> 'affiliation_type' = 'external'
+        then 'external'
+      else 'seoul'
+    end;
+  v_invitation_codes text[];
+begin
+  insert into public.profiles (
+    id, email, name, phone,
+    district_id, district, team_id, team, campus_id, campus,
+    affiliation_type, coordinator_name, coordinator_phone,
+    account_source, updated_at
+  )
+  values (
+    new.id,
+    lower(new.email),
+    new.raw_user_meta_data ->> 'name',
+    new.raw_user_meta_data ->> 'phone',
+    case when v_affiliation_type = 'seoul'
+      then nullif(new.raw_user_meta_data ->> 'district_id', '')::uuid end,
+    new.raw_user_meta_data ->> 'district',
+    case when v_affiliation_type = 'seoul'
+      then nullif(new.raw_user_meta_data ->> 'team_id', '')::uuid end,
+    case when v_affiliation_type = 'seoul'
+      then new.raw_user_meta_data ->> 'team' else '' end,
+    case when v_affiliation_type = 'seoul'
+      then nullif(new.raw_user_meta_data ->> 'campus_id', '')::uuid end,
+    new.raw_user_meta_data ->> 'campus',
+    v_affiliation_type,
+    case when v_affiliation_type = 'external'
+      then new.raw_user_meta_data ->> 'coordinator_name' end,
+    case when v_affiliation_type = 'external'
+      then new.raw_user_meta_data ->> 'coordinator_phone' end,
+    case
+      when new.raw_user_meta_data ->> 'account_source' = 'admin_created'
+        then 'admin_created'
+      else 'self_signup'
+    end,
+    now()
+  )
+  on conflict (id) do update
+  set
+    email = excluded.email,
+    name = excluded.name,
+    phone = excluded.phone,
+    district_id = excluded.district_id,
+    district = excluded.district,
+    team_id = excluded.team_id,
+    team = excluded.team,
+    campus_id = excluded.campus_id,
+    campus = excluded.campus,
+    affiliation_type = excluded.affiliation_type,
+    coordinator_name = excluded.coordinator_name,
+    coordinator_phone = excluded.coordinator_phone,
+    account_source = excluded.account_source,
+    updated_at = now();
+
+  select coalesce(array_agg(value), array[]::text[])
+  into v_invitation_codes
+  from jsonb_array_elements_text(
+    coalesce(new.raw_user_meta_data -> 'invitation_codes', '[]'::jsonb)
+  ) value;
+
+  perform public.redeem_admin_invitation_codes_for_user(
+    new.id,
+    v_invitation_codes
+  );
+
+  return new;
+end;
+$$;
+
+notify pgrst, 'reload schema';
+
+-- =========================================================
+-- END sql/setup/138_admin_invitation_codes.sql
+-- =========================================================
+
+-- =========================================================
+-- BEGIN sql/setup/139_fix_allocation_draft_reservation_normalization.sql
+-- =========================================================
+
+-- =========================================================
+-- Keep draft validation aligned with optimizer reservation normalization
+-- =========================================================
+
+create or replace function public.create_allocation_draft_from_optimal_job(
+  p_job_id uuid,
+  p_allocation_name text
+)
+returns public.bus_allocations
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_job public.allocation_optimization_jobs%rowtype;
+  v_result jsonb;
+  v_snapshot jsonb;
+  v_config jsonb;
+  v_buses jsonb;
+  v_passengers jsonb;
+  v_route_plan jsonb;
+  v_workspace jsonb;
+  v_created public.bus_allocations;
+  v_now timestamptz := clock_timestamp();
+  v_passenger_count integer;
+begin
+  if auth.uid() is null or not public.is_global_admin() then
+    raise exception 'Only global admins can create allocation drafts.';
+  end if;
+  if nullif(btrim(p_allocation_name), '') is null then
+    raise exception 'Allocation name is required.';
+  end if;
+
+  select *
+  into v_job
+  from public.allocation_optimization_jobs
+  where id = p_job_id
+  for update;
+
+  if v_job.id is null then
+    raise exception 'Allocation optimization job not found.';
+  end if;
+  if v_job.status <> 'OPTIMAL' or jsonb_typeof(v_job.result) <> 'object' then
+    raise exception 'Only OPTIMAL allocation optimization jobs can create drafts.';
+  end if;
+  if exists (
+    select 1
+    from public.bus_allocations allocation
+    where allocation.allocation_data ->> 'sourceOptimizationJobId' = p_job_id::text
+      and allocation.allocation_data ->> 'status' in ('draft', 'confirmed')
+  ) then
+    raise exception 'An allocation draft already exists for this optimization job.';
+  end if;
+
+  v_result := v_job.result;
+  v_snapshot := v_job.input_snapshot;
+  v_config := v_snapshot -> 'bus';
+  v_passenger_count := jsonb_array_length(v_snapshot -> 'passengers');
+
+  if v_config is distinct from public.get_allocation_optimizer_config() then
+    raise exception 'Allocation optimizer configuration changed after calculation.';
+  end if;
+  if jsonb_typeof(v_result -> 'buses') <> 'array'
+    or jsonb_typeof(v_result -> 'assignments') <> 'array'
+    or v_result ->> 'status' <> 'OPTIMAL'
+    or coalesce(v_result ->> 'total_buses', '') !~ '^[1-9][0-9]*$'
+    or coalesce(v_result ->> 'total_cost', '') !~ '^[0-9]+$'
+    or coalesce(v_result ->> 'second_choice_count', '') !~ '^[0-9]+$'
+    or jsonb_array_length(v_result -> 'buses') <> (v_result ->> 'total_buses')::integer
+    or jsonb_array_length(v_result -> 'assignments') <> v_passenger_count then
+    raise exception 'Optimal allocation result structure is invalid.';
+  end if;
+  if (v_result ->> 'total_cost')::integer
+    <> (v_result ->> 'total_buses')::integer * (v_config ->> 'price')::integer then
+    raise exception 'Optimal allocation result cost is invalid.';
+  end if;
+  if v_job.proven_bus_count is distinct from (v_result ->> 'total_buses')::integer
+    or (
+      select count(distinct bus ->> 'bus_id')
+      from jsonb_array_elements(v_result -> 'buses') bus
+    ) <> jsonb_array_length(v_result -> 'buses')
+    or (
+      select count(*)
+      from jsonb_array_elements(v_result -> 'assignments') assignment
+      where assignment ->> 'preference_rank' = '2'
+    ) <> (v_result ->> 'second_choice_count')::integer then
+    raise exception 'Optimal allocation proof metadata is invalid.';
+  end if;
+
+  if (
+    select count(*)
+    from public.reservations reservation
+    where reservation.status is distinct from 'cancelled'
+      and not coalesce(reservation.data ? 'remainingSeatClaim', false)
+  ) <> v_passenger_count
+    or exists (
+      select 1
+      from public.reservations reservation
+      where reservation.status is distinct from 'cancelled'
+        and not coalesce(reservation.data ? 'remainingSeatClaim', false)
+        and not exists (
+          select 1
+          from jsonb_array_elements(v_snapshot -> 'passengers') passenger
+          where passenger ->> 'reservation_id' = reservation.id::text
+            and passenger ->> 'campus' = coalesce(
+              nullif(reservation.data ->> 'campus', ''),
+              nullif(reservation.campus, '')
+            )
+            and passenger ->> 'team' = coalesce(
+              nullif(reservation.data ->> 'team', ''),
+              nullif(reservation.team, ''),
+              case when reservation.affiliation_type = 'external' then '-' end
+            )
+            and passenger ->> 'first_choice' = (
+              case
+                when jsonb_typeof(reservation.data -> 'stationPreferences') = 'array'
+                  then reservation.data -> 'stationPreferences'
+                else coalesce(reservation.station_preferences, '[]'::jsonb)
+              end
+            ) #>> '{0,station,name}'
+            and passenger ->> 'second_choice' = (
+              case
+                when jsonb_typeof(reservation.data -> 'stationPreferences') = 'array'
+                  then reservation.data -> 'stationPreferences'
+                else coalesce(reservation.station_preferences, '[]'::jsonb)
+              end
+            ) #>> '{1,station,name}'
+        )
+    ) then
+    raise exception 'Active reservations changed after optimization.';
+  end if;
+
+  if (
+    select count(distinct assignment ->> 'reservation_id')
+    from jsonb_array_elements(v_result -> 'assignments') assignment
+  ) <> v_passenger_count
+    or exists (
+      select 1
+      from jsonb_array_elements(v_result -> 'assignments') assignment
+      left join jsonb_array_elements(v_snapshot -> 'passengers') passenger
+        on passenger ->> 'reservation_id' = assignment ->> 'reservation_id'
+      left join jsonb_array_elements(v_result -> 'buses') bus
+        on bus ->> 'bus_id' = assignment ->> 'bus_id'
+      where passenger is null
+        or bus is null
+        or assignment ->> 'destination' <> bus ->> 'destination'
+        or assignment ->> 'destination' not in (
+          passenger ->> 'first_choice',
+          passenger ->> 'second_choice'
+        )
+        or coalesce(assignment ->> 'seat_number', '') !~ '^[1-9][0-9]*$'
+        or coalesce(bus ->> 'capacity', '') !~ '^[1-9][0-9]*$'
+        or (assignment ->> 'seat_number')::integer > (bus ->> 'capacity')::integer
+        or case
+          when assignment ->> 'destination' = passenger ->> 'first_choice'
+            then assignment ->> 'preference_rank' <> '1'
+          else assignment ->> 'preference_rank' <> '2'
+        end
+    ) then
+    raise exception 'Optimal allocation assignments are invalid.';
+  end if;
+
+  if exists (
+    select 1
+    from jsonb_array_elements(v_result -> 'assignments') assignment
+    group by assignment ->> 'bus_id', assignment ->> 'seat_number'
+    having count(*) > 1
+  ) or exists (
+    select 1
+    from jsonb_array_elements(v_result -> 'buses') bus
+    left join lateral (
+      select count(*) as passenger_count
+      from jsonb_array_elements(v_result -> 'assignments') assignment
+      where assignment ->> 'bus_id' = bus ->> 'bus_id'
+    ) assigned on true
+    where nullif(bus ->> 'bus_id', '') is null
+      or nullif(bus ->> 'label', '') is null
+      or nullif(bus ->> 'destination', '') is null
+      or coalesce(bus ->> 'capacity', '') !~ '^[1-9][0-9]*$'
+      or coalesce(bus ->> 'price', '') !~ '^[0-9]+$'
+      or (bus ->> 'capacity')::integer <> (v_config ->> 'capacity')::integer
+      or (bus ->> 'price')::integer <> (v_config ->> 'price')::integer
+      or assigned.passenger_count = 0
+      or assigned.passenger_count > (bus ->> 'capacity')::integer
+  ) then
+    raise exception 'Optimal allocation buses or seats are invalid.';
+  end if;
+
+  select jsonb_agg(
+    jsonb_build_object(
+      'id', bus ->> 'bus_id',
+      'label', bus ->> 'label',
+      'capacity', (bus ->> 'capacity')::integer,
+      'price', (bus ->> 'price')::integer,
+      'destination', bus ->> 'destination',
+      'departureTime', '',
+      'boardingPlace', '',
+      'minimumPassengers', (v_config ->> 'recommended_minimum_passengers')::integer
+    )
+    order by bus ->> 'bus_id'
+  )
+  into v_buses
+  from jsonb_array_elements(v_result -> 'buses') bus;
+
+  select jsonb_agg(
+    jsonb_build_object(
+      'reservationId', reservation.id::text,
+      'name', coalesce(nullif(reservation.data ->> 'name', ''), reservation.name, '-'),
+      'phone', coalesce(nullif(reservation.data ->> 'phone', ''), reservation.phone, '-'),
+      'campus', passenger ->> 'campus',
+      'team', passenger ->> 'team',
+      'preferences', jsonb_build_array(
+        passenger ->> 'first_choice',
+        passenger ->> 'second_choice'
+      ),
+      'busId', assignment ->> 'bus_id',
+      'seatNumber', (assignment ->> 'seat_number')::integer
+    )
+    order by reservation.created_at, reservation.id
+  )
+  into v_passengers
+  from jsonb_array_elements(v_result -> 'assignments') assignment
+  join jsonb_array_elements(v_snapshot -> 'passengers') passenger
+    on passenger ->> 'reservation_id' = assignment ->> 'reservation_id'
+  join public.reservations reservation
+    on reservation.id::text = assignment ->> 'reservation_id'
+  where reservation.status is distinct from 'cancelled'
+    and not coalesce(reservation.data ? 'remainingSeatClaim', false);
+
+  select jsonb_agg(
+    jsonb_build_object(
+      'busLabel', bus ->> 'label',
+      'capacity', (bus ->> 'capacity')::integer,
+      'price', (bus ->> 'price')::integer,
+      'passengerCount', assigned.passenger_count,
+      'emptySeats', (bus ->> 'capacity')::integer - assigned.passenger_count,
+      'destinations', jsonb_build_array(
+        jsonb_build_object(
+          'name', bus ->> 'destination',
+          'passengerCount', assigned.passenger_count,
+          'rank2Demand', assigned.second_choice_count
+        )
+      )
+    )
+    order by bus ->> 'bus_id'
+  )
+  into v_route_plan
+  from jsonb_array_elements(v_result -> 'buses') bus
+  cross join lateral (
+    select
+      count(*)::integer as passenger_count,
+      count(*) filter (where assignment ->> 'preference_rank' = '2')::integer
+        as second_choice_count
+    from jsonb_array_elements(v_result -> 'assignments') assignment
+    where assignment ->> 'bus_id' = bus ->> 'bus_id'
+  ) assigned;
+
+  v_workspace := jsonb_build_object(
+    'schemaVersion', 2,
+    'status', 'draft',
+    'sourceOptimizationJobId', p_job_id::text,
+    'optimalBaseline', jsonb_build_object(
+      'totalBuses', (v_result ->> 'total_buses')::integer,
+      'totalCost', (v_result ->> 'total_cost')::integer,
+      'secondChoiceCount', (v_result ->> 'second_choice_count')::integer,
+      'inputHash', v_job.input_hash
+    ),
+    'sourceAllocation', jsonb_build_object(
+      'combination', jsonb_build_array(
+        jsonb_build_object(
+          'count', (v_result ->> 'total_buses')::integer,
+          'capacity', (v_config ->> 'capacity')::integer,
+          'price', (v_config ->> 'price')::integer
+        )
+      ),
+      'totalCost', (v_result ->> 'total_cost')::integer,
+      'totalCapacity',
+        (v_result ->> 'total_buses')::integer * (v_config ->> 'capacity')::integer,
+      'totalBuses', (v_result ->> 'total_buses')::integer,
+      'efficiency',
+        (100.0 * v_passenger_count)
+          / ((v_result ->> 'total_buses')::integer * (v_config ->> 'capacity')::integer),
+      'emptySeats',
+        (v_result ->> 'total_buses')::integer * (v_config ->> 'capacity')::integer
+          - v_passenger_count,
+      'costPerPerson',
+        case when v_passenger_count > 0
+          then (v_result ->> 'total_cost')::numeric / v_passenger_count
+          else 0
+        end,
+      'qualityScore', 0,
+      'routePlan', v_route_plan
+    ),
+    'buses', v_buses,
+    'passengers', v_passengers,
+    'optimization', jsonb_build_object(
+      'mode', '정확 최저비용',
+      'firstChoiceWeight', 0,
+      'costWeight', 1
+    ),
+    'allowMinimumPassengerOverride', false,
+    'history', jsonb_build_array(
+      jsonb_build_object(
+        'id', 'history-' || replace(gen_random_uuid()::text, '-', ''),
+        'at', v_now,
+        'actorId', auth.uid()::text,
+        'action', 'exact_draft_created',
+        'detail', '최적해 증명이 완료된 정확 최저비용 배차안으로 임시 배차안을 생성했습니다.'
+      )
+    )
+  );
+
+  v_created := public.create_bus_allocation_as_global_admin(
+    btrim(p_allocation_name),
+    v_workspace
+  );
+
+  insert into public.allocation_optimization_events (job_id, event_type, detail)
+  values (
+    p_job_id,
+    'DRAFT_CREATED',
+    jsonb_build_object(
+      'allocation_id', v_created.id::text,
+      'created_by', auth.uid()::text
+    )
+  );
+
+  return v_created;
+exception
+  when invalid_text_representation or numeric_value_out_of_range then
+    raise exception 'Optimal allocation result contains invalid numbers.';
+end;
+$$;
+
+revoke all on function public.create_allocation_draft_from_optimal_job(uuid, text)
+  from public, anon;
+grant execute on function public.create_allocation_draft_from_optimal_job(uuid, text)
+  to authenticated;
+
+notify pgrst, 'reload schema';
+
+-- =========================================================
+-- END sql/setup/139_fix_allocation_draft_reservation_normalization.sql
 -- =========================================================

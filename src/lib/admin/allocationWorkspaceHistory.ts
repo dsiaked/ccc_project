@@ -43,7 +43,7 @@ export const describeAllocationWorkspaceChanges = (
 ) => {
   if (!previous) {
     return [
-      `최초 저장 상태: 버스 ${current.buses.length}대, 승객 ${current.passengers.length}명.`,
+      `최초 저장 상태: 버스 ${current.buses.length}대, 탑승자 ${current.passengers.length}명.`,
     ];
   }
 
@@ -63,7 +63,7 @@ export const describeAllocationWorkspaceChanges = (
       ['이름', oldBus.label, bus.label],
       ['행선지', oldBus.destination, bus.destination],
       ['출발 시각', oldBus.departureTime, bus.departureTime],
-      ['탑승 장소', oldBus.boardingPlace, bus.boardingPlace],
+      ['탑승장소', oldBus.boardingPlace, bus.boardingPlace],
       ['정원', oldBus.capacity, bus.capacity],
       ['비용', oldBus.price, bus.price],
       ['최소 탑승 인원', oldBus.minimumPassengers, bus.minimumPassengers],
@@ -125,11 +125,11 @@ export const describeAllocationWorkspaceChanges = (
 
   addedPassengers.forEach((passenger) => {
     individualDetails.push(
-      `${passenger.name} 승객 추가: ${formatAssignment(passenger, currentBusById)}`
+      `${passenger.name} 탑승자 추가: ${formatAssignment(passenger, currentBusById)}`
     );
   });
   removedPassengers.forEach((passenger) => {
-    individualDetails.push(`${passenger.name} 승객 제외`);
+    individualDetails.push(`${passenger.name} 탑승자 제외`);
   });
 
   const summaries: string[] = [];
@@ -145,7 +145,7 @@ export const describeAllocationWorkspaceChanges = (
     seatChangedPassengerCount
   ) {
     summaries.push(
-      `승객 변경: 추가 ${addedPassengers.length}명, 제외 ${removedPassengers.length}명, 호차 이동 ${movedPassengerCount}명, 좌석 변경 ${seatChangedPassengerCount}명.`
+      `탑승자 변경: 추가 ${addedPassengers.length}명, 제외 ${removedPassengers.length}명, 호차 이동 ${movedPassengerCount}명, 좌석 변경 ${seatChangedPassengerCount}명.`
     );
   }
 

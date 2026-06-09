@@ -485,13 +485,6 @@ const CampusAdminPage = () => {
     };
   }, [reservations]);
 
-  const checkableReservations = useMemo(() => {
-    return reservations.filter((reservation) => {
-      const payment = getPayment(reservation);
-      return payment?.status !== 'refunded';
-    });
-  }, [reservations]);
-
   const filteredReservations = useMemo(() => {
     const query = applicantQuery.trim().toLocaleLowerCase('ko');
     const compactQuery = query.replaceAll(/\s|-/g, '');
@@ -528,6 +521,13 @@ const CampusAdminPage = () => {
     });
   }, [applicantPaymentFilter, applicantQuery, reservations]);
 
+  const filteredCheckableReservations = useMemo(() => {
+    return filteredReservations.filter((reservation) => {
+      const payment = getPayment(reservation);
+      return payment?.status !== 'refunded';
+    });
+  }, [filteredReservations]);
+
   const applicantTotalPages = Math.max(
     1,
     Math.ceil(filteredReservations.length / APPLICANT_PAGE_SIZE)
@@ -547,8 +547,8 @@ const CampusAdminPage = () => {
   );
 
   const allChecked =
-    checkableReservations.length > 0 &&
-    checkableReservations.every((reservation) => {
+    filteredCheckableReservations.length > 0 &&
+    filteredCheckableReservations.every((reservation) => {
       const payment = getPayment(reservation);
       return payment?.status === 'completed';
     });
@@ -874,6 +874,8 @@ const CampusAdminPage = () => {
   };
 
   const handleBulkPaymentCheck = async (checked: boolean) => {
+    if (verifying) return;
+
     if (isPaymentCheckLocked) {
       alert('송금 완료 보고 이후에는 입금 상태를 수정할 수 없습니다.');
       return;
@@ -881,9 +883,17 @@ const CampusAdminPage = () => {
 
     const nextStatus = checked ? 'completed' : 'pending';
 
-    if (checkableReservations.length === 0) {
+    if (filteredCheckableReservations.length === 0) {
       return;
     }
+
+    const confirmed = window.confirm(
+      `현재 필터 결과의 신청자 ${filteredCheckableReservations.length}명을 모두 ${
+        checked ? '입금 확인' : '미입금'
+      } 상태로 변경할까요?\n\n환불 상태 신청자는 제외됩니다.`
+    );
+
+    if (!confirmed) return;
 
     setVerifying(true);
 
@@ -897,7 +907,7 @@ const CampusAdminPage = () => {
       }
 
       await Promise.all(
-        checkableReservations.map((reservation) => {
+        filteredCheckableReservations.map((reservation) => {
           const payment = getPayment(reservation);
 
           return createOrUpdatePaymentStatus({
@@ -948,7 +958,7 @@ const CampusAdminPage = () => {
     }
 
     const ok = window.confirm(
-      `${adminScope.campus} 캠퍼스에서 본부로 ${transferAmountToSend.toLocaleString()}원을 ${needsAdditionalTransfer ? '추가 송금' : '송금'}한 사실을 보고할까요?\n\n실제 송금을 완료한 경우에만 진행해주세요.\n입금자명은 공백 없이 캠퍼스명 뒤에 담당자명을 입력해주세요. (예: ${adminScope.campus}홍길동)\n\n보고 후 신청자 입금 상태가 잠깁니다. 본부 확인 전에는 보고를 취소하고 수정할 수 있습니다.`
+      `${adminScope.campus} 캠퍼스에서 본부로 ${transferAmountToSend.toLocaleString()}원을 ${needsAdditionalTransfer ? '추가 송금' : '송금'}한 사실을 보고할까요?\n\n실제 송금을 완료한 경우에만 진행해주세요.\n입금자명은 공백 없이 캠퍼스명 뒤에 담당자명을 입력해주세요. (예: ${adminScope.campus}홍길동)\n\n송금 완료를 보고한 뒤에는 신청자 입금 확인을 수정할 수 없습니다. 수정이 필요하면 본부 확인 전에 송금 완료 보고를 취소해주세요.`
     );
 
     if (!ok) return;
@@ -1350,12 +1360,11 @@ const CampusAdminPage = () => {
                 <strong>3. 완료 보고 이후</strong>
                 <ol className={styles.guideList}>
                   <li>
-                    송금 완료 사실을 보고하면 신청자 입금 상태가 잠기고 본부 확인을
-                    기다립니다.
+                    송금 완료를 보고한 뒤에는 신청자 입금 확인을 수정할 수 없습니다.
                   </li>
                   <li>
-                    본부 확인 전에는 &quot;송금 완료 보고 취소&quot; 후 입금 상태를
-                    수정하고 다시 보고할 수 있습니다.
+                    수정이 필요하면 본부 확인 전에 &quot;송금 완료 보고 취소&quot;를
+                    누른 뒤 수정하고 다시 보고합니다.
                   </li>
                   <li>
                     본부 확인 이후 취소·환불, 입금 오류, 명단 수정이 필요하면 문의
@@ -1508,16 +1517,16 @@ const CampusAdminPage = () => {
               onChange={(event) => handleBulkPaymentCheck(event.target.checked)}
               disabled={
                 verifying ||
-                checkableReservations.length === 0 ||
+                filteredCheckableReservations.length === 0 ||
                 isPaymentCheckLocked
               }
             />
             <span>
-              <strong>전체 신청자 입금 확인</strong>
+              <strong>현재 필터 결과 입금 확인</strong>
               <small>
                 {isPaymentCheckLocked
                   ? '송금 완료 보고 후에는 수정할 수 없습니다.'
-                  : `확인 가능한 신청자 ${checkableReservations.length}명을 한 번에 처리합니다.`}
+                  : `현재 필터 결과 중 확인 가능한 신청자 ${filteredCheckableReservations.length}명을 처리합니다.`}
               </small>
             </span>
           </label>
@@ -1620,13 +1629,13 @@ const CampusAdminPage = () => {
                     onChange={(e) => handleBulkPaymentCheck(e.target.checked)}
                     disabled={
                       verifying ||
-                      checkableReservations.length === 0 ||
+                      filteredCheckableReservations.length === 0 ||
                       isPaymentCheckLocked
                     }
                     title={
                       isPaymentCheckLocked
                         ? '송금 완료 보고 이후에는 수정할 수 없습니다.'
-                        : '전체 입금 확인'
+                        : `현재 필터 결과 ${filteredCheckableReservations.length}명 입금 확인`
                     }
                   />
                 </th>
@@ -1875,8 +1884,8 @@ const CampusAdminPage = () => {
               <div className={styles.transferWarning}>
                 <AlertTriangle size={18} />
                 <strong>
-                  완료 사실을 보고하면 신청자 입금 상태가 잠깁니다. 본부에서
-                  확인하기 전까지는 보고를 취소하고 수정할 수 있습니다.
+                  송금 완료를 보고한 뒤에는 신청자 입금 확인을 수정할 수 없습니다.
+                  수정이 필요하면 본부 확인 전에 송금 완료 보고를 취소해주세요.
                 </strong>
               </div>
             )}

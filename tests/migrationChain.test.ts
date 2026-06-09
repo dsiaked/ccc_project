@@ -362,6 +362,14 @@ for (const [setupFile, migrationFile] of [
     '136_allow_external_reservations_without_team.sql',
     '20260610190001_136_allow_external_reservations_without_team.sql',
   ],
+  [
+    '137_enable_signup_email_availability_check.sql',
+    '20260610200001_137_enable_signup_email_availability_check.sql',
+  ],
+  [
+    '139_fix_allocation_draft_reservation_normalization.sql',
+    '20260610220001_139_fix_allocation_draft_reservation_normalization.sql',
+  ],
 ]) {
   test(`${setupFile} matches its migration`, () => {
     const setupSql = readFileSync(`sql/setup/${setupFile}`, 'utf8').replaceAll(
@@ -455,19 +463,27 @@ test('passenger boarding check-in requires a bus-specific code', () => {
   );
 });
 
-test('browser clients cannot enumerate registered email addresses', () => {
-  const migration = readFileSync(
+test('signup email availability is exposed only by the explicit opt-in migration', () => {
+  const disableMigration = readFileSync(
     `${migrationDirectory}/20260609080001_101_disable_public_email_exists.sql`,
+    'utf8'
+  );
+  const enableMigration = readFileSync(
+    `${migrationDirectory}/20260610200001_137_enable_signup_email_availability_check.sql`,
     'utf8'
   );
 
   assert.match(
-    migration,
+    disableMigration,
     /revoke all on function public\.email_exists\(text\) from anon, authenticated/i
   );
   assert.match(
-    migration,
+    disableMigration,
     /create trigger validate_profile_organization_membership[\s\S]*before insert or update of affiliation_type, district_id, team_id, campus_id/i
+  );
+  assert.match(
+    enableMigration,
+    /grant execute on function public\.email_exists\(text\) to anon, authenticated/i
   );
 });
 
@@ -1040,6 +1056,8 @@ test('combined setup includes the latest campus request workflow', () => {
     'BEGIN sql/setup/134_safe_reset_allocation_optimization_jobs.sql',
     'BEGIN sql/setup/135_split_allocation_deadline_triggers.sql',
     'BEGIN sql/setup/136_allow_external_reservations_without_team.sql',
+    'BEGIN sql/setup/137_enable_signup_email_availability_check.sql',
+    'BEGIN sql/setup/139_fix_allocation_draft_reservation_normalization.sql',
   ];
   let previousMarkerIndex = -1;
   for (const marker of orderedMarkers) {

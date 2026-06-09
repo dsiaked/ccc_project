@@ -78,6 +78,18 @@ test('campus transfer account, amount, and payment count share one concise summa
   assert.match(campusPageStyles, /\.transferSummary\s*\{/);
 });
 
+test('campus transfer warning explains the exact action required before editing', () => {
+  assert.match(
+    campusPage,
+    /송금 완료를 보고한 뒤에는 신청자 입금 확인을 수정할 수 없습니다\./
+  );
+  assert.match(
+    campusPage,
+    /수정이 필요하면 본부 확인 전에 송금 완료 보고를 취소해주세요\./
+  );
+  assert.doesNotMatch(campusPage, /신청자 입금 상태가 잠/);
+});
+
 test('campus payment management excludes cancelled reservations', () => {
   assert.match(
     adminService,
@@ -103,6 +115,26 @@ test('campus applicant list stays compact with search, filters, and pagination',
   assert.match(campusPage, /className=\{styles\.applicantPagination\}/);
   assert.match(campusPageStyles, /\.applicantFilters\s*\{/);
   assert.match(campusPageStyles, /\.applicantPagination\s*\{/);
+});
+
+test('campus bulk payment changes only the current filter results after confirmation', () => {
+  assert.match(
+    campusPage,
+    /const filteredCheckableReservations = useMemo\(\(\) => \{[\s\S]*return filteredReservations\.filter/
+  );
+  assert.match(
+    campusPage,
+    /현재 필터 결과의 신청자 \$\{filteredCheckableReservations\.length\}명을 모두/
+  );
+  assert.match(
+    campusPage,
+    /filteredCheckableReservations\.map\(\(reservation\) =>/
+  );
+  assert.match(campusPage, /<strong>현재 필터 결과 입금 확인<\/strong>/);
+  assert.doesNotMatch(
+    campusPage,
+    /checkableReservations\.map\(\(reservation\) =>/
+  );
 });
 
 test('campus applicant list owns the payment progress summary', () => {

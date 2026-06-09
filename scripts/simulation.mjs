@@ -58,10 +58,10 @@
  *   npm.cmd run simulation -- seed:payments
  *     - 요청 상태 예약에 초기 payments 행을 생성합니다.
  *     - 일반 사용자는 완료 95%, 대기 5% 비율을 사용합니다.
- *     - 캠퍼스 회계 순장님의 결제 상태는 완료로 생성합니다.
+ *     - 캠퍼스 회계 순장님의 입금 상태는 완료로 생성합니다.
  *
  *   npm.cmd run simulation -- seed:verify
- *     - Auth 사용자, 프로필, 관리자 권한, 예약, 결제 개수를 검증합니다.
+ *     - Auth 사용자, 프로필, 관리자 권한, 신청, 입금 개수를 검증합니다.
  *
  * 전체 관리자 보존 DB 정리:
  *   테스트 프로젝트에서 전체 관리자만 남기고 기준정보부터 다시 생성할 때 사용합니다.
@@ -82,7 +82,7 @@
  *     - 첫 예약 마감 시간을 현재 시각보다 1분 전으로 설정합니다.
  *
  *   npm.cmd run simulation -- settle:payments
- *     - 요청 상태 예약의 결제를 완료 상태로 변경합니다.
+ *     - 요청 상태 신청의 입금을 완료 상태로 변경합니다.
  *     - 해당 캠퍼스 회계 순장님을 입금 확인자로 기록합니다.
  *
  *   npm.cmd run simulation -- settle:reports
@@ -146,6 +146,51 @@ const CONCURRENCY = 10;
 const CHUNK_SIZE = 200;
 const PAGE_SIZE = 1000;
 const FULL_CLEANUP_CONFIRMATION = 'DELETE_ALL_TEST_DATA';
+
+function getSupabaseProjectId() {
+  const rawUrl = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL;
+  if (!rawUrl) {
+    throw new Error('VITE_SUPABASE_URL or SUPABASE_URL is required.');
+  }
+
+  const url = new URL(rawUrl);
+  const match = url.hostname.match(/^([a-z0-9]+)\.supabase\.co$/i);
+  if (url.protocol !== 'https:' || !match) {
+    throw new Error('Supabase URL must use https://<project-id>.supabase.co.');
+  }
+
+  return match[1];
+}
+
+function assertFullCleanupProjectAllowed() {
+  const currentProjectId = getSupabaseProjectId();
+  const allowedProjectId = String(
+    process.env.VITE_SIMULATION_PROJECT_ID ?? '',
+  ).trim();
+  const productionProjectId = String(
+    process.env.SIMULATION_PRODUCTION_PROJECT_ID ?? '',
+  ).trim();
+
+  if (!allowedProjectId || !productionProjectId) {
+    throw new Error(
+      'Full cleanup is disabled until VITE_SIMULATION_PROJECT_ID and ' +
+        'SIMULATION_PRODUCTION_PROJECT_ID are both configured.',
+    );
+  }
+  if (allowedProjectId === productionProjectId) {
+    throw new Error(
+      'Full cleanup is disabled because the simulation and production project IDs match.',
+    );
+  }
+  if (currentProjectId === productionProjectId) {
+    throw new Error('Full cleanup is permanently blocked for the production project.');
+  }
+  if (currentProjectId !== allowedProjectId) {
+    throw new Error(
+      `Full cleanup is allowed only for the configured simulation project (${allowedProjectId}).`,
+    );
+  }
+}
 
 const REFERENCE_ORGANIZATION = [
   {
@@ -1760,6 +1805,8 @@ async function cleanupSimulation() {
 }
 
 async function cleanup() {
+  assertFullCleanupProjectAllowed();
+
   if (process.env.SIMULATION_FULL_CLEANUP_CONFIRM !== FULL_CLEANUP_CONFIRMATION) {
     throw new Error(
       `cleanup은 앱 데이터와 전체 관리자가 아닌 Auth 사용자를 삭제합니다. ` +

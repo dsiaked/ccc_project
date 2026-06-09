@@ -187,7 +187,9 @@ const AdminPersonalTicketPage = () => {
     string | null
   >(null);
   const [draft, setDraft] = useState<TicketDraft>(emptyDraft);
-  const [searchKeyword, setSearchKeyword] = useState('');
+  const [searchKeyword, setSearchKeyword] = useState(
+    () => searchParams.get('search') || ''
+  );
   const [statusFilters, setStatusFilters] = useState<ReservationStatusFilter[]>(
     []
   );
@@ -727,7 +729,7 @@ const AdminPersonalTicketPage = () => {
       selectedReservation.email ||
       selectedReservation.userId;
     const ok = window.confirm(
-      `${confirmationLabel} 사용자를 삭제할까요?\n\n로그인 계정, 신청 내역, 결제 정보, 캠퍼스 회계 순장님 권한이 함께 삭제되며 복구할 수 없습니다.`
+      `${confirmationLabel} 사용자를 삭제할까요?\n\n로그인 계정, 신청 내역, 입금 정보, 캠퍼스 회계 순장님 권한이 함께 삭제되며 복구할 수 없습니다.`
     );
 
     if (!ok) return;
@@ -809,7 +811,7 @@ const AdminPersonalTicketPage = () => {
               onClick={() => navigate('/admin/access/boarding-managers')}
             >
               <ShieldCheck size={16} />
-              선탑자 권한 관리
+              탑승 관리 간사님 권한 관리
             </button>
             <button
               type="button"
@@ -887,7 +889,7 @@ const AdminPersonalTicketPage = () => {
               onChange={(event) => selectDistrict(event.target.value)}
             >
               <option value="all">지구 · 전체</option>
-              <option value="outside_seoul">서울지구 외 · 전체</option>
+              <option value="outside_seoul">서울 외 지구 · 전체</option>
               {districts.map((district) => (
                 <option key={district} value={district}>
                   {district}
@@ -1094,7 +1096,7 @@ const AdminPersonalTicketPage = () => {
                 <button type="button" onClick={() => selectDistrict('all')}>
                   지구:{' '}
                   {districtFilter === 'outside_seoul'
-                    ? '서울지구 외'
+                    ? '서울 외 지구'
                     : districtFilter}{' '}
                   <X size={13} />
                 </button>
@@ -1182,7 +1184,7 @@ const AdminPersonalTicketPage = () => {
                           <strong>{reservation.name}</strong>
                           <span>{reservation.phone || '-'}</span>
                           {isExternal && (
-                            <span className={styles.adminBadge}>타지구 참가자</span>
+                            <span className={styles.adminBadge}>서울 외 지구 참가자</span>
                           )}
                           {renderAdminRoleBadge(reservation)}
                         </td>
@@ -1546,7 +1548,7 @@ const AdminPersonalTicketPage = () => {
                   </div>
 
                   <div className={styles.field}>
-                    <label>탑승 장소</label>
+                    <label>탑승장소</label>
                     <input
                       value={draft.boardingPlace}
                       onChange={(event) =>
@@ -1665,7 +1667,7 @@ const AdminPersonalTicketPage = () => {
                       <div>
                         <strong>사용자 계정 삭제</strong>
                         <p>
-                          로그인 계정과 신청, 결제, 관리자 권한을 영구
+                          로그인 계정과 신청, 입금, 관리자 권한을 영구
                           삭제합니다. 삭제 후에는 복구할 수 없습니다.
                         </p>
                       </div>

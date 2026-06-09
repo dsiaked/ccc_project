@@ -7,6 +7,7 @@ import {
   LogOut,
   ShieldCheck,
   Home,
+  KeyRound,
   UserPlus,
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -367,6 +368,21 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
               서비스
             </h3>
             <ul className={styles.navList}>
+              <li>
+                <button
+                  type="button"
+                  className={navItemClassName('/invitation-codes')}
+                  onClick={() => handleProtectedMenuClick('/invitation-codes')}
+                  aria-current={
+                    location.pathname === '/invitation-codes'
+                      ? 'page'
+                      : undefined
+                  }
+                >
+                  <KeyRound size={20} className={styles.navIcon} />
+                  권한 등록 코드 등록
+                </button>
+              </li>
               <li>
                 <button
                   type="button"

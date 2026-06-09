@@ -58,6 +58,13 @@
   font-weight: 800;
 }
 
+.secondaryLink {
+  margin-top: 14px;
+  color: #2563eb;
+  font-size: 14px;
+  font-weight: 800;
+}
+
 @keyframes spin {
   to {
     transform: rotate(360deg);

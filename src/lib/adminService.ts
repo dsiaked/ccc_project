@@ -347,6 +347,10 @@ const invalidateAdminRoleCache = (userId?: string) => {
   adminRoleRequests.clear();
 };
 
+export const clearAdminRoleCache = (userId?: string) => {
+  invalidateAdminRoleCache(userId);
+};
+
 export async function getAdminRoles(userId: string) {
   const cached = adminRoleCache.get(userId);
 
@@ -812,7 +816,7 @@ export async function updatePersonalTicketAsAdmin(
       'The selected seat number exceeds the bus capacity.':
         '선택한 좌석 번호가 버스 정원을 초과합니다.',
       'The selected seat number is already assigned.':
-        '선택한 좌석은 이미 다른 승객에게 배정되었습니다.',
+        '선택한 좌석은 이미 다른 탑승자에게 배정되었습니다.',
     };
     throw new Error(messages[error.message] ?? error.message);
   }

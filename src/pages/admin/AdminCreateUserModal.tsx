@@ -87,7 +87,7 @@ const AdminCreateUserModal = ({
         !coordinatorName.trim() ||
         !/^010-\d{4}-\d{4}$/.test(coordinatorPhone))
     ) {
-      setError('타지구의 지구명, 캠퍼스명, 담당 간사 정보를 입력해주세요.');
+      setError('서울 외 지구의 지구명, 캠퍼스명, 담당 간사 정보를 입력해주세요.');
       return;
     }
 
@@ -207,7 +207,7 @@ const AdminCreateUserModal = ({
                 }
                 onClick={() => setOrganizationMode('external')}
               >
-                타지구 참가자
+                서울 외 지구 참가자
               </button>
             </div>
 

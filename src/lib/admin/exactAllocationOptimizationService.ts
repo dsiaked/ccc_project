@@ -79,6 +79,18 @@ export interface ExactAllocationJob {
 const single = <T,>(data: T[] | T | null): T | null =>
   Array.isArray(data) ? (data[0] ?? null) : data;
 
+type AllocationRpcError = {
+  code?: string;
+  details?: string;
+  hint?: string;
+  message?: string;
+};
+
+const getAllocationErrorDetail = (error: AllocationRpcError) =>
+  [error.message, error.details, error.hint]
+    .filter((value): value is string => Boolean(value))
+    .join(' ');
+
 const requireAllocationAdminSession = async () => {
   const { data, error } = await supabase.auth.getSession();
 
@@ -87,12 +99,7 @@ const requireAllocationAdminSession = async () => {
   }
 };
 
-const throwAllocationWriteError = (error: {
-  code?: string;
-  details?: string;
-  hint?: string;
-  message?: string;
-}) => {
+const throwAllocationWriteError = (error: AllocationRpcError) => {
   if (
     error.message?.includes(
       'Allocation is available only after the reservation deadline.'
@@ -124,21 +131,12 @@ const throwAllocationWriteError = (error: {
       '배차 계산용 DB 트리거 업데이트가 필요합니다. 최신 Supabase 마이그레이션을 적용해주세요.'
     );
   }
-  const detail = [error.message, error.details, error.hint]
-    .filter((value): value is string => Boolean(value))
-    .join(' ');
+  const detail = getAllocationErrorDetail(error);
   throw new Error(detail || error.code || '배차 계산 요청에 실패했습니다.');
 };
 
-const throwAllocationResetError = (error: {
-  code?: string;
-  details?: string;
-  hint?: string;
-  message?: string;
-}) => {
-  const detail = [error.message, error.details, error.hint]
-    .filter((value): value is string => Boolean(value))
-    .join(' ');
+const throwAllocationResetError = (error: AllocationRpcError) => {
+  const detail = getAllocationErrorDetail(error);
 
   if (detail.includes('Cancel the active allocation optimization job')) {
     throw new Error('진행 중인 계산을 먼저 취소한 뒤 다시 리셋해주세요.');
@@ -153,7 +151,7 @@ const throwAllocationResetError = (error: {
     throw new Error('연결된 계산 기록을 정리하지 못했습니다. 최신 Supabase 마이그레이션을 적용해주세요.');
   }
 
-  throw error;
+  throw new Error(detail || error.code || '계산 기록 리셋에 실패했습니다.');
 };
 
 export const getExactAllocationOptimizerConfig = async () => {

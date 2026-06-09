@@ -76,9 +76,37 @@ const exactMessages = new Map<string, string>([
     'Detailed allocation skipped phases contain an invalid value.',
     '상세 균형 계산 설정에 올바르지 않은 값이 있습니다.',
   ],
+  [
+    'Active reservations changed after optimization.',
+    '계산 후 신청 정보가 변경되었습니다. 최신 신청 정보를 반영해 다시 계산해주세요.',
+  ],
+  [
+    'Allocation optimizer configuration changed after calculation.',
+    '계산 후 버스 설정이 변경되었습니다. 최신 설정으로 다시 계산해주세요.',
+  ],
+  [
+    'An allocation draft already exists for this optimization job.',
+    '이 최적해로 생성된 배차안이 이미 있습니다. 기존 배차안을 열어주세요.',
+  ],
+  [
+    'Only OPTIMAL allocation optimization jobs can create drafts.',
+    '완료된 최적해에서만 배차안을 생성할 수 있습니다.',
+  ],
+  [
+    'Allocation optimization job not found.',
+    '배차안 생성에 사용할 계산 작업을 찾을 수 없습니다.',
+  ],
 ]);
 
 const dynamicMessages: Array<[RegExp, string]> = [
+  [
+    /No API key found in request/i,
+    'Supabase API 키가 요청에 포함되지 않았습니다. 배포 환경의 VITE_SUPABASE_ANON_KEY와 배차 Worker의 SUPABASE_SERVICE_ROLE_KEY 설정을 확인해주세요.',
+  ],
+  [
+    /Invalid API key/i,
+    '배차 계산 서버의 Supabase API 키가 올바르지 않습니다. 로컬 Worker를 재설치하거나 Cloud Run Worker의 SUPABASE_SERVICE_ROLE_KEY 설정을 확인해주세요.',
+  ],
   [/^Duplicate reservation IDs:/, '중복된 신청 ID가 있습니다. 신청 정보를 확인해주세요.'],
   [/: campus is required\./, '일부 신청자의 캠퍼스 정보가 없습니다.'],
   [/: team is required\./, '일부 신청자의 팀 정보가 없습니다.'],
@@ -99,6 +127,10 @@ const dynamicMessages: Array<[RegExp, string]> = [
   [/^Bus field .+ must be an integer\./, '버스 설정의 숫자 형식이 올바르지 않습니다.'],
   [/^Active reservations have invalid allocation data:/, '활성 신청 정보에 배차 계산에 사용할 수 없는 값이 있습니다.'],
   [/^Optimization job entered unexpected status:/, '배차 계산 작업 상태가 변경되어 계산을 계속할 수 없습니다.'],
+  [
+    /canceling statement due to (lock|statement) timeout/i,
+    '다른 배차 작업이 계산 기록을 사용 중입니다. 잠시 후 다시 시도해주세요.',
+  ],
   [/^Supabase request failed with HTTP /, '배차 계산 서버와 통신하는 중 오류가 발생했습니다.'],
   [/^Missing required environment variables:/, '배차 계산 서버 설정이 누락되었습니다.'],
   [/^Missing local worker settings:/, '로컬 배차 계산기 설정이 누락되었습니다.'],

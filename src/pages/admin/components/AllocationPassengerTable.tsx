@@ -19,6 +19,7 @@ interface PassengerRowProps {
   buses: AllocationWorkspaceBus[];
   passengerCountByBus: Map<string, number>;
   issueFields?: Set<PassengerIssueField>;
+  readOnly: boolean;
   onAssign: (passengerId: string, busId: string | null) => void;
   onSeat: (passengerId: string, seat: number | null) => void;
 }
@@ -28,10 +29,12 @@ const PassengerRow = memo(function PassengerRow({
   buses,
   passengerCountByBus,
   issueFields,
+  readOnly,
   onAssign,
   onSeat,
 }: PassengerRowProps) {
   const remainingSeat = isRemainingSeatPassenger(passenger);
+  const assignedBus = buses.find((bus) => bus.id === passenger.busId);
   const remainingSeatLabel =
     passenger.remainingSeatStatus === 'pending_payment'
       ? '잔여 좌석 · 입금 대기'
@@ -41,8 +44,9 @@ const PassengerRow = memo(function PassengerRow({
     <tr
       id={`passenger-${passenger.reservationId}`}
       className={issueFields?.size ? styles.passengerRowWithError : undefined}
-      draggable={!remainingSeat}
+      draggable={!readOnly && !remainingSeat}
       onDragStart={(event) =>
+        !readOnly &&
         !remainingSeat &&
         event.dataTransfer.setData(
           'text/allocation-passenger',
@@ -55,7 +59,7 @@ const PassengerRow = memo(function PassengerRow({
           className={styles.dragHandle}
           title={
             remainingSeat
-              ? '잔여 좌석 승객의 배차는 이 화면에서 직접 변경할 수 없습니다.'
+              ? '잔여 좌석 탑승자의 배차는 이 화면에서 직접 변경할 수 없습니다.'
               : '끌어서 다른 버스로 이동'
           }
         >
@@ -96,19 +100,20 @@ const PassengerRow = memo(function PassengerRow({
         }
       >
         <select
-          disabled={remainingSeat}
+          disabled={readOnly || remainingSeat}
           title={
             remainingSeat
-              ? '잔여 좌석 승객의 배차는 이 화면에서 직접 변경할 수 없습니다.'
+              ? '잔여 좌석 탑승자의 배차는 이 화면에서 직접 변경할 수 없습니다.'
               : undefined
           }
           className={
             issueFields?.has('assignment') ? styles.controlWithError : undefined
           }
           value={passenger.busId ?? ''}
-          onChange={(event) =>
-            onAssign(passenger.reservationId, event.target.value || null)
-          }
+          onChange={(event) => {
+            if (readOnly) return;
+            onAssign(passenger.reservationId, event.target.value || null);
+          }}
         >
           <option value="">미배차</option>
           {buses.map((bus) => {
@@ -132,7 +137,7 @@ const PassengerRow = memo(function PassengerRow({
         <input
           title={
             remainingSeat
-              ? '잔여 좌석 승객의 좌석은 이 화면에서 직접 변경할 수 없습니다.'
+              ? '잔여 좌석 탑승자의 좌석은 이 화면에서 직접 변경할 수 없습니다.'
               : undefined
           }
           className={
@@ -140,14 +145,16 @@ const PassengerRow = memo(function PassengerRow({
           }
           type="number"
           min="1"
+          max={assignedBus?.capacity}
           value={passenger.seatNumber ?? ''}
-          disabled={!passenger.busId || remainingSeat}
-          onChange={(event) =>
+          disabled={readOnly || !passenger.busId || remainingSeat}
+          onChange={(event) => {
+            if (readOnly) return;
             onSeat(
               passenger.reservationId,
               event.target.value ? Number(event.target.value) : null
-            )
-          }
+            );
+          }}
         />
       </td>
     </tr>
@@ -161,6 +168,7 @@ interface VirtualPassengerTableProps {
   passengerIssueFields: Map<string, Set<PassengerIssueField>>;
   revealPassengerId?: string | null;
   onRevealComplete?: () => void;
+  readOnly?: boolean;
   onAssign: (passengerId: string, busId: string | null) => void;
   onSeat: (passengerId: string, seat: number | null) => void;
 }
@@ -172,6 +180,7 @@ export const VirtualPassengerTable = memo(function VirtualPassengerTable({
   passengerIssueFields,
   revealPassengerId,
   onRevealComplete,
+  readOnly = false,
   onAssign,
   onSeat,
 }: VirtualPassengerTableProps) {
@@ -247,7 +256,7 @@ export const VirtualPassengerTable = memo(function VirtualPassengerTable({
           <thead>
             <tr>
               <th aria-label="드래그 이동" />
-              <th>승객</th>
+              <th>탑승자</th>
               <th>전화번호</th>
               <th>캠퍼스·팀</th>
               <th>1·2지망</th>
@@ -268,6 +277,7 @@ export const VirtualPassengerTable = memo(function VirtualPassengerTable({
                 buses={buses}
                 passengerCountByBus={passengerCountByBus}
                 issueFields={passengerIssueFields.get(passenger.reservationId)}
+                readOnly={readOnly}
                 onAssign={onAssign}
                 onSeat={onSeat}
               />

@@ -31,3 +31,29 @@ test('campus administrator assignment links to campus administrator management',
     /onClick=\{\(\) => navigate\('\/admin\/users'\)\}[\s\S]*?>\s*관리자 권한 설정/
   );
 });
+
+test('operation settings include boarding manager management', () => {
+  const boardingManagerSetupStart = adminSetupPage.indexOf(
+    "id: 'boarding-managers'"
+  );
+  const nextSetupItemStart = adminSetupPage.indexOf(
+    "id: 'destinations'",
+    boardingManagerSetupStart
+  );
+  const boardingManagerSetup = adminSetupPage.slice(
+    boardingManagerSetupStart,
+    nextSetupItemStart
+  );
+
+  assert.ok(boardingManagerSetupStart > -1);
+  assert.match(boardingManagerSetup, /title: '탑승 관리 간사님 관리'/);
+  assert.match(
+    boardingManagerSetup,
+    /actionPath: '\/admin\/access\/boarding-managers'/
+  );
+  assert.match(adminSetupPage, /\.eq\('role', 'boarding_manager'\)/);
+  assert.match(
+    adminSetupPage,
+    /<span>탑승 관리 간사님<\/span>[\s\S]*?\{boardingManagerCount\.toLocaleString\(\)\}명 지정/
+  );
+});

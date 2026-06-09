@@ -22,12 +22,12 @@ const baselineObjectives = [
   {
     title: '전체 버스 수 최소화',
     description:
-      '모든 승객을 1·2지망 안에 배정하면서 필요한 버스 수의 최솟값을 먼저 증명합니다.',
+      '모든 탑승자를 1·2지망 안에 배정하면서 필요한 버스 수의 최솟값을 먼저 증명합니다.',
   },
   {
     title: '2지망 배정 인원 최소화',
     description:
-      '최소 버스 수를 고정한 뒤, 그 조건에서 2지망으로 이동하는 승객 수를 최소화합니다.',
+      '최소 버스 수를 고정한 뒤, 그 조건에서 2지망으로 이동하는 탑승자 수를 최소화합니다.',
   },
 ];
 
@@ -44,8 +44,8 @@ const detailedObjectives = [
 
 const safetyChecks = [
   '계산 이후 활성 신청자가 바뀌지 않았는지 확인',
-  '모든 승객이 정확히 한 번 배정됐는지 확인',
-  '모든 배정이 승객의 1지망 또는 2지망인지 확인',
+  '모든 탑승자가 정확히 한 번 배정됐는지 확인',
+  '모든 배정이 탑승자의 1지망 또는 2지망인지 확인',
   '버스 정원 초과와 중복 좌석이 없는지 확인',
   '버스 수와 총비용이 계산 결과와 일치하는지 확인',
 ];
@@ -74,7 +74,7 @@ const AdminAllocationLogicPage = () => {
             <span className={styles.eyebrow}>OR-Tools CP-SAT 정확 최적화</span>
             <h1>지망 배정 최적화 로직</h1>
             <p>
-              승객의 1·2지망을 지키면서 최소 버스 수를 수학적으로 증명하고,
+              탑승자의 1·2지망을 지키면서 최소 버스 수를 수학적으로 증명하고,
               필요하면 캠퍼스와 팀이 최대한 함께 탑승하도록 상세 균형을
               추가 계산합니다.
             </p>
@@ -171,13 +171,13 @@ const AdminAllocationLogicPage = () => {
           <div className={styles.ruleGrid}>
             <article>
               <Users size={20} />
-              <strong>모든 승객 배정</strong>
-              <p>활성 승객은 누락 없이 정확히 한 번 배정됩니다.</p>
+              <strong>모든 탑승자 배정</strong>
+              <p>활성 탑승자는 누락 없이 정확히 한 번 배정됩니다.</p>
             </article>
             <article>
               <CheckCircle2 size={20} />
               <strong>1·2지망 제한</strong>
-              <p>초기 최적화 결과는 각 승객의 두 지망 중 하나만 사용합니다.</p>
+              <p>초기 최적화 결과는 각 탑승자의 두 지망 중 하나만 사용합니다.</p>
             </article>
             <article>
               <Bus size={20} />
@@ -187,7 +187,7 @@ const AdminAllocationLogicPage = () => {
             <article>
               <ShieldCheck size={20} />
               <strong>빈 버스 금지</strong>
-              <p>승객이 없는 버스는 최적화 결과에 포함되지 않습니다.</p>
+              <p>탑승자가 없는 버스는 최적화 결과에 포함되지 않습니다.</p>
             </article>
           </div>
         </section>
@@ -265,8 +265,8 @@ const AdminAllocationLogicPage = () => {
           <div className={styles.example}>
             <div className={styles.exampleInput}>
               <strong>정원 3명 버스</strong>
-              <span>A → B 지망 승객 2명</span>
-              <span>B → A 지망 승객 1명</span>
+              <span>A → B 지망 탑승자 2명</span>
+              <span>B → A 지망 탑승자 1명</span>
             </div>
             <ArrowRight size={22} />
             <div className={styles.exampleResult}>

@@ -231,10 +231,10 @@ const LoginPage = () => {
         </div>
 
         <div className={styles.adminLoginSection}>
-          <p>캠퍼스 회계 순장님 또는 선탑자로 지정된 계정인가요?</p>
+          <p>캠퍼스 회계 순장님 또는 탑승 관리 간사님으로 지정된 계정인가요?</p>
           <Link to="/admin/login" className={styles.adminLoginLink}>
             <ShieldCheck size={18} />
-            관리자·선탑자 로그인
+            관리자·탑승 관리 간사님 로그인
           </Link>
         </div>
       </main>

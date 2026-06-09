@@ -195,6 +195,7 @@ export const adminAuditActionLabels: Record<AdminAuditAction, string> = {
 };
 
 export const adminAuditResourceLabels: Record<string, string> = {
+  admin_invitation_codes: '권한 등록 코드',
   payments: '입금 정보',
   campus_transfers: '캠퍼스 송금',
 };

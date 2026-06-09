@@ -33,13 +33,13 @@ import styles from './AdminSimulationPage.module.css';
 const simulationStages = [
   ['시뮬레이션 정보 초기화', '시뮬레이션용 시험 계정과 모든 운영 자료를 삭제하고, 유지되는 실제 계정의 조직 소속도 초기화합니다.', ['시뮬레이션용 시험 계정 전체 삭제', '모든 신청·입금·배차·요청·공지 삭제', '캠퍼스 회계 순장님 권한 삭제·전체 사용자 조직 소속 초기화', '조직·행선지·버스 옵션·운영 설정 삭제']],
   ['운영 초기값 설정', '서울지구 조직도와 기본 행선지를 등록하고 권장 시뮬레이션 운영 초기값을 생성합니다.', ['서울지구 조직도·기본 행선지 등록', '예상 참여 인원 2,500명 설정', '신청 마감 시각을 실행 시점부터 14일 후로 설정', '44인승 SIM 버스 옵션·요금 설정']],
-  ['사용자 및 캠퍼스 회계 순장님 생성', '서울지구 캠퍼스별 비균등 분포와 기타지구 가입자를 포함해 일반 회원을 생성하고, 기존 캠퍼스 회계 순장님 권한은 재사용합니다.', ['다양한 캠퍼스 규모별 실제 로그인 계정 생성', '기타지구 가입자·담당 간사 정보 생성', '권한이 없는 캠퍼스에만 회계 순장님 생성']],
+  ['사용자 및 캠퍼스 회계 순장님 생성', '서울지구 캠퍼스별 비균등 분포와 서울 외 지구 가입자를 포함해 일반 회원을 생성하고, 기존 캠퍼스 회계 순장님 권한은 재사용합니다.', ['다양한 캠퍼스 규모별 실제 로그인 계정 생성', '서울 외 지구 가입자·담당 간사 정보 생성', '권한이 없는 캠퍼스에만 캠퍼스 회계 순장님 생성']],
   ['개별 신청', '시뮬레이션 계정별 1·2지망 신청을 요청 상태로 만들고, 매 10번째 계정은 미신청 상태로 유지합니다.', ['신청 대상 계정의 기존 신청을 요청 상태로 갱신', '기존 확정 버스표 초기화', '매 10번째 계정의 기존 신청·입금 삭제', '행선지 수요 분산']],
   ['개별 입금', '활성 신청 중 일부만 랜덤 입금 처리하거나 전체를 입금 완료 상태로 설정합니다.', ['랜덤 일부 입금·미입금 상태 설정', '전체 입금 완료 상태 설정', '입금 완료 사용자의 캠퍼스 회계 순장님 확인 기록 반영']],
-  ['개별 입금·캠퍼스별 송금 완료 보고·본부 확인', '개인 입금 상태를 처리하고, 신청 마감 후 서울지구 신청이 있는 캠퍼스별 송금 보고와 본부 확인을 생성합니다.', ['랜덤 일부 입금·미입금 상태 설정', '전체 입금 완료 상태 설정', '기타지구 신청은 캠퍼스 송금 대상에서 제외', '서울지구 캠퍼스별 송금 보고·본부 확인 생성']],
+  ['개별 입금·캠퍼스별 송금 완료 보고·본부 확인', '개인 입금 상태를 처리하고, 신청 마감 후 서울지구 신청이 있는 캠퍼스별 송금 보고와 본부 확인을 생성합니다.', ['랜덤 일부 입금·미입금 상태 설정', '전체 입금 완료 상태 설정', '서울 외 지구 신청은 캠퍼스 송금 대상에서 제외', '서울지구 캠퍼스별 송금 보고·본부 확인 생성']],
   ['신청 마감 및 배차 계획 산출 및 확정', '신청 마감은 이 단계에서 실행하고, 배차 계산·편집·확정과 버스표 발급은 배차 화면에서 진행합니다.', ['신청 마감 자동 실행', '배차 화면에서 추천 계산', '배차 화면에서 배차 초안 편집', '배차 화면에서 전체 배차 확정 및 버스표 발급']],
   ['잔여 좌석 신청 및 추가 버스표', '자동 시뮬레이션 실행 없이 잔여 좌석 신청 관리 화면에서 공개·입금 확인·추가 버스표 발급을 진행합니다.', ['잔여 좌석 신청 관리 화면에서 공개 범위 설정', '추가 신청자 입금 확인', '추가 버스표 발급']],
-  ['출발·탑승 리허설', '기존 시뮬레이션 탑승 기록을 초기화한 뒤 확정 버스표를 기준으로 출발과 탑승 완료·노쇼·미확인 상태를 재현합니다.', ['기존 시뮬레이션 탑승 상태·이벤트·출발 기록 초기화', '확정 배차안의 모든 호차 출발 기록 생성', '탑승 완료·노쇼·미확인 상태 반영', '탑승 완료·노쇼 이벤트 생성']],
+  ['출발·탑승 리허설', '기존 시뮬레이션 탑승 기록을 초기화한 뒤 확정 버스표를 기준으로 탑승 확인·미탑승·탑승 미확인 상태를 재현합니다.', ['기존 시뮬레이션 탑승 상태·이벤트·출발 기록 초기화', '확정 배차안의 모든 호차 출발 기록 생성', '탑승 확인·미탑승·탑승 미확인 상태 반영', '탑승 확인·미탑승 이벤트 생성']],
 ] as const;
 
 const simulationStageDisplayOrder = [0, 1, 2, 3, 6, 5, 7, 8] as const;
@@ -128,7 +128,7 @@ const stageSummaryLabels: Record<string, string> = {
   total_accounts: '총 계정',
   general_users: '일반 회원',
   seoul_users: '서울지구 일반 회원',
-  external_users: '기타지구 일반 회원',
+  external_users: '서울 외 지구 일반 회원',
   campus_admins: '캠퍼스 회계 순장님',
   multi_campus_admins: '2개 캠퍼스 담당 관리자',
   campus_admin_roles: '캠퍼스 회계 순장님 권한',
@@ -159,16 +159,16 @@ const stageSummaryLabels: Record<string, string> = {
   sent_total_amount: '총 송금액',
   confirmed_ticket_count: '확정 버스표',
   departed_buses: '출발 처리 호차',
-  boarded: '탑승 완료',
-  no_show: '노쇼',
+  boarded: '탑승 확인',
+  no_show: '미탑승',
   unchecked: '탑승 미확인',
   boarding_events: '탑승 이벤트',
   skipped_total: '누적 기존 계정',
   verified_profiles: '최종 프로필 검증',
-  verified_external_profiles: '최종 기타지구 프로필 검증',
+  verified_external_profiles: '최종 서울 외 지구 프로필 검증',
   verified_campus_admin_roles: '최종 관리자 권한 검증',
   verified_simulation_campus_admin_roles: '최종 시뮬레이션 관리자 권한 검증',
-  external_reservations_excluded: '캠퍼스 송금 제외 기타지구 신청',
+  external_reservations_excluded: '캠퍼스 송금 제외 서울 외 지구 신청',
   recommended_seed_applied: '권장 조직·행선지 반영',
   operation_data_cleanup: '운영 초기값 초기화 결과',
 };
@@ -423,13 +423,13 @@ const buildStagePreview = (
       status: preview?.referenceSetup.isReady ? '계정 생성 예정' : '기초 세팅 필요',
       metrics: [
         ['서울지구 일반 회원', `${selectedSeoulUsers.toLocaleString()}명`],
-        ['기타지구 일반 회원', `${externalUsers.toLocaleString()}명`],
+        ['서울 외 지구 일반 회원', `${externalUsers.toLocaleString()}명`],
         ['캠퍼스 회계 순장님', `${selectedCampusAdmins.toLocaleString()}명`],
         ['총 실제 계정', `${selectedTotalAccounts.toLocaleString()}개`],
       ],
       rows: [
         {
-          label: '기타 지구 가입자',
+          label: '서울 외 지구 가입자',
           value: `${externalUsers.toLocaleString()}명`,
           note: '등록 조직 외 지구·캠퍼스와 담당 간사 정보 포함',
         },
@@ -437,8 +437,8 @@ const buildStagePreview = (
           label: `${campus.team} · ${campus.campus}`,
           value: `${campus.generalUserCount.toLocaleString()}명`,
           note: campus.campusAdminCount > 0
-            ? `시뮬레이션 회계 순장님 생성 필요 · 캠퍼스 분포 ${selectedDistributionRange}`
-            : `기존 회계 순장님 권한 재사용 · 캠퍼스 분포 ${selectedDistributionRange}`,
+            ? `시뮬레이션 캠퍼스 회계 순장님 생성 필요 · 캠퍼스 분포 ${selectedDistributionRange}`
+            : `기존 캠퍼스 회계 순장님 권한 재사용 · 캠퍼스 분포 ${selectedDistributionRange}`,
         })),
       ],
     };
@@ -470,7 +470,7 @@ const buildStagePreview = (
       ],
       rows: [
         { label: '신청 상태', value: `요청 ${(operation?.reservations.requested ?? 0).toLocaleString()} / 확정 ${(operation?.reservations.confirmed ?? 0).toLocaleString()} / 취소 ${(operation?.reservations.cancelled ?? 0).toLocaleString()}`, note: '실제 reservations 테이블 기준' },
-        { label: '신청 대상', value: `${totalAccounts.toLocaleString()}개 시뮬레이션 계정`, note: '일반 회원과 생성한 시뮬레이션 회계 순장님 계정 포함' },
+        { label: '신청 대상', value: `${totalAccounts.toLocaleString()}개 시뮬레이션 계정`, note: '일반 회원과 생성한 시뮬레이션 캠퍼스 회계 순장님 계정 포함' },
         { label: '실행 시 변경', value: '신청 재생성·정리', note: '신청 대상은 요청 상태와 새 1·2지망으로 갱신하고, 매 10번째 계정은 기존 신청·입금을 삭제' },
         { label: '확정 버스표', value: '신청 대상 계정 초기화', note: '재생성되는 신청의 기존 확정 버스표를 제거' },
       ],
@@ -520,7 +520,7 @@ const buildStagePreview = (
         { label: '개별 입금 상태', value: `완료 ${(operation?.payments.completed ?? 0).toLocaleString()} / 대기 ${(operation?.payments.pending ?? 0).toLocaleString()}`, note: '랜덤 일부 입금 또는 전체 입금 완료 중 선택' },
         { label: '캠퍼스 입금 확인', value: `${(operation?.payments.verified ?? 0).toLocaleString()}건`, note: 'verified_at이 기록된 실제 입금' },
         { label: '캠퍼스 송금 처리', value: `송금 ${(operation?.transfers.sent ?? 0).toLocaleString()} / 본부 확인 ${(operation?.transfers.confirmed ?? 0).toLocaleString()}`, note: '서울지구 활성 신청이 있는 캠퍼스 범위별로 생성' },
-        { label: '기타지구 신청', value: '캠퍼스 송금 대상 제외', note: '개인 입금 상태에는 포함되지만 서울지구 캠퍼스 송금 보고에는 포함하지 않음' },
+        { label: '서울 외 지구 신청', value: '캠퍼스 송금 대상 제외', note: '개인 입금 상태에는 포함되지만 서울지구 캠퍼스 송금 보고에는 포함하지 않음' },
       ],
     },
     {
@@ -543,7 +543,7 @@ const buildStagePreview = (
         { label: '배차 계획', value: '배차 화면에서 진행', note: '추천 계산·임시안 편집·확정·버스표 발급은 자동 실행하지 않음' },
         { label: '신청 마감 일시', value: operation?.deadlineAt ? new Date(operation.deadlineAt).toLocaleString() : '설정 없음', note: '신청 마감 후 배차안을 산출할 수 있음' },
         { label: '확정 좌석 용량', value: `${(operation?.allocations.confirmedCapacity ?? 0).toLocaleString()}석`, note: '확정 배차안 차량 정원 합계' },
-        { label: '배정 승객', value: `${(operation?.allocations.confirmedPassengers ?? 0).toLocaleString()}명`, note: '확정 배차안 passengers 기준' },
+        { label: '배정 탑승자', value: `${(operation?.allocations.confirmedPassengers ?? 0).toLocaleString()}명`, note: '확정 배차안 passengers 기준' },
         { label: '버스표 일치', value: `${(operation?.reservations.ticketed ?? 0).toLocaleString()}건`, note: 'confirmed_ticket이 발급된 실제 신청' },
       ],
     },
@@ -563,7 +563,7 @@ const buildStagePreview = (
       rows: [
         { label: '자동 실행', value: '없음', note: '잔여 좌석 신청 관리 화면에서 관리자가 직접 진행' },
         { label: '신청 전제', value: operation?.deadlineClosed ? '신청 마감 완료' : '신청 마감 필요', note: '마감 후 확정 배차가 있어야 잔여 좌석 신청 가능' },
-        { label: '현재 신청 가능 좌석', value: `${(operation?.allocations.remainingSeats ?? 0).toLocaleString()}석`, note: '확정 정원에서 배정 승객을 뺀 값' },
+        { label: '현재 신청 가능 좌석', value: `${(operation?.allocations.remainingSeats ?? 0).toLocaleString()}석`, note: '확정 정원에서 배정 탑승자를 뺀 값' },
         { label: '신청 검증', value: '원자적 좌석 배정', note: '좌석 중복과 정원 초과 신청을 DB 함수에서 차단' },
       ],
     },
@@ -576,14 +576,14 @@ const buildStagePreview = (
             : '확정 버스표 필요',
       metrics: [
         ['발급 버스표', `${(operation?.reservations.ticketed ?? 0).toLocaleString()}건`],
-        ['탑승 완료', `${(operation?.boarding.boarded ?? 0).toLocaleString()}명`],
-        ['노쇼', `${(operation?.boarding.noShow ?? 0).toLocaleString()}명`],
+        ['탑승 확인', `${(operation?.boarding.boarded ?? 0).toLocaleString()}명`],
+        ['미탑승', `${(operation?.boarding.noShow ?? 0).toLocaleString()}명`],
         ['탑승 미확인', `${(operation?.boarding.unchecked ?? 0).toLocaleString()}명`],
       ],
       rows: [
-        { label: '탑승 상태', value: `완료 ${(operation?.boarding.boarded ?? 0).toLocaleString()} / 노쇼 ${(operation?.boarding.noShow ?? 0).toLocaleString()} / 미확인 ${(operation?.boarding.unchecked ?? 0).toLocaleString()}`, note: '확정 버스표가 있는 신청 기준' },
+        { label: '탑승 상태', value: `탑승 확인 ${(operation?.boarding.boarded ?? 0).toLocaleString()} / 미탑승 ${(operation?.boarding.noShow ?? 0).toLocaleString()} / 탑승 미확인 ${(operation?.boarding.unchecked ?? 0).toLocaleString()}`, note: '확정 버스표가 있는 신청 기준' },
         { label: '실행 전 초기화', value: '기존 시뮬레이션 탑승 기록 삭제', note: '탑승 상태·탑승 이벤트·현재 확정 배차안의 출발 기록을 다시 생성' },
-        { label: '탑승 이벤트', value: `${(operation?.boarding.events ?? 0).toLocaleString()}건`, note: '탑승 완료와 노쇼 상태 변경 이력' },
+        { label: '탑승 이벤트', value: `${(operation?.boarding.events ?? 0).toLocaleString()}건`, note: '탑승 확인과 미탑승 상태 변경 이력' },
         { label: '운영 확인 화면', value: '탑승 관리', note: '호차별 탑승 명단과 출발 상태를 최종 확인' },
       ],
     },
@@ -939,7 +939,7 @@ const AdminSimulationPage = () => {
         }
 
         setStageRuns(await getSimulationStageRuns());
-        setRunMessage('서울지구·기타지구 일반 회원 생성과 캠퍼스 회계 순장님 권한 준비를 완료했습니다.');
+        setRunMessage('서울지구·서울 외 지구 일반 회원 생성과 캠퍼스 회계 순장님 권한 준비를 완료했습니다.');
       } else if (index === 3 || (index === 5 && paymentMode)) {
         const stage = index === 3 ? 'reservations' : 'payments';
         let offset = 0;

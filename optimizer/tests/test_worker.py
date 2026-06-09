@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import io
 import unittest
 from unittest.mock import patch
 
+import exact_optimizer.local_worker as local_worker
 from exact_optimizer.worker import (
     SupabaseRepository,
     build_supabase_headers,
@@ -112,6 +114,33 @@ class FakeRepository:
 
 
 class WorkerTests(unittest.TestCase):
+    def test_local_worker_retries_after_pending_poll_failure(self) -> None:
+        class PollingRepository:
+            calls = 0
+
+            def get_pending_job_ids(
+                self, limit: int = 1, execution_mode: str = "local"
+            ) -> list[str]:
+                self.calls += 1
+                if self.calls == 1:
+                    raise RuntimeError("temporary connection failure")
+                raise KeyboardInterrupt()
+
+        repository = PollingRepository()
+        errors = io.StringIO()
+        with (
+            patch.object(local_worker, "build_repository", return_value=repository),
+            patch.object(local_worker.time, "sleep") as sleep,
+            patch.object(local_worker.sys, "argv", ["local_worker.py"]),
+            patch.object(local_worker.sys, "stderr", errors),
+        ):
+            result = local_worker.main()
+
+        self.assertEqual(result, 0)
+        self.assertEqual(repository.calls, 2)
+        sleep.assert_called_once_with(2.0)
+        self.assertIn("Retrying in 2 seconds", errors.getvalue())
+
     def test_normalizes_service_role_env_assignment(self) -> None:
         key = "sb_secret_example"
 
@@ -151,6 +180,15 @@ class WorkerTests(unittest.TestCase):
 
         self.assertEqual(headers["apikey"], key)
         self.assertNotIn("Authorization", headers)
+
+    def test_repository_keeps_api_key_header_for_every_request(self) -> None:
+        repository = SupabaseRepository(
+            "https://example.supabase.co",
+            "sb_secret_example",
+        )
+
+        self.assertEqual(repository.headers["apikey"], "sb_secret_example")
+        self.assertNotIn("Authorization", repository.headers)
 
     def test_lists_pending_jobs(self) -> None:
         repository = FakeRepository()

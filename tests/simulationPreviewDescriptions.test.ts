@@ -14,7 +14,7 @@ const simulationRunner = readFileSync(
 test('simulation preview explains destructive and manual stage behavior', () => {
   assert.match(simulationPage, /실제 계정의 조직 소속도 초기화/);
   assert.match(simulationPage, /매 10번째 계정의 기존 신청·입금 삭제/);
-  assert.match(simulationPage, /기타지구 신청은 캠퍼스 송금 대상에서 제외/);
+  assert.match(simulationPage, /서울 외 지구 신청은 캠퍼스 송금 대상에서 제외/);
   assert.match(simulationPage, /신청 마감은 이 단계에서 실행하고/);
   assert.match(simulationPage, /자동 시뮬레이션 실행 없이 잔여 좌석 신청 관리 화면/);
   assert.match(simulationPage, /기존 시뮬레이션 탑승 기록을 초기화/);

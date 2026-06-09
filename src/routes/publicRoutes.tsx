@@ -11,6 +11,7 @@ const RemainingSeatPage = lazy(() => import('../pages/RemainingSeatPage'));
 const AuthCallbackPage = lazy(() => import('../pages/AuthCallbackPage'));
 const ForgotPasswordPage = lazy(() => import('../pages/ForgotPasswordPage'));
 const ResetPasswordPage = lazy(() => import('../pages/ResetPasswordPage'));
+const InvitationCodePage = lazy(() => import('../pages/InvitationCodePage'));
 
 export const publicRoutes = [
   { path: '/', element: <HomePage /> },
@@ -23,5 +24,6 @@ export const publicRoutes = [
   { path: '/ticket', element: <TicketPage /> },
   { path: '/confirmed-ticket', element: <Navigate to="/ticket" replace /> },
   { path: '/remaining-seats', element: <RemainingSeatPage /> },
+  { path: '/invitation-codes', element: <InvitationCodePage /> },
   { path: '*', element: <Navigate to="/" replace /> },
 ];

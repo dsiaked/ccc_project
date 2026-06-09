@@ -59,6 +59,10 @@ const AdminBoardingManagerPage = lazy(
 const AdminAuditLogsPage = lazy(
   () => import('../pages/admin/AdminAuditLogsPage')
 );
+const AdminToolsPage = lazy(() => import('../pages/admin/AdminToolsPage'));
+const AdminInvitationCodesPage = lazy(
+  () => import('../pages/admin/AdminInvitationCodesPage')
+);
 
 const globalAdminOnly = ['global_admin'] as const satisfies readonly AdminRoleType[];
 const campusAdminOnly = ['campus_admin'] as const satisfies readonly AdminRoleType[];
@@ -124,12 +128,20 @@ const canonicalAdminRoutes = [
     element: adminRoute(<AdminSetupCheckPage />, globalAdminOnly),
   },
   {
+    path: 'system',
+    element: adminRoute(<AdminToolsPage />, globalAdminOnly),
+  },
+  {
     path: 'system/simulation',
     element: adminRoute(<AdminSimulationPage />, globalAdminOnly),
   },
   {
     path: 'system/audit-logs',
     element: adminRoute(<AdminAuditLogsPage />, globalAdminOnly),
+  },
+  {
+    path: 'system/invitation-codes',
+    element: adminRoute(<AdminInvitationCodesPage />, globalAdminOnly),
   },
   {
     path: 'settings/participation-targets',
@@ -192,6 +204,7 @@ const legacyAdminRoutes = [
     roles: globalAdminOnly,
   },
   { path: 'setup-check', to: '/admin/settings', roles: globalAdminOnly },
+  { path: 'tools', to: '/admin/system', roles: globalAdminOnly },
   {
     path: 'participation-targets',
     to: '/admin/settings/participation-targets',
@@ -252,6 +265,11 @@ const legacyAdminRoutes = [
   {
     path: 'audit-logs',
     to: '/admin/system/audit-logs',
+    roles: globalAdminOnly,
+  },
+  {
+    path: 'invitation-codes',
+    to: '/admin/system/invitation-codes',
     roles: globalAdminOnly,
   },
 ] as const;

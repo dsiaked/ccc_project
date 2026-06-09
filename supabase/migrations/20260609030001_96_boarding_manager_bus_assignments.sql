@@ -374,7 +374,7 @@ begin
   insert into public.boarding_status_events (
     reservation_id, from_status, to_status, actor_id, note
   ) values (
-    p_reservation_id, v_current.boarding_status, p_status, auth.uid(), '선탑자 상태 변경'
+    p_reservation_id, v_current.boarding_status, p_status, auth.uid(), '탑승 관리 간사님 상태 변경'
   );
 end;
 $$;

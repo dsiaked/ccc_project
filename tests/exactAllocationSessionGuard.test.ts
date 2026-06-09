@@ -34,7 +34,7 @@ test('allocation job creation exposes unexpected PostgREST error details', () =>
 
   assert.match(
     source,
-    /const detail = \[error\.message, error\.details, error\.hint\][\s\S]*throw new Error\(detail \|\| error\.code/
+    /const getAllocationErrorDetail = \(error: AllocationRpcError\) =>\s*\[error\.message, error\.details, error\.hint\][\s\S]*const detail = getAllocationErrorDetail\(error\);[\s\S]*throw new Error\(detail \|\| error\.code/
   );
   assert.match(
     source,

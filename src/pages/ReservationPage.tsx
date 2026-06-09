@@ -1451,7 +1451,7 @@ const handleConfirmCandidateStations = () => {
                       disabled={isReservationLocked}
                       aria-pressed={isExternal}
                     >
-                      기타 지구
+                      서울 외 지구
                     </button>
                   </div>
                   {formErrors.district && (

@@ -63,7 +63,7 @@ for select
 to anon, authenticated
 using (is_active = true);
 
-revoke all on function public.email_exists(text) from anon, authenticated;
+grant execute on function public.email_exists(text) to anon, authenticated;
 grant execute on function public.get_destination_stats() to authenticated;
 
 notify pgrst, 'reload schema';

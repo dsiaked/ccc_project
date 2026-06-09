@@ -27,6 +27,31 @@ test('admin sidebar places personal payment and campus transfer management befor
   );
 });
 
+test('admin sidebar places boarding manager permissions under boarding operations', () => {
+  const boardingStart = adminHeader.indexOf(
+    "label: '탑승 확인 관리'"
+  );
+  const boardingManagerStart = adminHeader.indexOf(
+    "label: '탑승 관리 간사님 권한·담당 호차 관리'"
+  );
+  const boardingManagerEnd = adminHeader.indexOf(
+    "label: '개인 입금 · 캠퍼스별 송금 관리'",
+    boardingManagerStart
+  );
+  const boardingManagerItem = adminHeader.slice(
+    boardingManagerStart,
+    boardingManagerEnd
+  );
+
+  assert.ok(boardingStart > -1);
+  assert.ok(boardingStart < boardingManagerStart);
+  assert.match(boardingManagerItem, /path: '\/admin\/access\/boarding-managers'/);
+  assert.match(boardingManagerItem, /stageGroup: 'boarding'/);
+  assert.match(boardingManagerItem, /allowedRoles: \['global_admin'\]/);
+  assert.doesNotMatch(adminHeader, /label: '캠퍼스 회계 순장님 관리'/);
+  assert.doesNotMatch(adminHeader, /path: '\/admin\/access\/campus-admins'/);
+});
+
 test('admin sidebar prevents desktop horizontal scrolling', () => {
   assert.match(adminHeaderStyles, /\.header\s*\{[\s\S]*?overflow-x: hidden;/);
   assert.match(adminHeaderStyles, /\.nav\s*\{[\s\S]*?overflow-x: hidden;/);

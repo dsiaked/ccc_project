@@ -1424,6 +1424,13 @@ button:disabled {
   flex: 0 0 auto;
 }
 
+.detailedBalanceActions {
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
 .balanceSettings,
 .calculationDetails {
   margin-top: 14px;
@@ -1580,6 +1587,11 @@ button:disabled {
   .detailedBalancePanel {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .detailedBalanceActions {
+    width: 100%;
+    justify-items: stretch;
   }
 
   .executionModePanel {

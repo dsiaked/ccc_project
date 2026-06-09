@@ -113,8 +113,8 @@ const quickActions = [
     icon: Bus,
   },
   {
-    title: '선탑자 권한·담당 호차 관리',
-    description: '선탑자 계정을 지정하고 전체 호차 탑승 확인 권한을 관리합니다.',
+    title: '탑승 관리 간사님 권한·담당 호차 관리',
+    description: '탑승 관리 간사님 계정을 지정하고 전체 호차 탑승 확인 권한을 관리합니다.',
     path: '/admin/access/boarding-managers',
     icon: Users,
   },

@@ -45,6 +45,27 @@ test('personal unpaid rows can be marked paid from the consolidated review', () 
   assert.match(reviewPage, /입금 완료 처리/);
 });
 
+test('single campus confirmation shows the campus and amount and blocks duplicate processing', () => {
+  assert.match(reviewPage, /const campusConfirmationInFlightRef = useRef\(false\)/);
+  assert.match(
+    reviewPage,
+    /const actualConfirmedAmount = campus\.paidPeople \* review\.ticketPrice/
+  );
+  assert.match(
+    reviewPage,
+    /\$\{campus\.district\} \/ \$\{campus\.team\} \/ \$\{campus\.campus\}의 본부 입금을 확인할까요/
+  );
+  assert.match(
+    reviewPage,
+    /확인 금액: \$\{formatCurrency\([\s\S]*actualConfirmedAmount/
+  );
+  assert.match(
+    reviewPage,
+    /campusConfirmationInFlightRef\.current = true[\s\S]*confirmCampusTransferById[\s\S]*campusConfirmationInFlightRef\.current = false/
+  );
+  assert.match(reviewPage, /isProcessing \? '처리 중\.\.\.' : '본부 입금 확인'/);
+});
+
 test('payment review surfaces structured Supabase error messages', () => {
   assert.match(reviewPage, /const getErrorMessage = \(error: unknown/);
   assert.match(reviewPage, /'message' in error/);
