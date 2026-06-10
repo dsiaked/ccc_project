@@ -505,6 +505,12 @@ const TicketPage = () => {
               state: createLoginRequiredRedirectState('/ticket'),
             })
           }
+          onSignup={() =>
+            navigate('/signup', {
+              replace: true,
+              state: createLoginRequiredRedirectState('/ticket'),
+            })
+          }
         />
       )}
     </div>

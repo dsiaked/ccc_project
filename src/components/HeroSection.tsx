@@ -186,6 +186,11 @@ const HeroSection = () => {
               state: createLoginRequiredRedirectState(loginRequiredPath),
             })
           }
+          onSignup={() =>
+            navigate('/signup', {
+              state: createLoginRequiredRedirectState(loginRequiredPath),
+            })
+          }
         />
       )}
     </>

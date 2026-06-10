@@ -182,6 +182,14 @@ const navItems: AdminNavItem[] = [
     allowedRoles: ['global_admin'],
   },
   {
+    label: '운영 마감',
+    path: '/admin/system/closeout',
+    icon: ClipboardCheck,
+    stageGroup: 'followUp',
+    targetGroup: 'global',
+    allowedRoles: ['global_admin'],
+  },
+  {
     label: '관리 작업 기록',
     path: '/admin/system/audit-logs',
     icon: History,

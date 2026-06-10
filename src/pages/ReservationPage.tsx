@@ -2352,6 +2352,12 @@ const handleConfirmCandidateStations = () => {
               state: createLoginRequiredRedirectState('/reservation'),
             })
           }
+          onSignup={() =>
+            navigate('/signup', {
+              replace: true,
+              state: createLoginRequiredRedirectState('/reservation'),
+            })
+          }
         />
       )}
     </div>
