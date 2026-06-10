@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ArrowLeft,
   Banknote,
@@ -45,6 +45,7 @@ const RemainingSeatPage = () => {
   const [selectedKey, setSelectedKey] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const claimInFlightRef = useRef(false);
   const [loadErrorMessage, setLoadErrorMessage] = useState('');
   const [claimErrorMessage, setClaimErrorMessage] = useState('');
   const [depositorName, setDepositorName] = useState('');
@@ -132,6 +133,7 @@ const RemainingSeatPage = () => {
   };
 
   const handleConfirmPaid = async () => {
+    if (claimInFlightRef.current) return;
     if (!selectedOption) return;
     if (!hasValidPaymentInfo(selectedOption)) {
       setIsPaymentConfirmOpen(false);
@@ -139,6 +141,7 @@ const RemainingSeatPage = () => {
       return;
     }
 
+    claimInFlightRef.current = true;
     setSaving(true);
     setClaimErrorMessage('');
 
@@ -156,6 +159,7 @@ const RemainingSeatPage = () => {
       setClaimErrorMessage(getErrorMessage(error));
       await loadOptions();
     } finally {
+      claimInFlightRef.current = false;
       setSaving(false);
     }
   };

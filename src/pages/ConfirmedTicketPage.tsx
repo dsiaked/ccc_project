@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -33,6 +33,7 @@ const ConfirmedTicketPage = ({
   );
   const [loading, setLoading] = useState(!initialReservation);
   const [confirmingBoarding, setConfirmingBoarding] = useState(false);
+  const boardingConfirmationInFlightRef = useRef(false);
   const [boardingCode, setBoardingCode] = useState('');
   const [boardingError, setBoardingError] = useState('');
   const [liveTime, setLiveTime] = useState(() => new Date());
@@ -175,12 +176,19 @@ const ConfirmedTicketPage = ({
   const boardingConfirmedAt = reservation.boardingConfirmedAt;
 
   const handleConfirmBoarding = async () => {
-    if (boardingConfirmedAt || confirmingBoarding) return;
+    if (
+      boardingConfirmedAt ||
+      confirmingBoarding ||
+      boardingConfirmationInFlightRef.current
+    ) {
+      return;
+    }
     if (!/^\d{4}$/.test(boardingCode)) {
       setBoardingError('버스에서 안내받은 4자리 탑승 코드를 입력해주세요.');
       return;
     }
 
+    boardingConfirmationInFlightRef.current = true;
     setConfirmingBoarding(true);
     setBoardingError('');
 
@@ -201,6 +209,7 @@ const ConfirmedTicketPage = ({
             : '탑승 코드를 확인하지 못했습니다. 잠시 후 다시 시도해주세요.'
       );
     } finally {
+      boardingConfirmationInFlightRef.current = false;
       setConfirmingBoarding(false);
     }
   };

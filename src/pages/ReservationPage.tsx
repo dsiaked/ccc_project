@@ -86,6 +86,7 @@ const ReservationPage = () => {
   const [isLoginRequiredModalOpen, setIsLoginRequiredModalOpen] =
     useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const reservationSubmitInFlightRef = useRef(false);
   const reservationDeletionInFlightRef = useRef(false);
   const [isDeleteConfirmModalOpen, setIsDeleteConfirmModalOpen] =
     useState(false);
@@ -1098,6 +1099,8 @@ const handleConfirmCandidateStations = () => {
   };
 
   const handleSubmit = async () => {
+    if (reservationSubmitInFlightRef.current) return;
+
     if (currentStep < reservationSteps.length - 1) {
       handleNextStep();
       return;
@@ -1123,6 +1126,7 @@ const handleConfirmCandidateStations = () => {
 
     if (!validateAllStepsInline()) return;
 
+    reservationSubmitInFlightRef.current = true;
     setIsSubmitting(true);
 
     try {
@@ -1187,6 +1191,7 @@ const handleConfirmCandidateStations = () => {
         message: '신청 저장에 실패했습니다. 다시 시도해주세요.',
       });
     } finally {
+      reservationSubmitInFlightRef.current = false;
       setIsSubmitting(false);
     }
   };
