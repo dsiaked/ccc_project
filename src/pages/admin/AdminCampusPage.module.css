@@ -302,6 +302,91 @@
   background: #1d4ed8;
 }
 
+.currentTaskCard {
+  margin: -12px 0 24px;
+  padding: 20px;
+  border: 2px solid #86efac;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #f0fdf4 0%, #ffffff 70%);
+  box-shadow: 0 10px 24px rgba(22, 101, 52, 0.08);
+}
+
+.currentTaskCardComplete {
+  border-color: #6ee7b7;
+  background: linear-gradient(135deg, #ecfdf5 0%, #ffffff 70%);
+}
+
+.currentTaskHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.currentTaskEyebrow {
+  color: #047857;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+}
+
+.currentTaskStep {
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #166534;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.currentTaskContent {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.currentTaskContent strong {
+  display: block;
+  color: #064e3b;
+  font-size: 19px;
+  font-weight: 900;
+  line-height: 1.4;
+}
+
+.currentTaskContent p {
+  margin: 6px 0 0;
+  color: #47695f;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.6;
+}
+
+.currentTaskButton {
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid #047857;
+  border-radius: 8px;
+  background: #047857;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 900;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.currentTaskButton:hover {
+  background: #065f46;
+}
+
+#campus-task-account,
+#campus-task-applicants,
+#campus-task-transfer {
+  scroll-margin-top: 20px;
+}
+
 .preparationItem {
   margin: 0;
   padding: 18px;
@@ -1293,6 +1378,16 @@ input[type='checkbox'] {
   .main {
     padding: 12px;
     padding-top: 80px;
+  }
+
+  .currentTaskContent {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .currentTaskButton {
+    width: 100%;
   }
 
   .header h1 {

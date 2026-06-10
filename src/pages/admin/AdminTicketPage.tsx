@@ -61,7 +61,7 @@ type CoverageBaseRow = Omit<
 >;
 
 interface PaymentRow {
-  status: 'pending' | 'completed' | 'refunded' | null;
+  status: 'pending' | 'completed' | null;
 }
 
 interface ReservationRow {

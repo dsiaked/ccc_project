@@ -87,6 +87,15 @@
 .welcomeText {
   color: rgba(255, 255, 255, 0.9);
   font-size: 14px;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.userName {
+  color: #ffffff;
+  font-size: 18px;
+  font-weight: 700;
 }
 
 .authButtons {

@@ -33,12 +33,12 @@ const ProcessSection = () => {
           <h2>귀가 버스 이용 순서</h2>
         </div>
 
-        <div className={styles.stepList}>
+        <ol className={styles.stepList}>
           {steps.map((step, index) => {
             const Icon = step.icon;
 
             return (
-              <article className={styles.stepCard} key={step.title}>
+              <li className={styles.stepCard} key={step.title}>
                 <div className={styles.stepNumber}>{index + 1}</div>
                 <div className={styles.iconBox}>
                   <Icon size={20} />
@@ -47,10 +47,10 @@ const ProcessSection = () => {
                   <h3>{step.title}</h3>
                   <p>{step.description}</p>
                 </div>
-              </article>
+              </li>
             );
           })}
-        </div>
+        </ol>
       </div>
     </section>
   );

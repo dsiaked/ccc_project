@@ -8,6 +8,15 @@ export interface CccSummerProfile {
   isStaff: boolean;
 }
 
+export interface CccSummerLinkedProfile {
+  subjectId: string;
+  isStaff: boolean;
+  univNo: number | null;
+  univName: string | null;
+  branchNo: number | null;
+  branchName: string | null;
+}
+
 interface HandoffSession {
   access_token: string;
   refresh_token: string;
@@ -81,4 +90,16 @@ export const selectCccSummerCampus = async (campusId: string) => {
   if (error || data?.requiresCampusSelection !== false) {
     throw new Error('캠퍼스 연결을 저장하지 못했습니다. 다시 시도해주세요.');
   }
+};
+
+export const getCccSummerLinkedProfile = async () => {
+  const { data, error } = await supabase.functions.invoke('ccc-summer-handoff', {
+    body: { action: 'profile' },
+  });
+
+  if (error || !data?.profile) {
+    throw new Error('CCC Summer 연결 정보를 불러오지 못했습니다.');
+  }
+
+  return data.profile as CccSummerLinkedProfile;
 };

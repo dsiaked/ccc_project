@@ -61,3 +61,21 @@
   line-height: 1.4;
   opacity: 0.82;
 }
+
+.retryButton {
+  margin-top: 7px;
+  border: 1px solid currentColor;
+  border-radius: 8px;
+  padding: 5px 9px;
+  background: #ffffff;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.retryButton:focus-visible {
+  outline: 3px solid #1d4ed8;
+  outline-offset: 2px;
+}

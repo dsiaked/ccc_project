@@ -40,6 +40,19 @@ jobs:
           python -m pytest tests -q
           cd ..
           npm run build
+      - name: Verify Supabase deployment compatibility
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        run: npm run deploy:check:supabase
+      - name: Deploy changed Edge Functions
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          test -n "$SUPABASE_ACCESS_TOKEN"
+          npx supabase functions deploy ai-operations-report --project-ref pjbvxoesgwhbxfsfjliw
+          npx supabase functions deploy allocation-optimizer-launcher --project-ref pjbvxoesgwhbxfsfjliw
+          npx supabase functions deploy ccc-summer-handoff --project-ref pjbvxoesgwhbxfsfjliw
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}

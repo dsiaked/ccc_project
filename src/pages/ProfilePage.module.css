@@ -1,0 +1,327 @@
+.pageContainer {
+  min-height: 100vh;
+  min-height: 100dvh;
+  max-width: 480px;
+  margin: 0 auto;
+  background: #f8fafc;
+  box-shadow: 0 0 24px rgba(15, 23, 42, 0.08);
+}
+
+.main {
+  display: grid;
+  gap: 16px;
+  padding: 24px 14px calc(48px + env(safe-area-inset-bottom));
+}
+
+.pageHeader {
+  padding: 8px 10px 4px;
+  text-align: center;
+}
+
+.iconCircle {
+  width: 52px;
+  height: 52px;
+  margin: 0 auto 12px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.pageHeader h1 {
+  margin: 0;
+  color: #101828;
+  font-size: 23px;
+}
+
+.pageHeader p {
+  margin: 7px 0 0;
+  color: #667085;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.card,
+.statusCard {
+  padding: 20px;
+  border: 1px solid #eaecf0;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.045);
+}
+
+.card {
+  display: grid;
+  gap: 16px;
+}
+
+.cardTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #1d4ed8;
+}
+
+.cardTitle h2 {
+  margin: 0;
+  color: #101828;
+  font-size: 17px;
+}
+
+.field {
+  display: grid;
+  gap: 7px;
+  color: #344054;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.field input {
+  height: 48px;
+  padding: 0 14px;
+  border: 1px solid #d0d5dd;
+  border-radius: 10px;
+  color: #101828;
+  font-size: 16px;
+}
+
+.field input[aria-invalid='true'] {
+  border-color: #dc2626;
+  background: #fff7f7;
+}
+
+.field input:focus {
+  outline: 3px solid #dbeafe;
+  border-color: #2563eb;
+}
+
+.fieldError {
+  margin: 0;
+  color: #b42318;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.infoRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 13px 14px;
+  border-radius: 12px;
+  background: #f8fafc;
+  color: #2563eb;
+}
+
+.infoRow svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
+.infoRow div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.infoRow span {
+  color: #667085;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.infoRow strong {
+  color: #101828;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.cccDetails {
+  display: grid;
+  gap: 10px;
+}
+
+.cccDetails div {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  padding: 13px 14px;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.cccDetails span {
+  color: #667085;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.cccDetails strong {
+  color: #101828;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.technicalDetails {
+  border: 1px solid #e4e7ec;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.technicalDetails summary {
+  padding: 13px 14px;
+  color: #475467;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.technicalDetails[open] summary {
+  border-bottom: 1px solid #e4e7ec;
+}
+
+.technicalDetailsBody {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.technicalDetailsBody div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.technicalDetailsBody span {
+  color: #667085;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.technicalDetailsBody strong {
+  color: #101828;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.inlineLoading {
+  min-height: 86px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 12px;
+  background: #f8fafc;
+  color: #667085;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.smallSpinner {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  border: 3px solid #dbeafe;
+  border-top-color: #2563eb;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.errorBox,
+.successBox {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.errorBox {
+  background: #fff1f2;
+  color: #b42318;
+}
+
+.successBox {
+  background: #ecfdf3;
+  color: #027a48;
+}
+
+.saveButton,
+.secondaryButton,
+.retryButton,
+.statusCard button {
+  min-height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.saveButton,
+.retryButton,
+.statusCard button {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.saveButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.secondaryButton {
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.retryButton {
+  border: 0;
+}
+
+.helpText {
+  margin: 0;
+  color: #667085;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.statusCard {
+  min-height: 180px;
+  display: grid;
+  place-items: center;
+  gap: 12px;
+  color: #667085;
+  text-align: center;
+}
+
+.statusCard p {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.errorIcon {
+  color: #dc2626;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #dbeafe;
+  border-top-color: #2563eb;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

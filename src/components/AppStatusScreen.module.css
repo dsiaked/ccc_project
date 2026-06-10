@@ -32,6 +32,11 @@
   font-weight: 700;
 }
 
+.screen button:focus-visible {
+  outline: 3px solid #f59e0b;
+  outline-offset: 3px;
+}
+
 .setupCard {
   width: min(100%, 540px);
   padding: 20px;
@@ -75,5 +80,11 @@
 @keyframes spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 2s;
   }
 }

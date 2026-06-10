@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import test from 'node:test';
 
 interface FirebaseHeader {
@@ -76,10 +76,10 @@ test('Edge Functions pin Supabase JS to the package-lock version', () => {
   })) {
     if (!entry.isDirectory()) continue;
 
-    const source = readFileSync(
-      `supabase/functions/${entry.name}/index.ts`,
-      'utf8'
-    );
+    const indexPath = `supabase/functions/${entry.name}/index.ts`;
+    if (!existsSync(indexPath)) continue;
+
+    const source = readFileSync(indexPath, 'utf8');
     const imports = [
       ...source.matchAll(
         /https:\/\/esm\.sh\/@supabase\/supabase-js@([^'"/?]+)/g

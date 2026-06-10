@@ -41,7 +41,6 @@
 .logo,
 .nav button,
 .homeButton,
-.logoutButton,
 .collapseButton,
 .navGroupToggle {
   border: none;
@@ -184,8 +183,7 @@
 }
 
 .navGroupItems button,
-.homeButton,
-.logoutButton {
+.homeButton {
   position: relative;
   width: 100%;
   min-width: 0;
@@ -227,7 +225,6 @@
 .header.collapsed .navGroupToggle,
 .header.collapsed .navItemLabel,
 .header.collapsed .homeLabel,
-.header.collapsed .logoutLabel,
 .header.collapsed .campusSwitcher,
 .header.collapsed .viewSwitcher span {
   display: none;
@@ -251,8 +248,7 @@
 }
 
 .header.collapsed .navGroupItems button,
-.header.collapsed .homeButton,
-.header.collapsed .logoutButton {
+.header.collapsed .homeButton {
   justify-content: center;
   min-height: 44px;
   padding: 0;
@@ -312,8 +308,7 @@
 }
 
 .navGroupItems button:hover,
-.homeButton:hover,
-.logoutButton:hover {
+.homeButton:hover {
   background: #1f2937;
   color: #ffffff;
 }
@@ -368,6 +363,14 @@
   border-top: 1px solid #374151;
 }
 
+.mobileRoleSwitcher {
+  display: none;
+}
+
+.desktopRoleSwitcher {
+  display: contents;
+}
+
 .topRoleSwitcher {
   padding-bottom: 14px;
   border-bottom: 1px solid #374151;
@@ -394,17 +397,12 @@
   cursor: pointer;
 }
 
-.logoutButton {
-  color: #fecaca;
-}
-
 .logo:focus-visible,
 .collapseButton:focus-visible,
 .navGroupToggle:focus-visible,
 .viewSwitcher button:focus-visible,
 .navGroupItems button:focus-visible,
 .homeButton:focus-visible,
-.logoutButton:focus-visible,
 .campusSwitcher select:focus-visible {
   outline: 3px solid rgba(96, 165, 250, 0.45);
   outline-offset: 2px;
@@ -534,8 +532,7 @@
 
   .header.collapsed .logoLabel,
   .header.collapsed .navItemLabel,
-  .header.collapsed .homeLabel,
-  .header.collapsed .logoutLabel {
+  .header.collapsed .homeLabel {
     display: inline;
   }
 
@@ -552,8 +549,7 @@
   }
 
   .header.collapsed .navGroupItems button,
-  .header.collapsed .homeButton,
-  .header.collapsed .logoutButton {
+  .header.collapsed .homeButton {
     justify-content: flex-start;
     min-height: 42px;
     padding: 0 10px;
@@ -595,8 +591,7 @@
     max-width: 160px;
   }
 
-  .homeButton,
-  .logoutButton {
+  .homeButton {
     width: auto;
   }
 }
@@ -611,6 +606,36 @@
     padding: max(8px, env(safe-area-inset-top)) 10px 8px;
   }
 
+  .compactRoleHeader,
+  .compactRoleHeader.collapsed {
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas: "logo actions";
+  }
+
+  .compactRoleHeader .nav {
+    display: none;
+  }
+
+  .compactRoleHeader .topRoleSwitcher,
+  .compactRoleHeader .desktopRoleSwitcher {
+    display: none;
+  }
+
+  .compactRoleHeader .headerActions {
+    min-width: 0;
+  }
+
+  .compactRoleHeader .mobileRoleSwitcher {
+    display: block;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .compactRoleHeader .campusSwitcher select {
+    max-width: none;
+    min-width: 0;
+  }
+
   .viewSwitcher,
   .header.collapsed .viewSwitcher {
     display: none;
@@ -618,10 +643,8 @@
 
   .logoLabel,
   .homeLabel,
-  .logoutLabel,
   .header.collapsed .logoLabel,
-  .header.collapsed .homeLabel,
-  .header.collapsed .logoutLabel {
+  .header.collapsed .homeLabel {
     display: none;
   }
 
@@ -630,8 +653,7 @@
     padding: 0;
   }
 
-  .homeButton,
-  .logoutButton {
+  .homeButton {
     width: 44px;
     min-height: 44px;
     padding: 0;

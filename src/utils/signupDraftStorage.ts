@@ -28,6 +28,11 @@ export const emptySignupDraft: SignupDraft = {
   coordinatorPhone: '',
 };
 
+const getDraftString = (
+  source: Record<string, unknown>,
+  field: keyof SignupDraft
+) => (typeof source[field] === 'string' ? source[field] : emptySignupDraft[field]);
+
 const parseSignupDraft = (value: string | null): SignupDraft | null => {
   if (!value) return null;
 
@@ -41,39 +46,16 @@ const parseSignupDraft = (value: string | null): SignupDraft | null => {
     const source = parsed as Record<string, unknown>;
 
     return {
-      email:
-        typeof source.email === 'string' ? source.email : emptySignupDraft.email,
-      name: typeof source.name === 'string' ? source.name : emptySignupDraft.name,
-      phone:
-        typeof source.phone === 'string' ? source.phone : emptySignupDraft.phone,
-      districtId:
-        typeof source.districtId === 'string'
-          ? source.districtId
-          : emptySignupDraft.districtId,
-      teamId:
-        typeof source.teamId === 'string'
-          ? source.teamId
-          : emptySignupDraft.teamId,
-      campusId:
-        typeof source.campusId === 'string'
-          ? source.campusId
-          : emptySignupDraft.campusId,
-      externalDistrict:
-        typeof source.externalDistrict === 'string'
-          ? source.externalDistrict
-          : emptySignupDraft.externalDistrict,
-      externalCampus:
-        typeof source.externalCampus === 'string'
-          ? source.externalCampus
-          : emptySignupDraft.externalCampus,
-      coordinatorName:
-        typeof source.coordinatorName === 'string'
-          ? source.coordinatorName
-          : emptySignupDraft.coordinatorName,
-      coordinatorPhone:
-        typeof source.coordinatorPhone === 'string'
-          ? source.coordinatorPhone
-          : emptySignupDraft.coordinatorPhone,
+      email: getDraftString(source, 'email'),
+      name: getDraftString(source, 'name'),
+      phone: getDraftString(source, 'phone'),
+      districtId: getDraftString(source, 'districtId'),
+      teamId: getDraftString(source, 'teamId'),
+      campusId: getDraftString(source, 'campusId'),
+      externalDistrict: getDraftString(source, 'externalDistrict'),
+      externalCampus: getDraftString(source, 'externalCampus'),
+      coordinatorName: getDraftString(source, 'coordinatorName'),
+      coordinatorPhone: getDraftString(source, 'coordinatorPhone'),
     };
   } catch {
     return null;

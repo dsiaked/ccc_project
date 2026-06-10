@@ -25,7 +25,7 @@ import { formatBusLabel } from '../../utils/busLabel';
 
 import styles from './AdminAllocationResultPage.module.css';
 
-type PaymentStatus = 'pending' | 'completed' | 'refunded' | 'none';
+type PaymentStatus = 'pending' | 'completed' | 'none';
 type PaymentFilter = PaymentStatus | 'all' | 'attention';
 type WarningType = 'empty' | 'duplicate' | 'overCapacity' | 'payment';
 
@@ -116,7 +116,6 @@ const RESERVATION_FETCH_PAGE_SIZE = 1000;
 const paymentLabels: Record<PaymentStatus, string> = {
   completed: '입금 완료',
   pending: '미입금',
-  refunded: '환불',
   none: '입금 정보 없음',
 };
 
@@ -860,7 +859,6 @@ const AdminAllocationResultPage = () => {
                       <option value="attention">입금 확인 필요</option>
                       <option value="completed">입금 완료</option>
                       <option value="pending">미입금</option>
-                      <option value="refunded">환불</option>
                       <option value="none">입금 정보 없음</option>
                     </select>
                     <select

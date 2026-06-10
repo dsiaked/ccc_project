@@ -68,30 +68,31 @@ test('admin dashboard places allocation planning before payment management', () 
       adminDashboard.indexOf("id: 'payment-and-request-management'")
   );
   assert.ok(
-    adminDashboard.indexOf("id: 'remaining-seat-sales'") <
+    adminDashboard.indexOf("id: 'allocation-planning'") <
       adminDashboard.indexOf("id: 'payment-and-request-management'")
   );
 });
 
-test('admin dashboard separates continuous payment and inquiry work from numbered steps', () => {
+test('admin dashboard uses six numbered operation stages', () => {
   const numberedStepsStart = adminDashboard.indexOf(
     'const operationScenarioSteps = ['
   );
   const numberedStepsEnd = adminDashboard.indexOf(
-    'const continuousOperationStep ='
+    'const operationScenarioStepIds'
   );
   const numberedSteps = adminDashboard.slice(numberedStepsStart, numberedStepsEnd);
 
-  assert.doesNotMatch(numberedSteps, /id: 'payment-and-request-management'/);
-  assert.match(adminDashboard, /className=\{styles\.continuousOperationBlock\}/);
-  assert.match(adminDashboard, /<span>상시 운영<\/span>/);
-  assert.match(adminDashboard, /<CreditCard size=\{17\} \/>/);
+  assert.match(numberedSteps, /id: 'payment-and-request-management'/);
+  assert.match(numberedSteps, /id: 'boarding-operations'/);
+  assert.match(numberedSteps, /id: 'follow-up-review'/);
+  assert.doesNotMatch(adminDashboard, /continuousOperationStep/);
+  assert.match(adminDashboard, /전체 \{operationScenarioSteps\.length\}단계/);
 });
 
 test('admin dashboard keeps application status in step 2 and deadline closing in step 3 related actions', () => {
   const step2Start = adminDashboard.indexOf("id: 'post-deadline-operations'");
   const step3Start = adminDashboard.indexOf("id: 'allocation-planning'");
-  const step4Start = adminDashboard.indexOf("id: 'remaining-seat-sales'");
+  const step4Start = adminDashboard.indexOf("id: 'payment-and-request-management'");
   const step2 = adminDashboard.slice(step2Start, step3Start);
   const step3 = adminDashboard.slice(step3Start, step4Start);
 
@@ -104,17 +105,35 @@ test('admin dashboard keeps application status in step 2 and deadline closing in
   );
 });
 
-test('admin dashboard shows the retreat-day timing for each operation step', () => {
+test('admin dashboard shows the timing for all six operation steps', () => {
   [
     "timing: '수련회 전'",
     "timing: '수련회 2일차'",
     "timing: '수련회 3일차 24:00'",
-    "timing: '수련회 4일차'",
     "timing: '신청 기간 동안 상시 · 수련회 4일차 24:00 최종 확인'",
+    "timing: '출발 당일'",
+    "timing: '운행 종료 후'",
   ].forEach((timing) => assert.match(adminDashboard, new RegExp(timing)));
 
   assert.match(adminDashboard, /styles\.scenarioTiming/);
-  assert.doesNotMatch(adminDashboard, /id: 'final-check'/);
+  assert.match(adminDashboard, /styles\.readinessStatus/);
+});
+
+test('admin dashboard keeps final completion manual while showing data readiness', () => {
+  assert.match(adminDashboard, /const scenarioReadinessById/);
+  assert.match(adminDashboard, /완료 조건 충족/);
+  assert.match(adminDashboard, /확인 필요/);
+  assert.match(adminDashboard, /onClick=\{\(\) => handleToggleScenarioStep\(step\.id\)\}/);
+  assert.doesNotMatch(adminDashboard, /updateGlobalScenarioChecklist\([^)]*scenarioReadiness/);
+});
+
+test('admin dashboard routes the final stage to the separate operation closeout screen', () => {
+  const finalStageStart = adminDashboard.indexOf("id: 'follow-up-review'");
+  const finalStage = adminDashboard.slice(finalStageStart);
+
+  assert.match(finalStage, /actionPath: '\/admin\/system\/closeout'/);
+  assert.match(adminHeader, /path: '\/admin\/system\/closeout'/);
+  assert.match(adminHeader, /label: '운영 종료 점검'/);
 });
 
 test('admin dashboard summarizes the participation journey in order', () => {

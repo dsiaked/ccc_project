@@ -14,8 +14,10 @@ export const getMyPersonalNotifications = async (
 ): Promise<PersonalNotification[]> => {
   const {
     data: { user },
+    error: userError,
   } = await supabase.auth.getUser();
 
+  if (userError) throw userError;
   if (!user) return [];
 
   const { data, error } = await supabase
@@ -26,11 +28,7 @@ export const getMyPersonalNotifications = async (
     .limit(limit);
 
   if (error) {
-    if (
-      error.code === '42P01' ||
-      error.code === 'PGRST205' ||
-      error.message.includes('personal_notifications')
-    ) {
+    if (error.code === '42P01' || error.code === 'PGRST205') {
       return [];
     }
     throw error;

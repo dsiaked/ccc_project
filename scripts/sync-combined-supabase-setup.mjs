@@ -1,6 +1,34 @@
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 
 const combinedPath = 'sql/setup/combined_supabase_setup.sql';
+const baseSetupFiles = [
+  '00_base_schema_and_rls.sql',
+  '01_profiles_organization_stations.sql',
+  '05_app_settings.sql',
+  '10_payment_and_price_functions.sql',
+  '20_reservation_deadline.sql',
+  '21_atomic_reservation_save.sql',
+  '22_destination_stats_rpc.sql',
+  '30_campus_transfer_settlement.sql',
+  '33_confirm_campus_transfer_amount.sql',
+  '40_campus_requests_board.sql',
+  '41_campus_notice_reads.sql',
+  '50_home_announcements.sql',
+  '55_atomic_allocation_confirmation.sql',
+  '60_reset_reservation_data.sql',
+  '80_seed_seoul_organization.sql',
+  '82_seed_stations_template.sql',
+  '99_finalize_setup.sql',
+  '57_atomic_admin_remaining_seat_sale.sql',
+  '58_simulation_runtime.sql',
+  '63_admin_delete_user_account.sql',
+  '64_allocation_workspace_versions.sql',
+  '65_canonical_reservation_status.sql',
+  '66_atomic_admin_personal_ticket.sql',
+  '67_reservations_rpc_only_writes.sql',
+  '68_payments_rpc_only_writes.sql',
+  '69_admin_roles_rpc_only_writes.sql',
+];
 const setupFiles = [
   '70_admin_personal_ticket_page.sql',
   '71_admin_setup_rpc_only_writes.sql',
@@ -98,37 +126,50 @@ const setupFiles = [
   '162_ccc_summer_campus_mapping.sql',
   '163_fix_guarded_allocation_optimization_reset.sql',
   '164_extend_allocation_confirmation_timeout.sql',
+  '165_deployment_compatibility_check.sql',
+  '166_ai_report_log_selection.sql',
+  '167_attribute_simulation_user_activity.sql',
 ];
+const knownSetupFiles = new Set([...baseSetupFiles, ...setupFiles]);
+const discoveredTailFiles = readdirSync('sql/setup')
+  .filter((fileName) => {
+    const sequence = Number.parseInt(fileName.match(/^(\d+)_/)?.[1] ?? '', 10);
+    return fileName.endsWith('.sql') && sequence > 167 && !knownSetupFiles.has(fileName);
+  })
+  .sort((left, right) => {
+    const leftSequence = Number.parseInt(left.match(/^(\d+)_/)?.[1] ?? '', 10);
+    const rightSequence = Number.parseInt(right.match(/^(\d+)_/)?.[1] ?? '', 10);
+    return leftSequence - rightSequence || left.localeCompare(right);
+  });
+setupFiles.push(...discoveredTailFiles);
 
 let combined = readFileSync(combinedPath, 'utf8').replaceAll('\r\n', '\n');
 const separator = '-- =========================================================';
-const sections = [];
-
-for (const setupFile of setupFiles) {
-  const beginMarker = `-- BEGIN sql/setup/${setupFile}`;
-  const endMarker = `-- END sql/setup/${setupFile}`;
+const renderSection = (setupFile) => {
   const sql = readFileSync(`sql/setup/${setupFile}`, 'utf8')
     .replaceAll('\r\n', '\n')
     .trimEnd();
-  sections.push(
-    `${separator}\n${beginMarker}\n${separator}\n\n${sql}\n\n${separator}\n${endMarker}\n${separator}`
-  );
-  const start = combined.indexOf(beginMarker);
-  const end = combined.indexOf(endMarker);
+  return `${separator}\n-- BEGIN sql/setup/${setupFile}\n${separator}\n\n${sql}\n\n${separator}\n-- END sql/setup/${setupFile}\n${separator}`;
+};
+const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const markedSectionPattern = new RegExp(
+  `(?:^|\\n)${escapeRegex(separator)}\\n-- BEGIN sql/setup/([^\\n]+)\\n${escapeRegex(separator)}\\n[\\s\\S]*?\\n${escapeRegex(separator)}\\n-- END sql/setup/\\1\\n${escapeRegex(separator)}(?=\\n|$)`,
+  'g'
+);
 
-  if (start < 0 && end < 0) continue;
-  if (start < 0 || end < start) {
-    throw new Error(`Malformed combined setup markers for ${setupFile}.`);
-  }
-
-  const sectionStart = combined.lastIndexOf(separator, start);
-  const trailingSeparator = combined.indexOf(separator, end);
-  if (sectionStart < 0 || trailingSeparator < 0) {
-    throw new Error(`Missing combined setup separator for ${setupFile}.`);
-  }
-  const sectionEnd = trailingSeparator + separator.length;
-  combined = `${combined.slice(0, sectionStart)}${combined.slice(sectionEnd)}`;
+combined = combined.replace(markedSectionPattern, '\n');
+if (/-- (?:BEGIN|END) sql\/setup\//.test(combined)) {
+  throw new Error('Malformed combined setup markers remain after cleanup.');
 }
 
-combined = `${combined.trimEnd()}\n\n${sections.join('\n\n')}\n`;
+const baseSections = baseSetupFiles.map(renderSection);
+const patchSections = setupFiles.map(renderSection);
+combined = `${baseSections.join('\n\n')}\n\n${combined.trim()}\n\n${patchSections.join('\n\n')}\n`;
+
+for (const setupFile of [...baseSetupFiles, ...setupFiles]) {
+  const marker = `-- BEGIN sql/setup/${setupFile}`;
+  if (combined.split(marker).length !== 2) {
+    throw new Error(`Combined setup must contain exactly one marker for ${setupFile}.`);
+  }
+}
 writeFileSync(combinedPath, combined);

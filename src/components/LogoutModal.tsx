@@ -9,27 +9,62 @@ interface LogoutModalProps {
 }
 
 const LogoutModal = ({ onClose, onConfirm }: LogoutModalProps) => {
+  const modalRef = useRef<HTMLElement>(null);
   const confirmButtonRef = useRef<HTMLButtonElement>(null);
+  const isLoggingOutRef = useRef(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
+    const opener =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
     confirmButtonRef.current?.focus();
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !isLoggingOut) {
+      if (event.key === 'Escape' && !isLoggingOutRef.current) {
         onClose();
+      }
+      if (event.key !== 'Tab') return;
+
+      const focusable = Array.from(
+        modalRef.current?.querySelectorAll<HTMLElement>(
+          'button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])'
+        ) ?? []
+      );
+      if (focusable.length === 0) {
+        event.preventDefault();
+        modalRef.current?.focus();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
 
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isLoggingOut, onClose]);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+      opener?.focus();
+    };
+  }, [onClose]);
 
   const handleConfirm = async () => {
     setError('');
     setIsLoggingOut(true);
+    isLoggingOutRef.current = true;
 
     try {
       await onConfirm();
@@ -37,6 +72,7 @@ const LogoutModal = ({ onClose, onConfirm }: LogoutModalProps) => {
       console.error('로그아웃 실패:', caughtError);
       setError('로그아웃 중 문제가 발생했습니다. 다시 시도해주세요.');
       setIsLoggingOut(false);
+      isLoggingOutRef.current = false;
     }
   };
 
@@ -48,7 +84,9 @@ const LogoutModal = ({ onClose, onConfirm }: LogoutModalProps) => {
       }}
     >
       <section
+        ref={modalRef}
         className={styles.modal}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-labelledby="logout-modal-title"
@@ -73,7 +111,7 @@ const LogoutModal = ({ onClose, onConfirm }: LogoutModalProps) => {
           현재 계정에서 안전하게 로그아웃합니다.
         </p>
 
-        {error && <p className={styles.error}>{error}</p>}
+        {error && <p className={styles.error} role="alert">{error}</p>}
 
         <div className={styles.actions}>
           <button

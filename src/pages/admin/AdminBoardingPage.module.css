@@ -4,10 +4,10 @@
 .hero span { color: #93c5fd; font-size: 12px; font-weight: 900; text-transform: uppercase; }
 .hero h1 { margin: 6px 0; font-size: 30px; }
 .hero p { margin: 0; color: #cbd5e1; }
-.hero button, .departure, .cancelDeparture, .clearSearch { align-self: center; min-height: 44px; padding: 0 16px; border: 0; border-radius: 9px; font-weight: 900; cursor: pointer; }
-.hero button { display: flex; align-items: center; gap: 7px; background: white; color: #172554; }
+.departure, .cancelDeparture, .clearSearch { align-self: center; min-height: 44px; padding: 0 16px; border: 0; border-radius: 9px; font-weight: 900; cursor: pointer; }
 .error { padding: 12px; border: 1px solid #fecaca; border-radius: 8px; background: #fff1f2; color: #be123c; font-weight: 800; }
 .message { padding: 12px; border: 1px solid #bbf7d0; border-radius: 8px; background: #f0fdf4; color: #166534; font-weight: 800; }
+.boardingFeedback { position: fixed; z-index: 900; right: 24px; bottom: calc(24px + env(safe-area-inset-bottom)); display: flex; align-items: center; gap: 8px; padding: 13px 16px; border: 1px solid #86efac; border-radius: 10px; background: #166534; box-shadow: 0 10px 28px rgba(15, 23, 42, .22); color: white; font-weight: 900; }
 .empty { margin-top: 18px; padding: 70px 20px; border: 1px dashed #cbd5e1; border-radius: 14px; background: white; text-align: center; color: #64748b; }
 .empty h2 { color: #172554; }
 .allocationTitle { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin: 20px 0 12px; }
@@ -16,6 +16,7 @@
 .allocationTitle span { color: #b45309; font-size: 12px; font-weight: 800; }
 .boardingContent { display: flex; flex-direction: column; }
 .boardingContentManager .roster { order: -1; margin-top: 0; margin-bottom: 18px; }
+.boardingContentManager .busSelection { order: -2; margin-bottom: 18px; }
 .exportActions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px; }
 .exportActions button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 38px; padding: 0 11px; border: 1px solid #bfdbfe; border-radius: 8px; background: white; color: #1d4ed8; font-weight: 900; cursor: pointer; }
 .exportActions button:hover { background: #eff6ff; }
@@ -46,13 +47,7 @@
 .moveRequestHeading div { display: grid; gap: 2px; }.moveRequestHeading span { color: #7c3aed; font-size: 11px; font-weight: 900; }.moveRequestHeading strong { color: #4c1d95; }.moveRequestHeading p { margin: 0; color: #64748b; font-size: 12px; }
 .moveRequestList { display: grid; gap: 8px; }.moveRequestCard { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px; border: 1px solid #ddd6fe; border-radius: 9px; background: white; }.moveRequestCard > div:first-child { display: grid; gap: 3px; }.moveRequestCard strong { color: #172554; }.moveRequestCard span, .moveRequestCard small { color: #64748b; font-size: 11px; font-weight: 800; }.moveRequestCard p { margin: 2px 0 0; color: #475569; font-size: 12px; }
 .moveRequestActions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }.moveRequestActions button { min-height: 34px; padding: 0 10px; border: 1px solid #7c3aed; border-radius: 8px; background: #7c3aed; color: white; font-weight: 900; cursor: pointer; }.moveRequestActions button.rejectMoveRequest { border-color: #fecaca; background: #fff1f2; color: #be123c; }.moveRequestActions button:disabled { opacity: .5; cursor: default; }.moveRequestStatus_pending { color: #b45309 !important; }.moveRequestStatus_approved { color: #15803d !important; }.moveRequestStatus_rejected { color: #be123c !important; }
-.busToolbar { display: grid; grid-template-columns: minmax(220px, 360px) auto 1fr; align-items: center; gap: 8px; margin-bottom: 10px; }
-.busToolbar label { display: flex; align-items: center; gap: 7px; min-height: 40px; padding: 0 10px; border: 1px solid #cbd5e1; border-radius: 9px; background: white; color: #64748b; }
-.busToolbar input { width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; font: inherit; }
-.busToolbar button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 40px; padding: 0 11px; border: 1px solid #cbd5e1; border-radius: 9px; background: white; color: #475569; font-weight: 800; cursor: pointer; }
-.busToolbar label button { min-width: 28px; min-height: 28px; padding: 0; border: 0; border-radius: 999px; background: #e2e8f0; }
-.busToolbar button.problemFilterActive { border-color: #fda4af; background: #fff1f2; color: #be123c; }
-.busToolbar > span { color: #64748b; font-size: 12px; font-weight: 800; text-align: right; }
+.busSelection { display: grid; gap: 10px; }
 .busGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
 .busCard { padding: 15px; border: 2px solid transparent; border-radius: 12px; background: white; text-align: left; cursor: pointer; }
 .busCardActive { border-color: #2563eb; box-shadow: 0 6px 18px rgba(37, 99, 235, .15); }
@@ -81,9 +76,8 @@
 .statusBadge { padding: 5px 8px; border-radius: 999px; font-size: 11px; font-weight: 900; }
 .boarded { background: #dcfce7; color: #166534; }.unchecked { background: #fef3c7; color: #92400e; }.noShow { background: #fee2e2; color: #991b1b; }
 .noBuses { display: grid; justify-items: center; gap: 8px; padding: 34px 20px; border: 1px dashed #cbd5e1; border-radius: 12px; background: white; color: #64748b; text-align: center; }
-.noBuses button { min-height: 36px; padding: 0 12px; border: 1px solid #bfdbfe; border-radius: 8px; background: #eff6ff; color: #1d4ed8; font-weight: 900; cursor: pointer; }
-.roster { margin-top: 18px; padding: 20px; border: 1px solid #dfe3e8; border-radius: 14px; background: white; }
-.rosterHeader { display: flex; justify-content: space-between; gap: 16px; padding-bottom: 18px; border-bottom: 1px solid #e5e7eb; }
+.roster { margin-top: 18px; padding: 18px; border: 1px solid #cbd5e1; border-radius: 14px; background: #f1f5f9; box-shadow: 0 8px 24px rgba(15, 23, 42, .05); }
+.rosterHeader { display: flex; justify-content: space-between; gap: 16px; padding: 2px 2px 14px; border-bottom: 1px solid #dbe3ee; }
 .rosterHeader span { color: #2563eb; font-size: 12px; font-weight: 900; }.rosterHeader h2 { margin: 4px 0; color: #172554; }.rosterHeader p { margin: 0; color: #64748b; }
 .fieldExceptionActions { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 22px 0 10px; padding: 12px; border: 1px solid #c4b5fd; border-radius: 9px; background: #f5f3ff; }
 .fieldExceptionActions div { display: flex; align-items: baseline; gap: 8px; min-width: 0; }.fieldExceptionActions strong { flex: 0 0 auto; color: #5b21b6; font-size: 13px; }.fieldExceptionActions span { overflow: hidden; color: #6b7280; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
@@ -94,8 +88,15 @@
 .departureFooter strong { color: #7f1d1d; }
 .departureFooter span { color: #64748b; font-size: 12px; }
 .departureFooter button { flex: 0 0 auto; min-height: 46px; }
-.filters { display: grid; grid-template-columns: 1fr 220px; align-items: center; gap: 10px; margin: 12px 0; }
-.filters label { display: flex; align-items: center; gap: 8px; padding: 0 12px; border: 1px solid #cbd5e1; border-radius: 9px; }
+.departureConfirmBody { display: grid; gap: 14px; padding: 18px; }
+.departureConfirmBody p, .departureConfirmBody small { margin: 0; color: #64748b; }
+.departureConfirmCounts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.departureConfirmCounts div { display: grid; gap: 5px; padding: 14px 10px; border: 1px solid #e2e8f0; border-radius: 10px; background: #f8fafc; text-align: center; }
+.departureConfirmCounts span { color: #64748b; font-size: 12px; font-weight: 800; }
+.departureConfirmCounts strong { color: #172554; font-size: 20px; }
+.exceptionModal footer button.confirmDeparture { border-color: #b91c1c; background: #b91c1c; color: white; }
+.filters { display: grid; grid-template-columns: 1fr 220px; align-items: center; gap: 10px; margin: 10px 0; }
+.filters label { display: flex; align-items: center; gap: 8px; padding: 0 12px; border: 1px solid #cbd5e1; border-radius: 9px; background: white; }
 .filters input, .filters select { width: 100%; height: 44px; border: 0; background: white; font: inherit; }.filters select { padding: 0 12px; border: 1px solid #cbd5e1; border-radius: 9px; }
 .inputClear { display: grid; flex: 0 0 auto; place-content: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 999px; background: #e2e8f0; color: #475569; cursor: pointer; }
 .statusFilters { display: flex; flex-wrap: wrap; gap: 7px; margin: -4px 0 14px; }
@@ -227,6 +228,13 @@
 .exceptionModal footer button[type="submit"] { border-color: #7c3aed; background: #7c3aed; color: white; }
 .exceptionModal footer button:disabled { opacity: .5; cursor: default; }
 @media (max-width: 900px) {
+  .boardingFeedback {
+    right: 12px;
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    left: 12px;
+    justify-content: center;
+  }
+
   .main {
     padding: 14px 12px calc(40px + env(safe-area-inset-bottom));
   }
@@ -243,7 +251,6 @@
     flex-direction: column;
   }
 
-  .hero button,
   .departure,
   .cancelDeparture,
   .clearSearch,
@@ -284,15 +291,6 @@
   .overviewHeading > div {
     display: grid;
     gap: 2px;
-  }
-
-  .busToolbar {
-    grid-template-columns: 1fr auto;
-  }
-
-  .busToolbar > span {
-    grid-column: 1 / -1;
-    text-align: left;
   }
 
   .busGrid {
@@ -381,47 +379,67 @@
 }
 
 .checkInCodePanel {
-  display: grid;
-  grid-template-columns: minmax(220px, 1fr) auto minmax(190px, auto);
+  display: flex;
   align-items: center;
-  gap: 12px;
-  margin: 10px 0 12px;
-  padding: 10px 12px;
-  border: 1px solid #bfdbfe;
-  border-radius: 9px;
-  background: #eff6ff;
+  gap: 10px;
+  margin: 10px 0;
+  padding: 7px 8px 7px 10px;
+  border: 1px solid #dbe3ee;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, .78);
+}
+
+.departureLockNotice {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 12px 14px;
+  border: 1px solid #fdba74;
+  border-radius: 12px;
+  background: #fff7ed;
+  color: #9a3412;
+}
+
+.departureLockNotice div {
+  display: grid;
+  gap: 2px;
+}
+
+.departureLockNotice span {
+  font-size: 13px;
 }
 
 .checkInCodeCopy {
   display: flex;
-  align-items: flex-start;
-  gap: 10px;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
   color: #1d4ed8;
-}
-
-.checkInCodeCopy div,
-.checkInCodeActions {
-  display: grid;
-  gap: 4px;
-}
-
-.checkInCodeCopy span,
-.checkInCodeActions span {
-  color: #64748b;
   font-size: 12px;
 }
 
+.checkInCodeActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.checkInCodeActions span {
+  color: #64748b;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
 .checkInCodeValue {
-  min-width: 160px;
+  min-width: 86px;
   color: #172554;
-  font-size: 25px;
+  font-size: 20px;
   font-weight: 950;
-  letter-spacing: 0.18em;
-  text-align: center;
+  letter-spacing: 0.12em;
 }
 
 .checkInCodeActions {
-  justify-items: end;
+  margin-left: auto;
 }
 
 .checkInCodeActions button {
@@ -429,12 +447,13 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  min-height: 36px;
-  padding: 0 11px;
-  border: 1px solid #93c5fd;
-  border-radius: 9px;
-  background: #ffffff;
+  min-height: 32px;
+  padding: 0 9px;
+  border: 1px solid #bfdbfe;
+  border-radius: 7px;
+  background: #eff6ff;
   color: #1d4ed8;
+  font-size: 11px;
   font-weight: 900;
   cursor: pointer;
 }
@@ -446,22 +465,21 @@
 
 @media (max-width: 760px) {
   .checkInCodePanel {
-    grid-template-columns: minmax(0, 1fr) auto auto;
+    flex-wrap: wrap;
     gap: 8px;
   }
 
-  .checkInCodeCopy span,
   .checkInCodeActions span {
     display: none;
   }
 
   .checkInCodeValue {
-    min-width: 110px;
-    font-size: 22px;
+    min-width: 80px;
+    font-size: 19px;
   }
 
   .checkInCodeActions {
-    justify-items: end;
+    margin-left: auto;
   }
 }
 
@@ -473,14 +491,6 @@
   .passengerList { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
   .passengerName { font-size: 12px; }
   .actions button, .boardingCheck { min-height: 36px; font-size: 9px; }
-  .busToolbar {
-    grid-template-columns: 1fr;
-  }
-
-  .busToolbar > span {
-    grid-column: auto;
-  }
-
   .hero {
     gap: 14px;
     border-radius: 12px;
@@ -494,10 +504,6 @@
   .hero p {
     font-size: 13px;
     line-height: 1.5;
-  }
-
-  .hero button {
-    min-height: 46px;
   }
 
   .fieldExceptionActions span {

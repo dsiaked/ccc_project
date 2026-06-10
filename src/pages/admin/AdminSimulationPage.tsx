@@ -712,6 +712,7 @@ const AdminSimulationPage = () => {
     null
   );
   const [previewMode, setPreviewMode] = useState<'before' | 'after'>('before');
+  const previewRequestRevisionRef = useRef(0);
   const referenceConfig = DEFAULT_SIMULATION_REFERENCE_CONFIG;
   const executionState = useSyncExternalStore(
     subscribeSimulationExecution,
@@ -725,6 +726,7 @@ const AdminSimulationPage = () => {
   const runMessage = actionMessage ?? executionState.message;
 
   const loadPreview = async () => {
+    const requestRevision = ++previewRequestRevisionRef.current;
     setLoading(true);
     setError(null);
     try {
@@ -732,13 +734,17 @@ const AdminSimulationPage = () => {
         getSimulationPreview(),
         getSimulationStageRuns(),
       ]);
+      if (requestRevision !== previewRequestRevisionRef.current) return;
       setPreview(nextPreview);
       setStageRuns(runs);
     } catch (loadError) {
+      if (requestRevision !== previewRequestRevisionRef.current) return;
       console.error('Failed to load simulation preview:', loadError);
       setError(loadError instanceof Error ? loadError.message : '시뮬레이션 미리보기를 불러오지 못했습니다.');
     } finally {
-      setLoading(false);
+      if (requestRevision === previewRequestRevisionRef.current) {
+        setLoading(false);
+      }
     }
   };
 
@@ -872,6 +878,7 @@ const AdminSimulationPage = () => {
                   : index === 6
                     ? 'deadline'
                     : 'boarding';
+    previewRequestRevisionRef.current += 1;
     const executionResult = await startSimulationExecution({
       stage,
       paymentMode,

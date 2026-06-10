@@ -50,6 +50,10 @@ import {
   getCampusPaymentAccount,
   type CampusPaymentAccount,
 } from '../lib/campusPaymentAccountService';
+import {
+  getPublicContactInfo,
+  type ContactInfo,
+} from '../lib/contactInfoService';
 import { getDistrictTransferAccountNumber } from '../lib/districtTransferAccountService';
 
 import { calculateDistanceKm, formatDistance } from '../utils/distance';
@@ -78,11 +82,15 @@ const formatPhoneNumber = (value: string) => {
 const ReservationPage = () => {
   const navigate = useNavigate();
   const placeSearchRequestIdRef = useRef(0);
+  const teamOptionsRequestIdRef = useRef(0);
+  const campusOptionsRequestIdRef = useRef(0);
 
   const [dbReservation, setDbReservation] = useState<ReturnBusReservation | null>(
     null
   );
   const [isLoading, setIsLoading] = useState(true);
+  const [initialLoadError, setInitialLoadError] = useState('');
+  const [initialLoadAttempt, setInitialLoadAttempt] = useState(0);
   const [isLoginRequiredModalOpen, setIsLoginRequiredModalOpen] =
     useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -103,6 +111,10 @@ const ReservationPage = () => {
       deadlineAt: null,
       isClosed: false,
     });
+  const [contactInfo, setContactInfo] = useState<ContactInfo>({
+    email: '',
+    phone: '',
+  });
 
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -230,24 +242,31 @@ useEffect(() => {
     let isMounted = true;
 
     const checkLoginAndLoadData = async () => {
+      setIsLoading(true);
+      setInitialLoadError('');
+
       try {
-        const { data } = await supabase.auth.getSession();
+        const { data, error: sessionError } = await supabase.auth.getSession();
 
         if (!isMounted) return;
+
+        if (sessionError) throw sessionError;
 
         if (!data.session) {
           setIsLoginRequiredModalOpen(true);
           return;
         }
 
-        const [reservation, deadline] = await Promise.all([
+        const [reservation, deadline, savedContactInfo] = await Promise.all([
           getReservation(),
           getReservationDeadline(),
+          getPublicContactInfo(),
         ]);
 
         if (!isMounted) return;
 
         setReservationDeadline(deadline);
+        setContactInfo(savedContactInfo);
         setDbReservation(reservation);
 
         if (reservation) {
@@ -293,8 +312,7 @@ useEffect(() => {
         if (!isMounted) return;
 
         if (profileError) {
-          console.error('Failed to load profile:', profileError);
-          return;
+          throw profileError;
         }
 
         setName(profile?.name || '');
@@ -324,6 +342,11 @@ useEffect(() => {
         }
       } catch (error) {
         console.error('Failed to load reservation:', error);
+        if (isMounted) {
+          setInitialLoadError(
+            '신청 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.'
+          );
+        }
       } finally {
         if (isMounted) setIsLoading(false);
       }
@@ -334,7 +357,7 @@ useEffect(() => {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [initialLoadAttempt]);
 
   useEffect(() => {
     let isMounted = true;
@@ -363,7 +386,7 @@ useEffect(() => {
 useEffect(() => {
   let isMounted = true;
 
-  const syncInitialOrganization = async () => {
+const syncInitialOrganization = async () => {
     if (districtOptions.length === 0) return;
     if (!selectedDistrict) return;
 
@@ -377,9 +400,12 @@ useEffect(() => {
     setDistrictSearch(matchedDistrict.name);
     setSelectedDistrict(matchedDistrict.name);
 
+    const teamRequestId = (teamOptionsRequestIdRef.current += 1);
+    const campusRequestId = (campusOptionsRequestIdRef.current += 1);
+
     try {
       const teams = await getTeamOptions(matchedDistrict.id);
-      if (!isMounted) return;
+      if (!isMounted || teamOptionsRequestIdRef.current !== teamRequestId) return;
 
       setTeamOptions(teams);
 
@@ -394,7 +420,7 @@ useEffect(() => {
       setSelectedTeam(matchedTeam.name);
 
       const campuses = await getCampusOptions(matchedTeam.id);
-      if (!isMounted) return;
+      if (!isMounted || campusOptionsRequestIdRef.current !== campusRequestId) return;
 
       setCampusOptions(campuses);
 
@@ -727,6 +753,9 @@ const stationCandidateResults = useMemo(() => {
 }, [stationOptions, stationCandidateSearch]);
 
   const handleDistrictSelect = async (district: DistrictOption) => {
+    const requestId = (teamOptionsRequestIdRef.current += 1);
+    campusOptionsRequestIdRef.current += 1;
+
     setAffiliationType('seoul');
     setSelectedDistrictId(district.id);
     setSelectedDistrict(district.name);
@@ -747,14 +776,18 @@ const stationCandidateResults = useMemo(() => {
 
     try {
       const teams = await getTeamOptions(district.id);
+      if (teamOptionsRequestIdRef.current !== requestId) return;
       setTeamOptions(teams);
     } catch (error) {
+      if (teamOptionsRequestIdRef.current !== requestId) return;
       console.error('팀 정보 로드 실패:', error);
       alert('팀 정보를 불러오지 못했습니다.');
     }
   };
 
   const handleTeamSelect = async (team: TeamOption) => {
+    const requestId = (campusOptionsRequestIdRef.current += 1);
+
     setSelectedTeamId(team.id);
     setSelectedTeam(team.name);
     setTeamSearch(team.name);
@@ -768,8 +801,10 @@ const stationCandidateResults = useMemo(() => {
 
     try {
       const campuses = await getCampusOptions(team.id);
+      if (campusOptionsRequestIdRef.current !== requestId) return;
       setCampusOptions(campuses);
     } catch (error) {
+      if (campusOptionsRequestIdRef.current !== requestId) return;
       console.error('캠퍼스 정보 로드 실패:', error);
       alert('캠퍼스 정보를 불러오지 못했습니다.');
     }
@@ -1197,6 +1232,8 @@ const handleConfirmCandidateStations = () => {
   };
 
   const handleExternalDistrictSelect = () => {
+    teamOptionsRequestIdRef.current += 1;
+    campusOptionsRequestIdRef.current += 1;
     setAffiliationType('external');
     setSelectedDistrictId(EXTERNAL_DISTRICT_ID);
     setSelectedDistrict('');
@@ -1298,6 +1335,18 @@ const handleConfirmCandidateStations = () => {
 {isLoading || isStationLoading ? (
   <section className={styles.loadingContainer}>
     <p>신청 정보를 불러오는 중...</p>
+  </section>
+) : initialLoadError ? (
+  <section className={styles.loadingContainer} role="alert">
+    <AlertTriangle size={34} aria-hidden="true" />
+    <p>{initialLoadError}</p>
+    <button
+      type="button"
+      className={styles.primaryButton}
+      onClick={() => setInitialLoadAttempt((attempt) => attempt + 1)}
+    >
+      다시 시도
+    </button>
   </section>
 ) : (
           <>
@@ -2026,13 +2075,18 @@ const handleConfirmCandidateStations = () => {
               </form>
             </div>
 
-            <div className={styles.footerInfo}>
-              <p>
-                신청 관련 문의:{' '}
-                <span className={styles.email}>info@ccc-bus.org</span> |
-                02-1234-5678
-              </p>
-            </div>
+            {(contactInfo.email || contactInfo.phone) && (
+              <div className={styles.footerInfo}>
+                <p>
+                  신청 관련 문의:{' '}
+                  {contactInfo.email && (
+                    <span className={styles.email}>{contactInfo.email}</span>
+                  )}
+                  {contactInfo.email && contactInfo.phone && ' | '}
+                  {contactInfo.phone}
+                </p>
+              </div>
+            )}
           </>
         )}
 
@@ -2089,8 +2143,7 @@ const handleConfirmCandidateStations = () => {
       <div className={styles.deleteRefundWarning}>
         <AlertTriangle size={18} aria-hidden="true" />
         <span>
-          결제 기록 삭제는 실제 환불 처리를 의미하지 않습니다. 이미 입금했다면
-          관리자에게 환불 여부를 확인해주세요.
+          신청을 삭제하면 연결된 입금 상태도 함께 제거됩니다.
         </span>
       </div>
       {reservationDeleteError && (

@@ -56,6 +56,21 @@ test('signup drafts are restored from session storage only', () => {
   assert.equal(legacyLocalStorage.getItem(SIGNUP_DRAFT_STORAGE_KEY), null);
 });
 
+test('malformed signup draft fields fall back to empty strings', () => {
+  const sessionStorage = new MemoryStorage();
+
+  sessionStorage.setItem(
+    SIGNUP_DRAFT_STORAGE_KEY,
+    JSON.stringify({ ...sampleDraft, email: 123, campusId: null })
+  );
+
+  assert.deepEqual(loadSignupDraft(sessionStorage), {
+    ...sampleDraft,
+    email: '',
+    campusId: '',
+  });
+});
+
 test('legacy localStorage drafts are discarded to avoid reviving stale PII', () => {
   const sessionStorage = new MemoryStorage();
   const legacyLocalStorage = new MemoryStorage();

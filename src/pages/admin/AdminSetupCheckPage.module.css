@@ -495,10 +495,15 @@
 }
 
 .inlineEditor,
+.contactEditor,
 .deadlineEditor {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
+}
+
+.contactEditor {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
 }
 
 .deadlineEditor {
@@ -506,6 +511,7 @@
 }
 
 .inlineEditor input,
+.contactEditor input,
 .deadlineEditor input {
   min-width: 0;
   height: 42px;
@@ -518,6 +524,7 @@
 }
 
 .inlineEditor input:focus,
+.contactEditor input:focus,
 .deadlineEditor input:focus {
   border-color: #2563eb;
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
@@ -1506,6 +1513,7 @@
 
   .setupRow,
   .inlineEditor,
+  .contactEditor,
   .deadlineEditor {
     grid-template-columns: 1fr;
   }

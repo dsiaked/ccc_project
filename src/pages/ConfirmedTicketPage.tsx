@@ -32,6 +32,8 @@ const ConfirmedTicketPage = ({
     initialReservation ?? null
   );
   const [loading, setLoading] = useState(!initialReservation);
+  const [loadError, setLoadError] = useState('');
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [confirmingBoarding, setConfirmingBoarding] = useState(false);
   const boardingConfirmationInFlightRef = useRef(false);
   const [boardingCode, setBoardingCode] = useState('');
@@ -44,10 +46,18 @@ const ConfirmedTicketPage = ({
     let isMounted = true;
 
     const loadReservation = async () => {
+      setLoading(true);
+      setLoadError('');
+
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const {
+          data: { session },
+          error: sessionError,
+        } = await supabase.auth.getSession();
 
         if (!isMounted) return;
+
+        if (sessionError) throw sessionError;
 
         if (!session) {
           navigate('/login');
@@ -66,7 +76,11 @@ const ConfirmedTicketPage = ({
         }
       } catch (error) {
         console.error('신청 정보 로드 실패:', error);
-        if (isMounted) setReservation(null);
+        if (isMounted) {
+          setLoadError(
+            '확정 티켓 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.'
+          );
+        }
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -77,7 +91,7 @@ const ConfirmedTicketPage = ({
     return () => {
       isMounted = false;
     };
-  }, [initialReservation, navigate]);
+  }, [initialReservation, loadAttempt, navigate]);
 
   useEffect(() => {
     const updateLiveTime = () => setLiveTime(new Date());
@@ -95,6 +109,28 @@ const ConfirmedTicketPage = ({
         <main className={styles.main}>
           <div className={styles.loadingContainer}>
             <p>로딩 중...</p>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className={styles.pageContainer}>
+        <Header />
+        <main className={styles.main}>
+          <div className={styles.emptyContainer} role="alert">
+            <AlertCircle size={48} color="#94a3b8" />
+            <h2>확정 티켓을 확인하지 못했습니다</h2>
+            <p>{loadError}</p>
+            <button
+              type="button"
+              className={styles.primaryButton}
+              onClick={() => setLoadAttempt((attempt) => attempt + 1)}
+            >
+              다시 시도
+            </button>
           </div>
         </main>
       </div>

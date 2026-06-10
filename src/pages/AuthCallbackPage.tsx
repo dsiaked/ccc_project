@@ -3,12 +3,26 @@ import { Link, useNavigate } from 'react-router-dom';
 import { AlertCircle, CheckCircle2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import {
+  clearOAuthCallbackState,
+  EXCHANGED_CALLBACK_STORAGE_KEY,
+  OAUTH_PROVIDER_STORAGE_KEY,
+  OAUTH_REDIRECT_STORAGE_KEY,
+} from '../utils/oauthCallbackState';
+import {
   decodeUrlComponentSafely,
   normalizeAppRedirect,
 } from '../utils/redirect';
 import styles from './AuthCallbackPage.module.css';
 
 type CallbackStatus = 'checking' | 'success' | 'error';
+
+const exchangedCallbackStorageKey = EXCHANGED_CALLBACK_STORAGE_KEY;
+
+const removeCallbackCodeFromUrl = () => {
+  const url = new URL(window.location.href);
+  url.searchParams.delete('code');
+  window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
+};
 
 const AuthCallbackPage = () => {
   const navigate = useNavigate();
@@ -19,11 +33,13 @@ const AuthCallbackPage = () => {
     hashParams.get('error_code') || searchParams.get('error_code');
   const errorDescription =
     hashParams.get('error_description') || searchParams.get('error_description');
-  const oauthProvider = sessionStorage.getItem('ccc_bus_oauth_provider');
+  const oauthProvider = sessionStorage.getItem(OAUTH_PROVIDER_STORAGE_KEY);
   const isOAuthCallback = oauthProvider === 'kakao';
   const callbackCode = searchParams.get('code');
   const callbackAccessToken = hashParams.get('access_token');
-  const hasCallbackEvidence = Boolean(callbackCode || callbackAccessToken);
+  const hasCallbackEvidence =
+    Boolean(callbackCode || callbackAccessToken || isOAuthCallback) ||
+    Boolean(sessionStorage.getItem(exchangedCallbackStorageKey));
   const missingCallbackError = !errorDescription && !hasCallbackEvidence
     ? '확인할 인증 정보가 없습니다. 인증 또는 로그인을 다시 진행해주세요.'
     : null;
@@ -37,62 +53,74 @@ const AuthCallbackPage = () => {
   const isExpiredLink = errorCode === 'otp_expired';
 
   useEffect(() => {
-    const clearOAuthState = () => {
-      sessionStorage.removeItem('ccc_bus_oauth_provider');
-      sessionStorage.removeItem('ccc_bus_oauth_redirect');
-    };
-
     if (errorDescription) {
-      clearOAuthState();
+      clearOAuthCallbackState();
       return;
     }
 
     if (!hasCallbackEvidence) {
-      clearOAuthState();
+      clearOAuthCallbackState();
       return;
     }
 
     let isMounted = true;
 
     const verifyCallback = async () => {
-      const sessionResult = callbackCode
-        ? await supabase.auth.exchangeCodeForSession(callbackCode)
-        : await supabase.auth.getSession();
-      const session = sessionResult.data.session;
-      const accessToken = callbackAccessToken || session?.access_token;
-      const { data: userData, error: userError } = accessToken
-        ? await supabase.auth.getUser(accessToken)
-        : { data: { user: null }, error: null };
+      try {
+        const sessionResult = callbackCode
+          ? await supabase.auth.exchangeCodeForSession(callbackCode)
+          : await supabase.auth.getSession();
+        const session = sessionResult.data.session;
+        const exchangedUserId = sessionStorage.getItem(exchangedCallbackStorageKey);
+        if (
+          exchangedUserId &&
+          session &&
+          exchangedUserId !== session.user.id
+        ) {
+          throw new Error('Callback session user changed unexpectedly');
+        }
+        if (session && (callbackCode || callbackAccessToken || isOAuthCallback)) {
+          sessionStorage.setItem(exchangedCallbackStorageKey, session.user.id);
+          if (callbackCode) removeCallbackCodeFromUrl();
+        }
+        const accessToken = callbackAccessToken || session?.access_token;
+        const { data: userData, error: userError } = accessToken
+          ? await supabase.auth.getUser(accessToken)
+          : { data: { user: null }, error: null };
 
-      if (!isMounted) return;
+        if (!isMounted) return;
 
-      if (
-        sessionResult.error ||
-        userError ||
-        !session ||
-        !accessToken ||
-        (callbackAccessToken && session.access_token !== callbackAccessToken) ||
-        userData.user?.id !== session.user.id
-      ) {
-        clearOAuthState();
+        if (
+          sessionResult.error ||
+          userError ||
+          !session ||
+          !accessToken ||
+          (callbackAccessToken && session.access_token !== callbackAccessToken) ||
+          userData.user?.id !== session.user.id
+        ) {
+          throw sessionResult.error || userError || new Error('Invalid callback session');
+        }
+
+        if (isOAuthCallback) {
+          const savedRedirect = sessionStorage.getItem(OAUTH_REDIRECT_STORAGE_KEY);
+          const redirectTo = normalizeAppRedirect(savedRedirect);
+          clearOAuthCallbackState();
+          navigate(redirectTo, { replace: true });
+          return;
+        }
+
+        setStatus('success');
+      } catch (error) {
+        if (!isMounted) return;
+
+        console.error('인증 콜백 확인 실패:', error);
         setVerificationError(
           isOAuthCallback
             ? '카카오 로그인 정보를 확인하지 못했습니다. 다시 시도해주세요.'
             : '인증 정보를 확인하지 못했습니다. 인증 또는 로그인을 다시 진행해주세요.'
         );
         setStatus('error');
-        return;
       }
-
-      if (isOAuthCallback) {
-        const savedRedirect = sessionStorage.getItem('ccc_bus_oauth_redirect');
-        const redirectTo = normalizeAppRedirect(savedRedirect);
-        clearOAuthState();
-        navigate(redirectTo, { replace: true });
-        return;
-      }
-
-      setStatus('success');
     };
 
     void verifyCallback();

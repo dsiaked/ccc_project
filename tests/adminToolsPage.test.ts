@@ -44,6 +44,7 @@ test('administrator tools hub links to existing management screens', () => {
     '/admin/users',
     '/admin/system/simulation',
     '/admin/system/audit-logs',
+    '/admin/system/closeout',
     '/admin/settings',
     '/admin/settings/participation-targets',
     '/admin/settings/reservation-deadline',

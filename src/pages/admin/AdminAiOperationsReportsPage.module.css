@@ -15,6 +15,26 @@
 .dateFields input { min-height: 40px; border: 1px solid #d0d5dd; border-radius: 8px; padding: 0 10px; font: inherit; }
 .dateFields button { display: flex; align-items: center; gap: 7px; min-height: 40px; border: 0; border-radius: 8px; padding: 0 16px; background: #2563eb; color: white; font: inherit; font-size: 12px; font-weight: 900; cursor: pointer; }
 .dateFields button:disabled { cursor: default; opacity: .55; }
+.settingsPanel { display: grid; gap: 16px; margin-bottom: 18px; padding: 18px; border: 1px solid #dbe3ee; border-radius: 12px; background: #fff; }
+.settingsHeader, .settingsFooter { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.settingsHeader span { color: #2563eb; font-size: 11px; font-weight: 900; }
+.settingsHeader h2 { margin: 3px 0; color: #101828; font-size: 18px; }
+.settingsHeader p, .settingsFooter > span { margin: 0; color: #667085; font-size: 11px; }
+.settingsHeader button, .settingsFooter button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 38px; border: 1px solid #bfdbfe; border-radius: 8px; padding: 0 13px; background: #eff6ff; color: #1d4ed8; font: inherit; font-size: 12px; font-weight: 900; cursor: pointer; }
+.settingGrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.settingOption { display: flex; align-items: flex-start; gap: 9px; border: 1px solid #e4e7ec; border-radius: 9px; padding: 13px; cursor: pointer; }
+.settingOption:has(input:checked) { border-color: #93c5fd; background: #eff6ff; }
+.settingOption input { margin-top: 2px; accent-color: #2563eb; }
+.settingOption span { display: grid; gap: 4px; }
+.settingOption strong { color: #344054; font-size: 12px; }
+.settingOption small { color: #667085; font-size: 10px; line-height: 1.45; }
+.settingsFooter { border-top: 1px solid #eaecf0; padding-top: 13px; }
+.settingsFooter button { border: 0; background: #2563eb; color: #fff; }
+.settingsFooter button:disabled { cursor: default; opacity: .55; }
+.settingsError { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 16px; border: 1px solid #fecaca; border-radius: 10px; background: #fff7f7; color: #b42318; }
+.settingsError strong { display: block; margin-bottom: 4px; font-size: 13px; }
+.settingsError p { margin: 0; font-size: 12px; font-weight: 700; }
+.settingsError button { flex-shrink: 0; min-height: 38px; border: 1px solid #fca5a5; border-radius: 8px; padding: 0 14px; background: #fff; color: #b42318; font: inherit; font-size: 12px; font-weight: 900; cursor: pointer; }
 .error, .failed { padding: 14px; border: 1px solid #fecaca; border-radius: 8px; background: #fff7f7; color: #b42318; font-size: 12px; font-weight: 800; }
 .workspace { display: grid; grid-template-columns: 280px minmax(0, 1fr); min-height: 560px; border: 1px solid #dbe3ee; border-radius: 12px; background: white; overflow: hidden; }
 .reportList { border-right: 1px solid #e4e7ec; background: #f8fafc; }
@@ -37,4 +57,5 @@
 .empty { margin: 0; padding: 42px 16px; color: #667085; font-size: 12px; text-align: center; }
 .spinning { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
-@media (max-width: 800px) { .main { padding: 88px 12px 40px; } .dateFields { align-items: stretch; flex-direction: column; } .workspace { grid-template-columns: 1fr; } .reportList { max-height: 260px; overflow: auto; border-right: 0; border-bottom: 1px solid #e4e7ec; } }
+@media (max-width: 1000px) { .settingGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 800px) { .main { padding: 88px 12px 40px; } .dateFields { align-items: stretch; flex-direction: column; } .settingsHeader, .settingsFooter, .settingsError { align-items: stretch; flex-direction: column; } .settingsHeader button, .settingsFooter button, .settingsError button { width: 100%; } .settingGrid { grid-template-columns: 1fr; } .workspace { grid-template-columns: 1fr; } .reportList { max-height: 260px; overflow: auto; border-right: 0; border-bottom: 1px solid #e4e7ec; } }

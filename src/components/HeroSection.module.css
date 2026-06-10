@@ -123,6 +123,11 @@
   opacity: 0.75;
 }
 
+.ctaButton:focus-visible {
+  outline: 3px solid #facc15;
+  outline-offset: 3px;
+}
+
 @container (max-width: 640px) {
   .card {
     min-height: 240px;

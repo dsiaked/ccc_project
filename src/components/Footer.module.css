@@ -57,6 +57,12 @@
   text-decoration: underline;
 }
 
+.link:focus-visible {
+  border-radius: 4px;
+  outline: 3px solid #facc15;
+  outline-offset: 3px;
+}
+
 .bottomBar {
   border-top: 1px solid var(--color-primary-dark);
   padding: 32px 16px;

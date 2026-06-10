@@ -1,14 +1,19 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ShieldCheck } from 'lucide-react';
+import { useAdminAuth } from '../../components/AdminAuthProvider';
 import Header from '../../components/Header';
 import { supabase } from '../../lib/supabase';
 import { getAdminRole } from '../../lib/adminService';
+import { clearOAuthCallbackState } from '../../utils/oauthCallbackState';
+import { getAdminFallbackPath } from '../../utils/adminAccess';
 import styles from '../LoginPage.module.css';
 
 const AdminLoginPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { status, adminRole } = useAdminAuth();
+  const loginRequestRef = useRef(false);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -16,8 +21,29 @@ const AdminLoginPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (status !== 'authenticated' || !adminRole) return;
+
+    const requestedLocation = location.state?.from;
+    const requestedPath =
+      requestedLocation &&
+      typeof requestedLocation.pathname === 'string' &&
+      requestedLocation.pathname.startsWith('/admin/') &&
+      requestedLocation.pathname !== '/admin/login'
+        ? `${requestedLocation.pathname}${requestedLocation.search ?? ''}${
+            requestedLocation.hash ?? ''
+          }`
+        : null;
+
+    navigate(requestedPath ?? getAdminFallbackPath(adminRole.role), {
+      replace: true,
+    });
+  }, [adminRole, location.state, navigate, status]);
+
   const handleAdminLogin = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+
+    if (loginRequestRef.current) return;
 
     setError(null);
 
@@ -31,9 +57,11 @@ const AdminLoginPage = () => {
       return;
     }
 
+    loginRequestRef.current = true;
     setLoading(true);
 
     try {
+      clearOAuthCallbackState();
       const { data, error: loginError } =
         await supabase.auth.signInWithPassword({
           email: email.trim().toLowerCase(),
@@ -88,6 +116,7 @@ const AdminLoginPage = () => {
       console.error('관리자 로그인 실패:', error);
       setError('관리자 로그인에 실패했습니다. 이메일과 비밀번호를 확인해주세요.');
     } finally {
+      loginRequestRef.current = false;
       setLoading(false);
     }
   };

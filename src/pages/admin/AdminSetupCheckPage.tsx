@@ -15,6 +15,7 @@ import {
   Landmark,
   LoaderCircle,
   MapPin,
+  Mail,
   Pencil,
   Plus,
   RefreshCw,
@@ -48,6 +49,11 @@ import {
   updateCampusPaymentAccount,
   type CampusPaymentAccount,
 } from '../../lib/campusPaymentAccountService';
+import {
+  getPublicContactInfo,
+  updateContactInfo,
+  type ContactInfo,
+} from '../../lib/contactInfoService';
 import {
   formatReservationDeadline,
   getReservationDeadline,
@@ -90,6 +96,7 @@ const AdminSetupCheckPage = () => {
   const [loading, setLoading] = useState(true);
   const [savingPrice, setSavingPrice] = useState(false);
   const [savingAccountNumber, setSavingAccountNumber] = useState(false);
+  const [savingContactInfo, setSavingContactInfo] = useState(false);
   const [savingCampusAccountId, setSavingCampusAccountId] = useState<
     string | null
   >(null);
@@ -143,6 +150,14 @@ const AdminSetupCheckPage = () => {
   const [deadlineAt, setDeadlineAt] = useState<string | null>(null);
   const [accountNumber, setAccountNumber] = useState('');
   const [accountNumberInput, setAccountNumberInput] = useState('');
+  const [contactInfo, setContactInfo] = useState<ContactInfo>({
+    email: '',
+    phone: '',
+  });
+  const [contactInfoInput, setContactInfoInput] = useState<ContactInfo>({
+    email: '',
+    phone: '',
+  });
   const [resetStats, setResetStats] =
     useState<ReservationDataResetStats>(emptyResetStats);
   const [resetOptions, setResetOptions] =
@@ -299,6 +314,20 @@ const AdminSetupCheckPage = () => {
       isReady: Boolean(accountNumber),
     },
     {
+      id: 'public-contact-info',
+      icon: Mail,
+      title: '사용자 문의처',
+      description:
+        '홈, 메뉴, 신청 화면에 표시할 문의 이메일과 전화번호를 설정합니다. 둘 다 비우면 문의 정보가 숨겨집니다.',
+      status:
+        contactInfo.email || contactInfo.phone
+          ? [contactInfo.email, contactInfo.phone].filter(Boolean).join(' · ')
+          : '문의처 미설정',
+      actionLabel: '문의처 저장',
+      actionPath: '',
+      isReady: Boolean(contactInfo.email || contactInfo.phone),
+    },
+    {
       id: 'reservation-deadline',
       icon: CalendarClock,
       title: '신청 마감 일시',
@@ -342,7 +371,7 @@ const AdminSetupCheckPage = () => {
       count: resetStats.payments,
       detail: resetOptions.reservations
         ? '신청 초기화에 포함됨'
-        : '입금 확인/환불 상태',
+        : '입금 확인 상태',
       disabled: resetOptions.reservations,
     },
     {
@@ -490,6 +519,7 @@ const AdminSetupCheckPage = () => {
         savedBusOptions,
         reservationDeadline,
         savedCampusPaymentAccounts,
+        savedContactInfo,
       ] = await Promise.all([
         supabase
           .from('campus_options')
@@ -518,6 +548,7 @@ const AdminSetupCheckPage = () => {
         getBusOptions(),
         getReservationDeadline(),
         getAllCampusPaymentAccounts(),
+        getPublicContactInfo(),
       ]);
 
       if (campusResult.error) throw campusResult.error;
@@ -562,6 +593,8 @@ const AdminSetupCheckPage = () => {
       setDeadlineAt(reservationDeadline.deadlineAt);
       setAccountNumber(districtTransferAccountNumber);
       setAccountNumberInput(districtTransferAccountNumber);
+      setContactInfo(savedContactInfo);
+      setContactInfoInput(savedContactInfo);
       setResetStats(reservationDataStats);
     } catch (loadError) {
       console.error('Failed to load setup check page:', loadError);
@@ -1114,6 +1147,31 @@ const AdminSetupCheckPage = () => {
     }
   };
 
+  const handleSaveContactInfo = async () => {
+    setSavingContactInfo(true);
+    setMessage(null);
+    setError(null);
+
+    try {
+      const savedContactInfo = await updateContactInfo(contactInfoInput);
+
+      setContactInfo(savedContactInfo);
+      setContactInfoInput(savedContactInfo);
+      setMessage(
+        savedContactInfo.email || savedContactInfo.phone
+          ? '사용자 문의처를 저장했습니다.'
+          : '사용자 문의처를 비워 사용자 화면에서 숨겼습니다.'
+      );
+    } catch (saveError) {
+      console.error('Failed to save public contact info:', saveError);
+      setError(
+        `사용자 문의처 저장 중 오류가 발생했습니다: ${getErrorMessage(saveError)}`
+      );
+    } finally {
+      setSavingContactInfo(false);
+    }
+  };
+
   const handleResetReservationData = () => {
     if (resettingData || dataResetInFlightRef.current || selectedResetRows <= 0) {
       return;
@@ -1293,6 +1351,41 @@ const AdminSetupCheckPage = () => {
                   disabled={savingAccountNumber}
                 >
                   {savingAccountNumber ? '저장 중...' : accountNumber ? '수정' : '설정하기'}
+                </button>
+              </div>
+            ) : item.id === 'public-contact-info' ? (
+              <div className={styles.contactEditor}>
+                <input
+                  type="email"
+                  value={contactInfoInput.email}
+                  onChange={(event) =>
+                    setContactInfoInput((current) => ({
+                      ...current,
+                      email: event.target.value,
+                    }))
+                  }
+                  placeholder="문의 이메일 (선택)"
+                  aria-label="사용자 문의 이메일"
+                />
+                <input
+                  type="text"
+                  value={contactInfoInput.phone}
+                  onChange={(event) =>
+                    setContactInfoInput((current) => ({
+                      ...current,
+                      phone: event.target.value,
+                    }))
+                  }
+                  placeholder="문의 전화번호 (선택)"
+                  aria-label="사용자 문의 전화번호"
+                />
+                <button
+                  type="button"
+                  className={styles.primaryButton}
+                  onClick={() => void handleSaveContactInfo()}
+                  disabled={savingContactInfo}
+                >
+                  {savingContactInfo ? '저장 중...' : '저장'}
                 </button>
               </div>
             ) : (
@@ -2303,6 +2396,14 @@ const AdminSetupCheckPage = () => {
             <div>
               <span>송금 계좌</span>
               <strong>{accountNumber || '미설정'}</strong>
+            </div>
+
+            <div>
+              <span>사용자 문의처</span>
+              <strong>
+                {[contactInfo.email, contactInfo.phone].filter(Boolean).join(' · ') ||
+                  '미설정'}
+              </strong>
             </div>
 
             <div>

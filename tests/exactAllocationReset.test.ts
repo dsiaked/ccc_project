@@ -94,7 +94,7 @@ test('successful allocation reset restores the calculation-ready view', () => {
   );
   assert.match(
     page,
-    /const requestRevision = jobsStateRevisionRef\.current;[\s\S]*if \(requestRevision !== jobsStateRevisionRef\.current\) return;/
+    /const requestRevision = jobsStateRevisionRef\.current;[\s\S]*const requestId = \+\+recentJobsRequestIdRef\.current;[\s\S]*requestRevision !== jobsStateRevisionRef\.current \|\|[\s\S]*requestId !== recentJobsRequestIdRef\.current/
   );
   assert.match(
     page,
@@ -106,7 +106,7 @@ test('successful allocation reset restores the calculation-ready view', () => {
   );
   assert.match(
     page,
-    /requestRevision === jobsStateRevisionRef\.current[\s\S]*setCalculationViewReset\(false\);[\s\S]*setCurrentJob\(detail\);/
+    /const requestRevision = jobsStateRevisionRef\.current \+ 1;[\s\S]*jobsStateRevisionRef\.current = requestRevision;[\s\S]*setCalculationViewReset\(false\);[\s\S]*setCurrentJob\(job\);[\s\S]*requestRevision === jobsStateRevisionRef\.current[\s\S]*setCurrentJob\(detail\);/
   );
 });
 

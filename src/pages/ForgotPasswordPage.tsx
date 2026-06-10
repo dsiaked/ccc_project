@@ -37,6 +37,9 @@ const ForgotPasswordPage = () => {
       }
 
       setIsSent(true);
+    } catch (caughtError) {
+      console.error('비밀번호 재설정 메일 전송 실패:', caughtError);
+      setError('재설정 메일을 보내지 못했습니다. 잠시 후 다시 시도해주세요.');
     } finally {
       setIsSending(false);
     }

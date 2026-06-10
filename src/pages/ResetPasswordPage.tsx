@@ -2,10 +2,50 @@ import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { AlertCircle, CheckCircle2, KeyRound } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import { recoveryEvidenceStorageKey, supabase } from '../lib/supabase';
 import styles from './PasswordRecoveryPage.module.css';
 
 type RecoveryStatus = 'checking' | 'valid' | 'invalid';
+
+const recoveryEvidenceMaxAgeMs = 15 * 60_000;
+const clearRecoveryEvidence = () => {
+  sessionStorage.removeItem(recoveryEvidenceStorageKey);
+};
+
+const removeRecoveryCodeFromUrl = () => {
+  const url = new URL(window.location.href);
+  url.searchParams.delete('code');
+  window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
+};
+
+const readRecoveryEvidenceUserId = () => {
+  try {
+    const evidence = JSON.parse(
+      sessionStorage.getItem(recoveryEvidenceStorageKey) ?? 'null'
+    ) as { createdAt?: unknown; userId?: unknown } | null;
+    if (
+      !evidence ||
+      typeof evidence.createdAt !== 'number' ||
+      Date.now() - evidence.createdAt > recoveryEvidenceMaxAgeMs ||
+      typeof evidence.userId !== 'string' ||
+      evidence.userId.length === 0
+    ) {
+      clearRecoveryEvidence();
+      return '';
+    }
+    return evidence.userId;
+  } catch {
+    clearRecoveryEvidence();
+    return '';
+  }
+};
+
+const bindRecoveryEvidenceToUser = (userId: string) => {
+  sessionStorage.setItem(
+    recoveryEvidenceStorageKey,
+    JSON.stringify({ createdAt: Date.now(), userId })
+  );
+};
 
 const ResetPasswordPage = () => {
   const [recoveryStatus, setRecoveryStatus] =
@@ -23,36 +63,49 @@ const ResetPasswordPage = () => {
     const searchParams = new URLSearchParams(window.location.search);
     const recoveryAccessToken = hashParams.get('access_token');
     const recoveryCode = searchParams.get('code');
+    const recoverySessionUserId = readRecoveryEvidenceUserId();
     const hasRecoveryToken =
       hashParams.get('type') === 'recovery' && Boolean(recoveryAccessToken);
-    const hasRecoveryEvidence = hasRecoveryToken || Boolean(recoveryCode);
+    const hasRecoveryEvidence =
+      hasRecoveryToken ||
+      Boolean(recoveryCode) ||
+      Boolean(recoverySessionUserId);
 
     const verifyRecoverySession = async (
       session: Awaited<ReturnType<typeof supabase.auth.getSession>>['data']['session'],
       accessToken = session?.access_token
     ) => {
-      if (!session || !accessToken) {
+      try {
+        if (!session || !accessToken) {
+          clearRecoveryEvidence();
+          if (active) setRecoveryStatus('invalid');
+          return;
+        }
+
+        const { data, error: userError } = await supabase.auth.getUser(accessToken);
+        if (!active) return;
+
+        if (!userError && data.user?.id === session.user.id) {
+          setRecoveryUserId(data.user.id);
+          setRecoveryStatus('valid');
+          return;
+        }
+
+        clearRecoveryEvidence();
+        setRecoveryStatus('invalid');
+      } catch (verificationError) {
+        console.error('비밀번호 복구 세션 확인 실패:', verificationError);
+        clearRecoveryEvidence();
         if (active) setRecoveryStatus('invalid');
-        return;
       }
-
-      const { data, error: userError } = await supabase.auth.getUser(accessToken);
-      if (!active) return;
-
-      if (!userError && data.user?.id === session.user.id) {
-        setRecoveryUserId(data.user.id);
-        setRecoveryStatus('valid');
-        return;
-      }
-
-      setRecoveryStatus('invalid');
     };
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'PASSWORD_RECOVERY') {
-        void verifyRecoverySession(session);
+      if (event === 'PASSWORD_RECOVERY' && session) {
+        bindRecoveryEvidenceToUser(session.user.id);
+        window.setTimeout(() => void verifyRecoverySession(session), 0);
       }
     });
 
@@ -60,33 +113,59 @@ const ResetPasswordPage = () => {
       if (!active) return;
 
       if (sessionError || !hasRecoveryEvidence) {
+        if (!hasRecoveryEvidence) clearRecoveryEvidence();
         setRecoveryStatus('invalid');
         return;
       }
 
       if (recoveryCode) {
-        void supabase.auth.exchangeCodeForSession(recoveryCode).then(({ data: exchangeData, error: exchangeError }) => {
-          if (!active) return;
+        void supabase.auth.exchangeCodeForSession(recoveryCode)
+          .then(({ data: exchangeData, error: exchangeError }) => {
+            if (!active) return;
 
-          if (exchangeError || !exchangeData.session) {
-            setRecoveryStatus('invalid');
-            return;
-          }
+            if (exchangeError || !exchangeData.session) {
+              clearRecoveryEvidence();
+              setRecoveryStatus('invalid');
+              return;
+            }
 
-          void verifyRecoverySession(exchangeData.session);
-        });
+            bindRecoveryEvidenceToUser(exchangeData.session.user.id);
+            removeRecoveryCodeFromUrl();
+            void verifyRecoverySession(exchangeData.session);
+          })
+          .catch((exchangeError) => {
+            console.error('비밀번호 복구 코드 교환 실패:', exchangeError);
+            clearRecoveryEvidence();
+            if (active) setRecoveryStatus('invalid');
+          });
         return;
       }
 
       if (data.session) {
         if (
+          recoverySessionUserId &&
+          data.session.user.id !== recoverySessionUserId
+        ) {
+          clearRecoveryEvidence();
+          setRecoveryStatus('invalid');
+          return;
+        }
+        if (
           recoveryAccessToken &&
           data.session.access_token !== recoveryAccessToken
         ) {
+          clearRecoveryEvidence();
           setRecoveryStatus('invalid');
           return;
         }
 
+        if (!recoverySessionUserId) {
+          clearRecoveryEvidence();
+          setRecoveryStatus('invalid');
+          return;
+        }
+
+        bindRecoveryEvidenceToUser(recoverySessionUserId);
         void verifyRecoverySession(
           data.session,
           recoveryAccessToken ?? data.session.access_token
@@ -95,6 +174,10 @@ const ResetPasswordPage = () => {
       }
 
       setRecoveryStatus('invalid');
+    }).catch((sessionError) => {
+      console.error('비밀번호 복구 세션 조회 실패:', sessionError);
+      clearRecoveryEvidence();
+      if (active) setRecoveryStatus('invalid');
     });
 
     return () => {
@@ -136,7 +219,11 @@ const ResetPasswordPage = () => {
         setError('재설정 링크가 만료되었거나 유효하지 않습니다. 새 링크를 요청해주세요.');
         return;
       }
+      clearRecoveryEvidence();
       setIsComplete(true);
+    } catch (saveError) {
+      console.error('비밀번호 변경 실패:', saveError);
+      setError('비밀번호를 변경하지 못했습니다. 잠시 후 다시 시도해주세요.');
     } finally {
       setIsSaving(false);
     }

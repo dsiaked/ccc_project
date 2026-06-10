@@ -36,6 +36,27 @@ test('campus preparation items share one checklist card language', () => {
   assert.match(campusPageStyles, /\.preparationStatusRequired\s*\{/);
 });
 
+test('campus administrator sees one state-based current task with a direct action', () => {
+  for (const text of [
+    '지금 할 일',
+    '신청자가 입금할 캠퍼스 계좌를 등록해주세요',
+    '미입금 신청자 ${remainingPaymentCount}명을 확인해주세요',
+    '입금 확인을 마쳤습니다. 신청 마감을 기다려주세요',
+    '캠퍼스 버스비를 본부로 송금해주세요',
+    '본부 입금 확인을 기다리고 있습니다',
+    '이번 캠퍼스 버스비 정산이 완료되었습니다',
+  ]) {
+    assert.match(campusPage, new RegExp(text.replace(/[${}]/g, '\\$&')));
+  }
+
+  assert.match(campusPage, /handleCurrentTaskAction/);
+  assert.match(campusPage, /campus-task-account/);
+  assert.match(campusPage, /campus-task-applicants/);
+  assert.match(campusPage, /campus-task-transfer/);
+  assert.match(campusPageStyles, /\.currentTaskCard\s*\{/);
+  assert.match(campusPageStyles, /\.currentTaskButton\s*\{/);
+});
+
 test('campus payment account button communicates registration, edits, and saved state', () => {
   assert.match(campusPage, /setIsPaymentAccountDirty\(true\)/);
   assert.match(campusPage, /setIsPaymentAccountDirty\(false\)/);
@@ -129,12 +150,46 @@ test('campus payment management uses the same card workflow on every screen size
 
 test('campus applicant list stays compact with search, filters, and pagination', () => {
   assert.match(campusPage, /const APPLICANT_PAGE_SIZE = 10/);
+  assert.match(campusPage, /useState<ApplicantPaymentFilter>\('pending'\)/);
   assert.match(campusPage, /const filteredReservations = useMemo/);
   assert.match(campusPage, /const pagedReservations = filteredReservations\.slice/);
   assert.match(campusPage, /placeholder="이름, 연락처, 행선지, 배차 검색"/);
   assert.match(campusPage, /className=\{styles\.applicantPagination\}/);
   assert.match(campusPageStyles, /\.applicantFilters\s*\{/);
   assert.match(campusPageStyles, /\.applicantPagination\s*\{/);
+});
+
+test('newly confirmed applicants stay visible in the pending list until refresh', () => {
+  assert.match(campusPage, /recentlyConfirmedReservationIds/);
+  assert.match(
+    campusPage,
+    /applicantPaymentFilter === 'pending' &&\s*recentlyConfirmedReservationIds\.has\(reservation\.id\)/
+  );
+  assert.match(
+    campusPage,
+    /if \(checked && applicantPaymentFilter === 'pending'\)/
+  );
+  assert.match(
+    campusPage,
+    /방금 입금 확인한 신청자는 새로고침 전까지 이 목록에 표시됩니다\./
+  );
+});
+
+test('an empty pending filter confirms that every applicant payment is checked', () => {
+  assert.match(
+    campusPage,
+    /applicantPaymentFilter === 'pending' && stats\.pending === 0/
+  );
+  assert.match(campusPage, /모든 신청자의 입금을 확인했습니다\./);
+  assert.match(campusPage, /\{applicantEmptyMessage\}/);
+});
+
+test('campus applicant PNG includes only masked phone numbers', () => {
+  assert.match(campusPage, /const maskPhoneNumber = \(value: string\) =>/);
+  assert.match(campusPage, /`\$\{digits\.slice\(0, 3\)\}-\*\*\*\*-\$\{digits\.slice\(-4\)\}`/);
+  assert.match(campusPage, /\{ label: '연락처', width: 160 \}/);
+  assert.match(campusPage, /maskPhoneNumber\(reservation\.phone\)/);
+  assert.match(campusPage, /연락처 가운데 번호를 마스킹했습니다/);
 });
 
 test('campus bulk payment changes only the current filter results after confirmation', () => {

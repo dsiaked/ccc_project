@@ -23,7 +23,7 @@ const AdminProtectedRoute = ({
 
   if (status === 'loading') {
     return (
-      <main className={styles.statusPage} aria-busy="true" aria-live="polite">
+      <main className={styles.statusPage} role="status" aria-busy="true">
         <div className={styles.spinner} aria-hidden="true" />
         <p>관리자 권한을 확인하고 있습니다.</p>
       </main>
@@ -36,8 +36,8 @@ const AdminProtectedRoute = ({
 
   if (status === 'error') {
     return (
-      <main className={styles.statusPage} role="alert">
-        <p>관리자 권한을 확인하지 못했습니다.</p>
+      <main className={styles.statusPage}>
+        <p role="alert">관리자 권한을 확인하지 못했습니다.</p>
         <button type="button" onClick={() => void refresh()}>
           다시 시도
         </button>

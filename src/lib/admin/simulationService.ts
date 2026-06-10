@@ -80,7 +80,6 @@ export interface SimulationPreview {
       total: number;
       pending: number;
       completed: number;
-      refunded: number;
       verified: number;
     };
     transfers: {
@@ -243,7 +242,6 @@ export async function getSimulationPreview(): Promise<SimulationPreview> {
     paymentResult,
     pendingPaymentResult,
     completedPaymentResult,
-    refundedPaymentResult,
     verifiedPaymentResult,
     transferResult,
     sentTransferResult,
@@ -309,7 +307,6 @@ export async function getSimulationPreview(): Promise<SimulationPreview> {
     supabase.from('payments').select('id', { count: 'exact', head: true }),
     supabase.from('payments').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
     supabase.from('payments').select('id', { count: 'exact', head: true }).eq('status', 'completed'),
-    supabase.from('payments').select('id', { count: 'exact', head: true }).eq('status', 'refunded'),
     supabase.from('payments').select('id', { count: 'exact', head: true }).not('verified_at', 'is', null),
     supabase.from('campus_transfers').select('id', { count: 'exact', head: true }),
     supabase.from('campus_transfers').select('id', { count: 'exact', head: true }).eq('status', 'sent'),
@@ -344,7 +341,6 @@ export async function getSimulationPreview(): Promise<SimulationPreview> {
     paymentResult.error,
     pendingPaymentResult.error,
     completedPaymentResult.error,
-    refundedPaymentResult.error,
     verifiedPaymentResult.error,
     transferResult.error,
     sentTransferResult.error,
@@ -554,7 +550,6 @@ export async function getSimulationPreview(): Promise<SimulationPreview> {
         total: getCount(paymentResult),
         pending: getCount(pendingPaymentResult),
         completed: getCount(completedPaymentResult),
-        refunded: getCount(refundedPaymentResult),
         verified: getCount(verifiedPaymentResult),
       },
       transfers: {

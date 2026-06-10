@@ -734,6 +734,35 @@
   line-height: 1.5;
 }
 
+.readinessStatus {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px 10px;
+  margin-top: 10px;
+  padding: 7px 9px;
+  border: 1px solid;
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.readinessStatus strong {
+  white-space: nowrap;
+  font-weight: 900;
+}
+
+.readinessReady {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.readinessAttention {
+  border-color: #fed7aa;
+  background: #fff7ed;
+  color: #9a3412;
+}
+
 .relatedActions {
   display: grid;
   gap: 7px;

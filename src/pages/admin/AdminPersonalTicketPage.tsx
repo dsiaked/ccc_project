@@ -169,8 +169,6 @@ const emptyManagementDetail: PersonalUserManagementDetail = {
 const actionLabels: Record<string, string> = {
   payment_pending: '입금 확인 취소',
   payment_completed: '입금 확인',
-  payment_refund_required: '환불 필요',
-  payment_refunded: '환불 완료',
   reservation_cancelled: '신청 취소',
   reservation_restored: '신청 취소 해제',
   ticket_issued: '버스표 발급',
@@ -487,7 +485,6 @@ const AdminPersonalTicketPage = () => {
         (reservation) =>
           (reservation.status === 'cancelled' &&
             reservation.paymentStatus === 'completed') ||
-          reservation.paymentStatus === 'refund_required' ||
           (reservation.hasReservation &&
             reservation.status !== 'cancelled' &&
             !reservation.confirmedTicket)
@@ -797,8 +794,6 @@ const AdminPersonalTicketPage = () => {
       const paymentNotification: Record<PersonalUserPaymentStatus, [string, string]> = {
         pending: ['입금 확인 변경 안내', '입금 확인 상태가 대기로 변경되었습니다.'],
         completed: ['입금 확인 안내', '입금 확인이 완료되었습니다.'],
-        refund_required: ['환불 절차 안내', '신청 취소에 따라 환불 처리가 필요합니다.'],
-        refunded: ['환불 완료 안내', '환불 처리가 완료되었습니다.'],
       };
       setNotificationTitle(paymentNotification[status][0]);
       setNotificationContent(paymentNotification[status][1]);
@@ -1071,7 +1066,7 @@ const AdminPersonalTicketPage = () => {
     const reason = await requestOperationReason(
       willCancel ? '신청 취소' : '신청 취소 해제',
       willCancel
-        ? '배차와 버스표가 함께 취소되며, 입금 완료 상태라면 환불 필요로 변경됩니다.'
+        ? '배차와 버스표가 함께 취소되며, 입금 상태는 미입금으로 변경됩니다.'
         : '신청 상태만 복구됩니다. 기존 좌석과 버스표는 자동 복구되지 않습니다.'
     );
     if (!reason) return;
@@ -1095,7 +1090,7 @@ const AdminPersonalTicketPage = () => {
       );
       setNotificationContent(
         willCancel
-          ? '버스 신청이 취소되었습니다. 입금하신 경우 환불 절차를 확인해주세요.'
+          ? '버스 신청이 취소되었으며 입금 상태가 미입금으로 변경되었습니다.'
           : '버스 신청 취소 상태가 해제되었습니다.'
       );
 
@@ -1538,9 +1533,6 @@ const AdminPersonalTicketPage = () => {
                 <button type="button" onClick={() => void handleBulkPayment('completed')}>
                   일괄 입금 확인
                 </button>
-                <button type="button" onClick={() => void handleBulkPayment('refunded')}>
-                  일괄 환불 완료
-                </button>
                 <button type="button" onClick={() => void handleBulkNotification()}>
                   작성 알림 일괄 발송
                 </button>
@@ -1690,10 +1682,6 @@ const AdminPersonalTicketPage = () => {
                                 ? styles.paymentNotApplied
                                 : reservation.paymentStatus === 'completed'
                                   ? styles.paymentCompleted
-                                  : reservation.paymentStatus === 'refund_required'
-                                    ? styles.paymentRefundRequired
-                                  : reservation.paymentStatus === 'refunded'
-                                    ? styles.paymentRefunded
                                     : styles.paymentPending
                             }`}
                           >
@@ -1701,10 +1689,6 @@ const AdminPersonalTicketPage = () => {
                               ? '-'
                               : reservation.paymentStatus === 'completed'
                                 ? '입금 완료'
-                                : reservation.paymentStatus === 'refund_required'
-                                  ? '환불 필요'
-                                : reservation.paymentStatus === 'refunded'
-                                  ? '환불'
                                   : '미입금'}
                           </span>
                         </td>
@@ -1891,10 +1875,6 @@ const AdminPersonalTicketPage = () => {
                       <strong>
                         {managementDetail.paymentStatus === 'completed'
                           ? '입금 완료'
-                          : managementDetail.paymentStatus === 'refund_required'
-                            ? '환불 필요'
-                          : managementDetail.paymentStatus === 'refunded'
-                            ? '환불 완료'
                             : '미입금'}
                       </strong>
                     </div>
@@ -1908,11 +1888,7 @@ const AdminPersonalTicketPage = () => {
                     </div>
                   </div>
                   <p className={styles.riskNotice}>
-                    {selectedReservation.status === 'cancelled' &&
-                    (managementDetail.paymentStatus === 'completed' ||
-                      managementDetail.paymentStatus === 'refund_required')
-                      ? '신청은 취소되었지만 입금이 완료되어 환불 처리가 필요합니다.'
-                      : selectedReservation.confirmedTicket &&
+                    {selectedReservation.confirmedTicket &&
                           managementDetail.paymentStatus !== 'completed'
                         ? '버스표가 발급되었지만 입금 확인이 완료되지 않았습니다.'
                       : '신청, 입금, 배차, 권한 변경은 사유 입력 후 기록됩니다.'}
@@ -1924,7 +1900,7 @@ const AdminPersonalTicketPage = () => {
                     <div className={styles.operationPanelHeader}>
                       <CreditCard size={18} />
                       <div>
-                        <strong>입금·환불 처리</strong>
+                        <strong>입금 처리</strong>
                         <span>현재 상태를 변경하면 작업 사유가 기록됩니다.</span>
                       </div>
                     </div>
@@ -1957,19 +1933,6 @@ const AdminPersonalTicketPage = () => {
                         }
                       >
                         확인 취소
-                      </button>
-                      <button
-                        type="button"
-                        className={styles.dangerButton}
-                        disabled={
-                          savingOperation ||
-                          managementDetail.paymentStatus === 'refunded'
-                        }
-                        onClick={() =>
-                          void handlePaymentStatusChange('refunded', '환불 완료')
-                        }
-                      >
-                        환불 완료
                       </button>
                     </div>
                   </section>
@@ -2314,9 +2277,8 @@ const AdminPersonalTicketPage = () => {
                       defaultValue=""
                       onChange={(event) => {
                         const templates: Record<string, [string, string]> = {
-                          cancelled: ['신청 취소 안내', '버스 신청이 취소되었습니다. 입금하신 경우 환불 절차를 확인해주세요.'],
+                          cancelled: ['신청 취소 안내', '버스 신청이 취소되었으며 입금 상태가 미입금으로 변경되었습니다.'],
                           paid: ['입금 확인 안내', '입금 확인이 완료되었습니다.'],
-                          refund: ['환불 완료 안내', '환불 처리가 완료되었습니다.'],
                           ticket: ['버스표 안내', '버스표가 발급 또는 변경되었습니다. 앱에서 탑승 정보를 확인해주세요.'],
                         };
                         const template = templates[event.target.value];
@@ -2329,7 +2291,6 @@ const AdminPersonalTicketPage = () => {
                       <option value="">알림 템플릿 선택</option>
                       <option value="cancelled">신청 취소</option>
                       <option value="paid">입금 확인</option>
-                      <option value="refund">환불 완료</option>
                       <option value="ticket">버스표 발급·변경</option>
                     </select>
                     <input
@@ -2382,7 +2343,7 @@ const AdminPersonalTicketPage = () => {
                     onChange={(event) => setHistoryFilter(event.target.value)}
                   >
                     <option value="all">모든 작업 이력</option>
-                    <option value="payment">입금·환불</option>
+                    <option value="payment">입금</option>
                     <option value="reservation">신청</option>
                     <option value="ticket">버스표</option>
                     <option value="notification">알림</option>

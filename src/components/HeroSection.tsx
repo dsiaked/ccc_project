@@ -38,16 +38,11 @@ const HeroSection = () => {
 
         if (!isMounted) return;
         if (sessionError) throw sessionError;
-        if (!session) return;
-
-        setIsLoggedIn(true);
-
-        const [savedReservation, deadline] = await Promise.all([
-          getReservation(),
-          getReservationDeadline(),
-        ]);
+        const deadline = await getReservationDeadline();
+        const savedReservation = session ? await getReservation() : null;
 
         if (isMounted) {
+          setIsLoggedIn(Boolean(session));
           setReservation(savedReservation);
           setIsDeadlineClosed(deadline.isClosed);
         }
@@ -68,7 +63,7 @@ const HeroSection = () => {
 
   const isConfirmed = reservation?.status === 'confirmed';
   const canBookRemainingSeat =
-    isLoggedIn && isDeadlineClosed && !reservation;
+    isDeadlineClosed && !reservation;
   const content = isLoading
     ? {
         label: '2026 CCC 여름수련회',

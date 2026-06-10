@@ -13,6 +13,7 @@ const CccSummerHandoffPage = lazy(() => import('../pages/CccSummerHandoffPage'))
 const ForgotPasswordPage = lazy(() => import('../pages/ForgotPasswordPage'));
 const ResetPasswordPage = lazy(() => import('../pages/ResetPasswordPage'));
 const InvitationCodePage = lazy(() => import('../pages/InvitationCodePage'));
+const ProfilePage = lazy(() => import('../pages/ProfilePage'));
 
 export const publicRoutes = [
   { path: '/', element: <HomePage /> },
@@ -27,5 +28,6 @@ export const publicRoutes = [
   { path: '/confirmed-ticket', element: <Navigate to="/ticket" replace /> },
   { path: '/remaining-seats', element: <RemainingSeatPage /> },
   { path: '/invitation-codes', element: <InvitationCodePage /> },
+  { path: '/profile', element: <ProfilePage /> },
   { path: '*', element: <Navigate to="/" replace /> },
 ];

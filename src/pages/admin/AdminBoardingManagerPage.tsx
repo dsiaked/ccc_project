@@ -36,6 +36,7 @@ type PendingRoleAction =
 const AdminBoardingManagerPage = () => {
   const navigate = useNavigate();
   const roleActionInFlightRef = useRef(false);
+  const usersRequestRevisionRef = useRef(0);
   const [search, setSearch] = useState('');
   const [users, setUsers] = useState<BoardingManagerUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -80,6 +81,7 @@ const AdminBoardingManagerPage = () => {
   );
 
   const loadUsers = async () => {
+    const requestRevision = ++usersRequestRevisionRef.current;
     setLoading(true);
     try {
       const allUsersPromise = getBoardingManagerUsers('');
@@ -91,6 +93,7 @@ const AdminBoardingManagerPage = () => {
         searchedUsersPromise,
         getBoardingManagerAssignmentOptions(),
       ]);
+      if (requestRevision !== usersRequestRevisionRef.current) return;
       const nextUsers = [
         ...allUsers.filter((user) => user.isBoardingManager),
         ...searchedUsers.filter((user) => !user.isBoardingManager),
@@ -103,10 +106,11 @@ const AdminBoardingManagerPage = () => {
       setSelectedCandidateIds([]);
       setMessage('');
     } catch (error) {
+      if (requestRevision !== usersRequestRevisionRef.current) return;
       setMessageType('error');
       setMessage(error instanceof Error ? error.message : '사용자를 불러오지 못했습니다.');
     } finally {
-      setLoading(false);
+      if (requestRevision === usersRequestRevisionRef.current) setLoading(false);
     }
   };
 
@@ -261,8 +265,30 @@ const AdminBoardingManagerPage = () => {
     });
   };
 
+  const handleDestinationAssignmentToggle = (
+    userId: string,
+    buses: BoardingManagerAssignmentBus[]
+  ) => {
+    setAssignmentDrafts((current) => {
+      const assignedBusIds = current[userId] ?? [];
+      const destinationBusIds = buses.map((bus) => bus.id);
+      const allDestinationBusesAssigned = destinationBusIds.every((busId) =>
+        assignedBusIds.includes(busId)
+      );
+
+      return {
+        ...current,
+        [userId]: allDestinationBusesAssigned
+          ? assignedBusIds.filter((busId) => !destinationBusIds.includes(busId))
+          : [...new Set([...assignedBusIds, ...destinationBusIds])],
+      };
+    });
+  };
+
   const handleAssignmentSave = async (user: BoardingManagerUser) => {
+    if (actionUserId || roleActionInFlightRef.current) return;
     const assignedBusIds = assignmentDrafts[user.userId] ?? [];
+    roleActionInFlightRef.current = true;
     setActionUserId(user.userId);
     setMessage('');
 
@@ -282,6 +308,7 @@ const AdminBoardingManagerPage = () => {
       setMessageType('error');
       setMessage(error instanceof Error ? error.message : '담당 호차를 저장하지 못했습니다.');
     } finally {
+      roleActionInFlightRef.current = false;
       setActionUserId('');
     }
   };
@@ -424,7 +451,29 @@ const AdminBoardingManagerPage = () => {
                             <div className={styles.destinationGroups}>
                               {busesByDestination.map(([destination, buses]) => (
                                 <div key={destination} className={styles.destinationGroup}>
-                                  <strong>{destination}</strong>
+                                  <label className={styles.destinationSelector}>
+                                    <input
+                                      type="checkbox"
+                                      checked={buses.every((bus) =>
+                                        assignmentDraft.includes(bus.id)
+                                      )}
+                                      ref={(input) => {
+                                        if (!input) return;
+                                        const selectedBusCount = buses.filter((bus) =>
+                                          assignmentDraft.includes(bus.id)
+                                        ).length;
+                                        input.indeterminate =
+                                          selectedBusCount > 0 && selectedBusCount < buses.length;
+                                      }}
+                                      onChange={() =>
+                                        handleDestinationAssignmentToggle(user.userId, buses)
+                                      }
+                                      disabled={Boolean(actionUserId)}
+                                      aria-label={`${destination}행 버스 전체 선택`}
+                                    />
+                                    <strong>{destination}</strong>
+                                    <span>{buses.length.toLocaleString()}대</span>
+                                  </label>
                                   <div className={styles.busOptions}>
                                     {buses.map((bus) => (
                                       <label key={bus.id}>

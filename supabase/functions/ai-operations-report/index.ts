@@ -130,6 +130,24 @@ const readGeminiOutputText = (body: Record<string, unknown>) => {
   return texts.join('\n').trim();
 };
 
+const wait = (milliseconds: number) =>
+  new Promise((resolve) => setTimeout(resolve, milliseconds));
+
+const isRetryableGeminiStatus = (status: number) =>
+  status === 429 || status === 500 || status === 503 || status === 504;
+
+const fetchGeminiWithRetry = async (url: string, init: RequestInit) => {
+  let response = await fetch(url, init);
+
+  for (const delay of [1000, 2500]) {
+    if (!isRetryableGeminiStatus(response.status)) return response;
+    await wait(delay);
+    response = await fetch(url, init);
+  }
+
+  return response;
+};
+
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -142,7 +160,7 @@ Deno.serve(async (request) => {
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
   const geminiApiKey = Deno.env.get('GEMINI_API_KEY') ?? '';
-  const model = Deno.env.get('AI_REPORT_MODEL') ?? 'gemini-2.5-flash';
+  const model = Deno.env.get('AI_REPORT_MODEL') ?? 'gemini-2.5-flash-lite';
   const authorization = request.headers.get('Authorization') ?? '';
 
   if (!supabaseUrl || !anonKey || !serviceRoleKey || !authorization) {
@@ -211,28 +229,61 @@ Deno.serve(async (request) => {
 
     const start = periodStart.toISOString();
     const end = periodEnd.toISOString();
-    const [{ data: activityRows, error: activityError }, { data: auditRows, error: auditError }] =
-      await Promise.all([
-        serviceClient
-          .from('activity_event_logs')
-          .select('actor_id, actor_kind, event_name, category, route, occurred_at')
-          .gte('occurred_at', start)
-          .lte('occurred_at', end)
-          .order('occurred_at', { ascending: false })
-          .limit(5000),
-        serviceClient
-          .from('admin_action_audit_logs')
-          .select('action, resource_type, created_at')
-          .gte('created_at', start)
-          .lte('created_at', end)
-          .order('created_at', { ascending: false })
-          .limit(5000),
-      ]);
+    const { data: settingsRow, error: settingsError } = await serviceClient
+      .from('ai_report_log_settings')
+      .select(
+        'include_navigation, include_authentication, include_data_changes, include_admin_audit',
+      )
+      .eq('id', true)
+      .maybeSingle();
 
-    if (activityError) throw activityError;
-    if (auditError) throw auditError;
+    if (settingsError) throw settingsError;
 
-    summary = aggregateLogs(activityRows ?? [], auditRows ?? []);
+    const settings = {
+      includeNavigation: settingsRow?.include_navigation ?? true,
+      includeAuthentication: settingsRow?.include_authentication ?? true,
+      includeDataChanges: settingsRow?.include_data_changes ?? true,
+      includeAdminAudit: settingsRow?.include_admin_audit ?? true,
+    };
+    const activityCategories = [
+      settings.includeNavigation ? 'navigation' : null,
+      settings.includeAuthentication ? 'authentication' : null,
+      settings.includeDataChanges ? 'data_change' : null,
+    ].filter((category): category is string => Boolean(category));
+    let activityRows: Array<Record<string, unknown>> = [];
+    let auditRows: Array<Record<string, unknown>> = [];
+
+    if (activityCategories.length > 0) {
+      const { data, error } = await serviceClient
+        .from('activity_event_logs')
+        .select('actor_id, actor_kind, event_name, category, route, occurred_at')
+        .in('category', activityCategories)
+        .gte('occurred_at', start)
+        .lte('occurred_at', end)
+        .order('occurred_at', { ascending: false })
+        .limit(5000);
+
+      if (error) throw error;
+      activityRows = data ?? [];
+    }
+
+    if (settings.includeAdminAudit) {
+      const { data, error } = await serviceClient
+        .from('admin_action_audit_logs')
+        .select('action, resource_type, created_at')
+        .gte('created_at', start)
+        .lte('created_at', end)
+        .order('created_at', { ascending: false })
+        .limit(5000);
+
+      if (error) throw error;
+      auditRows = data ?? [];
+    }
+
+    summary = {
+      includedLogSources: settings,
+      ...aggregateLogs(activityRows, auditRows),
+    };
     const prompt = JSON.stringify({
       task:
         '운영 현황을 평가하고 이상 징후, 운영 개선, 코드 수정 제안, 우선순위별 실행 계획을 작성한다.',
@@ -249,7 +300,7 @@ Deno.serve(async (request) => {
       projectContext,
       anonymizedLogSummary: summary,
     });
-    const aiResponse = await fetch(
+    const aiResponse = await fetchGeminiWithRetry(
       `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
       {
       method: 'POST',

@@ -72,6 +72,16 @@ const TicketPage = () => {
       navigate('/remaining-seats', { replace: true });
     } catch (error) {
       console.error('잔여 좌석 신청 취소 실패:', error);
+      try {
+        const currentReservation = await getReservation();
+        if (!currentReservation || currentReservation.status === 'cancelled') {
+          navigate('/remaining-seats', { replace: true });
+          return;
+        }
+        setReservation(currentReservation);
+      } catch (reloadError) {
+        console.error('Failed to verify remaining-seat cancellation:', reloadError);
+      }
       setCancelError('잔여 좌석 신청을 취소하지 못했습니다. 잠시 후 다시 시도해주세요.');
     } finally {
       cancelInFlightRef.current = false;
@@ -432,9 +442,8 @@ const TicketPage = () => {
               미입금 신청을 취소할까요?
             </h2>
             <p id="remaining-seat-cancel-description">
-              취소하면 확보한 좌석은 즉시 다시 공개됩니다. 이미 입금했다면 환불은
-              자동 처리되지 않을 수 있으므로 관리자에게 문의하고 환불 여부를
-              반드시 확인해주세요.
+              취소하면 확보한 좌석은 즉시 다시 공개됩니다. 입금 확인이 완료된
+              신청은 취소할 수 없습니다.
             </p>
             <dl className={styles.cancelDialogSummary}>
               <div>
@@ -460,7 +469,7 @@ const TicketPage = () => {
             </dl>
             <div className={styles.refundWarning}>
               <AlertTriangle size={18} aria-hidden="true" />
-              <span>신청 취소는 환불 완료를 의미하지 않습니다.</span>
+              <span>입금 확인 전 신청만 취소할 수 있습니다.</span>
             </div>
             {cancelError && (
               <p className={styles.cancelError} role="alert">

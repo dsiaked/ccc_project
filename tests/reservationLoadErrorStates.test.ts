@@ -29,3 +29,10 @@ test('home hero load failures offer retry instead of navigating to a new reserva
     /if \(loadError\) \{[\s\S]*setLoadAttempt\(\(attempt\) => attempt \+ 1\)[\s\S]*return;[\s\S]*\}[\s\S]*navigate\(content\.path\)/
   );
 });
+
+test('remaining seat cancellation verifies committed state after a lost response', () => {
+  assert.match(
+    ticketPage,
+    /catch \(error\) \{[\s\S]*const currentReservation = await getReservation\(\)[\s\S]*!currentReservation \|\| currentReservation\.status === 'cancelled'[\s\S]*navigate\('\/remaining-seats'/
+  );
+});

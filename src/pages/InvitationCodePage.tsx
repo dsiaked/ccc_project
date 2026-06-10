@@ -35,20 +35,33 @@ const InvitationCodePage = () => {
   useEffect(() => {
     let active = true;
 
-    void supabase.auth.getSession().then(({ data }) => {
-      if (!active) return;
+    void supabase.auth.getSession()
+      .then(({ data, error: sessionError }) => {
+        if (!active) return;
 
-      if (!data.session) {
-        navigate('/login', {
-          replace: true,
-          state: createLoginRequiredRedirectState('/invitation-codes'),
-        });
-        return;
-      }
+        if (sessionError) {
+          setError('로그인 정보를 확인하지 못했습니다. 잠시 후 다시 시도해주세요.');
+          setLoading(false);
+          return;
+        }
 
-      setUserId(data.session.user.id);
-      setLoading(false);
-    });
+        if (!data.session) {
+          navigate('/login', {
+            replace: true,
+            state: createLoginRequiredRedirectState('/invitation-codes'),
+          });
+          return;
+        }
+
+        setUserId(data.session.user.id);
+        setLoading(false);
+      })
+      .catch((sessionError) => {
+        console.error('로그인 정보 확인 실패:', sessionError);
+        if (!active) return;
+        setError('로그인 정보를 확인하지 못했습니다. 잠시 후 다시 시도해주세요.');
+        setLoading(false);
+      });
 
     return () => {
       active = false;

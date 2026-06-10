@@ -10,12 +10,14 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import {
+  clearOAuthCallbackState,
+  rememberKakaoOAuthState,
+} from '../utils/oauthCallbackState';
 import { normalizeAppRedirect } from '../utils/redirect';
 import styles from './LoginPage.module.css';
 
 const validateEmail = (value: string) => /^\S+@\S+\.\S+$/.test(value);
-const OAUTH_PROVIDER_KEY = 'ccc_bus_oauth_provider';
-const OAUTH_REDIRECT_KEY = 'ccc_bus_oauth_redirect';
 
 const KakaoIcon = () => (
   <svg
@@ -50,19 +52,24 @@ const LoginPage = () => {
     setError(null);
     setLoadingMethod('kakao');
 
-    sessionStorage.setItem(OAUTH_PROVIDER_KEY, 'kakao');
-    sessionStorage.setItem(OAUTH_REDIRECT_KEY, redirectTo);
+    try {
+      rememberKakaoOAuthState(redirectTo);
 
-    const { error: signInError } = await supabase.auth.signInWithOAuth({
-      provider: 'kakao',
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
-      },
-    });
+      const { error: signInError } = await supabase.auth.signInWithOAuth({
+        provider: 'kakao',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
 
-    if (signInError) {
-      sessionStorage.removeItem(OAUTH_PROVIDER_KEY);
-      sessionStorage.removeItem(OAUTH_REDIRECT_KEY);
+      if (!signInError) return;
+
+      clearOAuthCallbackState();
+      setError('카카오 로그인을 시작하지 못했습니다. 잠시 후 다시 시도해주세요.');
+      setLoadingMethod(null);
+    } catch (error) {
+      console.error('카카오 로그인 시작 실패:', error);
+      clearOAuthCallbackState();
       setError('카카오 로그인을 시작하지 못했습니다. 잠시 후 다시 시도해주세요.');
       setLoadingMethod(null);
     }
@@ -85,6 +92,7 @@ const LoginPage = () => {
     setLoadingMethod('email');
 
     try {
+      clearOAuthCallbackState();
       const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email: email.trim().toLowerCase(),
         password,
@@ -114,6 +122,9 @@ const LoginPage = () => {
       }
 
       navigate(redirectTo, { replace: true });
+    } catch (error) {
+      console.error('로그인 실패:', error);
+      setError('로그인 중 연결 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
     } finally {
       setLoadingMethod(null);
     }

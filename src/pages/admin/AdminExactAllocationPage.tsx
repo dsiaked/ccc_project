@@ -212,6 +212,9 @@ const AdminExactAllocationPage = () => {
   );
   const [configSaved, setConfigSaved] = useState(false);
   const [starting, setStarting] = useState(false);
+  const jobMutationInFlightRef = useRef(false);
+  const startInFlightRef = useRef(false);
+  const cancelInFlightRef = useRef(false);
   const [resetting, setResetting] = useState(false);
   const resetInFlightRef = useRef(false);
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
@@ -226,6 +229,7 @@ const AdminExactAllocationPage = () => {
     workspaceId: string | null;
   } | null>(null);
   const [startingDetailedBalance, setStartingDetailedBalance] = useState(false);
+  const detailedBalanceInFlightRef = useRef(false);
   const [executionMode, setExecutionMode] =
     useState<ExactAllocationExecutionMode>(getInitialExecutionMode);
   const [resumeDetailedBalance, setResumeDetailedBalance] = useState(true);
@@ -240,6 +244,9 @@ const AdminExactAllocationPage = () => {
   const [calculationViewReset, setCalculationViewReset] = useState(false);
   const [clock, setClock] = useState(() => Date.now());
   const jobsStateRevisionRef = useRef(0);
+  const recentJobsRequestIdRef = useRef(0);
+  const activeJobPollRequestIdRef = useRef(0);
+  const currentJobRequestIdRef = useRef(0);
   const activeJob =
     !calculationViewReset &&
     currentJob !== null &&
@@ -259,8 +266,14 @@ const AdminExactAllocationPage = () => {
 
   const loadRecentJobs = useCallback(async (preferredJobId?: string) => {
     const requestRevision = jobsStateRevisionRef.current;
+    const requestId = ++recentJobsRequestIdRef.current;
+    const currentJobRequestId = ++currentJobRequestIdRef.current;
     const jobs = await getRecentExactAllocationJobs();
-    if (requestRevision !== jobsStateRevisionRef.current) return;
+    if (
+      requestRevision !== jobsStateRevisionRef.current ||
+      requestId !== recentJobsRequestIdRef.current ||
+      currentJobRequestId !== currentJobRequestIdRef.current
+    ) return;
     setRecentJobs(jobs);
 
     const activeJob = jobs.find((job) => activeStatuses.has(job.status));
@@ -276,7 +289,11 @@ const AdminExactAllocationPage = () => {
     }
 
     const detail = await getExactAllocationJob(targetJob.id);
-    if (requestRevision !== jobsStateRevisionRef.current) return;
+    if (
+      requestRevision !== jobsStateRevisionRef.current ||
+      requestId !== recentJobsRequestIdRef.current ||
+      currentJobRequestId !== currentJobRequestIdRef.current
+    ) return;
     setCurrentJob((current) => {
       if (
         current &&
@@ -336,16 +353,33 @@ const AdminExactAllocationPage = () => {
 
     const intervalId = window.setInterval(() => {
       const requestRevision = jobsStateRevisionRef.current;
+      const requestId = ++activeJobPollRequestIdRef.current;
+      const currentJobRequestId = ++currentJobRequestIdRef.current;
       void getExactAllocationJob(currentJob.id)
         .then((job) => {
-          if (!job || requestRevision !== jobsStateRevisionRef.current) return;
+          if (
+            !job ||
+            requestRevision !== jobsStateRevisionRef.current ||
+            requestId !== activeJobPollRequestIdRef.current ||
+            currentJobRequestId !== currentJobRequestIdRef.current
+          ) return;
           setCurrentJob(job);
           if (!activeStatuses.has(job.status)) void loadRecentJobs(job.id);
         })
-        .catch((pollError) => setCalculationError(formatError(pollError)));
+        .catch((pollError) => {
+          if (
+            requestId === activeJobPollRequestIdRef.current &&
+            currentJobRequestId === currentJobRequestIdRef.current
+          ) {
+            setCalculationError(formatError(pollError));
+          }
+        });
     }, 2000);
 
-    return () => window.clearInterval(intervalId);
+    return () => {
+      activeJobPollRequestIdRef.current += 1;
+      window.clearInterval(intervalId);
+    };
   }, [currentJob, loadRecentJobs]);
 
   useEffect(() => {
@@ -518,6 +552,7 @@ const AdminExactAllocationPage = () => {
   };
 
   const handleStart = async () => {
+    if (jobMutationInFlightRef.current || startInFlightRef.current) return;
     setCalculationError(null);
     setDetailedBalanceError(null);
     if (!hasSingleBusOption) {
@@ -532,6 +567,9 @@ const AdminExactAllocationPage = () => {
       );
       return;
     }
+    jobMutationInFlightRef.current = true;
+    startInFlightRef.current = true;
+    const actionRevision = jobsStateRevisionRef.current;
     setStarting(true);
     setError(null);
     setConfigSaved(false);
@@ -540,37 +578,71 @@ const AdminExactAllocationPage = () => {
       setConfig(savedConfig);
       setSavedRecommendedMinimum(savedConfig.recommended_minimum_passengers);
       const jobId = await createExactAllocationJob(executionMode);
-      setCalculationViewReset(false);
       const job = await getExactAllocationJob(jobId);
-      if (job) setCurrentJob(job);
+      if (job && actionRevision === jobsStateRevisionRef.current) {
+        setCalculationViewReset(false);
+        setCurrentJob(job);
+      }
       if (job?.status === 'PENDING') {
         await launchExactAllocationJob(jobId, executionMode);
       }
-      await loadRecentJobs(jobId);
+      if (actionRevision === jobsStateRevisionRef.current) {
+        await loadRecentJobs(jobId);
+      }
     } catch (startError) {
-      setCalculationError(formatError(startError));
-      await loadRecentJobs().catch(() => undefined);
+      if (actionRevision === jobsStateRevisionRef.current) {
+        setCalculationError(formatError(startError));
+        await loadRecentJobs().catch(() => undefined);
+      }
     } finally {
+      jobMutationInFlightRef.current = false;
+      startInFlightRef.current = false;
       setStarting(false);
     }
   };
 
   const handleCancel = async () => {
-    if (!currentJob) return;
+    if (
+      !currentJob ||
+      jobMutationInFlightRef.current ||
+      cancelInFlightRef.current
+    ) {
+      return;
+    }
+    const jobId = currentJob.id;
+    const actionRevision = jobsStateRevisionRef.current;
+    jobMutationInFlightRef.current = true;
+    cancelInFlightRef.current = true;
     setError(null);
     setCalculationError(null);
     try {
-      await cancelExactAllocationJob(currentJob.id);
-      const job = await getExactAllocationJob(currentJob.id);
-      if (job) setCurrentJob(job);
-      await loadRecentJobs(currentJob.id);
+      await cancelExactAllocationJob(jobId);
+      const job = await getExactAllocationJob(jobId);
+      if (job && actionRevision === jobsStateRevisionRef.current) {
+        setCurrentJob(job);
+      }
+      if (actionRevision === jobsStateRevisionRef.current) {
+        await loadRecentJobs(jobId);
+      }
     } catch (cancelError) {
-      setCalculationError(formatError(cancelError));
+      if (actionRevision === jobsStateRevisionRef.current) {
+        setCalculationError(formatError(cancelError));
+      }
+    } finally {
+      jobMutationInFlightRef.current = false;
+      cancelInFlightRef.current = false;
     }
   };
 
   const handleReset = () => {
-    if (resetting || resetInFlightRef.current || recentJobs.length === 0) return;
+    if (
+      resetting ||
+      jobMutationInFlightRef.current ||
+      resetInFlightRef.current ||
+      recentJobs.length === 0
+    ) {
+      return;
+    }
     setResetDialogError(null);
     setResetDialogOpen(true);
   };
@@ -578,6 +650,7 @@ const AdminExactAllocationPage = () => {
   const confirmReset = async () => {
     if (
       resetting ||
+      jobMutationInFlightRef.current ||
       resetInFlightRef.current ||
       recentJobs.length === 0 ||
       activeJob
@@ -585,6 +658,7 @@ const AdminExactAllocationPage = () => {
       return;
     }
 
+    jobMutationInFlightRef.current = true;
     resetInFlightRef.current = true;
     setResetting(true);
     setError(null);
@@ -606,6 +680,7 @@ const AdminExactAllocationPage = () => {
       setResetDialogError(formatResetError(resetError));
       await loadRecentJobs(currentJob?.id).catch(() => undefined);
     } finally {
+      jobMutationInFlightRef.current = false;
       resetInFlightRef.current = false;
       setResetting(false);
     }
@@ -682,7 +757,17 @@ const AdminExactAllocationPage = () => {
   };
 
   const handleStartDetailedBalance = async () => {
-    if (!currentJob || currentJob.status !== 'OPTIMAL') return;
+    if (
+      !currentJob ||
+      currentJob.status !== 'OPTIMAL' ||
+      jobMutationInFlightRef.current ||
+      detailedBalanceInFlightRef.current
+    ) {
+      return;
+    }
+    jobMutationInFlightRef.current = true;
+    detailedBalanceInFlightRef.current = true;
+    const actionRevision = jobsStateRevisionRef.current;
     setStartingDetailedBalance(true);
     setError(null);
     setDetailedBalanceError(null);
@@ -703,15 +788,23 @@ const AdminExactAllocationPage = () => {
         executionMode
       );
       const job = await getExactAllocationJob(jobId);
-      if (job) setCurrentJob(job);
+      if (job && actionRevision === jobsStateRevisionRef.current) {
+        setCurrentJob(job);
+      }
       if (job?.status === 'PENDING') {
         await launchExactAllocationJob(jobId, executionMode);
       }
-      await loadRecentJobs(jobId);
+      if (actionRevision === jobsStateRevisionRef.current) {
+        await loadRecentJobs(jobId);
+      }
     } catch (balanceError) {
-      setDetailedBalanceError(formatError(balanceError));
-      await loadRecentJobs().catch(() => undefined);
+      if (actionRevision === jobsStateRevisionRef.current) {
+        setDetailedBalanceError(formatError(balanceError));
+        await loadRecentJobs().catch(() => undefined);
+      }
     } finally {
+      jobMutationInFlightRef.current = false;
+      detailedBalanceInFlightRef.current = false;
       setStartingDetailedBalance(false);
     }
   };
@@ -1657,7 +1750,10 @@ const AdminExactAllocationPage = () => {
                 type="button"
                 disabled={resetting}
                 onClick={() => {
-                  const requestRevision = jobsStateRevisionRef.current;
+                  const requestRevision = jobsStateRevisionRef.current + 1;
+                  jobsStateRevisionRef.current = requestRevision;
+                  setCalculationViewReset(false);
+                  setCurrentJob(job);
                   void getExactAllocationJob(job.id).then((detail) => {
                     if (
                       detail &&

@@ -6,6 +6,8 @@ const corsHeaders = {
     'authorization, x-client-info, apikey, content-type',
 };
 
+const CCC_SUMMER_REQUEST_TIMEOUT_MS = 15_000;
+
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
@@ -40,6 +42,37 @@ const internalEmail = async (subjectId: string) => {
     byte.toString(16).padStart(2, '0')
   ).join('');
   return `ccc-summer-${hash.slice(0, 48)}@sso.invalid`;
+};
+
+const findRecoverableAuthUser = async (
+  serviceClient: ReturnType<typeof createClient>,
+  email: string,
+  subjectId: string,
+) => {
+  const normalizedEmail = email.toLowerCase();
+  const perPage = 1000;
+
+  for (let page = 1; page <= 100; page += 1) {
+    const { data, error } = await serviceClient.auth.admin.listUsers({
+      page,
+      perPage,
+    });
+    if (error) return { userId: '', error };
+
+    const match = data.users.find((candidate) => {
+      const metadata = candidate.user_metadata ?? {};
+      return (
+        candidate.email?.toLowerCase() === normalizedEmail &&
+        metadata.account_source === 'ccc_summer' &&
+        (!metadata.ccc_summer_subject_id ||
+          metadata.ccc_summer_subject_id === subjectId)
+      );
+    });
+    if (match) return { userId: match.id, error: null };
+    if (data.users.length < perPage) break;
+  }
+
+  return { userId: '', error: null };
 };
 
 type CampusScope = {
@@ -90,6 +123,50 @@ Deno.serve(async (request) => {
   const body = await request.json().catch(() => ({}));
   const action = asText(body?.action) || 'exchange';
 
+  if (action === 'profile') {
+    const authorization = request.headers.get('Authorization') ?? '';
+    if (!authorization) {
+      return json({ error: 'authentication_required' }, 401);
+    }
+
+    const userClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authorization } },
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const {
+      data: { user },
+      error: userError,
+    } = await userClient.auth.getUser();
+    if (userError || !user) {
+      return json({ error: 'authentication_required' }, 401);
+    }
+
+    const { data: link, error: linkError } = await serviceClient
+      .from('ccc_summer_user_links')
+      .select(
+        'subject_id, is_staff, univ_no, univ_name, branch_no, branch_name',
+      )
+      .eq('user_id', user.id)
+      .maybeSingle();
+    if (linkError) {
+      return json({ error: 'ccc_summer_profile_lookup_failed' }, 500);
+    }
+    if (!link) {
+      return json({ error: 'ccc_summer_link_not_found' }, 404);
+    }
+
+    return json({
+      profile: {
+        subjectId: link.subject_id,
+        isStaff: link.is_staff,
+        univNo: link.univ_no,
+        univName: link.univ_name,
+        branchNo: link.branch_no,
+        branchName: link.branch_name,
+      },
+    });
+  }
+
   if (action === 'select-campus') {
     const authorization = request.headers.get('Authorization') ?? '';
     const campusId = asText(body?.campusId);
@@ -131,23 +208,15 @@ Deno.serve(async (request) => {
     }
 
     const now = new Date().toISOString();
-    const { error: mappingError } = await serviceClient
-      .from('ccc_summer_campus_mappings')
-      .upsert({
-        univ_no: link.univ_no,
-        univ_name: link.univ_name,
-        campus_id: campus.campus_id,
-        mapped_by: user.id,
-        updated_at: now,
-      });
-    if (mappingError) {
-      return json({ error: 'campus_mapping_failed' }, 500);
-    }
-
     const { error: profileError } = await serviceClient
       .from('profiles')
       .update({
+        district_id: campus.district_id,
+        district: campus.district,
+        team_id: campus.team_id,
+        team: campus.team,
         campus_id: campus.campus_id,
+        campus: campus.campus,
         affiliation_type: 'seoul',
         updated_at: now,
       })
@@ -173,6 +242,7 @@ Deno.serve(async (request) => {
     `${cccSummerBase.replace(/\/+$/, '')}/api/handoff/exchange`,
     {
       method: 'POST',
+      signal: AbortSignal.timeout(CCC_SUMMER_REQUEST_TIMEOUT_MS),
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         code,
@@ -260,10 +330,13 @@ Deno.serve(async (request) => {
   const email = await internalEmail(subjectId);
   const password = randomPassword();
   let userId = existingLink?.user_id ?? '';
+  let createdUserId = '';
+  let updateExistingAuthUser = Boolean(userId);
   const metadata = {
     name,
     phone,
     account_source: 'ccc_summer',
+    ccc_summer_subject_id: subjectId,
     district_id: campus?.district_id ?? null,
     district: campus?.district ?? '',
     team_id: campus?.team_id ?? null,
@@ -273,15 +346,7 @@ Deno.serve(async (request) => {
     affiliation_type: 'seoul',
   };
 
-  if (userId) {
-    const { error } = await serviceClient.auth.admin.updateUserById(userId, {
-      email,
-      password,
-      email_confirm: true,
-      user_metadata: metadata,
-    });
-    if (error) return json({ error: 'account_update_failed' }, 500);
-  } else {
+  if (!userId) {
     const { data, error } = await serviceClient.auth.admin.createUser({
       email,
       password,
@@ -289,9 +354,20 @@ Deno.serve(async (request) => {
       user_metadata: metadata,
     });
     if (error || !data.user) {
-      return json({ error: 'account_creation_failed' }, 500);
+      const recovery = await findRecoverableAuthUser(
+        serviceClient,
+        email,
+        subjectId,
+      );
+      if (recovery.error || !recovery.userId) {
+        return json({ error: 'account_creation_failed' }, 500);
+      }
+      userId = recovery.userId;
+      updateExistingAuthUser = true;
+    } else {
+      userId = data.user.id;
+      createdUserId = data.user.id;
     }
-    userId = data.user.id;
   }
 
   const now = new Date().toISOString();
@@ -323,7 +399,24 @@ Deno.serve(async (request) => {
     }),
   ]);
   if (profileError || linkUpsertError) {
+    if (createdUserId) {
+      const { error: rollbackError } =
+        await serviceClient.auth.admin.deleteUser(createdUserId);
+      if (rollbackError) {
+        console.error('Failed to roll back CCC Summer account:', rollbackError);
+      }
+    }
     return json({ error: 'profile_sync_failed' }, 500);
+  }
+
+  if (updateExistingAuthUser) {
+    const { error } = await serviceClient.auth.admin.updateUserById(userId, {
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: metadata,
+    });
+    if (error) return json({ error: 'account_update_failed' }, 500);
   }
 
   const loginClient = createClient(supabaseUrl, anonKey, {

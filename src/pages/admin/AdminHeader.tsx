@@ -10,7 +10,6 @@ import {
   FileCheck2,
   LayoutDashboard,
   LoaderCircle,
-  LogOut,
   MessageSquare,
   PanelLeftClose,
   PanelLeftOpen,
@@ -33,7 +32,6 @@ import {
   type AdminRoleType,
 } from '../../lib/adminService';
 import { useAdminAuth } from '../../components/AdminAuthProvider';
-import LogoutModal from '../../components/LogoutModal';
 import {
   campusNoticeReadEventName,
   getUnreadCampusNotices,
@@ -182,6 +180,14 @@ const navItems: AdminNavItem[] = [
     allowedRoles: ['global_admin'],
   },
   {
+    label: '운영 종료 점검',
+    path: '/admin/system/closeout',
+    icon: ClipboardCheck,
+    stageGroup: 'followUp',
+    targetGroup: 'global',
+    allowedRoles: ['global_admin'],
+  },
+  {
     label: '관리 작업 기록',
     path: '/admin/system/audit-logs',
     icon: History,
@@ -226,7 +232,6 @@ const AdminHeader = () => {
     switchAdminRole,
   } = useAdminAuth();
   const [switchableRoles, setSwitchableRoles] = useState<AdminRole[]>([]);
-  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const [activeRoleId, setActiveRoleId] = useState('');
   const [switchingRoleId, setSwitchingRoleId] = useState('');
   const [campusNoticeCount, setCampusNoticeCount] = useState(0);
@@ -381,15 +386,6 @@ const AdminHeader = () => {
     };
   }, [session, activeAdminRole]);
 
-  const handleLogout = async () => {
-    const { error } = await supabase.auth.signOut();
-
-    if (error) throw error;
-
-    setIsLogoutModalOpen(false);
-    navigate('/admin/login');
-  };
-
   const handleAdminRoleChange = async (roleId: string) => {
     if (!session) {
       navigate('/admin/login');
@@ -505,16 +501,35 @@ const AdminHeader = () => {
   };
 
   const adminRole = activeAdminRole?.role ?? null;
+  const availableScopedRoles =
+    activeAdminRole &&
+    activeAdminRole.role !== 'global_admin' &&
+    !switchableRoles.some((role) => role.id === activeAdminRole.id)
+      ? [activeAdminRole, ...switchableRoles]
+      : switchableRoles;
   const visibleNavItems = adminRole
     ? navItems.filter(
         (item) =>
           canAdminRoleAccess(adminRole, item.allowedRoles) ||
-          switchableRoles.some((role) =>
+          availableScopedRoles.some((role) =>
             canAdminRoleAccess(role.role, item.allowedRoles)
           )
       )
     : [];
+  const scopedAdminFunctionItems = navItems.filter((item) =>
+    item.allowedRoles.some(
+      (role) => role === 'campus_admin' || role === 'boarding_manager'
+    )
+  );
+  const canUseAdminFunction = (item: AdminNavItem) =>
+    adminRole !== null &&
+    (canAdminRoleAccess(adminRole, item.allowedRoles) ||
+      availableScopedRoles.some((role) =>
+        canAdminRoleAccess(role.role, item.allowedRoles)
+      ));
   const isCampusAdmin = adminRole === 'campus_admin';
+  const isBoardingManager = adminRole === 'boarding_manager';
+  const hasCompactMobileHeader = isCampusAdmin || isBoardingManager;
   const effectiveSidebarView = isCampusAdmin ? 'target' : sidebarView;
   const navGroups =
     effectiveSidebarView === 'stage' ? stageNavGroups : targetNavGroups;
@@ -523,27 +538,53 @@ const AdminHeader = () => {
     effectiveSidebarView === 'stage'
       ? activeItem?.stageGroup
       : activeItem?.targetGroup;
+  const handleSwitcherChange = (value: string) => {
+    if (value.startsWith('role:')) {
+      void handleAdminRoleChange(value.slice('role:'.length));
+      return;
+    }
+
+    if (value.startsWith('nav:')) {
+      const item = scopedAdminFunctionItems.find(
+        (navItem) => navItem.path === value.slice('nav:'.length)
+      );
+
+      if (item && canUseAdminFunction(item)) void handleNavItemClick(item);
+    }
+  };
   const roleSwitcher =
-    adminRole !== 'global_admin' && switchableRoles.length > 1 ? (
+    adminRole !== null && adminRole !== 'global_admin' ? (
       <label className={styles.campusSwitcher}>
-        <span>사용 권한</span>
+        <span>역할 및 관리자 기능</span>
         <select
-          value={activeRoleId}
-          aria-label="사용 권한 선택"
+          value={`role:${activeRoleId}`}
+          aria-label="역할 또는 관리자 기능 선택"
           disabled={Boolean(switchingRoleId)}
-          onChange={(event) =>
-            void handleAdminRoleChange(event.target.value)
-          }
+          onChange={(event) => handleSwitcherChange(event.target.value)}
         >
-          {switchableRoles.map((role) => (
-            <option key={role.id} value={role.id}>
-              {role.role === 'boarding_manager'
-                ? '탑승 관리 간사님 역할'
-                : `캠퍼스 회계 순장님 · ${[role.district, role.team, role.campus]
-                    .filter(Boolean)
-                    .join(' / ')}`}
-            </option>
-          ))}
+          <optgroup label="사용 역할">
+            {availableScopedRoles.map((role) => (
+              <option key={role.id} value={`role:${role.id}`}>
+                {role.role === 'boarding_manager'
+                  ? '탑승 관리 간사님 역할'
+                  : `캠퍼스 회계 순장님 · ${[role.district, role.team, role.campus]
+                      .filter(Boolean)
+                      .join(' / ')}`}
+              </option>
+            ))}
+          </optgroup>
+          <optgroup label="관리자 기능">
+            {scopedAdminFunctionItems.map((item) => (
+              <option
+                key={item.path}
+                value={`nav:${item.path}`}
+                disabled={!canUseAdminFunction(item)}
+              >
+                {item.label}
+                {!canUseAdminFunction(item) ? ' · 권한 필요' : ''}
+              </option>
+            ))}
+          </optgroup>
         </select>
       </label>
     ) : null;
@@ -553,7 +594,7 @@ const AdminHeader = () => {
       <header
       className={`${styles.header} ${
         isSidebarCollapsed ? styles.collapsed : ''
-      }`}
+      } ${hasCompactMobileHeader ? styles.compactRoleHeader : ''}`}
       aria-busy={Boolean(switchingRoleId)}
     >
       <div className={styles.sidebarTop}>
@@ -706,7 +747,10 @@ const AdminHeader = () => {
       </nav>
 
       <div className={styles.headerActions}>
-        {!isCampusAdmin && roleSwitcher}
+        <div className={styles.mobileRoleSwitcher}>{roleSwitcher}</div>
+        <div className={styles.desktopRoleSwitcher}>
+          {!isCampusAdmin && roleSwitcher}
+        </div>
 
         <button
           type="button"
@@ -719,25 +763,8 @@ const AdminHeader = () => {
           <span className={styles.homeLabel}>홈 화면으로</span>
         </button>
 
-        <button
-          type="button"
-          className={styles.logoutButton}
-          onClick={() => setIsLogoutModalOpen(true)}
-          aria-label="로그아웃"
-          title={isSidebarCollapsed ? '로그아웃' : undefined}
-        >
-          <LogOut size={17} />
-          <span className={styles.logoutLabel}>로그아웃</span>
-        </button>
       </div>
       </header>
-
-      {isLogoutModalOpen && (
-        <LogoutModal
-          onClose={() => setIsLogoutModalOpen(false)}
-          onConfirm={handleLogout}
-        />
-      )}
     </>
   );
 };

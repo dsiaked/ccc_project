@@ -8,11 +8,7 @@ import type {
 export type PersonalTicketPersonStatus =
   | ReturnBusReservation['status']
   | 'not_applied';
-export type PersonalTicketPaymentStatus =
-  | 'pending'
-  | 'completed'
-  | 'refund_required'
-  | 'refunded';
+export type PersonalTicketPaymentStatus = 'pending' | 'completed';
 
 export interface PersonalTicketAdminRole {
   id: string;

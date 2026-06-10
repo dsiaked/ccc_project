@@ -13,9 +13,7 @@ const MINUTE_MS = 60 * SECOND_MS;
 const HOUR_MS = 60 * MINUTE_MS;
 const DAY_MS = 24 * HOUR_MS;
 
-const getRemainingText = (deadlineAt: string | null, nowMs: number) => {
-  if (!deadlineAt) return '신청 마감 일시가 아직 설정되지 않았습니다.';
-
+const getRemainingText = (deadlineAt: string, nowMs: number) => {
   const remainingMs = new Date(deadlineAt).getTime() - nowMs;
 
   if (remainingMs <= 0) return '신청이 마감되었습니다.';
@@ -39,12 +37,16 @@ const getRemainingText = (deadlineAt: string | null, nowMs: number) => {
 const HomeDeadlineBanner = () => {
   const [deadlineAt, setDeadlineAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [nowMs, setNowMs] = useState(() => Date.now());
 
   useEffect(() => {
     let isMounted = true;
 
     const loadDeadline = async () => {
+      setLoading(true);
+      setLoadError(false);
       try {
         const setting = await getReservationDeadline();
 
@@ -53,6 +55,7 @@ const HomeDeadlineBanner = () => {
         }
       } catch (error) {
         console.error('Failed to load reservation deadline:', error);
+        if (isMounted) setLoadError(true);
       } finally {
         if (isMounted) {
           setLoading(false);
@@ -70,28 +73,42 @@ const HomeDeadlineBanner = () => {
       isMounted = false;
       window.clearInterval(timerId);
     };
-  }, []);
+  }, [loadAttempt]);
 
   const isClosed = Boolean(
     deadlineAt && new Date(deadlineAt).getTime() <= nowMs
   );
-  const remainingText = useMemo(
-    () => getRemainingText(deadlineAt, nowMs),
-    [deadlineAt, nowMs]
-  );
+  const remainingText = useMemo(() => {
+    if (!deadlineAt) return '';
+    return getRemainingText(deadlineAt, nowMs);
+  }, [deadlineAt, nowMs]);
+
+  if (loading || (!deadlineAt && !loadError)) return null;
 
   return (
     <section
       className={`${styles.banner} ${isClosed ? styles.closedBanner : ''}`}
+      aria-label="버스 신청 마감 안내"
     >
       <div className={styles.iconBox}>
         <Clock3 size={18} />
       </div>
 
       <div className={styles.content}>
-        <span>{loading ? '신청 마감 일시 확인 중' : '신청 마감'}</span>
-        <strong>{loading ? '잠시만 기다려주세요' : remainingText}</strong>
-        {!loading && deadlineAt && (
+        <span>신청 마감</span>
+        <strong>
+          {loadError ? '마감 정보를 확인하지 못했습니다' : remainingText}
+        </strong>
+        {loadError && (
+          <button
+            type="button"
+            className={styles.retryButton}
+            onClick={() => setLoadAttempt((attempt) => attempt + 1)}
+          >
+            다시 시도
+          </button>
+        )}
+        {deadlineAt && (
           <p>신청 마감 일시: {formatReservationDeadline(deadlineAt)}</p>
         )}
       </div>

@@ -4,6 +4,10 @@ The AI operations report feature combines privacy-safe activity statistics with
 a curated description of the repository architecture. Global administrators can
 generate and review reports at `/admin/system/ai-reports`.
 
+Global administrators can select which log groups are included in new AI
+reports. The selection affects AI input only; collected privacy-safe logs remain
+available for operational review at `/admin/system/ai-reports/logs`.
+
 ## What is logged
 
 - Authenticated user and administrator page views
@@ -19,7 +23,8 @@ included in the AI input.
 
 ## Deployment
 
-1. Apply `supabase/migrations/20260610230017_156_ai_operations_reports.sql`.
+1. Apply `supabase/migrations/20260610230017_156_ai_operations_reports.sql` and
+   `supabase/migrations/20260610230030_166_ai_report_log_selection.sql`.
 2. Deploy the Edge Function:
 
    ```bash
@@ -30,10 +35,12 @@ included in the AI input.
 
    ```bash
    supabase secrets set GEMINI_API_KEY=...
-   supabase secrets set AI_REPORT_MODEL=gemini-2.5-flash
+   supabase secrets set AI_REPORT_MODEL=gemini-2.5-flash-lite
    ```
 
-`AI_REPORT_MODEL` is optional. The function defaults to `gemini-2.5-flash`.
+`AI_REPORT_MODEL` is optional. The function defaults to `gemini-2.5-flash-lite`.
+Temporary capacity and rate-limit failures are retried twice before the report
+is marked as failed.
 
 ## Access and retention
 

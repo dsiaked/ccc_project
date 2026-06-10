@@ -35,7 +35,7 @@ test('boarding overview shows departed buses over the role-scoped bus total', ()
   );
 });
 
-test('boarding managers see their selected bus roster before supporting overview sections', () => {
+test('boarding managers see assigned buses first and their selected roster before supporting overview sections', () => {
   const boardingStyles = readFileSync(
     'src/pages/admin/AdminBoardingPage.module.css',
     'utf8'
@@ -49,6 +49,27 @@ test('boarding managers see their selected bus roster before supporting overview
     boardingStyles,
     /\.boardingContentManager \.roster\s*\{[^}]*order:\s*-1/i
   );
+  assert.match(
+    boardingStyles,
+    /\.boardingContentManager \.busSelection\s*\{[^}]*order:\s*-2/i
+  );
+  assert.match(
+    boardingPage,
+    /<section className=\{styles\.busSelection\} aria-label=\{boardingScopeLabel\}>/
+  );
+});
+
+test('selected bus tools share one workspace and use a compact boarding code control', () => {
+  const boardingStyles = readFileSync(
+    'src/pages/admin/AdminBoardingPage.module.css',
+    'utf8'
+  );
+
+  assert.match(boardingPage, /<strong>탑승 코드<\/strong>/);
+  assert.doesNotMatch(boardingPage, /버스에 탑승한 탑승자에게 이 4자리 코드를 안내하세요/);
+  assert.match(boardingStyles, /\.roster\s*\{[^}]*background:\s*#f1f5f9/i);
+  assert.match(boardingStyles, /\.checkInCodePanel\s*\{[^}]*display:\s*flex/i);
+  assert.match(boardingStyles, /\.checkInCodeValue\s*\{[^}]*font-size:\s*20px/i);
 });
 
 test('full roster exports and sheet access remain global-admin only', () => {
@@ -89,14 +110,22 @@ test('boarding roster renders passengers as compact cards without roster numbers
   );
 });
 
-test('boarding roster prioritizes unchecked, no-show, and boarded passengers', () => {
+test('boarding roster prioritizes statuses while newly boarded passengers stay in place', () => {
   assert.match(
     boardingPage,
     /const statusSortOrder: Record<BoardingStatus, number> = \{\s*unchecked: 0,\s*no_show: 1,\s*boarded: 2,\s*\}/
   );
   assert.match(
     boardingPage,
-    /\.sort\(\s*\(a, b\) =>\s*statusSortOrder\[a\.boardingStatus\] - statusSortOrder\[b\.boardingStatus\]\s*\|\|\s*a\.busNumber\.localeCompare/
+    /locallyBoardedPassengerIds\.has\(a\.reservationId\)[\s\S]*?statusSortOrder\.unchecked[\s\S]*?statusSortOrder\[a\.boardingStatus\]/
+  );
+  assert.match(
+    boardingPage,
+    /setLocallyBoardedPassengerIds\(new Set\(\)\)/
+  );
+  assert.match(
+    boardingPage,
+    /setBoardingFeedback\(`\$\{passenger\.name\}님 탑승 확인 완료`\)/
   );
 });
 
@@ -190,13 +219,11 @@ test('manual no-show processing opens passenger details and requires a newly wri
   );
 });
 
-test('boarding bus attention filter shows buses with unchecked passengers remaining', () => {
-  assert.match(
-    boardingPage,
-    /if \(uncheckedBusesOnly && !counts\?\.unchecked\) return false/
-  );
-  assert.match(boardingPage, /탑승 미확인 인원 남은 차량만/);
-  assert.doesNotMatch(boardingPage, /미탑승 발생 차량만/);
+test('boarding manager bus cards are shown directly without bus-level filters', () => {
+  assert.doesNotMatch(boardingPage, /const \[busSearch, setBusSearch\]/);
+  assert.doesNotMatch(boardingPage, /const \[uncheckedBusesOnly, setUncheckedBusesOnly\]/);
+  assert.doesNotMatch(boardingPage, /탑승 미확인 인원 남은 차량만/);
+  assert.doesNotMatch(boardingPage, /조건에 맞는 차량이 없습니다/);
 });
 
 test('departed buses with unchecked passengers show a separate orange warning', () => {
@@ -230,7 +257,7 @@ test('boarding departure action appears after the passenger list', () => {
   assert.ok(fieldExceptionActionsIndex > passengerListIndex);
   assert.ok(departureFooterIndex > fieldExceptionActionsIndex);
   assert.ok(departureFooterIndex > passengerListIndex);
-  assert.match(boardingPage, /남은 미확인 전원 미탑승 처리 · 출발 완료/);
+  assert.match(boardingPage, /모든 탑승 상태 확인 · 출발 완료/);
 });
 
 test('boarding passenger details show first and second destination preferences', () => {

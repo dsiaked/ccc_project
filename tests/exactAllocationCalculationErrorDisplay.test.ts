@@ -50,7 +50,7 @@ test('allocation calculation errors are displayed beside the calculation control
   );
   assert.match(
     allocationPage,
-    /\.catch\(\(pollError\) => setCalculationError\(formatError\(pollError\)\)\)/
+    /\.catch\(\(pollError\) => \{[\s\S]*requestId === activeJobPollRequestIdRef\.current[\s\S]*setCalculationError\(formatError\(pollError\)\)/
   );
   assert.match(
     allocationPage,

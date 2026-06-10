@@ -63,14 +63,14 @@ test('personal user operations require reasons and global administrator RPCs', (
 test('personal user management exposes status, payment, notification, and history controls', () => {
   assert.match(adminPage, /개인 운영 상태/);
   assert.match(adminPage, /기본 정보 수정/);
-  assert.match(adminPage, /입금·환불 처리/);
+  assert.match(adminPage, /입금 처리/);
   assert.match(adminPage, /개인 앱 알림/);
   assert.match(adminPage, /개인 작업 이력/);
   assert.match(homePage, /PersonalNotificationSection/);
 });
 
-test('personal user operations link atomic cancellation, refund, audit, and safe revert', () => {
-  assert.match(enhancementSetupSql, /refund_required/);
+test('personal user operations link atomic cancellation, payment reset, audit, and safe revert', () => {
+  assert.match(enhancementSetupSql, /manage_personal_reservation_status/);
   assert.match(enhancementSetupSql, /manage_personal_reservation_status/);
   assert.match(enhancementSetupSql, /before_data jsonb/);
   assert.match(enhancementSetupSql, /after_data jsonb/);
@@ -93,6 +93,9 @@ test('personal user page exposes tabs, attention filter, templates, permissions,
 
 test('personal notification center exposes failures and preserves partial read results', () => {
   assert.match(notificationService, /limit = 20/);
+  assert.match(notificationSection, /supabase\.auth\.getSession/);
+  assert.match(notificationSection, /if \(!loggedIn\) \{/);
+  assert.match(notificationSection, /if \(isAuthLoading \|\| !isLoggedIn\) return null/);
   assert.match(notificationSection, /Promise\.allSettled/);
   assert.match(notificationSection, /readIds\.includes/);
   assert.match(notificationSection, /개인 알림을 불러오지 못했습니다/);

@@ -44,3 +44,14 @@ test('simulation safety lock cannot be disabled during a background execution', 
     /disabled=\{[\s\S]*updatingSafety[\s\S]*runningStageIndex !== null[\s\S]*!preview\?\.safety\.projectIdMatches/
   );
 });
+
+test('simulation preview ignores stale manual refreshes after a stage starts', () => {
+  assert.match(
+    simulationPage,
+    /const previewRequestRevisionRef = useRef\(0\)[\s\S]*const requestRevision = \+\+previewRequestRevisionRef\.current[\s\S]*requestRevision !== previewRequestRevisionRef\.current/
+  );
+  assert.match(
+    simulationPage,
+    /previewRequestRevisionRef\.current \+= 1;\s*const executionResult = await startSimulationExecution/
+  );
+});

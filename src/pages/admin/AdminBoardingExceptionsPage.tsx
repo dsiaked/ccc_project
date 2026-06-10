@@ -124,8 +124,10 @@ const AdminBoardingExceptionsPage = () => {
   const [dateFilter, setDateFilter] = useState('');
   const [search, setSearch] = useState('');
   const realtimeTimerRef = useRef<number | null>(null);
+  const snapshotRequestRevisionRef = useRef(0);
 
   const loadSnapshot = useCallback(async (quiet = false) => {
+    const requestRevision = ++snapshotRequestRevisionRef.current;
     if (quiet) setRefreshing(true);
     else setLoading(true);
 
@@ -142,20 +144,24 @@ const AdminBoardingExceptionsPage = () => {
         getBoardingExceptionReasonEdits(),
         getManualBoardingExceptionRecords(),
       ]);
+      if (requestRevision !== snapshotRequestRevisionRef.current) return;
       setSnapshot(nextSnapshot);
       setArchiveSnapshot(nextArchiveSnapshot);
       setReasonEdits(nextReasonEdits);
       setManualRecords(nextManualRecords);
       setError('');
     } catch (loadError) {
+      if (requestRevision !== snapshotRequestRevisionRef.current) return;
       setError(
         loadError instanceof Error
           ? loadError.message
           : '특수상황 기록을 불러오지 못했습니다.'
       );
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (requestRevision === snapshotRequestRevisionRef.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   }, []);
 
@@ -409,8 +415,16 @@ const AdminBoardingExceptionsPage = () => {
 
   const handleReasonUpdate = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!editingRecord || !editingReason.trim() || processingRecordId) return;
+    if (
+      !editingRecord ||
+      !editingReason.trim() ||
+      processingRecordId ||
+      actionInFlightRef.current
+    ) {
+      return;
+    }
 
+    actionInFlightRef.current = true;
     setProcessingRecordId(editingRecord.id);
     setError('');
     try {
@@ -430,6 +444,7 @@ const AdminBoardingExceptionsPage = () => {
           : '처리 사유를 수정하지 못했습니다.'
       );
     } finally {
+      actionInFlightRef.current = false;
       setProcessingRecordId('');
     }
   };
@@ -450,12 +465,20 @@ const AdminBoardingExceptionsPage = () => {
 
   const handleRecordCreate = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!snapshot || !createBusId || !createReason.trim() || processingRecordId) {
+    if (
+      !snapshot ||
+      !createBusId ||
+      !createReason.trim() ||
+      processingRecordId ||
+      actionInFlightRef.current
+    ) {
       return;
     }
 
+    actionInFlightRef.current = true;
     setProcessingRecordId('manual-create');
     setError('');
+    let created = false;
     try {
       await createManualBoardingExceptionRecord({
         allocationId: snapshot.allocationId,
@@ -466,7 +489,7 @@ const AdminBoardingExceptionsPage = () => {
       setCreatingRecord(false);
       setCreateReason('');
       setCreateReservationId('');
-      await loadSnapshot(true);
+      created = true;
     } catch (actionError) {
       setError(
         actionError instanceof Error
@@ -474,7 +497,18 @@ const AdminBoardingExceptionsPage = () => {
           : '특수상황 기록을 생성하지 못했습니다.'
       );
     } finally {
+      actionInFlightRef.current = false;
       setProcessingRecordId('');
+    }
+
+    if (!created) return;
+    try {
+      await loadSnapshot(true);
+    } catch (refreshError) {
+      console.error('Failed to refresh created boarding exception:', refreshError);
+      setError(
+        '특수상황 기록은 생성되었지만 목록을 새로고치지 못했습니다. 새로고침 후 확인해주세요.'
+      );
     }
   };
 

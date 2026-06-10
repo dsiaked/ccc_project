@@ -16,11 +16,15 @@ const formatDate = (value: string) =>
 const HomeNoticeSection = () => {
   const [announcements, setAnnouncements] = useState<HomeAnnouncement[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
 
   useEffect(() => {
     let isMounted = true;
 
     const loadAnnouncements = async () => {
+      setIsLoading(true);
+      setLoadError(false);
       try {
         const items = await getPublishedHomeAnnouncements();
         if (!isMounted) return;
@@ -28,6 +32,7 @@ const HomeNoticeSection = () => {
         setAnnouncements(items);
       } catch (error) {
         console.error('홈 화면 공지 로드 실패:', error);
+        if (isMounted) setLoadError(true);
       } finally {
         if (isMounted) setIsLoading(false);
       }
@@ -38,9 +43,9 @@ const HomeNoticeSection = () => {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [loadAttempt]);
 
-  if (!isLoading && announcements.length === 0) {
+  if (!isLoading && !loadError && announcements.length === 0) {
     return null;
   }
 
@@ -59,6 +64,16 @@ const HomeNoticeSection = () => {
 
         {isLoading ? (
           <div className={styles.loading}>공지를 불러오는 중...</div>
+        ) : loadError ? (
+          <div className={styles.errorState} role="alert">
+            <span>공지를 불러오지 못했습니다.</span>
+            <button
+              type="button"
+              onClick={() => setLoadAttempt((attempt) => attempt + 1)}
+            >
+              다시 시도
+            </button>
+          </div>
         ) : (
           <div className={styles.noticeList}>
             {announcements.map((announcement) => (

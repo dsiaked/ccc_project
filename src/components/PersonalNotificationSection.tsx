@@ -6,16 +6,21 @@ import {
   markPersonalNotificationRead,
   type PersonalNotification,
 } from '../lib/personalNotificationService';
+import { supabase } from '../lib/supabase';
 import styles from './PersonalNotificationSection.module.css';
 
 const PersonalNotificationSection = () => {
   const [notifications, setNotifications] = useState<PersonalNotification[]>([]);
   const [isOpen, setIsOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [readError, setReadError] = useState(false);
 
   const loadNotifications = async () => {
+    if (!isLoggedIn) return;
+
     setIsLoading(true);
     setLoadError(false);
     try {
@@ -31,23 +36,66 @@ const PersonalNotificationSection = () => {
   useEffect(() => {
     let active = true;
 
-    getMyPersonalNotifications()
-      .then((items) => {
+    const updateAuthState = async (
+      session: Awaited<ReturnType<typeof supabase.auth.getSession>>['data']['session']
+    ) => {
+      if (!active) return;
+
+      const loggedIn = Boolean(session);
+      setIsLoggedIn(loggedIn);
+      setLoadError(false);
+      setReadError(false);
+
+      if (!loggedIn) {
+        setNotifications([]);
+        setIsOpen(false);
+        setIsLoading(false);
+        setIsAuthLoading(false);
+        return;
+      }
+
+      setIsLoading(true);
+      try {
+        const items = await getMyPersonalNotifications();
         if (active) setNotifications(items);
-      })
-      .catch((error) => {
+      } catch (error) {
         console.error('개인 알림 조회 실패:', error);
         if (active) setLoadError(true);
-      })
-      .finally(() => {
-        if (active) setIsLoading(false);
-      });
+      } finally {
+        if (active) {
+          setIsLoading(false);
+          setIsAuthLoading(false);
+        }
+      }
+    };
+
+    const checkAuth = async () => {
+      const { data, error } = await supabase.auth.getSession();
+
+      if (error) {
+        console.error('개인 알림 로그인 상태 확인 실패:', error);
+        if (active) setIsAuthLoading(false);
+        return;
+      }
+
+      await updateAuthState(data.session);
+    };
+
+    void checkAuth();
+
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        void updateAuthState(session);
+      }
+    );
 
     return () => {
       active = false;
+      authListener.subscription.unsubscribe();
     };
   }, []);
 
+  if (isAuthLoading || !isLoggedIn) return null;
   if (notifications.length === 0 && !loadError) return null;
   const unreadCount = notifications.filter((item) => !item.readAt).length;
 

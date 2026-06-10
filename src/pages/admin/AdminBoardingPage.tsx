@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Bus,
   CheckCircle2,
+  CircleAlert,
   CircleHelp,
   ArrowRightLeft,
   ExternalLink,
@@ -106,7 +107,6 @@ const AdminBoardingPage = () => {
   const boardingScopeLabel = isGlobalAdmin ? '전체 확정 호차' : '내 담당 호차';
   const [snapshot, setSnapshot] = useState<BoardingSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
   const [sheetSyncing, setSheetSyncing] = useState(false);
   const [sheetSyncedAt, setSheetSyncedAt] = useState('');
   const [error, setError] = useState('');
@@ -115,11 +115,13 @@ const AdminBoardingPage = () => {
     useState<BoardingMoveRequestSnapshot | null>(null);
   const [moveRequestActionId, setMoveRequestActionId] = useState('');
   const [selectedBusId, setSelectedBusId] = useState('');
-  const [busSearch, setBusSearch] = useState('');
-  const [uncheckedBusesOnly, setUncheckedBusesOnly] = useState(false);
   const [search, setSearch] = useState('');
   const [campusFilter, setCampusFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState<BoardingStatus | ''>('');
+  const [locallyBoardedPassengerIds, setLocallyBoardedPassengerIds] = useState<Set<string>>(
+    () => new Set()
+  );
+  const [boardingFeedback, setBoardingFeedback] = useState('');
   const [pendingPassengerIds, setPendingPassengerIds] = useState<Set<string>>(
     () => new Set()
   );
@@ -134,6 +136,9 @@ const AdminBoardingPage = () => {
     useState<BoardingPassenger | null>(null);
   const [boardingTransitionReason, setBoardingTransitionReason] = useState('');
   const [departureActionKey, setDepartureActionKey] = useState('');
+  const [departureConfirmOpen, setDepartureConfirmOpen] = useState(false);
+  const [departureCancelOpen, setDepartureCancelOpen] = useState(false);
+  const [departureCancelReason, setDepartureCancelReason] = useState('');
   const [rotatingCodeBusId, setRotatingCodeBusId] = useState('');
   const [exceptionMode, setExceptionMode] = useState<'walk_in' | 'move' | null>(null);
   const [exceptionPassenger, setExceptionPassenger] = useState<BoardingPassenger | null>(null);
@@ -144,20 +149,38 @@ const AdminBoardingPage = () => {
   const [exceptionCampus, setExceptionCampus] = useState('');
   const [exceptionReason, setExceptionReason] = useState('');
   const [savingException, setSavingException] = useState(false);
+  const pendingPassengerIdsRef = useRef<Set<string>>(new Set());
+  const savingNoteIdsRef = useRef<Set<string>>(new Set());
+  const departureActionInFlightRef = useRef(false);
+  const rotatingCodeInFlightRef = useRef(false);
+  const exceptionInFlightRef = useRef(false);
+  const moveRequestInFlightRef = useRef(false);
+  const snapshotRequestRevisionRef = useRef(0);
   const realtimeSyncTimerRef = useRef<number | null>(null);
   const sheetAutoSyncTimerRef = useRef<number | null>(null);
+  const boardingFeedbackTimerRef = useRef<number | null>(null);
   const noteTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const passengerDetailHistoryEntryRef = useRef(false);
   const passengerDetailHistoryMarkerRef = useRef('boarding-passenger-detail');
 
-  const loadSnapshot = useCallback(async (quiet = false, indicateSync = quiet) => {
+  useEffect(
+    () => () => {
+      if (boardingFeedbackTimerRef.current !== null) {
+        window.clearTimeout(boardingFeedbackTimerRef.current);
+      }
+    },
+    []
+  );
+
+  const loadSnapshot = useCallback(async (quiet = false) => {
+    const requestRevision = ++snapshotRequestRevisionRef.current;
     if (!quiet) setLoading(true);
-    else if (indicateSync) setSyncing(true);
     try {
       const [next, nextMoveRequests] = await Promise.all([
         getBoardingManagementSnapshot(),
         getBoardingMoveRequestSnapshot(),
       ]);
+      if (requestRevision !== snapshotRequestRevisionRef.current) return;
       setSnapshot(next);
       setMoveRequestSnapshot(nextMoveRequests);
       setError('');
@@ -167,14 +190,16 @@ const AdminBoardingPage = () => {
           : next?.buses[0]?.id ?? ''
       );
     } catch (loadError) {
+      if (requestRevision !== snapshotRequestRevisionRef.current) return;
       setError(
         loadError instanceof Error
           ? loadError.message
           : '탑승 현황을 불러오지 못했습니다.'
       );
     } finally {
-      setLoading(false);
-      if (indicateSync) setSyncing(false);
+      if (requestRevision === snapshotRequestRevisionRef.current) {
+        setLoading(false);
+      }
     }
   }, []);
 
@@ -190,7 +215,7 @@ const AdminBoardingPage = () => {
 
       realtimeSyncTimerRef.current = window.setTimeout(() => {
         realtimeSyncTimerRef.current = null;
-        void loadSnapshot(true, false);
+        void loadSnapshot(true);
       }, 1500);
     };
 
@@ -211,6 +236,25 @@ const AdminBoardingPage = () => {
         { event: '*', schema: 'public', table: 'boarding_move_requests' },
         scheduleRealtimeSync
       )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'personal_notifications' },
+        (payload) => {
+          const notification = payload.new as {
+            title?: string;
+            content?: string;
+            category?: string;
+          };
+          if (notification.category === 'boarding') {
+            setMessage(
+              [notification.title, notification.content]
+                .filter(Boolean)
+                .join(' · ')
+            );
+          }
+          scheduleRealtimeSync();
+        }
+      )
       .subscribe();
 
     return () => {
@@ -223,6 +267,7 @@ const AdminBoardingPage = () => {
   }, [loadSnapshot]);
 
   const selectedBus = snapshot?.buses.find((bus) => bus.id === selectedBusId);
+  const isSelectedBusLocked = Boolean(selectedBus?.departedAt);
   const normalizedSearch = search.trim().toLocaleLowerCase('ko');
   const isGlobalSearch = Boolean(normalizedSearch);
   const matchingPassengers = useMemo(() => {
@@ -249,13 +294,21 @@ const AdminBoardingPage = () => {
       )
       .sort(
         (a, b) =>
-          statusSortOrder[a.boardingStatus] - statusSortOrder[b.boardingStatus] ||
+          (locallyBoardedPassengerIds.has(a.reservationId) &&
+          a.boardingStatus === 'boarded'
+            ? statusSortOrder.unchecked
+            : statusSortOrder[a.boardingStatus]) -
+            (locallyBoardedPassengerIds.has(b.reservationId) &&
+            b.boardingStatus === 'boarded'
+              ? statusSortOrder.unchecked
+              : statusSortOrder[b.boardingStatus]) ||
           a.busNumber.localeCompare(b.busNumber, 'ko', { numeric: true }) ||
           a.seatNumber.localeCompare(b.seatNumber, 'ko', { numeric: true }) ||
           a.name.localeCompare(b.name, 'ko')
       );
   }, [
     campusFilter,
+    locallyBoardedPassengerIds,
     normalizedSearch,
     selectedBus?.label,
     snapshot?.passengers,
@@ -339,26 +392,15 @@ const AdminBoardingPage = () => {
   ).length;
   const getBusRemainingCapacity = (bus: BoardingSnapshot['buses'][number]) =>
     Math.max(0, bus.capacity - (busCountsByLabel.get(bus.label)?.total ?? 0));
-  const visibleBuses = useMemo(() => {
-    const normalizedBusSearch = busSearch.trim().toLocaleLowerCase('ko');
-
-    return [...(snapshot?.buses ?? [])]
-      .filter((bus) => {
-        const counts = busCountsByLabel.get(bus.label);
-        if (uncheckedBusesOnly && !counts?.unchecked) return false;
-        return (
-          !normalizedBusSearch ||
-          [formatBusLabel(bus.label), bus.label, bus.destination].some((value) =>
-            value.toLocaleLowerCase('ko').includes(normalizedBusSearch)
-          )
-        );
-      })
-      .sort((a, b) =>
+  const visibleBuses = useMemo(
+    () =>
+      [...(snapshot?.buses ?? [])].sort((a, b) =>
         formatBusLabel(a.label).localeCompare(formatBusLabel(b.label), 'ko', {
           numeric: true,
         })
-      );
-  }, [busCountsByLabel, busSearch, uncheckedBusesOnly, snapshot?.buses]);
+      ),
+    [snapshot?.buses]
+  );
   const moveTargetBuses =
     moveRequestSnapshot?.targetBuses ??
     (snapshot?.buses.map((bus) => ({
@@ -371,6 +413,26 @@ const AdminBoardingPage = () => {
   const pendingIncomingMoveRequests = moveRequestSnapshot?.requests.filter(
     (request) => request.status === 'pending' && request.canRespond
   ) ?? [];
+  const departureCancellationRestoreCount = selectedBus
+    ? snapshot?.passengers.filter((passenger) => {
+        const latestEvent = snapshot.events.find(
+          (event) => event.reservationId === passenger.reservationId
+        );
+        return (
+          passenger.busId === selectedBus.id &&
+          passenger.boardingStatus === 'no_show' &&
+          latestEvent?.note === 'bus_departed_auto_no_show'
+        );
+      }).length ?? 0
+    : 0;
+  const selectedBusCounts = selectedBus
+    ? busCountsByLabel.get(selectedBus.label) ?? {
+        total: 0,
+        boarded: 0,
+        unchecked: 0,
+        noShow: 0,
+      }
+    : null;
 
   const latestEventByReservationId = useMemo(() => {
     const events = new Map<string, BoardingEvent>();
@@ -386,6 +448,10 @@ const AdminBoardingPage = () => {
   const selectedPassenger = snapshot?.passengers.find(
     (passenger) => passenger.reservationId === selectedPassengerId
   );
+  const selectedPassengerBus = selectedPassenger
+    ? snapshot?.buses.find((bus) => bus.id === selectedPassenger.busId)
+    : undefined;
+  const isSelectedPassengerBusDeparted = Boolean(selectedPassengerBus?.departedAt);
   const selectedPassengerEvent = selectedPassenger
     ? latestEventByReservationId.get(selectedPassenger.reservationId)
     : undefined;
@@ -493,6 +559,8 @@ const AdminBoardingPage = () => {
   }, [isWritingNoShowReason]);
 
   const runDepartureAction = async (key: string, action: () => Promise<void>) => {
+    if (departureActionInFlightRef.current) return;
+    departureActionInFlightRef.current = true;
     setDepartureActionKey(key);
     setError('');
     try {
@@ -501,6 +569,7 @@ const AdminBoardingPage = () => {
     } catch (actionError) {
       setError(actionError instanceof Error ? actionError.message : '처리하지 못했습니다.');
     } finally {
+      departureActionInFlightRef.current = false;
       setDepartureActionKey('');
     }
   };
@@ -556,6 +625,13 @@ const AdminBoardingPage = () => {
     noShowReasonSaved = false,
     transitionReason = ''
   ) => {
+    const passengerBus = snapshot?.buses.find((bus) => bus.id === passenger.busId);
+    if (status === 'unchecked' && passengerBus?.departedAt) {
+      setError(
+        '출발 완료된 호차에서는 탑승자를 미확인 상태로 되돌릴 수 없습니다. 출발 완료를 먼저 취소해주세요.'
+      );
+      return;
+    }
     if (
       passenger.reservationId === noShowReasonPassengerId &&
       status === passenger.boardingStatus
@@ -584,6 +660,7 @@ const AdminBoardingPage = () => {
       setBoardingTransitionReason('');
       return;
     }
+    if (pendingPassengerIdsRef.current.has(passenger.reservationId)) return;
 
     const previousPassenger = passenger;
     const previousEvent = latestEventByReservationId.get(passenger.reservationId);
@@ -600,6 +677,20 @@ const AdminBoardingPage = () => {
         : 'boarding_status_changed',
     };
 
+    pendingPassengerIdsRef.current.add(passenger.reservationId);
+    if (status === 'boarded' && passenger.boardingStatus !== 'boarded') {
+      setLocallyBoardedPassengerIds((current) => {
+        const next = new Set(current);
+        next.add(passenger.reservationId);
+        return next;
+      });
+    } else if (status !== 'boarded') {
+      setLocallyBoardedPassengerIds((current) => {
+        const next = new Set(current);
+        next.delete(passenger.reservationId);
+        return next;
+      });
+    }
     setPendingPassengerIds((current) => {
       const next = new Set(current);
       next.add(passenger.reservationId);
@@ -626,7 +717,27 @@ const AdminBoardingPage = () => {
     );
 
     void setBoardingPassengerStatus(passenger, status, transitionReason)
+      .then(() => {
+        if (status !== 'boarded' || passenger.boardingStatus === 'boarded') return;
+        if (boardingFeedbackTimerRef.current !== null) {
+          window.clearTimeout(boardingFeedbackTimerRef.current);
+        }
+        setBoardingFeedback(`${passenger.name}님 탑승 확인 완료`);
+        boardingFeedbackTimerRef.current = window.setTimeout(() => {
+          boardingFeedbackTimerRef.current = null;
+          setBoardingFeedback('');
+        }, 2500);
+      })
       .catch((actionError) => {
+        setLocallyBoardedPassengerIds((current) => {
+          const next = new Set(current);
+          if (previousPassenger.boardingStatus === 'boarded') {
+            next.add(passenger.reservationId);
+          } else {
+            next.delete(passenger.reservationId);
+          }
+          return next;
+        });
         setSnapshot((current) =>
           current
             ? {
@@ -650,6 +761,7 @@ const AdminBoardingPage = () => {
         );
       })
       .finally(() => {
+        pendingPassengerIdsRef.current.delete(passenger.reservationId);
         setPendingPassengerIds((current) => {
           const next = new Set(current);
           next.delete(passenger.reservationId);
@@ -676,7 +788,9 @@ const AdminBoardingPage = () => {
     if (shouldConfirmNoShow && (!note || !isSelectedPassengerNoteChanged)) {
       return;
     }
+    if (savingNoteIdsRef.current.has(passenger.reservationId)) return;
 
+    savingNoteIdsRef.current.add(passenger.reservationId);
     setSavingNoteIds((current) => {
       const next = new Set(current);
       next.add(passenger.reservationId);
@@ -723,6 +837,7 @@ const AdminBoardingPage = () => {
         actionError instanceof Error ? actionError.message : '비고를 저장하지 못했습니다.'
       );
     } finally {
+      savingNoteIdsRef.current.delete(passenger.reservationId);
       setSavingNoteIds((current) => {
         const next = new Set(current);
         next.delete(passenger.reservationId);
@@ -739,37 +854,55 @@ const AdminBoardingPage = () => {
       unchecked: 0,
       noShow: 0,
     };
-
-    if (
-      !window.confirm(
-        `${formatBusLabel(selectedBus.label)} 출발 완료를 선언할까요?\n남은 탑승 미확인 ${counts.unchecked}명은 미탑승 처리됩니다.`
-      )
-    ) {
+    if (counts.unchecked > 0) {
+      setError(
+        `탑승 미확인 ${counts.unchecked.toLocaleString()}명을 모두 탑승 확인 또는 미탑승 처리한 뒤 출발 완료해주세요.`
+      );
       return;
     }
 
+    setDepartureConfirmOpen(true);
+  };
+
+  const confirmDeparture = () => {
+    if (!selectedBus || selectedBus.departedAt || !selectedBusCounts) return;
+    if (selectedBusCounts.unchecked > 0) {
+      setDepartureConfirmOpen(false);
+      setError(
+        `탑승 미확인 ${selectedBusCounts.unchecked.toLocaleString()}명을 모두 탑승 확인 또는 미탑승 처리한 뒤 출발 완료해주세요.`
+      );
+      return;
+    }
+
+    setDepartureConfirmOpen(false);
     void runDepartureAction(`depart:${selectedBus.id}`, () =>
       markBoardingBusDeparted(selectedBus.id)
     );
   };
 
   const handleCancelDeparture = () => {
-    if (!selectedBus) return;
-    if (
-      !window.confirm(
-        `${formatBusLabel(selectedBus.label)} 출발 완료를 취소할까요?\n일괄 미탑승 처리된 탑승자는 탑승 미확인으로 복구됩니다.`
-      )
-    ) {
-      return;
-    }
+    if (!selectedBus?.departedAt) return;
+    setDepartureCancelReason('');
+    setDepartureCancelOpen(true);
+  };
 
-    void runDepartureAction(`cancel-depart:${selectedBus.id}`, () =>
-      cancelBoardingBusDeparture(selectedBus.id)
-    );
+  const confirmCancelDeparture = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const reason = departureCancelReason.trim();
+    if (!selectedBus?.departedAt || !reason) return;
+
+    await runDepartureAction(`cancel-depart:${selectedBus.id}`, async () => {
+      const restoredCount = await cancelBoardingBusDeparture(selectedBus.id, reason);
+      setMessage(
+        `출발 완료를 취소했습니다. 자동 미탑승 ${restoredCount.toLocaleString()}명이 탑승 미확인으로 복구되었습니다.`
+      );
+      setDepartureCancelOpen(false);
+      setDepartureCancelReason('');
+    });
   };
 
   const handleRotateCheckInCode = async () => {
-    if (!selectedBus || selectedBus.departedAt) return;
+    if (!selectedBus || selectedBus.departedAt || rotatingCodeInFlightRef.current) return;
 
     if (
       selectedBus.checkInCode &&
@@ -778,6 +911,7 @@ const AdminBoardingPage = () => {
       return;
     }
 
+    rotatingCodeInFlightRef.current = true;
     setRotatingCodeBusId(selectedBus.id);
     setError('');
     try {
@@ -790,11 +924,18 @@ const AdminBoardingPage = () => {
           : '탑승 코드를 생성하지 못했습니다.'
       );
     } finally {
+      rotatingCodeInFlightRef.current = false;
       setRotatingCodeBusId('');
     }
   };
 
   const openWalkIn = () => {
+    if (selectedBus?.departedAt) {
+      setError(
+        '출발 완료된 호차는 변경할 수 없습니다. 출발 완료를 먼저 취소해주세요.'
+      );
+      return;
+    }
     setExceptionMode('walk_in');
     setExceptionPassenger(null);
     setExceptionBusId(selectedBus?.id ?? snapshot?.buses[0]?.id ?? '');
@@ -806,6 +947,13 @@ const AdminBoardingPage = () => {
   };
 
   const openMove = (passenger: BoardingPassenger) => {
+    const passengerBus = snapshot?.buses.find((bus) => bus.id === passenger.busId);
+    if (passengerBus?.departedAt) {
+      setError(
+        '출발 완료된 호차는 변경할 수 없습니다. 출발 완료를 먼저 취소해주세요.'
+      );
+      return;
+    }
     if (
       selectedPassenger?.reservationId === passenger.reservationId &&
       isSelectedPassengerNoteChanged &&
@@ -836,6 +984,7 @@ const AdminBoardingPage = () => {
 
   const handleExceptionSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (exceptionInFlightRef.current) return;
     const seatNumber = Number(exceptionSeatNumber);
 
     if (!exceptionBusId) {
@@ -854,6 +1003,7 @@ const AdminBoardingPage = () => {
       return;
     }
 
+    exceptionInFlightRef.current = true;
     setSavingException(true);
     setError('');
     setMessage('');
@@ -898,6 +1048,7 @@ const AdminBoardingPage = () => {
           : '현장 예외 처리를 반영하지 못했습니다.'
       );
     } finally {
+      exceptionInFlightRef.current = false;
       setSavingException(false);
     }
   };
@@ -906,11 +1057,13 @@ const AdminBoardingPage = () => {
     requestId: string,
     approve: boolean
   ) => {
+    if (moveRequestInFlightRef.current) return;
     const responseReason = approve
       ? ''
       : window.prompt('거절 사유를 입력해주세요.')?.trim() ?? '';
     if (!approve && !responseReason) return;
 
+    moveRequestInFlightRef.current = true;
     setMoveRequestActionId(requestId);
     setError('');
     setMessage('');
@@ -921,6 +1074,7 @@ const AdminBoardingPage = () => {
     } catch (actionError) {
       setError(actionError instanceof Error ? actionError.message : '호차 이동 요청을 처리하지 못했습니다.');
     } finally {
+      moveRequestInFlightRef.current = false;
       setMoveRequestActionId('');
     }
   };
@@ -939,9 +1093,6 @@ const AdminBoardingPage = () => {
             <h1>탑승 확인 관리</h1>
             <p>{boardingScopeLabel}의 탑승·탑승 미확인·미탑승 인원을 실시간으로 확인합니다.</p>
           </div>
-          <button type="button" onClick={() => void loadSnapshot(true)} disabled={syncing}>
-            <RefreshCw size={16} /> {syncing ? '동기화 중' : '새로고침'}
-          </button>
         </section>
 
         {error && <p className={styles.error} role="alert">{error}</p>}
@@ -1109,7 +1260,15 @@ const AdminBoardingPage = () => {
                             <button
                               type="button"
                               onClick={() => void handleMoveRequestResponse(request.id, true)}
-                              disabled={Boolean(moveRequestActionId)}
+                              disabled={
+                                Boolean(moveRequestActionId) ||
+                                moveTargetBuses.some(
+                                  (bus) =>
+                                    (bus.id === request.sourceBusId ||
+                                      bus.id === request.targetBusId) &&
+                                    Boolean(bus.departedAt)
+                                )
+                              }
                             >
                               승인 · 이동 처리
                             </button>
@@ -1130,118 +1289,85 @@ const AdminBoardingPage = () => {
               </section>
             )}
 
-            <div className={styles.busToolbar}>
-              <label>
-                <Search size={16} />
-                <input
-                  value={busSearch}
-                  onChange={(event) => setBusSearch(event.target.value)}
-                  placeholder={`${boardingScopeLabel} 또는 행선지 검색`}
-                  aria-label={`${boardingScopeLabel} 또는 행선지 검색`}
-                  autoComplete="off"
-                />
-                {busSearch && (
-                  <button type="button" onClick={() => setBusSearch('')} aria-label="차량 검색어 지우기">
-                    <X size={15} />
-                  </button>
-                )}
-              </label>
-              <button
-                type="button"
-                className={uncheckedBusesOnly ? styles.problemFilterActive : undefined}
-                onClick={() => setUncheckedBusesOnly((current) => !current)}
-                aria-pressed={uncheckedBusesOnly}
-              >
-                <CircleHelp size={16} /> 탑승 미확인 인원 남은 차량만
-              </button>
-              <span>{visibleBuses.length.toLocaleString()}대 표시</span>
-            </div>
-
-            <section className={styles.busGrid}>
-              {visibleBuses.map((bus) => {
-                const counts = busCountsByLabel.get(bus.label) ?? {
-                  total: 0,
-                  boarded: 0,
-                  unchecked: 0,
-                  noShow: 0,
-                };
-                const hasDepartedWithUnchecked =
-                  Boolean(bus.departedAt) && counts.unchecked > 0;
-                return (
-                  <button
-                    key={bus.id}
-                    type="button"
-                    className={`${styles.busCard} ${selectedBusId === bus.id ? styles.busCardActive : ''} ${counts.noShow ? styles.busCardProblem : ''} ${hasDepartedWithUnchecked ? styles.busCardDepartureWarning : ''}`}
-                    onClick={() => {
-                      setSelectedBusId(bus.id);
-                      setSearch('');
-                      setCampusFilter('');
-                      setStatusFilter('');
-                      setSelectedPassengerId('');
-                    }}
-                    aria-pressed={selectedBusId === bus.id && !isGlobalSearch}
-                  >
-                    <div>
-                      <strong>{formatBusLabel(bus.label)}</strong>
-                      <span className={styles.busCardStatus}>
-                        {selectedBusId === bus.id && !isGlobalSearch && (
-                          <span className={styles.selectedBadge}><CheckCircle2 size={12} /> 선택됨</span>
-                        )}
-                        {bus.departedAt && <span className={styles.departedBadge}>출발 완료</span>}
-                        {hasDepartedWithUnchecked && (
-                          <span className={styles.departedUncheckedBadge}>
-                            출발 후 미확인 {counts.unchecked}명
-                          </span>
-                        )}
-                      </span>
-                    </div>
-                    <p>{bus.destination}</p>
-                    <div className={styles.busProgressHeader}>
-                      <span>탑승 현황</span>
-                      <strong>전체 {counts.total.toLocaleString()}명</strong>
-                    </div>
-                    <div
-                      className={styles.busProgress}
-                      role="img"
-                      aria-label={`${formatBusLabel(bus.label)} 탑승 ${counts.boarded}명, 미확인 ${counts.unchecked}명, 미탑승 ${counts.noShow}명`}
+            <section className={styles.busSelection} aria-label={boardingScopeLabel}>
+              <div className={styles.busGrid}>
+                {visibleBuses.map((bus) => {
+                  const counts = busCountsByLabel.get(bus.label) ?? {
+                    total: 0,
+                    boarded: 0,
+                    unchecked: 0,
+                    noShow: 0,
+                  };
+                  const hasDepartedWithUnchecked =
+                    Boolean(bus.departedAt) && counts.unchecked > 0;
+                  return (
+                    <button
+                      key={bus.id}
+                      type="button"
+                      className={`${styles.busCard} ${selectedBusId === bus.id ? styles.busCardActive : ''} ${counts.noShow ? styles.busCardProblem : ''} ${hasDepartedWithUnchecked ? styles.busCardDepartureWarning : ''}`}
+                      onClick={() => {
+                        setSelectedBusId(bus.id);
+                        setLocallyBoardedPassengerIds(new Set());
+                        setSearch('');
+                        setCampusFilter('');
+                        setStatusFilter('');
+                        setSelectedPassengerId('');
+                      }}
+                      aria-pressed={selectedBusId === bus.id && !isGlobalSearch}
                     >
-                      <span
-                        className={styles.busProgressBoarded}
-                        style={{ width: `${counts.total ? (counts.boarded / counts.total) * 100 : 0}%` }}
-                      />
-                      <span
-                        className={styles.busProgressUnchecked}
-                        style={{ width: `${counts.total ? (counts.unchecked / counts.total) * 100 : 0}%` }}
-                      />
-                      <span
-                        className={styles.busProgressNoShow}
-                        style={{ width: `${counts.total ? (counts.noShow / counts.total) * 100 : 0}%` }}
-                      />
-                    </div>
-                    <div className={styles.busCounts}>
-                      <span className={styles.busCountBoarded}>탑승 {counts.boarded}</span>
-                      <span className={styles.busCountUnchecked}>미확인 {counts.unchecked}</span>
-                      <span className={styles.busCountNoShow}>미탑승 {counts.noShow}</span>
-                    </div>
-                  </button>
-                );
-              })}
-            </section>
-            {visibleBuses.length === 0 && (
-              <div className={styles.noBuses}>
-                <Search size={22} />
-                <strong>
-                  {snapshot.buses.length === 0
-                    ? '담당 호차가 지정되지 않았습니다'
-                    : '조건에 맞는 차량이 없습니다'}
-                </strong>
-                {snapshot.buses.length > 0 && (
-                  <button type="button" onClick={() => { setBusSearch(''); setUncheckedBusesOnly(false); }}>
-                    필터 초기화
-                  </button>
-                )}
+                      <div>
+                        <strong>{formatBusLabel(bus.label)}</strong>
+                        <span className={styles.busCardStatus}>
+                          {selectedBusId === bus.id && !isGlobalSearch && (
+                            <span className={styles.selectedBadge}><CheckCircle2 size={12} /> 선택됨</span>
+                          )}
+                          {bus.departedAt && <span className={styles.departedBadge}>출발 완료</span>}
+                          {hasDepartedWithUnchecked && (
+                            <span className={styles.departedUncheckedBadge}>
+                              출발 후 미확인 {counts.unchecked}명
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                      <p>{bus.destination}</p>
+                      <div className={styles.busProgressHeader}>
+                        <span>탑승 현황</span>
+                        <strong>전체 {counts.total.toLocaleString()}명</strong>
+                      </div>
+                      <div
+                        className={styles.busProgress}
+                        role="img"
+                        aria-label={`${formatBusLabel(bus.label)} 탑승 ${counts.boarded}명, 미확인 ${counts.unchecked}명, 미탑승 ${counts.noShow}명`}
+                      >
+                        <span
+                          className={styles.busProgressBoarded}
+                          style={{ width: `${counts.total ? (counts.boarded / counts.total) * 100 : 0}%` }}
+                        />
+                        <span
+                          className={styles.busProgressUnchecked}
+                          style={{ width: `${counts.total ? (counts.unchecked / counts.total) * 100 : 0}%` }}
+                        />
+                        <span
+                          className={styles.busProgressNoShow}
+                          style={{ width: `${counts.total ? (counts.noShow / counts.total) * 100 : 0}%` }}
+                        />
+                      </div>
+                      <div className={styles.busCounts}>
+                        <span className={styles.busCountBoarded}>탑승 {counts.boarded}</span>
+                        <span className={styles.busCountUnchecked}>미확인 {counts.unchecked}</span>
+                        <span className={styles.busCountNoShow}>미탑승 {counts.noShow}</span>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
-            )}
+              {visibleBuses.length === 0 && (
+                <div className={styles.noBuses}>
+                  <Bus size={22} />
+                  <strong>담당 호차가 지정되지 않았습니다</strong>
+                </div>
+              )}
+            </section>
 
             {selectedBus && (
               <section className={styles.roster}>
@@ -1273,11 +1399,8 @@ const AdminBoardingPage = () => {
                 {!isGlobalSearch && (
                   <div className={styles.checkInCodePanel}>
                     <div className={styles.checkInCodeCopy}>
-                      <KeyRound size={22} aria-hidden="true" />
-                      <div>
-                        <strong>탑승자 탑승 코드</strong>
-                        <span>버스에 탑승한 탑승자에게 이 4자리 코드를 안내하세요.</span>
-                      </div>
+                      <KeyRound size={16} aria-hidden="true" />
+                      <strong>탑승 코드</strong>
                     </div>
                     <div className={styles.checkInCodeValue} aria-live="polite">
                       {selectedBus.checkInCode ?? '코드 미생성'}
@@ -1285,7 +1408,7 @@ const AdminBoardingPage = () => {
                     <div className={styles.checkInCodeActions}>
                       {selectedBus.checkInCodeExpiresAt && selectedBus.checkInCode && (
                         <span>
-                          {formatKoreanDateTime(selectedBus.checkInCodeExpiresAt)}까지 유효
+                          {formatKoreanDateTime(selectedBus.checkInCodeExpiresAt)}까지
                         </span>
                       )}
                       <button
@@ -1302,6 +1425,16 @@ const AdminBoardingPage = () => {
                             ? '코드 변경'
                             : '탑승 코드 생성'}
                       </button>
+                    </div>
+                  </div>
+                )}
+
+                {isSelectedBusLocked && !isGlobalSearch && (
+                  <div className={styles.departureLockNotice} role="status">
+                    <CircleAlert size={18} />
+                    <div>
+                      <strong>출발 완료 후에는 탑승 결과 정정과 전달사항만 수정할 수 있습니다.</strong>
+                      <span>미확인 복귀, 호차 이동, 현장 탑승 추가가 필요하면 출발 완료를 먼저 취소해주세요.</span>
                     </div>
                   </div>
                 )}
@@ -1429,7 +1562,11 @@ const AdminBoardingPage = () => {
                       <strong>현장 예외 처리</strong>
                       <span>명단에 없는 신규 탑승자를 기록한 뒤 출발 전 최종 확인을 진행합니다.</span>
                     </div>
-                    <button type="button" onClick={openWalkIn}>
+                    <button
+                      type="button"
+                      onClick={openWalkIn}
+                      disabled={isSelectedBusLocked}
+                    >
                       <UserPlus size={15} /> 현장 탑승 추가
                     </button>
                   </div>
@@ -1444,7 +1581,7 @@ const AdminBoardingPage = () => {
                           ? `${formatKoreanDateTime(selectedBus.departedAt)} 출발 완료`
                           : `남은 탑승 미확인 ${(
                               busCountsByLabel.get(selectedBus.label)?.unchecked ?? 0
-                            ).toLocaleString()}명이 미탑승 처리됩니다.`}
+                            ).toLocaleString()}명 · 모두 처리해야 출발 완료할 수 있습니다.`}
                       </span>
                     </div>
                     {selectedBus.departedAt ? (
@@ -1452,8 +1589,21 @@ const AdminBoardingPage = () => {
                         출발 완료 취소
                       </button>
                     ) : (
-                      <button className={styles.departure} type="button" onClick={handleDeparture} disabled={Boolean(departureActionKey)}>
-                        남은 미확인 전원 미탑승 처리 · 출발 완료
+                      <button
+                        className={styles.departure}
+                        type="button"
+                        onClick={handleDeparture}
+                        disabled={
+                          Boolean(departureActionKey) ||
+                          (busCountsByLabel.get(selectedBus.label)?.unchecked ?? 0) > 0
+                        }
+                        title={
+                          (busCountsByLabel.get(selectedBus.label)?.unchecked ?? 0) > 0
+                            ? '탑승 미확인 인원을 모두 처리한 뒤 출발 완료할 수 있습니다.'
+                            : undefined
+                        }
+                      >
+                        모든 탑승 상태 확인 · 출발 완료
                       </button>
                     )}
                   </div>
@@ -1464,6 +1614,12 @@ const AdminBoardingPage = () => {
           </>
         )}
       </main>
+      {boardingFeedback && (
+        <div className={styles.boardingFeedback} role="status">
+          <CheckCircle2 size={18} />
+          {boardingFeedback}
+        </div>
+      )}
       {selectedPassenger && (
         <div
           className={styles.detailBackdrop}
@@ -1498,7 +1654,24 @@ const AdminBoardingPage = () => {
               <div className={styles.detailActions}>
                 <button type="button" className={`${styles.boardButton} ${selectedPassengerActionStatus === 'boarded' ? styles.detailActionSelected : ''}`} aria-pressed={selectedPassengerActionStatus === 'boarded'} onClick={() => handleStatus(selectedPassenger, 'boarded')} disabled={pendingPassengerIds.has(selectedPassenger.reservationId) || selectedPassengerActionStatus === 'boarded'}><CheckCircle2 size={16} />탑승</button>
                 <button type="button" className={`${styles.noShowButton} ${selectedPassengerActionStatus === 'no_show' ? styles.detailActionSelected : ''}`} aria-pressed={selectedPassengerActionStatus === 'no_show'} title="미탑승 사유를 작성한 뒤 저장하면 처리됩니다." onClick={() => handleStatus(selectedPassenger, 'no_show')} disabled={pendingPassengerIds.has(selectedPassenger.reservationId) || selectedPassengerActionStatus === 'no_show'}><UserX size={16} />미탑승</button>
-                <button type="button" className={`${styles.resetButton} ${selectedPassengerActionStatus === 'unchecked' ? styles.detailActionSelected : ''}`} aria-pressed={selectedPassengerActionStatus === 'unchecked'} onClick={() => handleStatus(selectedPassenger, 'unchecked')} disabled={pendingPassengerIds.has(selectedPassenger.reservationId) || selectedPassengerActionStatus === 'unchecked'}><CircleHelp size={16} />미확인</button>
+                <button
+                  type="button"
+                  className={`${styles.resetButton} ${selectedPassengerActionStatus === 'unchecked' ? styles.detailActionSelected : ''}`}
+                  aria-pressed={selectedPassengerActionStatus === 'unchecked'}
+                  title={
+                    isSelectedPassengerBusDeparted
+                      ? '출발 완료를 취소한 뒤 미확인 상태로 변경할 수 있습니다.'
+                      : undefined
+                  }
+                  onClick={() => handleStatus(selectedPassenger, 'unchecked')}
+                  disabled={
+                    pendingPassengerIds.has(selectedPassenger.reservationId) ||
+                    selectedPassengerActionStatus === 'unchecked' ||
+                    isSelectedPassengerBusDeparted
+                  }
+                >
+                  <CircleHelp size={16} />미확인
+                </button>
               </div>
             </section>
 
@@ -1548,6 +1721,7 @@ const AdminBoardingPage = () => {
                 type="button"
                 className={styles.movePassengerButton}
                 onClick={() => openMove(selectedPassenger)}
+                disabled={isSelectedPassengerBusDeparted}
               >
                 <ArrowRightLeft size={16} />
                 다른 호차로 이동
@@ -1823,8 +1997,159 @@ const AdminBoardingPage = () => {
               </label>
               <footer>
                 <button type="button" onClick={() => setBoardingTransitionPassenger(null)}>취소</button>
-                <button type="submit" disabled={!boardingTransitionReason.trim()}>
+                <button
+                  type="submit"
+                  disabled={
+                    !boardingTransitionReason.trim() ||
+                    Boolean(
+                      snapshot?.buses.find(
+                        (bus) => bus.id === boardingTransitionPassenger.busId
+                      )?.departedAt
+                    )
+                  }
+                >
                   사유 기록 · 탑승 처리
+                </button>
+              </footer>
+            </form>
+          </section>
+        </div>
+      )}
+      {departureConfirmOpen && selectedBus && !selectedBus.departedAt && selectedBusCounts && (
+        <div
+          className={styles.exceptionBackdrop}
+          onMouseDown={() => {
+            if (!departureActionKey) setDepartureConfirmOpen(false);
+          }}
+        >
+          <section
+            className={styles.exceptionModal}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="departure-confirm-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <header>
+              <div>
+                <span>출발 완료 최종 확인</span>
+                <h2 id="departure-confirm-title">
+                  {formatBusLabel(selectedBus.label)} 출발 완료를 선언할까요?
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDepartureConfirmOpen(false)}
+                disabled={Boolean(departureActionKey)}
+                aria-label="닫기"
+              >
+                <X size={18} />
+              </button>
+            </header>
+            <div className={styles.departureConfirmBody}>
+              <p>아래 최종 탑승 현황을 확인한 뒤 출발 완료해주세요.</p>
+              <div className={styles.departureConfirmCounts}>
+                <div>
+                  <span>탑승 확인</span>
+                  <strong>{selectedBusCounts.boarded.toLocaleString()}명</strong>
+                </div>
+                <div>
+                  <span>미탑승</span>
+                  <strong>{selectedBusCounts.noShow.toLocaleString()}명</strong>
+                </div>
+                <div>
+                  <span>전체</span>
+                  <strong>{selectedBusCounts.total.toLocaleString()}명</strong>
+                </div>
+              </div>
+              <small>출발 완료 후에는 탑승 결과 정정과 전달사항만 수정할 수 있습니다.</small>
+            </div>
+            <footer>
+              <button
+                type="button"
+                onClick={() => setDepartureConfirmOpen(false)}
+                disabled={Boolean(departureActionKey)}
+              >
+                다시 확인
+              </button>
+              <button
+                type="button"
+                className={styles.confirmDeparture}
+                onClick={confirmDeparture}
+                disabled={Boolean(departureActionKey)}
+              >
+                {departureActionKey ? '출발 완료 처리 중...' : '현황 확인 · 출발 완료'}
+              </button>
+            </footer>
+          </section>
+        </div>
+      )}
+      {departureCancelOpen && selectedBus?.departedAt && (
+        <div
+          className={styles.exceptionBackdrop}
+          onMouseDown={() => {
+            if (!departureActionKey) setDepartureCancelOpen(false);
+          }}
+        >
+          <section
+            className={styles.exceptionModal}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="departure-cancel-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <header>
+              <div>
+                <span>출발 완료 취소</span>
+                <h2 id="departure-cancel-title">
+                  {formatBusLabel(selectedBus.label)} 잠금을 해제할까요?
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDepartureCancelOpen(false)}
+                disabled={Boolean(departureActionKey)}
+                aria-label="닫기"
+              >
+                <X size={18} />
+              </button>
+            </header>
+            <form onSubmit={(event) => void confirmCancelDeparture(event)}>
+              <div className={styles.previousNoShowReason}>
+                <span>취소 영향</span>
+                <strong>
+                  자동 미탑승 {departureCancellationRestoreCount.toLocaleString()}명 복구
+                </strong>
+                <small>
+                  호차가 다시 편집 가능해지고 복구 대상은 탑승 미확인 상태로 돌아갑니다.
+                </small>
+              </div>
+              <label className={styles.exceptionReason}>
+                <span>출발 완료 취소 사유 (필수)</span>
+                <textarea
+                  value={departureCancelReason}
+                  onChange={(event) => setDepartureCancelReason(event.target.value)}
+                  rows={3}
+                  maxLength={500}
+                  placeholder="예: 실제 차량이 아직 출발하지 않아 명단을 다시 확인"
+                  required
+                  autoFocus
+                />
+              </label>
+              <footer>
+                <button
+                  type="button"
+                  onClick={() => setDepartureCancelOpen(false)}
+                  disabled={Boolean(departureActionKey)}
+                >
+                  잠금 유지
+                </button>
+                <button
+                  type="submit"
+                  disabled={
+                    Boolean(departureActionKey) || !departureCancelReason.trim()
+                  }
+                >
+                  {departureActionKey ? '취소 처리 중...' : '사유 기록 · 출발 완료 취소'}
                 </button>
               </footer>
             </form>

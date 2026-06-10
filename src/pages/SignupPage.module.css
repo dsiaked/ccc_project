@@ -269,22 +269,6 @@
   background-color: var(--color-primary-dark);
 }
 
-.invitationCodeInput {
-  min-height: 104px;
-  padding: 13px 16px;
-  border: 1px solid #d1d5dc;
-  border-radius: 10px;
-  font: inherit;
-  line-height: 1.5;
-  resize: vertical;
-}
-
-.invitationCodeInput:focus {
-  outline: none;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(30, 64, 175, 0.1);
-}
-
 .submitButton:disabled {
   cursor: not-allowed;
   background-color: #98a2b3;

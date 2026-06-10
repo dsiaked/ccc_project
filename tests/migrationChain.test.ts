@@ -232,10 +232,6 @@ for (const [setupFile, migrationFile] of [
     '20260608220001_91_atomic_campus_request_workflow.sql',
   ],
   [
-    '92_admin_created_account_source.sql',
-    '20260608230001_92_admin_created_account_source.sql',
-  ],
-  [
     '92_campus_request_read_and_audit.sql',
     '20260608230002_92_campus_request_read_and_audit.sql',
   ],
@@ -1243,6 +1239,49 @@ test('combined setup includes every managed setup patch', () => {
       `${setupFile} is missing from combined setup`
     );
   }
+});
+
+test('combined setup has no stale or duplicate managed patch markers', () => {
+  const combined = readFileSync('sql/setup/combined_supabase_setup.sql', 'utf8');
+  const beginMarkers = [
+    ...combined.matchAll(/-- BEGIN sql\/setup\/([^\r\n]+\.sql)/g),
+  ].map((match) => match[1]);
+  const endMarkers = [
+    ...combined.matchAll(/-- END sql\/setup\/([^\r\n]+\.sql)/g),
+  ].map((match) => match[1]);
+
+  assert.deepEqual(beginMarkers, endMarkers);
+  assert.equal(new Set(beginMarkers).size, beginMarkers.length);
+  assert.ok(!beginMarkers.includes('155_ai_operations_reports.sql'));
+  assert.ok(!beginMarkers.includes('156_ccc_summer_user_links.sql'));
+  assert.match(
+    readFileSync('sql/setup/92_admin_created_account_source.sql', 'utf8'),
+    /account_source not in \('self_signup', 'admin_created', 'ccc_summer'\)/i
+  );
+});
+
+test('boarding audit history does not block administrator account deletion', () => {
+  const migration = readFileSync(
+    `${migrationDirectory}/20260610230035_171_preserve_boarding_audit_on_user_delete.sql`,
+    'utf8'
+  );
+
+  for (const column of [
+    'requested_by',
+    'updated_by',
+    'edited_by',
+    'archived_by',
+    'created_by',
+  ]) {
+    assert.match(
+      migration,
+      new RegExp(`alter column ${column} drop not null`, 'i')
+    );
+  }
+  assert.equal(
+    [...migration.matchAll(/references auth\.users\(id\) on delete set null/gi)].length,
+    5
+  );
 });
 
 test('combined setup defines every statically called application RPC', () => {

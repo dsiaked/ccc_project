@@ -9,14 +9,14 @@ alter table public.profiles
 
 update public.profiles
 set account_source = 'self_signup'
-where account_source not in ('self_signup', 'admin_created');
+where account_source not in ('self_signup', 'admin_created', 'ccc_summer');
 
 alter table public.profiles
   drop constraint if exists profiles_account_source_check;
 
 alter table public.profiles
   add constraint profiles_account_source_check
-  check (account_source in ('self_signup', 'admin_created'));
+  check (account_source in ('self_signup', 'admin_created', 'ccc_summer'));
 
 create or replace function public.handle_new_auth_user()
 returns trigger
@@ -42,8 +42,9 @@ begin
     nullif(new.raw_user_meta_data ->> 'campus_id', '')::uuid,
     new.raw_user_meta_data ->> 'campus',
     case
-      when new.raw_user_meta_data ->> 'account_source' = 'admin_created'
-        then 'admin_created'
+      when new.raw_user_meta_data ->> 'account_source'
+        in ('admin_created', 'ccc_summer')
+        then new.raw_user_meta_data ->> 'account_source'
       else 'self_signup'
     end,
     now()

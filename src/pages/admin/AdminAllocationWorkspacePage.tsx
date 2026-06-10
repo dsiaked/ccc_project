@@ -34,6 +34,7 @@ import {
   deleteDraftAllocationWorkspace,
   getAllocationWorkspaceVersionSnapshot,
   getAllocationWorkspaceVersions,
+  getActiveDepartureCount,
   getBelowMinimumBusIds,
   getFirstChoiceCoverage,
   getOutOfPreferencePassengerIds,
@@ -127,6 +128,7 @@ const AdminAllocationWorkspacePage = () => {
   const confirmationStopRequestedRef = useRef(false);
   const slowConfirmationTimerRef = useRef<number | null>(null);
   const cancellationInFlightRef = useRef(false);
+  const saveInFlightRef = useRef(false);
   const workspaceDeletionInFlightRef = useRef(false);
   const versionRestoreInFlightRef = useRef(false);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
@@ -145,14 +147,19 @@ const AdminAllocationWorkspacePage = () => {
     useState<CompletionNotice | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [readOnly, setReadOnly] = useState(false);
+  const [activeDepartureCount, setActiveDepartureCount] = useState(0);
   const [workspaceVersions, setWorkspaceVersions] = useState<
     AllocationWorkspaceVersionSummary[]
   >([]);
 
   useEffect(() => {
+    let cancelled = false;
+
     if (!workspaceId) {
       navigate('/admin/allocations');
-      return;
+      return () => {
+        cancelled = true;
+      };
     }
 
     void (async () => {
@@ -183,8 +190,9 @@ const AdminAllocationWorkspacePage = () => {
           }
         }
 
-        const [versionsResult] = await Promise.allSettled([
+        const [versionsResult, departureCountResult] = await Promise.allSettled([
           getAllocationWorkspaceVersions(workspaceId),
+          getActiveDepartureCount(workspaceId),
         ]);
         if (versionsResult.status === 'rejected') {
           loadWarnings.push(
@@ -194,16 +202,25 @@ const AdminAllocationWorkspacePage = () => {
             )}`
           );
         }
+        if (departureCountResult.status === 'rejected') {
+          loadWarnings.push('출발 완료 호차 상태를 확인하지 못했습니다.');
+        }
 
         const nextRow = refreshed.changed
           ? { ...lockResult.row, allocation_data: refreshed.workspace }
           : lockResult.row;
 
+        if (cancelled) return;
         setRow(nextRow);
         setWorkspace(refreshed.workspace);
         setDirty(refreshed.changed);
         setReadOnly(
           lockResult.readOnly || refreshed.workspace.status === 'confirmed'
+        );
+        setActiveDepartureCount(
+          departureCountResult.status === 'fulfilled'
+            ? departureCountResult.value
+            : 0
         );
         setSelectedBusId(refreshed.workspace.buses[0]?.id ?? '');
         setWorkspaceVersions(
@@ -222,6 +239,7 @@ const AdminAllocationWorkspacePage = () => {
             : null
         );
       } catch (loadError) {
+        if (cancelled) return;
         console.error(loadError);
         setError(
           `배차 초안을 불러오지 못했습니다.\n${getErrorMessage(
@@ -231,6 +249,10 @@ const AdminAllocationWorkspacePage = () => {
         );
       }
     })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [navigate, workspaceId]);
 
   useEffect(() => {
@@ -607,7 +629,8 @@ const AdminAllocationWorkspacePage = () => {
   }, [pendingBusDeletion]);
 
   const save = async () => {
-    if (!row || !workspace) return;
+    if (!row || !workspace || saveInFlightRef.current) return;
+    saveInFlightRef.current = true;
     setSaving(true);
     setError(null);
     try {
@@ -630,6 +653,7 @@ const AdminAllocationWorkspacePage = () => {
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : '저장하지 못했습니다.');
     } finally {
+      saveInFlightRef.current = false;
       setSaving(false);
     }
   };
@@ -987,6 +1011,12 @@ const AdminAllocationWorkspacePage = () => {
 
   const cancelConfirmation = () => {
     if (!row || !workspace || saving || cancellationInFlightRef.current) return;
+    if (activeDepartureCount > 0) {
+      setError(
+        `출발 완료 호차 ${activeDepartureCount.toLocaleString()}대의 출발 완료를 모두 취소한 뒤 배차 확정을 취소할 수 있습니다.`
+      );
+      return;
+    }
 
     setCancelDialogOpen(true);
   };
@@ -999,6 +1029,13 @@ const AdminAllocationWorkspacePage = () => {
       saving ||
       cancellationInFlightRef.current
     ) {
+      return;
+    }
+    if (activeDepartureCount > 0) {
+      setCancelDialogOpen(false);
+      setError(
+        `출발 완료 호차 ${activeDepartureCount.toLocaleString()}대의 출발 완료를 모두 취소한 뒤 배차 확정을 취소할 수 있습니다.`
+      );
       return;
     }
 
@@ -2153,6 +2190,13 @@ const AdminAllocationWorkspacePage = () => {
                 </div>
               </div>
               <div className={styles.cancelConfirmationZone}>
+                {activeDepartureCount > 0 && (
+                  <p role="alert">
+                    출발 완료 호차 {activeDepartureCount.toLocaleString()}대가 있어
+                    배차 확정을 취소할 수 없습니다. 출발 완료를 먼저 모두
+                    취소해주세요.
+                  </p>
+                )}
                 <div>
                   <strong>확정 상태를 되돌려야 하나요?</strong>
                   <span>
@@ -2163,7 +2207,12 @@ const AdminAllocationWorkspacePage = () => {
                   <button
                     type="button"
                     className={styles.cancelConfirmationButton}
-                    disabled={saving}
+                    disabled={saving || activeDepartureCount > 0}
+                    title={
+                      activeDepartureCount > 0
+                        ? '출발 완료를 모두 취소한 뒤 배차 확정을 취소할 수 있습니다.'
+                        : undefined
+                    }
                     onClick={cancelConfirmation}
                   >
                     {confirmationAction === 'cancel' ? (
@@ -2410,7 +2459,7 @@ const AdminAllocationWorkspacePage = () => {
                 type="button"
                 className={styles.cancelDialogSubmit}
                 onClick={() => void confirmCancellation()}
-                disabled={saving}
+                disabled={saving || activeDepartureCount > 0}
               >
                 {confirmationAction === 'cancel' ? (
                   <>

@@ -181,6 +181,9 @@ export const setPassengerBoardingStatus = async (
   status: BoardingStatus,
   reason = ''
 ) => {
+  if (status === 'no_show' && !reason.trim()) {
+    throw new Error('미탑승 사유를 반드시 입력해주세요.');
+  }
   const { error } = await supabase.rpc('set_passenger_boarding_status', {
     p_reservation_id: reservationId,
     p_status: status,
@@ -190,7 +193,7 @@ export const setPassengerBoardingStatus = async (
   if (!isMissingBoardingTransitionReasonRpc(error)) {
     throw new Error(error.message);
   }
-  if (reason.trim() && status !== 'no_show') {
+  if (reason.trim()) {
     throw new Error(boardingTransitionReasonUpgradeMessage);
   }
 
@@ -198,14 +201,6 @@ export const setPassengerBoardingStatus = async (
     p_reservation_id: reservationId,
     p_status: status,
   });
-  if (
-    legacyError &&
-    status === 'no_show' &&
-    reason.trim() &&
-    legacyError.message.includes('No-show status is available after bus departure')
-  ) {
-    throw new Error(boardingTransitionReasonUpgradeMessage);
-  }
   if (legacyError) throw new Error(legacyError.message);
 };
 
@@ -239,6 +234,9 @@ export const setBoardingPassengerStatus = async (
   status: BoardingStatus,
   reason = ''
 ) => {
+  if (status === 'no_show' && !reason.trim()) {
+    throw new Error('미탑승 사유를 반드시 입력해주세요.');
+  }
   if (passenger.passengerKind !== 'walk_in') {
     return setPassengerBoardingStatus(passenger.reservationId, status, reason);
   }
@@ -252,7 +250,7 @@ export const setBoardingPassengerStatus = async (
   if (!isMissingBoardingTransitionReasonRpc(error)) {
     throw new Error(error.message);
   }
-  if (reason.trim() && status !== 'no_show') {
+  if (reason.trim()) {
     throw new Error(boardingTransitionReasonUpgradeMessage);
   }
 
@@ -260,14 +258,6 @@ export const setBoardingPassengerStatus = async (
     p_walk_in_id: passenger.reservationId,
     p_status: status,
   });
-  if (
-    legacyError &&
-    status === 'no_show' &&
-    reason.trim() &&
-    legacyError.message.includes('No-show status is available after bus departure')
-  ) {
-    throw new Error(boardingTransitionReasonUpgradeMessage);
-  }
   if (legacyError) throw new Error(legacyError.message);
 };
 
@@ -333,14 +323,26 @@ export const markBoardingBusDeparted = async (busId: string) => {
   const { error } = await supabase.rpc('mark_boarding_bus_departed', {
     p_bus_id: busId,
   });
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (
+      error.message ===
+      'Resolve all unchecked passengers before marking departure.'
+    ) {
+      throw new Error(
+        '탑승 미확인 인원을 모두 탑승 확인 또는 미탑승 처리한 뒤 출발 완료해주세요.'
+      );
+    }
+    throw new Error(error.message);
+  }
 };
 
-export const cancelBoardingBusDeparture = async (busId: string) => {
-  const { error } = await supabase.rpc('cancel_boarding_bus_departure', {
+export const cancelBoardingBusDeparture = async (busId: string, reason: string) => {
+  const { data, error } = await supabase.rpc('cancel_boarding_bus_departure', {
     p_bus_id: busId,
+    p_reason: reason,
   });
   if (error) throw new Error(error.message);
+  return Number(data ?? 0);
 };
 
 export const rotateBoardingCheckInCode = async (busId: string) => {

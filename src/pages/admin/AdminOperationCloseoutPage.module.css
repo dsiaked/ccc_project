@@ -1,0 +1,47 @@
+.pageContainer { min-height: 100vh; background: #f3f6fa; }
+.main { width: 100%; max-width: 1120px; margin: 0 auto; padding: 100px 24px 56px; }
+.backButton { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 18px; border: 0; background: transparent; color: #475467; font: inherit; font-size: 13px; font-weight: 800; cursor: pointer; }
+.hero { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; padding: 22px; border: 1px solid #bfdbfe; border-radius: 12px; background: #eff6ff; }
+.closedHero { border-color: #a7f3d0; background: #ecfdf3; }
+.heroIcon { display: grid; place-items: center; flex: 0 0 48px; width: 48px; height: 48px; border-radius: 10px; background: #dbeafe; color: #1d4ed8; }
+.closedHero .heroIcon { background: #d1fae5; color: #047857; }
+.hero div { min-width: 0; flex: 1; }
+.hero span { color: #1d4ed8; font-size: 12px; font-weight: 900; }
+.hero h1 { margin: 3px 0; color: #101828; font-size: 28px; }
+.hero p { margin: 0; color: #667085; font-size: 13px; }
+.hero button { display: inline-flex; align-items: center; gap: 6px; min-height: 38px; border: 1px solid #bfdbfe; border-radius: 8px; padding: 0 12px; background: #fff; color: #1d4ed8; font: inherit; font-size: 12px; font-weight: 900; cursor: pointer; }
+.policyNotice { display: flex; gap: 10px; margin-bottom: 18px; padding: 14px 16px; border: 1px solid #a7f3d0; border-radius: 10px; background: #ecfdf3; color: #047857; }
+.policyNotice div { display: grid; gap: 3px; }
+.policyNotice strong { font-size: 13px; }
+.policyNotice p { margin: 0; color: #475467; font-size: 12px; line-height: 1.5; }
+.error { margin: 0 0 18px; border: 1px solid #fecaca; border-radius: 8px; padding: 14px; background: #fff7f7; color: #b42318; font-size: 13px; font-weight: 800; }
+.loading { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 240px; color: #667085; font-size: 13px; font-weight: 800; }
+.summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 18px; }
+.summary div { display: grid; gap: 5px; border: 1px solid #e4e7ec; border-radius: 10px; padding: 16px; background: #fff; }
+.summary span { color: #667085; font-size: 11px; font-weight: 900; }
+.summary strong { color: #101828; font-size: 18px; }
+.warningText { color: #b45309 !important; }
+.checkSection, .actionPanel { margin-bottom: 18px; border: 1px solid #e4e7ec; border-radius: 12px; padding: 20px; background: #fff; }
+.checkSection header, .actionHeader { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 15px; }
+.checkSection h2, .actionPanel h2 { margin: 0; color: #101828; font-size: 18px; }
+.checkSection p, .actionHeader p { margin: 4px 0 0; color: #667085; font-size: 12px; }
+.checkGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.checkCard { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 70px; border: 1px solid #e4e7ec; border-radius: 9px; padding: 12px; background: #fff; text-align: left; cursor: pointer; }
+.checkCard:hover { border-color: #93b4ef; background: #f8fbff; }
+.checkCard span { display: grid; gap: 4px; }
+.checkCard strong { color: #344054; font-size: 13px; }
+.checkCard small { color: #667085; font-size: 11px; }
+.passed { color: #16a34a; }
+.warning { color: #d97706; }
+.actionPanel { border-color: #bfdbfe; }
+.actionHeader svg { color: #1d4ed8; }
+.savedReason { margin: 0 0 14px; border-radius: 8px; padding: 11px 12px; background: #f8fafc; color: #475467; font-size: 12px; }
+.reviewCheck { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 14px; color: #344054; font-size: 13px; font-weight: 800; }
+.reviewCheck input { margin-top: 2px; }
+.field { display: grid; gap: 7px; margin-bottom: 13px; }
+.field span { color: #475467; font-size: 12px; font-weight: 900; }
+.field input, .field textarea { width: 100%; border: 1px solid #d0d5dd; border-radius: 8px; padding: 10px 11px; background: #fff; color: #101828; font: inherit; font-size: 13px; }
+.field textarea { min-height: 82px; resize: vertical; }
+.submitButton { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 42px; border: 0; border-radius: 8px; padding: 0 16px; background: #1d4ed8; color: #fff; font: inherit; font-size: 13px; font-weight: 900; cursor: pointer; }
+.submitButton:disabled { cursor: default; opacity: .45; }
+@media (max-width: 700px) { .main { padding: 88px 12px 40px; } .hero { align-items: flex-start; flex-wrap: wrap; } .hero button { margin-left: 62px; } .summary, .checkGrid { grid-template-columns: 1fr; } }

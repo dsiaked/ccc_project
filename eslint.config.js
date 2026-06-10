@@ -9,7 +9,11 @@ export default defineConfig([
   globalIgnores([
     'dist',
     '.tmp',
+    '.firebase',
+    '.venv',
     '.codex-push-worktree',
+    'node_modules',
+    'outputs',
     '**/.pytest_cache/**',
   ]),
   {

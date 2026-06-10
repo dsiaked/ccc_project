@@ -52,7 +52,6 @@ const fieldLabels: Record<string, string> = {
 const statusLabels: Record<string, string> = {
   pending: '대기',
   completed: '완료',
-  refunded: '환불',
   sent: '송금 보고',
   confirmed: '확인 완료',
 };

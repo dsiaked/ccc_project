@@ -12,6 +12,7 @@ import AdminHeader from './AdminHeader';
 import {
   formatReservationDeadline,
   getReservationDeadline,
+  hasConfirmedAllocation,
   updateReservationDeadline,
 } from '../../lib/reservationDeadlineService';
 
@@ -64,6 +65,8 @@ const AdminReservationDeadlinePage = () => {
   const [loading, setLoading] = useState(true);
   const [deadlineAt, setDeadlineAt] = useState<string | null>(null);
   const [deadlineInput, setDeadlineInput] = useState('');
+  const [confirmedAllocationExists, setConfirmedAllocationExists] =
+    useState(false);
   const [saving, setSaving] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const deadlineActionInFlightRef = useRef(false);
@@ -81,12 +84,16 @@ const AdminReservationDeadlinePage = () => {
 
     const loadDeadline = async () => {
       try {
-        const setting = await getReservationDeadline();
+        const [setting, hasConfirmed] = await Promise.all([
+          getReservationDeadline(),
+          hasConfirmedAllocation(),
+        ]);
 
         if (!isMounted) return;
 
         setDeadlineAt(setting.deadlineAt);
         setDeadlineInput(formatDateTimeLocal(setting.deadlineAt));
+        setConfirmedAllocationExists(hasConfirmed);
         setNowMs(Date.now());
       } catch (error) {
         console.error('신청 마감 정보를 불러올 수 없습니다:', error);
@@ -120,6 +127,16 @@ const AdminReservationDeadlinePage = () => {
       return;
     }
 
+    const reopensReservations =
+      deadlineIso === null || new Date(deadlineIso).getTime() > Date.now();
+    if (confirmedAllocationExists && reopensReservations) {
+      setMessage('확정 배차를 먼저 취소한 뒤 신청을 다시 열 수 있습니다.');
+      setDialogError(
+        '확정 배차를 먼저 취소한 뒤 신청을 다시 열 수 있습니다.'
+      );
+      return;
+    }
+
     setDialogError('');
     if (deadlineIso) {
       setPendingAction({ mode: 'set', deadlineIso });
@@ -143,6 +160,15 @@ const AdminReservationDeadlinePage = () => {
         : action.mode === 'immediate'
           ? new Date().toISOString()
           : null;
+    const reopensReservations =
+      nextDeadline === null || new Date(nextDeadline).getTime() > Date.now();
+    if (confirmedAllocationExists && reopensReservations) {
+      setDialogError(
+        '확정 배차를 먼저 취소한 뒤 신청을 다시 열 수 있습니다.'
+      );
+      return;
+    }
+
     deadlineActionInFlightRef.current = true;
     setSaving(true);
     setDialogError('');
@@ -242,6 +268,12 @@ const AdminReservationDeadlinePage = () => {
               {message}
             </p>
           )}
+          {confirmedAllocationExists && (
+            <p className={styles.actionDialogError} role="alert">
+              확정 배차가 존재하여 신청 마감 해제와 미래 시각 변경이 잠겨 있습니다.
+              배차 확정을 먼저 취소해주세요.
+            </p>
+          )}
           <div className={styles.formGrid}>
             <label className={styles.field}>
               <span>신청 마감 일시</span>
@@ -280,7 +312,12 @@ const AdminReservationDeadlinePage = () => {
               type="button"
               className={styles.secondaryButton}
               onClick={() => setDeadlineInput('')}
-              disabled={saving}
+              disabled={saving || confirmedAllocationExists}
+              title={
+                confirmedAllocationExists
+                  ? '확정 배차를 먼저 취소한 뒤 신청 마감을 해제할 수 있습니다.'
+                  : undefined
+              }
             >
               기한 비우기
             </button>

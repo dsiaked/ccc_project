@@ -3,6 +3,12 @@ import {
   type SimulationReferenceConfig,
   type SimulationStageResponse,
 } from './simulationService';
+import {
+  assertSimulationRequestWithinLimit,
+  assertStableSimulationRun,
+  getNextSimulationBatchOffset,
+  getNextSimulationCleanupRemaining,
+} from './simulationProgressGuard';
 
 export type SimulationExecutionStage =
   | 'cleanup'
@@ -80,8 +86,11 @@ const runBatchedStage = async (
   let offset = 0;
   let runId: string | undefined;
   let run: SimulationStageResponse | null = null;
+  let requestCount = 0;
 
   while (!run?.done) {
+    assertSimulationRequestWithinLimit(stage, requestCount);
+    requestCount += 1;
     run = await runSimulationStage(stage, {
       runId,
       offset,
@@ -89,8 +98,11 @@ const runBatchedStage = async (
       userCount: request.userCount,
       paymentMode: request.paymentMode,
     });
+    assertStableSimulationRun(stage, runId, run.id);
     runId = run.id;
-    offset = run.next_offset ?? offset;
+    if (!run.done) {
+      offset = getNextSimulationBatchOffset(stage, offset, run.next_offset);
+    }
     publishProgress(request, `${progressLabel} 중: ${getProgress(run)}`, run);
   }
 
@@ -107,15 +119,26 @@ const execute = async (request: SimulationExecutionRequest) => {
     if (request.stage === 'cleanup') {
       let runId: string | undefined;
       let run: SimulationStageResponse | null = null;
+      let remaining: number | null = null;
+      let requestCount = 0;
 
       while (!run?.done) {
+        assertSimulationRequestWithinLimit('cleanup', requestCount);
+        requestCount += 1;
         run = await runSimulationStage('cleanup', { runId, batchSize: 100 });
+        assertStableSimulationRun('cleanup', runId, run.id);
         runId = run.id;
         const deleted = Number(run.summary.deleted ?? 0);
-        const remaining = Number(run.summary.remaining ?? 0);
+        if (!run.done) {
+          remaining = getNextSimulationCleanupRemaining(
+            remaining,
+            run.summary.remaining
+          );
+        }
+        const displayedRemaining = Number(run.summary.remaining ?? 0);
         publishProgress(
           request,
-          `시뮬레이션 정보 초기화 중: ${deleted.toLocaleString()}개 계정 삭제, ${remaining.toLocaleString()}개 남음`,
+          `시뮬레이션 정보 초기화 중: ${deleted.toLocaleString()}개 계정 삭제, ${displayedRemaining.toLocaleString()}개 남음`,
           run
         );
       }

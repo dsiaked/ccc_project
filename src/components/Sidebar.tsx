@@ -9,6 +9,7 @@ import {
   Home,
   KeyRound,
   UserPlus,
+  UserRound,
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
@@ -23,6 +24,10 @@ import {
   campusNoticeReadEventName,
   getUnreadCampusNotices,
 } from '../lib/adminNoticeReadState';
+import {
+  getPublicContactInfo,
+  type ContactInfo,
+} from '../lib/contactInfoService';
 import { getReservationDeadline } from '../lib/reservationDeadlineService';
 import { createLoginRequiredRedirectState } from '../utils/redirect';
 import LoginRequiredModal from './LoginRequiredModal';
@@ -60,6 +65,10 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
   const [hasConfirmedTicket, setHasConfirmedTicket] = useState<boolean | null>(
     null
   );
+  const [contactInfo, setContactInfo] = useState<ContactInfo>({
+    email: '',
+    phone: '',
+  });
 
   const handleMenuClick = (path: string) => {
     navigate(path);
@@ -187,15 +196,19 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
 
     let isActive = true;
 
-    const loadReservationDeadline = async () => {
+    const loadPublicSettings = async () => {
       try {
-        const deadline = await getReservationDeadline();
+        const [deadline, savedContactInfo] = await Promise.all([
+          getReservationDeadline(),
+          getPublicContactInfo(),
+        ]);
 
         if (isActive) {
           setIsReservationClosed(deadline.isClosed);
+          setContactInfo(savedContactInfo);
         }
       } catch (error) {
-        console.error('신청 마감 상태 조회 실패:', error);
+        console.error('공개 운영 설정 조회 실패:', error);
 
         if (isActive) {
           setIsReservationClosed(false);
@@ -203,7 +216,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
       }
     };
 
-    void loadReservationDeadline();
+    void loadPublicSettings();
 
     return () => {
       isActive = false;
@@ -309,7 +322,10 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
           {isLoggedIn ? (
             <>
               <p className={styles.welcomeText}>
-                {profile?.name ? `${profile.name}님 환영합니다!` : '환영합니다!'}
+                {profile?.name && (
+                  <span className={styles.userName}>{profile.name}님</span>
+                )}
+                <span>환영합니다!</span>
               </p>
 
               {profile?.email && (
@@ -379,6 +395,19 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
                 >
                   <Home size={20} className={styles.navIcon} />
                   홈
+                </button>
+              </li>
+              <li>
+                <button
+                  type="button"
+                  className={navItemClassName('/profile')}
+                  onClick={() => handleProtectedMenuClick('/profile')}
+                  aria-current={
+                    location.pathname === '/profile' ? 'page' : undefined
+                  }
+                >
+                  <UserRound size={20} className={styles.navIcon} />
+                  내 프로필
                 </button>
               </li>
               <li>
@@ -499,9 +528,13 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
           </section>
         </nav>
 
-        <div className={styles.footer}>
-          <p className={styles.footerText}>문의: info@ccc-bus.org</p>
-        </div>
+        {(contactInfo.email || contactInfo.phone) && (
+          <div className={styles.footer}>
+            <p className={styles.footerText}>
+              문의: {contactInfo.email || contactInfo.phone}
+            </p>
+          </div>
+        )}
       </aside>
 
       {isLogoutModalOpen && (

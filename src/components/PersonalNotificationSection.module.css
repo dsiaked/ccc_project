@@ -123,11 +123,14 @@
   display: flex;
   justify-content: space-between;
   gap: 12px;
+  min-width: 0;
 }
 
 .item strong {
+  min-width: 0;
   color: #101828;
   font-size: 14px;
+  overflow-wrap: anywhere;
 }
 
 .item time {
@@ -143,6 +146,7 @@
   font-size: 13px;
   line-height: 1.6;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 @media (max-width: 560px) {

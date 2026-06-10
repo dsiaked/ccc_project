@@ -62,7 +62,10 @@ const RemainingSeatPage = () => {
     try {
       const {
         data: { session },
+        error: sessionError,
       } = await supabase.auth.getSession();
+
+      if (sessionError) throw sessionError;
 
       if (!session) {
         setIsLoginRequiredModalOpen(true);

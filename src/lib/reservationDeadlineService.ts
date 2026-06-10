@@ -19,6 +19,20 @@ export interface ReservationDeadlineSetting {
   isClosed: boolean;
 }
 
+export const hasConfirmedAllocation = async (): Promise<boolean> => {
+  const { data, error } = await supabase
+    .from('bus_allocations')
+    .select('id')
+    .filter('allocation_data->>status', 'eq', 'confirmed')
+    .limit(1);
+
+  if (error) {
+    throw error;
+  }
+
+  return Boolean(data?.length);
+};
+
 export const getReservationDeadline = async (): Promise<ReservationDeadlineSetting> => {
   const { data, error } = await supabase
     .from('app_settings')

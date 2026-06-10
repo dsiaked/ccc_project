@@ -59,7 +59,6 @@ const requestTypeOptions: Array<{
 }> = [
   { value: 'notice', label: '전체 공지' },
   { value: 'late_signup', label: '추가 신청' },
-  { value: 'cancel_refund', label: '취소/환불' },
   { value: 'payment_issue', label: '입금 문의' },
   { value: 'roster_change', label: '명단 수정' },
   { value: 'transfer_issue', label: '송금 문의' },
@@ -952,7 +951,7 @@ const AdminCampusRequestsPage = () => {
       eyebrow: '문의 운영',
       title: '문의 처리',
       description:
-        '신청 마감 이후 추가 신청, 환불, 입금 오류, 명단 수정 요청을 확인하고 처리합니다.',
+        '신청 마감 이후 추가 신청, 입금 오류, 명단 수정 요청을 확인하고 처리합니다.',
     },
     notices: {
       eyebrow: '캠퍼스 커뮤니케이션',
@@ -1110,7 +1109,7 @@ const AdminCampusRequestsPage = () => {
             <p className={styles.description}>
               {isGlobalAdmin
                 ? activeGlobalSection.description
-                : '본부 공지를 확인하고, 추가 신청이나 환불처럼 본부 확인이 필요한 문의를 남깁니다.'}
+                : '본부 공지를 확인하고, 추가 신청이나 입금 오류처럼 본부 확인이 필요한 문의를 남깁니다.'}
             </p>
           </div>
 

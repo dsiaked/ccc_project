@@ -1,6 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -36,19 +37,22 @@ export const AdminAuthProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [adminRole, setAdminRole] = useState<AdminRole | null>(null);
 
-  const loadAdminAuth = async (nextSession?: Session | null) => {
+  const loadAdminAuth = useCallback(async (nextSession?: Session | null) => {
     const requestId = (requestIdRef.current += 1);
     setStatus('loading');
 
     try {
-      const resolvedSession =
-        nextSession === undefined
-          ? (await supabase.auth.getSession()).data.session
-          : nextSession;
+      let resolvedSession = nextSession;
+
+      if (nextSession === undefined) {
+        const { data, error } = await supabase.auth.getSession();
+        if (error) throw error;
+        resolvedSession = data.session;
+      }
 
       if (requestIdRef.current !== requestId) return;
 
-      setSession(resolvedSession);
+      setSession(resolvedSession ?? null);
 
       if (!resolvedSession) {
         setAdminRole(null);
@@ -70,7 +74,7 @@ export const AdminAuthProvider = ({ children }: { children: ReactNode }) => {
       setAdminRole(null);
       setStatus('error');
     }
-  };
+  }, []);
 
   useEffect(() => {
     Promise.resolve().then(() => {
@@ -79,7 +83,9 @@ export const AdminAuthProvider = ({ children }: { children: ReactNode }) => {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      if (event === 'INITIAL_SESSION') return;
+
       void loadAdminAuth(nextSession);
     });
 
@@ -87,7 +93,7 @@ export const AdminAuthProvider = ({ children }: { children: ReactNode }) => {
       requestIdRef.current += 1;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [loadAdminAuth]);
 
   const value = useMemo<AdminAuthContextValue>(
     () => ({
@@ -105,7 +111,7 @@ export const AdminAuthProvider = ({ children }: { children: ReactNode }) => {
         return role;
       },
     }),
-    [status, session, adminRole]
+    [status, session, adminRole, loadAdminAuth]
   );
 
   return (

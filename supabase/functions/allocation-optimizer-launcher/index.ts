@@ -6,6 +6,9 @@ const corsHeaders = {
     'authorization, x-client-info, apikey, content-type',
 };
 
+const GOOGLE_REQUEST_TIMEOUT_MS = 15_000;
+const LAUNCHER_CLAIM_TIMEOUT_MS = 5 * 60_000;
+
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
@@ -81,6 +84,7 @@ const getGoogleAccessToken = async (serviceAccountJson: string) => {
   const assertion = `${unsigned}.${base64Url(new Uint8Array(signature))}`;
   const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
+    signal: AbortSignal.timeout(GOOGLE_REQUEST_TIMEOUT_MS),
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
@@ -174,13 +178,53 @@ Deno.serve(async (request) => {
     return json({ error: 'Cloud Run 실행 대상으로 생성된 작업이 아닙니다.' }, 409);
   }
 
+  const staleClaimBefore = new Date(
+    Date.now() - LAUNCHER_CLAIM_TIMEOUT_MS,
+  ).toISOString();
+  const { error: staleClaimError } = await serviceClient
+    .from('allocation_optimization_jobs')
+    .update({
+      worker_id: null,
+      current_phase: null,
+    })
+    .eq('id', jobId)
+    .eq('status', 'PENDING')
+    .eq('execution_mode', 'cloud')
+    .eq('current_phase', 'launcher_claimed')
+    .lt('updated_at', staleClaimBefore);
+  if (staleClaimError) {
+    return json({ error: 'Cloud Run launcher claim recovery failed.' }, 500);
+  }
+
+  const workerId = `cloud-run-${crypto.randomUUID()}`;
+  const { data: claimedJob, error: claimError } = await serviceClient
+    .from('allocation_optimization_jobs')
+    .update({
+      worker_id: workerId,
+      current_phase: 'launcher_claimed',
+    })
+    .eq('id', jobId)
+    .eq('status', 'PENDING')
+    .eq('execution_mode', 'cloud')
+    .is('worker_id', null)
+    .select('id')
+    .maybeSingle();
+  if (claimError) {
+    return json({ error: 'Cloud Run launcher claim failed.' }, 500);
+  }
+  if (!claimedJob) {
+    return json({ error: 'This optimization job is already being launched.' }, 409);
+  }
+
+  let launchRequestStarted = false;
   try {
     const accessToken = await getGoogleAccessToken(serviceAccountJson);
-    const workerId = `cloud-run-${crypto.randomUUID()}`;
+    launchRequestStarted = true;
     const runResponse = await fetch(
       `https://run.googleapis.com/v2/projects/${projectId}/locations/${region}/jobs/${cloudRunJobName}:run`,
       {
         method: 'POST',
+        signal: AbortSignal.timeout(GOOGLE_REQUEST_TIMEOUT_MS),
         headers: {
           Authorization: `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
@@ -205,6 +249,7 @@ Deno.serve(async (request) => {
         }),
       },
     );
+    launchRequestStarted = false;
     const runBody = await runResponse.json().catch(() => ({}));
     if (!runResponse.ok) {
       throw new Error(
@@ -237,14 +282,25 @@ Deno.serve(async (request) => {
 
     await serviceClient
       .from('allocation_optimization_jobs')
-      .update({
-        status: 'FAILED',
-        completed_at: new Date().toISOString(),
-        current_phase: 'launcher_failed',
-        error_message: errorMessage,
-      })
+      .update(
+        launchRequestStarted
+          ? {
+              status: 'FAILED',
+              completed_at: new Date().toISOString(),
+              current_phase: 'launcher_status_unknown',
+              error_message:
+                'Cloud Run 실행 요청의 수락 여부를 확인할 수 없어 작업을 종료했습니다. 중복 실행을 막기 위해 자동 재시도를 중단했습니다.',
+            }
+          : {
+              status: 'FAILED',
+              completed_at: new Date().toISOString(),
+              current_phase: 'launcher_failed',
+              error_message: errorMessage,
+            },
+      )
       .eq('id', jobId)
-      .eq('status', 'PENDING');
+      .eq('status', 'PENDING')
+      .eq('worker_id', workerId);
 
     await serviceClient.from('allocation_optimization_events').insert({
       job_id: jobId,
@@ -254,6 +310,7 @@ Deno.serve(async (request) => {
         message: errorMessage,
       },
     });
+
     return json({ error: errorMessage }, 502);
   }
 });

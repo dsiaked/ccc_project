@@ -979,6 +979,8 @@ const throwAllocationRpcError = (error: {
       '확정 배차를 먼저 취소한 뒤 배차 운영 기능을 이용해주세요.',
     'Confirmed allocation is locked until confirmation is cancelled.':
       '확정 배차는 취소 전까지 수정할 수 없습니다.',
+    'Cancel all bus departures before cancelling the confirmed allocation.':
+      '출발 완료 호차의 출발 완료를 모두 취소한 뒤 배차 확정을 취소해주세요.',
     'canceling statement due to statement timeout':
       '서버 처리 시간이 초과되었습니다. 잠시 후 다시 시도해주세요.',
     'No-show status is available after bus departure.':
@@ -1121,6 +1123,17 @@ export const cancelConfirmedWorkspace = async (
 
   if (error) throwAllocationRpcError(error);
   return data as AllocationWorkspaceRow;
+};
+
+export const getActiveDepartureCount = async (allocationId: string) => {
+  const { count, error } = await supabase
+    .from('boarding_bus_departures')
+    .select('id', { count: 'exact', head: true })
+    .eq('allocation_id', allocationId)
+    .is('cancelled_at', null);
+
+  if (error) throw error;
+  return count ?? 0;
 };
 
 export const saveConfirmedWorkspaceChanges = async (

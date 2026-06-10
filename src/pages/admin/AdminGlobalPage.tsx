@@ -32,6 +32,12 @@ import {
   getRecentAdminAuditLogs,
   type AdminAuditLog,
 } from '../../lib/admin/adminAuditLogService';
+import {
+  getBoardingManagementSnapshot,
+  getBoardingMoveRequestSnapshot,
+  type BoardingMoveRequestSnapshot,
+  type BoardingSnapshot,
+} from '../../lib/admin/boardingManagementService';
 
 import styles from './AdminGlobalPage.module.css';
 import AdminHeader from './AdminHeader';
@@ -56,41 +62,56 @@ const operationScenarioSteps = [
   },
   {
     id: 'allocation-planning',
-    title: '신청 마감 및 배차 계획 산출·검토',
-    description: '신청 인원과 행선지별 수요를 바탕으로 배차 계획을 산출하고 결과를 검토합니다.',
+    title: '신청 마감 및 배차 확정',
+    description: '신청 인원과 행선지별 수요를 바탕으로 배차 계획을 산출·검토하고 확정합니다.',
     timing: '수련회 3일차 24:00',
     actionLabel: '배차 계획 산출하기',
     actionPath: '/admin/allocations',
     actionLinks: [
       { label: '신청마감하기', path: '/admin/settings/reservation-deadline' },
+      { label: '잔여 좌석 관리', path: '/admin/payments/remaining-seats' },
     ],
   },
   {
-    id: 'remaining-seat-sales',
-    title: '배차 확정 및 잔여 좌석 신청',
-    description: '검토한 배차 계획을 확정하고 잔여 좌석 신청을 관리합니다.',
-    timing: '수련회 4일차',
-    actionLabel: '잔여 좌석 관리하기',
-    actionPath: '/admin/payments/remaining-seats',
+    id: 'payment-and-request-management',
+    title: '입금 및 정산 검토',
+    description: '개인 입금과 캠퍼스별 송금 상태를 최종 확인하고 미처리 문의를 정리합니다.',
+    timing: '신청 기간 동안 상시 · 수련회 4일차 24:00 최종 확인',
+    actionLabel: '입금 집계 확인하기',
+    actionPath: '/admin/payments/final-review',
+    actionLinks: [
+      { label: '사용자별 관리', path: '/admin/users' },
+      { label: '문의', path: '/admin/communications' },
+    ],
+  },
+  {
+    id: 'boarding-operations',
+    title: '탑승 및 운행 관리',
+    description: '탑승 관리 간사님 담당 호차와 탑승 현황을 확인하고 모든 호차의 출발을 관리합니다.',
+    timing: '출발 당일',
+    actionLabel: '탑승 현황 확인하기',
+    actionPath: '/admin/boarding',
+    actionLinks: [
+      { label: '탑승 관리자 배정', path: '/admin/access/boarding-managers' },
+      { label: '특수상황 기록', path: '/admin/boarding/exceptions' },
+    ],
+  },
+  {
+    id: 'follow-up-review',
+    title: '사후 관리 및 기록 검토',
+    description: '미처리 문의와 현장 특이사항을 정리하고 주요 관리자 작업 기록을 검토합니다.',
+    timing: '운행 종료 후',
+    actionLabel: '관리 작업 기록 확인하기',
+    actionPath: '/admin/system/closeout',
+    actionLinks: [
+      { label: '특수상황 기록', path: '/admin/boarding/exceptions' },
+      { label: 'AI 운영 보고서', path: '/admin/system/ai-reports' },
+    ],
   },
 ] as const;
 
-const continuousOperationStep = {
-  id: 'payment-and-request-management',
-  title: '입금 집계 및 문의 처리',
-  description: '캠퍼스별 입금 현황을 집계하고 접수된 문의를 확인하여 처리합니다.',
-  timing: '신청 기간 동안 상시 · 수련회 4일차 24:00 최종 확인',
-  checks: ['입금 집계 확인', '문의 처리'],
-  actionLabel: '입금 집계 확인하기',
-  actionPath: '/admin/payments/final-review',
-  actionLinks: [
-    { label: '사용자별 관리', path: '/admin/users' },
-    { label: '문의', path: '/admin/communications' },
-  ],
-} as const;
-
 const operationScenarioStepIds = new Set<string>(
-  [...operationScenarioSteps.map((step) => step.id), continuousOperationStep.id]
+  operationScenarioSteps.map((step) => step.id)
 );
 
 const quickActions = [
@@ -166,6 +187,11 @@ const AdminGlobalPage = () => {
     string[]
   >([]);
   const [recentAuditLogs, setRecentAuditLogs] = useState<AdminAuditLog[]>([]);
+  const [boardingSnapshot, setBoardingSnapshot] = useState<BoardingSnapshot | null>(
+    null
+  );
+  const [boardingMoveRequests, setBoardingMoveRequests] =
+    useState<BoardingMoveRequestSnapshot | null>(null);
 
   const handleToggleScenarioStep = (stepId: string) => {
     const previous = checkedScenarioStepIds;
@@ -196,6 +222,8 @@ const AdminGlobalPage = () => {
         scenarioChecklist,
         unresolvedRequestResult,
         recentAuditLogsResult,
+        boardingSnapshotResult,
+        boardingMoveRequestsResult,
       ] =
         await Promise.all([
           supabase
@@ -227,6 +255,14 @@ const AdminGlobalPage = () => {
             console.warn('Failed to load recent admin audit logs:', error);
             return [];
           }),
+          getBoardingManagementSnapshot().catch((error) => {
+            console.warn('Failed to load boarding readiness:', error);
+            return null;
+          }),
+          getBoardingMoveRequestSnapshot().catch((error) => {
+            console.warn('Failed to load boarding move readiness:', error);
+            return null;
+          }),
         ]);
 
       const dashboardError =
@@ -248,6 +284,8 @@ const AdminGlobalPage = () => {
       setCheckedScenarioStepIds(scenarioChecklist);
       setUnresolvedRequestCount(unresolvedRequestResult.count ?? 0);
       setRecentAuditLogs(recentAuditLogsResult);
+      setBoardingSnapshot(boardingSnapshotResult);
+      setBoardingMoveRequests(boardingMoveRequestsResult);
     } catch (error) {
       console.error('Failed to load data:', error);
       setLoadError('대시보드 데이터를 불러올 수 없습니다. 잠시 후 다시 시도해주세요.');
@@ -288,6 +326,13 @@ const AdminGlobalPage = () => {
     reservationCount - confirmedReservationCount,
     0
   );
+  const departedBusCount =
+    boardingSnapshot?.buses.filter((bus) => Boolean(bus.departedAt)).length ?? 0;
+  const totalBusCount = boardingSnapshot?.buses.length ?? 0;
+  const pendingMoveRequestCount =
+    boardingMoveRequests?.requests.filter((request) => request.status === 'pending')
+      .length ?? 0;
+  const allBusesDeparted = totalBusCount > 0 && departedBusCount === totalBusCount;
   const journeyMetrics = [
     {
       id: 'target',
@@ -340,6 +385,69 @@ const AdminGlobalPage = () => {
       className: styles.journeyAllocation,
     },
   ] as const;
+  const isReservationClosed = Boolean(
+    reservationDeadline.deadlineAt &&
+      new Date(reservationDeadline.deadlineAt).getTime() <= nowMs
+  );
+  const scenarioReadinessById: Record<
+    string,
+    { ready: boolean; label: string }
+  > = {
+    'initial-setup': {
+      ready: participationTarget > 0 && Boolean(reservationDeadline.deadlineAt),
+      label:
+        participationTarget > 0 && reservationDeadline.deadlineAt
+          ? '예상 참여 인원과 신청 마감 설정 완료'
+          : '예상 참여 인원과 신청 마감 설정 필요',
+    },
+    'post-deadline-operations': {
+      ready: reservationCount > 0,
+      label:
+        reservationCount > 0
+          ? `활성 신청 ${reservationCount.toLocaleString()}명 접수`
+          : '활성 신청 접수 확인 필요',
+    },
+    'allocation-planning': {
+      ready:
+        isReservationClosed &&
+        reservationCount > 0 &&
+        confirmedReservationCount === reservationCount,
+      label: !isReservationClosed
+        ? '신청 마감 필요'
+        : confirmedReservationCount !== reservationCount
+          ? `미배차 ${unallocatedReservationCount.toLocaleString()}명 확인 필요`
+          : '신청 마감 및 전원 배차 확정 완료',
+    },
+    'payment-and-request-management': {
+      ready:
+        reservationCount > 0 &&
+        paidReservationCount === reservationCount &&
+        unresolvedRequestCount === 0,
+      label:
+        unpaidReservationCount > 0 || unresolvedRequestCount > 0
+          ? `미입금 ${unpaidReservationCount.toLocaleString()}명 · 미처리 문의 ${unresolvedRequestCount.toLocaleString()}건`
+          : '개인 입금 및 문의 처리 완료',
+    },
+    'boarding-operations': {
+      ready: allBusesDeparted && pendingMoveRequestCount === 0,
+      label:
+        totalBusCount === 0
+          ? '확정 호차 확인 필요'
+          : `출발 ${departedBusCount.toLocaleString()}/${totalBusCount.toLocaleString()}대 · 이동 요청 ${pendingMoveRequestCount.toLocaleString()}건`,
+    },
+    'follow-up-review': {
+      ready:
+        allBusesDeparted &&
+        pendingMoveRequestCount === 0 &&
+        unresolvedRequestCount === 0,
+      label:
+        allBusesDeparted &&
+        pendingMoveRequestCount === 0 &&
+        unresolvedRequestCount === 0
+          ? '운행 종료 및 미처리 업무 정리 완료'
+          : `미처리 문의 ${unresolvedRequestCount.toLocaleString()}건 · 이동 요청 ${pendingMoveRequestCount.toLocaleString()}건`,
+    },
+  };
   const completedScenarioStepCount = operationScenarioSteps.filter((step) =>
     checkedScenarioStepIds.includes(step.id)
   ).length;
@@ -350,13 +458,6 @@ const AdminGlobalPage = () => {
   );
   const currentScenarioStep =
     currentScenarioIndex >= 0 ? operationScenarioSteps[currentScenarioIndex] : null;
-  const isContinuousOperationChecked = checkedScenarioStepIds.includes(
-    continuousOperationStep.id
-  );
-  const isReservationClosed = Boolean(
-    reservationDeadline.deadlineAt &&
-      new Date(reservationDeadline.deadlineAt).getTime() <= nowMs
-  );
   const deadlineStatus = !reservationDeadline.deadlineAt
     ? '미설정'
     : isReservationClosed
@@ -402,7 +503,7 @@ const AdminGlobalPage = () => {
             <span className={styles.eyebrow}>전체 관리자</span>
             <h1>운영 대시보드</h1>
             <p>
-              신청 현황, 입금 상태, 배차 준비 단계를 한 화면에서 확인합니다.
+              운영 준비부터 신청, 배차, 입금, 탑승, 사후 관리까지 한 화면에서 확인합니다.
             </p>
           </div>
 
@@ -591,6 +692,20 @@ const AdminGlobalPage = () => {
                       <span>{step.timing}</span>
                     </div>
                     <p>{step.description}</p>
+                    <div
+                      className={`${styles.readinessStatus} ${
+                        scenarioReadinessById[step.id]?.ready
+                          ? styles.readinessReady
+                          : styles.readinessAttention
+                      }`}
+                    >
+                      <strong>
+                        {scenarioReadinessById[step.id]?.ready
+                          ? '완료 조건 충족'
+                          : '확인 필요'}
+                      </strong>
+                      <span>{scenarioReadinessById[step.id]?.label}</span>
+                    </div>
 
                     {'actionLinks' in step && step.actionLinks && isCurrent && (
                       <div className={styles.relatedActions}>
@@ -622,81 +737,6 @@ const AdminGlobalPage = () => {
                 </article>
               );
             })}
-          </div>
-
-          <div className={styles.continuousOperationBlock}>
-            <div className={styles.continuousOperationLabel}>
-              <span>상시 운영</span>
-              <p>번호 순서와 관계없이 신청 기간 동안 계속 확인하는 항목입니다.</p>
-            </div>
-
-            <article
-              className={`${styles.scenarioItem} ${styles.continuousOperationItem} ${
-                isContinuousOperationChecked ? styles.scenarioItemDone : ''
-              }`}
-            >
-              <button
-                type="button"
-                className={styles.scenarioRail}
-                onClick={() => handleToggleScenarioStep(continuousOperationStep.id)}
-                aria-label={`${continuousOperationStep.title}, ${
-                  isContinuousOperationChecked ? '완료 취소' : '완료로 표시'
-                }`}
-                aria-pressed={isContinuousOperationChecked}
-              >
-                <span className={styles.scenarioDot}>
-                  {isContinuousOperationChecked ? (
-                    <CheckCircle2 size={18} />
-                  ) : (
-                    <CreditCard size={17} />
-                  )}
-                </span>
-              </button>
-
-              <div className={styles.scenarioContent}>
-                <div className={styles.scenarioTitleRow}>
-                  <span>
-                    {isContinuousOperationChecked ? '최종 확인 완료' : '상시 확인'}
-                  </span>
-                  <h3>{continuousOperationStep.title}</h3>
-                </div>
-                <div className={styles.scenarioTiming}>
-                  <Timer size={14} aria-hidden="true" />
-                  <strong>운영 시기</strong>
-                  <span>{continuousOperationStep.timing}</span>
-                </div>
-                <p>{continuousOperationStep.description}</p>
-
-                <div className={styles.relatedActions}>
-                  <strong>관련 작업</strong>
-                  <div className={styles.subActionButtons}>
-                    {continuousOperationStep.actionLinks.map((action) => (
-                      <button
-                        key={action.path}
-                        type="button"
-                        onClick={() => navigate(action.path)}
-                      >
-                        <span>{action.label}</span>
-                        <ArrowRight size={14} />
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                className={styles.linkButton}
-                onClick={() => navigate(continuousOperationStep.actionPath)}
-              >
-                <span>
-                  {isContinuousOperationChecked
-                    ? '확인 및 수정'
-                    : continuousOperationStep.actionLabel}
-                </span>
-                <ArrowRight size={16} />
-              </button>
-            </article>
           </div>
         </section>
 
