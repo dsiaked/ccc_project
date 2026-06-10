@@ -225,7 +225,11 @@ const LoginPage = () => {
 
         <div className={styles.signupPrompt}>
           <span>아직 회원이 아니신가요?</span>
-          <Link to="/signup" className={styles.signupLink}>
+          <Link
+            to="/signup"
+            state={{ from: redirectTo }}
+            className={styles.signupLink}
+          >
             회원가입
           </Link>
         </div>

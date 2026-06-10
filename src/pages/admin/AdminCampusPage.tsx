@@ -1596,26 +1596,32 @@ const CampusAdminPage = () => {
             </p>
           </section>
 
-          <label className={styles.mobileBulkCheck}>
-            <input
-              type="checkbox"
-              checked={allChecked}
-              onChange={(event) => handleBulkPaymentCheck(event.target.checked)}
-              disabled={
-                verifying ||
-                filteredCheckableReservations.length === 0 ||
-                isPaymentCheckLocked
-              }
-            />
-            <span>
-              <strong>현재 필터 결과 입금 확인</strong>
-              <small>
-                {isPaymentCheckLocked
-                  ? '송금 완료 보고 후에는 수정할 수 없습니다.'
-                  : `현재 필터 결과 중 확인 가능한 신청자 ${filteredCheckableReservations.length}명을 처리합니다.`}
-              </small>
-            </span>
-          </label>
+          {isHeadOfficeConfirmed ? (
+            <div className={styles.paymentFinalizedNotice}>
+              본부 확인이 완료되어 입금 상태가 확정되었습니다.
+            </div>
+          ) : (
+            <label className={styles.mobileBulkCheck}>
+              <input
+                type="checkbox"
+                checked={allChecked}
+                onChange={(event) => handleBulkPaymentCheck(event.target.checked)}
+                disabled={
+                  verifying ||
+                  filteredCheckableReservations.length === 0 ||
+                  isPaymentCheckLocked
+                }
+              />
+              <span>
+                <strong>현재 필터 결과 입금 확인</strong>
+                <small>
+                  {isPaymentCheckLocked
+                    ? '송금 완료 보고 후에는 수정할 수 없습니다.'
+                    : `현재 필터 결과 중 확인 가능한 신청자 ${filteredCheckableReservations.length}명을 처리합니다.`}
+                </small>
+              </span>
+            </label>
+          )}
 
           <div className={styles.mobileApplicantList}>
             {pagedReservations.length === 0 ? (
@@ -1642,24 +1648,30 @@ const CampusAdminPage = () => {
                     }`}
                   >
                     <div className={styles.mobileApplicantHeader}>
-                      <label className={styles.mobileApplicantCheck}>
-                        <input
-                          type="checkbox"
-                          checked={payment?.status === 'completed'}
-                          onChange={(event) =>
-                            handleDirectPaymentCheck(
-                              reservation,
-                              event.target.checked
-                            )
-                          }
-                          disabled={
-                            verifying ||
-                            payment?.status === 'refunded' ||
-                            isPaymentCheckLocked
-                          }
-                        />
-                        <span>입금 확인</span>
-                      </label>
+                      {isHeadOfficeConfirmed ? (
+                        <span className={styles.paymentFinalizedLabel}>
+                          확인 완료
+                        </span>
+                      ) : (
+                        <label className={styles.mobileApplicantCheck}>
+                          <input
+                            type="checkbox"
+                            checked={payment?.status === 'completed'}
+                            onChange={(event) =>
+                              handleDirectPaymentCheck(
+                                reservation,
+                                event.target.checked
+                              )
+                            }
+                            disabled={
+                              verifying ||
+                              payment?.status === 'refunded' ||
+                              isPaymentCheckLocked
+                            }
+                          />
+                          <span>입금 확인</span>
+                        </label>
+                      )}
                       <span
                         className={`${styles.status} ${
                           payment ? styles[payment.status] : ''
@@ -1709,21 +1721,25 @@ const CampusAdminPage = () => {
             <thead>
               <tr>
                 <th className={styles.checkCol}>
-                  <input
-                    type="checkbox"
-                    checked={allChecked}
-                    onChange={(e) => handleBulkPaymentCheck(e.target.checked)}
-                    disabled={
-                      verifying ||
-                      filteredCheckableReservations.length === 0 ||
-                      isPaymentCheckLocked
-                    }
-                    title={
-                      isPaymentCheckLocked
-                        ? '송금 완료 보고 이후에는 수정할 수 없습니다.'
-                        : `현재 필터 결과 ${filteredCheckableReservations.length}명 입금 확인`
-                    }
-                  />
+                  {isHeadOfficeConfirmed ? (
+                    <span className={styles.paymentFinalizedLabel}>확인 완료</span>
+                  ) : (
+                    <input
+                      type="checkbox"
+                      checked={allChecked}
+                      onChange={(e) => handleBulkPaymentCheck(e.target.checked)}
+                      disabled={
+                        verifying ||
+                        filteredCheckableReservations.length === 0 ||
+                        isPaymentCheckLocked
+                      }
+                      title={
+                        isPaymentCheckLocked
+                          ? '송금 완료 보고 이후에는 수정할 수 없습니다.'
+                          : `현재 필터 결과 ${filteredCheckableReservations.length}명 입금 확인`
+                      }
+                    />
+                  )}
                 </th>
                 <th>이름</th>
                 <th>연락처</th>
@@ -1768,26 +1784,32 @@ const CampusAdminPage = () => {
                       }`}
                     >
                       <td className={styles.checkCol}>
-                        <input
-                          type="checkbox"
-                          checked={payment?.status === 'completed'}
-                          onChange={(e) =>
-                            handleDirectPaymentCheck(
-                              reservation,
-                              e.target.checked
-                            )
-                          }
-                          disabled={
-                            verifying ||
-                            payment?.status === 'refunded' ||
-                            isPaymentCheckLocked
-                          }
-                          title={
-                            isPaymentCheckLocked
-                              ? '송금 완료 보고 이후에는 수정할 수 없습니다.'
-                              : undefined
-                          }
-                        />
+                        {isHeadOfficeConfirmed ? (
+                          <span className={styles.paymentFinalizedLabel}>
+                            확인 완료
+                          </span>
+                        ) : (
+                          <input
+                            type="checkbox"
+                            checked={payment?.status === 'completed'}
+                            onChange={(e) =>
+                              handleDirectPaymentCheck(
+                                reservation,
+                                e.target.checked
+                              )
+                            }
+                            disabled={
+                              verifying ||
+                              payment?.status === 'refunded' ||
+                              isPaymentCheckLocked
+                            }
+                            title={
+                              isPaymentCheckLocked
+                                ? '송금 완료 보고 이후에는 수정할 수 없습니다.'
+                                : undefined
+                            }
+                          />
+                        )}
                       </td>
 
                       <td className={styles.name}>{reservation.name}</td>

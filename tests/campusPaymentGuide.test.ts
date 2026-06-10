@@ -158,6 +158,18 @@ test('campus bulk payment changes only the current filter results after confirma
   );
 });
 
+test('head-office confirmed settlements replace payment checkboxes with final status', () => {
+  assert.match(
+    campusPage,
+    /isHeadOfficeConfirmed \? \(\s*<div className=\{styles\.paymentFinalizedNotice\}>/
+  );
+  assert.match(campusPage, /본부 확인이 완료되어 입금 상태가 확정되었습니다\./);
+  assert.match(campusPage, /className=\{styles\.paymentFinalizedLabel\}/);
+  assert.match(campusPage, /확인 완료/);
+  assert.match(campusPageStyles, /\.paymentFinalizedNotice\s*\{/);
+  assert.match(campusPageStyles, /\.paymentFinalizedLabel\s*\{/);
+});
+
 test('campus applicant list owns the payment progress summary', () => {
   const listToolbar = campusPage.slice(
     campusPage.indexOf('<div className={styles.listToolbar}>'),

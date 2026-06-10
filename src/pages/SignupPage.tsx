@@ -1,6 +1,6 @@
 import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { CheckCircle2, ChevronLeft, MailCheck, UserPlus } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import {
@@ -22,6 +22,7 @@ import {
   type SignupDraft,
 } from '../utils/signupDraftStorage';
 import { isAlreadyRegisteredSignupError } from '../utils/signupAuthError';
+import { normalizeAppRedirect } from '../utils/redirect';
 import styles from './SignupPage.module.css';
 
 const validateEmail = (value: string) => /^\S+@\S+\.\S+$/.test(value);
@@ -56,6 +57,8 @@ const formatPhoneNumber = (value: string) => {
 
 const SignupPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const redirectTo = normalizeAppRedirect(location.state?.from);
   const [initialDraft] = useState(loadSignupDraft);
   const [currentStep, setCurrentStep] = useState(0);
 
@@ -421,6 +424,12 @@ const SignupPage = () => {
       }
 
       clearSignupDraft();
+
+      if (redirectTo !== '/') {
+        navigate(redirectTo, { replace: true });
+        return;
+      }
+
       setSignupResult('complete');
     } catch (error) {
       if (isAlreadyRegisteredSignupError(error)) {
@@ -487,13 +496,23 @@ const SignupPage = () => {
             <button
               type="button"
               className={styles.resultButton}
-              onClick={() =>
+              onClick={() => {
+                if (signupResult === 'complete') {
+                  navigate(redirectTo, { replace: true });
+                  return;
+                }
+
                 navigate('/login', {
-                  state: { email: email.trim().toLowerCase() },
-                })
-              }
+                  state: {
+                    email: email.trim().toLowerCase(),
+                    from: redirectTo,
+                  },
+                });
+              }}
             >
-              로그인하러 가기
+              {signupResult === 'complete' && redirectTo !== '/'
+                ? '이어서 이용하기'
+                : '로그인하러 가기'}
             </button>
           </section>
         ) : (

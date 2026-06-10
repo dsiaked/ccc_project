@@ -519,6 +519,11 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
               state: createLoginRequiredRedirectState(loginRequiredPath),
             })
           }
+          onSignup={() =>
+            navigate('/signup', {
+              state: createLoginRequiredRedirectState(loginRequiredPath),
+            })
+          }
         />
       )}
     </>
