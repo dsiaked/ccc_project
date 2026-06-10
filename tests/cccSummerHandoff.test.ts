@@ -14,6 +14,13 @@ const migrationSql = readFileSync(
   'supabase/migrations/20260610230026_162_ccc_summer_campus_mapping.sql',
   'utf8'
 );
+const envExample = readFileSync('.env.example', 'utf8');
+
+test('CCC Summer handoff uses the registered Seoul return bus client', () => {
+  assert.match(envExample, /VITE_CCC_SUMMER_CLIENT_ID=bus-seoul-return/);
+  assert.match(envExample, /CCC_SUMMER_CLIENT_ID=bus-seoul-return/);
+  assert.doesNotMatch(envExample, /ccc-seoulbus/);
+});
 
 test('CCC Summer handoff exchanges codes only on the server', () => {
   assert.match(edgeFunction, /\/api\/handoff\/exchange/);
