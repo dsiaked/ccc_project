@@ -11,6 +11,7 @@ import {
 import type { Session } from '@supabase/supabase-js';
 
 import {
+  clearAdminRoleCache,
   getAdminRole,
   setActiveAdminRole,
   type AdminRole,
@@ -55,6 +56,7 @@ export const AdminAuthProvider = ({ children }: { children: ReactNode }) => {
         return;
       }
 
+      clearAdminRoleCache(resolvedSession.user.id);
       const role = await getAdminRole(resolvedSession.user.id);
 
       if (requestIdRef.current !== requestId) return;
