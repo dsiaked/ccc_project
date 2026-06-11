@@ -50,9 +50,9 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
           test -n "$SUPABASE_ACCESS_TOKEN"
-          npx supabase functions deploy ai-operations-report --project-ref pjbvxoesgwhbxfsfjliw
-          npx supabase functions deploy allocation-optimizer-launcher --project-ref pjbvxoesgwhbxfsfjliw
-          npx supabase functions deploy ccc-summer-handoff --project-ref pjbvxoesgwhbxfsfjliw
+          npx supabase functions deploy ai-operations-report --project-ref qdpfccuqeumguhishifu
+          npx supabase functions deploy allocation-optimizer-launcher --project-ref qdpfccuqeumguhishifu
+          npx supabase functions deploy ccc-summer-handoff --project-ref qdpfccuqeumguhishifu
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
