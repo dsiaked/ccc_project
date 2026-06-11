@@ -11,6 +11,7 @@ import {
   type PersonalInquiry,
   type PersonalInquiryCategory,
 } from '../lib/personalInquiryService';
+import { getPersonalInquirySubmitErrorMessage } from '../lib/personalInquiryError';
 import { supabase } from '../lib/supabase';
 import { createLoginRequiredRedirectState } from '../utils/redirect';
 import styles from './PersonalInquiryPage.module.css';
@@ -119,14 +120,7 @@ const PersonalInquiryPage = () => {
       await loadInquiries();
     } catch (submitError) {
       console.error('개인 문의 등록 실패:', submitError);
-      const message = String((submitError as { message?: string })?.message ?? '');
-      setError(
-        message.includes('Resolve an existing inquiry')
-          ? '미해결 문의는 최대 3건까지 등록할 수 있습니다.'
-          : message.includes('Please wait')
-            ? '연속 등록을 막기 위해 잠시 후 다시 시도해주세요.'
-            : '문의를 접수하지 못했습니다. 잠시 후 다시 시도해주세요.'
-      );
+      setError(getPersonalInquirySubmitErrorMessage(submitError));
     } finally {
       setSubmitting(false);
     }
