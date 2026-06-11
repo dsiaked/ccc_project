@@ -65,6 +65,9 @@ const AdminAuditLogsPage = lazy(
 const AdminAiOperationsReportsPage = lazy(
   () => import('../pages/admin/AdminAiOperationsReportsPage')
 );
+const AdminOperationCloseoutPage = lazy(
+  () => import('../pages/admin/AdminOperationCloseoutPage')
+);
 const AdminToolsPage = lazy(() => import('../pages/admin/AdminToolsPage'));
 const AdminInvitationCodesPage = lazy(
   () => import('../pages/admin/AdminInvitationCodesPage')
@@ -152,6 +155,10 @@ const canonicalAdminRoutes = [
   {
     path: 'system/ai-reports',
     element: adminRoute(<AdminAiOperationsReportsPage />, globalAdminOnly),
+  },
+  {
+    path: 'system/closeout',
+    element: adminRoute(<AdminOperationCloseoutPage />, globalAdminOnly),
   },
   {
     path: 'system/invitation-codes',
@@ -284,6 +291,11 @@ const legacyAdminRoutes = [
   {
     path: 'ai-reports',
     to: '/admin/system/ai-reports',
+    roles: globalAdminOnly,
+  },
+  {
+    path: 'closeout',
+    to: '/admin/system/closeout',
     roles: globalAdminOnly,
   },
   {

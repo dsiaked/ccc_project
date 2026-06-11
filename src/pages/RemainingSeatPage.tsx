@@ -415,6 +415,12 @@ const RemainingSeatPage = () => {
               state: createLoginRequiredRedirectState('/remaining-seats'),
             })
           }
+          onSignup={() =>
+            navigate('/signup', {
+              replace: true,
+              state: createLoginRequiredRedirectState('/remaining-seats'),
+            })
+          }
         />
       )}
     </div>

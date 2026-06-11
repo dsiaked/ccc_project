@@ -1299,6 +1299,14 @@ const handleConfirmCandidateStations = () => {
   <section className={styles.loadingContainer}>
     <p>신청 정보를 불러오는 중...</p>
   </section>
+) : isLoginRequiredModalOpen ? (
+  <section className={styles.loginRequiredContainer}>
+    <div className={styles.loginRequiredIcon} aria-hidden="true">
+      <Bus size={32} />
+    </div>
+    <h1>로그인 후 버스를 신청할 수 있어요</h1>
+    <p>로그인하거나 회원가입하면 버스 신청 화면으로 자동 이동합니다.</p>
+  </section>
 ) : (
           <>
             <div className={styles.headerContent}>
@@ -2348,6 +2356,12 @@ const handleConfirmCandidateStations = () => {
           onClose={() => navigate('/', { replace: true })}
           onConfirm={() =>
             navigate('/login', {
+              replace: true,
+              state: createLoginRequiredRedirectState('/reservation'),
+            })
+          }
+          onSignup={() =>
+            navigate('/signup', {
               replace: true,
               state: createLoginRequiredRedirectState('/reservation'),
             })

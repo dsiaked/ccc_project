@@ -98,6 +98,8 @@ const setupFiles = [
   '162_ccc_summer_campus_mapping.sql',
   '163_fix_guarded_allocation_optimization_reset.sql',
   '164_extend_allocation_confirmation_timeout.sql',
+  '165_lock_departed_bus_boarding_edits.sql',
+  '166_operation_closeout.sql',
 ];
 
 let combined = readFileSync(combinedPath, 'utf8').replaceAll('\r\n', '\n');

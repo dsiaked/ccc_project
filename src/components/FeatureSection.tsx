@@ -233,6 +233,11 @@ const FeatureSection = () => {
               state: createLoginRequiredRedirectState(loginRequiredPath),
             })
           }
+          onSignup={() =>
+            navigate('/signup', {
+              state: createLoginRequiredRedirectState(loginRequiredPath),
+            })
+          }
         />
       )}
     </>

@@ -60,6 +60,11 @@ const toolGroups: ToolGroup[] = [
     title: '운영 도구',
     actions: [
       {
+        title: '운영 마감',
+        path: '/admin/system/closeout',
+        icon: ShieldCheck,
+      },
+      {
         title: '시뮬레이션',
         path: '/admin/system/simulation',
         icon: FlaskConical,

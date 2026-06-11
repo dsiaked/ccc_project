@@ -880,6 +880,41 @@
   font-size: 16px;
 }
 
+.loginRequiredContainer {
+  min-height: calc(100vh - 120px);
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 10px;
+  padding: 40px 20px;
+  color: #667085;
+  text-align: center;
+}
+
+.loginRequiredIcon {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  margin-bottom: 4px;
+  border-radius: 20px;
+  background: #eff6ff;
+  color: var(--color-primary);
+}
+
+.loginRequiredContainer h1 {
+  margin: 0;
+  color: #101828;
+  font-size: 22px;
+}
+
+.loginRequiredContainer p {
+  max-width: 340px;
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
 .email {
   color: #2563eb;
   font-weight: 700;

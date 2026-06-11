@@ -386,6 +386,11 @@ const AdminBoardingPage = () => {
   const selectedPassenger = snapshot?.passengers.find(
     (passenger) => passenger.reservationId === selectedPassengerId
   );
+  const isPassengerBusDeparted = (passenger: BoardingPassenger) =>
+    Boolean(snapshot?.buses.find((bus) => bus.id === passenger.busId)?.departedAt);
+  const isSelectedPassengerBusDeparted = selectedPassenger
+    ? isPassengerBusDeparted(selectedPassenger)
+    : false;
   const selectedPassengerEvent = selectedPassenger
     ? latestEventByReservationId.get(selectedPassenger.reservationId)
     : undefined;
@@ -556,6 +561,10 @@ const AdminBoardingPage = () => {
     noShowReasonSaved = false,
     transitionReason = ''
   ) => {
+    if (isPassengerBusDeparted(passenger)) {
+      setError('출발 완료된 호차는 탑승 상태를 변경할 수 없습니다. 출발 완료를 먼저 취소해주세요.');
+      return;
+    }
     if (
       passenger.reservationId === noShowReasonPassengerId &&
       status === passenger.boardingStatus
@@ -669,6 +678,10 @@ const AdminBoardingPage = () => {
   };
 
   const handleNoteSave = async (passenger: BoardingPassenger) => {
+    if (isPassengerBusDeparted(passenger)) {
+      setError('출발 완료된 호차는 전달사항을 수정할 수 없습니다. 출발 완료를 먼저 취소해주세요.');
+      return;
+    }
     const note = (noteDrafts[passenger.reservationId] ?? passenger.boardingNote ?? '')
       .trim();
     const shouldConfirmNoShow = passenger.reservationId === noShowReasonPassengerId;
@@ -1394,7 +1407,8 @@ const AdminBoardingPage = () => {
                             onClick={() => handleStatus(passenger, 'boarded')}
                             disabled={
                               isPassengerPending ||
-                              passenger.boardingStatus === 'boarded'
+                              passenger.boardingStatus === 'boarded' ||
+                              isPassengerBusDeparted(passenger)
                             }
                             aria-label={`${passenger.name} 탑승 확인`}
                           >
@@ -1496,9 +1510,9 @@ const AdminBoardingPage = () => {
                 </strong>
               </div>
               <div className={styles.detailActions}>
-                <button type="button" className={`${styles.boardButton} ${selectedPassengerActionStatus === 'boarded' ? styles.detailActionSelected : ''}`} aria-pressed={selectedPassengerActionStatus === 'boarded'} onClick={() => handleStatus(selectedPassenger, 'boarded')} disabled={pendingPassengerIds.has(selectedPassenger.reservationId) || selectedPassengerActionStatus === 'boarded'}><CheckCircle2 size={16} />탑승</button>
-                <button type="button" className={`${styles.noShowButton} ${selectedPassengerActionStatus === 'no_show' ? styles.detailActionSelected : ''}`} aria-pressed={selectedPassengerActionStatus === 'no_show'} title="미탑승 사유를 작성한 뒤 저장하면 처리됩니다." onClick={() => handleStatus(selectedPassenger, 'no_show')} disabled={pendingPassengerIds.has(selectedPassenger.reservationId) || selectedPassengerActionStatus === 'no_show'}><UserX size={16} />미탑승</button>
-                <button type="button" className={`${styles.resetButton} ${selectedPassengerActionStatus === 'unchecked' ? styles.detailActionSelected : ''}`} aria-pressed={selectedPassengerActionStatus === 'unchecked'} onClick={() => handleStatus(selectedPassenger, 'unchecked')} disabled={pendingPassengerIds.has(selectedPassenger.reservationId) || selectedPassengerActionStatus === 'unchecked'}><CircleHelp size={16} />미확인</button>
+                <button type="button" className={`${styles.boardButton} ${selectedPassengerActionStatus === 'boarded' ? styles.detailActionSelected : ''}`} aria-pressed={selectedPassengerActionStatus === 'boarded'} onClick={() => handleStatus(selectedPassenger, 'boarded')} disabled={isSelectedPassengerBusDeparted || pendingPassengerIds.has(selectedPassenger.reservationId) || selectedPassengerActionStatus === 'boarded'}><CheckCircle2 size={16} />탑승</button>
+                <button type="button" className={`${styles.noShowButton} ${selectedPassengerActionStatus === 'no_show' ? styles.detailActionSelected : ''}`} aria-pressed={selectedPassengerActionStatus === 'no_show'} title={isSelectedPassengerBusDeparted ? '출발 완료를 취소한 뒤 변경할 수 있습니다.' : '미탑승 사유를 작성한 뒤 저장하면 처리됩니다.'} onClick={() => handleStatus(selectedPassenger, 'no_show')} disabled={isSelectedPassengerBusDeparted || pendingPassengerIds.has(selectedPassenger.reservationId) || selectedPassengerActionStatus === 'no_show'}><UserX size={16} />미탑승</button>
+                <button type="button" className={`${styles.resetButton} ${selectedPassengerActionStatus === 'unchecked' ? styles.detailActionSelected : ''}`} aria-pressed={selectedPassengerActionStatus === 'unchecked'} onClick={() => handleStatus(selectedPassenger, 'unchecked')} disabled={isSelectedPassengerBusDeparted || pendingPassengerIds.has(selectedPassenger.reservationId) || selectedPassengerActionStatus === 'unchecked'}><CircleHelp size={16} />미확인</button>
               </div>
             </section>
 
@@ -1629,6 +1643,7 @@ const AdminBoardingPage = () => {
                 rows={5}
                 required={isWritingNoShowReason}
                 aria-required={isWritingNoShowReason}
+                disabled={isSelectedPassengerBusDeparted}
                 placeholder={
                   isWritingNoShowReason
                     ? '연락 결과 등 미탑승 사유를 입력하세요'
@@ -1659,6 +1674,7 @@ const AdminBoardingPage = () => {
                 <button
                   type="submit"
                   disabled={
+                    isSelectedPassengerBusDeparted ||
                     savingNoteIds.has(selectedPassenger.reservationId) ||
                     (isWritingNoShowReason
                       ? !canConfirmNoShow
