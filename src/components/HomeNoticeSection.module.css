@@ -90,10 +90,11 @@
 }
 
 .noticeItem {
-  display: grid;
-  grid-template-columns: 56px minmax(0, 1fr);
-  gap: 14px;
-  padding: 16px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 15px 16px;
   border-bottom: 1px solid #e5e7eb;
 }
 
@@ -102,22 +103,15 @@
 }
 
 .noticeMeta span {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 48px;
-  height: 28px;
-  border-radius: 999px;
-  background: #ffffff;
   color: #4b5563;
   font-size: 12px;
   font-weight: 800;
 }
 
 .noticeMeta {
-  display: grid;
-  justify-items: start;
-  gap: 7px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .noticeTag {
@@ -130,7 +124,6 @@
   font-size: 11px;
   font-weight: 900;
   white-space: nowrap;
-  cursor: pointer;
 }
 
 .personalTag {
@@ -149,7 +142,6 @@
   border: 1px solid #d1d5db;
   background: #ffffff;
   color: #4b5563;
-  cursor: default;
 }
 
 .noticeTag i {
@@ -159,9 +151,21 @@
   background: #dc2626;
 }
 
-.noticeTag:focus-visible {
+.actionableNotice {
+  cursor: pointer;
+}
+
+.actionableNotice:hover {
+  background: #f3f7ff;
+}
+
+.actionableNotice:focus-visible {
   outline: 3px solid #60a5fa;
-  outline-offset: 2px;
+  outline-offset: -3px;
+}
+
+.linkedNotice {
+  padding-right: 46px;
 }
 
 .unreadNotice {
@@ -180,7 +184,7 @@
 }
 
 .noticeContent h3 {
-  margin: 0 0 6px;
+  margin: 0 0 4px;
   color: #111827;
   font-size: 15px;
   font-weight: 900;
@@ -191,8 +195,42 @@
   margin: 0;
   color: #4b5563;
   font-size: 14px;
-  line-height: 1.6;
+  line-height: 1.5;
   white-space: pre-wrap;
+}
+
+.noticeChevron {
+  position: absolute;
+  top: 50%;
+  right: 16px;
+  color: #9ca3af;
+  transform: translateY(-50%);
+}
+
+.expandButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  width: 100%;
+  min-height: 46px;
+  border: 0;
+  border-top: 1px solid #e5e7eb;
+  background: #ffffff;
+  color: #1d4ed8;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.expandButton:hover {
+  background: #eff6ff;
+}
+
+.expandButton:focus-visible {
+  outline: 3px solid #60a5fa;
+  outline-offset: -3px;
 }
 
 @container (max-width: 640px) {
@@ -201,11 +239,10 @@
   }
 
   .noticeItem {
-    grid-template-columns: 1fr;
-    gap: 10px;
+    padding: 14px;
   }
 
-  .noticeMeta span {
-    min-width: 46px;
+  .linkedNotice {
+    padding-right: 42px;
   }
 }
