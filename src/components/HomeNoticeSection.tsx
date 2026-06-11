@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Bell, Megaphone } from 'lucide-react';
+import { Bell, ChevronDown, ChevronRight, ChevronUp, Megaphone } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 import {
@@ -25,9 +25,12 @@ import styles from './HomeNoticeSection.module.css';
 
 const formatDate = (value: string) =>
   new Intl.DateTimeFormat('ko-KR', {
+    year: 'numeric',
     month: '2-digit',
     day: '2-digit',
   }).format(new Date(value));
+
+const COLLAPSED_NOTICE_COUNT = 3;
 
 type NoticeItem =
   | { kind: 'announcement'; item: HomeAnnouncement }
@@ -48,6 +51,7 @@ const HomeNoticeSection = () => {
   const [loadError, setLoadError] = useState(false);
   const [readError, setReadError] = useState(false);
   const [loadAttempt, setLoadAttempt] = useState(0);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -165,6 +169,10 @@ const HomeNoticeSection = () => {
       ),
     [announcements, campusNotices, personalNotifications]
   );
+  const visibleNotices = isExpanded
+    ? notices
+    : notices.slice(0, COLLAPSED_NOTICE_COUNT);
+  const hasMoreNotices = notices.length > COLLAPSED_NOTICE_COUNT;
 
   const markPersonalNoticeRead = async (notification: PersonalNotification) => {
     if (notification.readAt) return;
@@ -242,12 +250,16 @@ const HomeNoticeSection = () => {
           </div>
         ) : (
           <div className={styles.noticeList}>
-            {notices.map(({ kind, item }) => {
+            {visibleNotices.map(({ kind, item }) => {
               const isPersonal = kind === 'personal';
               const isCampus = kind === 'campus';
+              const opensInquiry =
+                isPersonal &&
+                (item as PersonalNotification).category === 'inquiry';
               const isUnread =
                 (isPersonal && !(item as PersonalNotification).readAt) ||
                 (isCampus && unreadCampusNoticeIds.has(item.id));
+              const isActionable = opensInquiry || (isCampus && isUnread);
               const tagLabel = isPersonal
                 ? '개인 알림'
                 : isCampus
@@ -256,8 +268,7 @@ const HomeNoticeSection = () => {
 
               const handleNoticeClick = () => {
                 if (
-                  isPersonal &&
-                  (item as PersonalNotification).category === 'inquiry'
+                  opensInquiry
                 ) {
                   void markPersonalNoticeRead(item as PersonalNotification);
                   navigate('/inquiries');
@@ -270,14 +281,26 @@ const HomeNoticeSection = () => {
                 <article
                   className={`${styles.noticeItem} ${
                     isUnread ? styles.unreadNotice : ''
+                  } ${isActionable ? styles.actionableNotice : ''} ${
+                    opensInquiry ? styles.linkedNotice : ''
                   }`}
                   key={`${kind}-${item.id}`}
                   onClick={handleNoticeClick}
+                  onKeyDown={(event) => {
+                    if (
+                      isActionable &&
+                      (event.key === 'Enter' || event.key === ' ')
+                    ) {
+                      event.preventDefault();
+                      handleNoticeClick();
+                    }
+                  }}
+                  role={isActionable ? 'button' : undefined}
+                  tabIndex={isActionable ? 0 : undefined}
                 >
                   <div className={styles.noticeMeta}>
                     <span>{formatDate(item.createdAt)}</span>
-                    <button
-                      type="button"
+                    <div
                       className={`${styles.noticeTag} ${
                         isPersonal
                           ? styles.personalTag
@@ -285,30 +308,44 @@ const HomeNoticeSection = () => {
                             ? styles.campusTag
                             : styles.publicTag
                       }`}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        if (isPersonal) {
-                          void markPersonalNoticeRead(
-                            item as PersonalNotification
-                          );
-                        } else if (isCampus) {
-                          void markCampusNoticeRead(item as CampusRequest);
-                        }
-                      }}
-                      aria-label={`${tagLabel}${isUnread ? ' 미확인' : ''}`}
                     >
                       {isPersonal && <Bell size={12} />}
                       {tagLabel}
                       {isUnread && <i aria-label="읽지 않음" />}
-                    </button>
+                    </div>
                   </div>
                   <div className={styles.noticeContent}>
                     <h3>{item.title}</h3>
                     <p>{item.content}</p>
                   </div>
+                  {opensInquiry && (
+                    <ChevronRight
+                      className={styles.noticeChevron}
+                      size={18}
+                      aria-hidden="true"
+                    />
+                  )}
                 </article>
               );
             })}
+            {hasMoreNotices && (
+              <button
+                type="button"
+                className={styles.expandButton}
+                onClick={() => setIsExpanded((current) => !current)}
+                aria-expanded={isExpanded}
+              >
+                {isExpanded ? (
+                  <>
+                    공지 접기 <ChevronUp size={16} />
+                  </>
+                ) : (
+                  <>
+                    공지 전체보기 ({notices.length}) <ChevronDown size={16} />
+                  </>
+                )}
+              </button>
+            )}
           </div>
         )}
       </div>

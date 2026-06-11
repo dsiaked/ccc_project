@@ -20,6 +20,13 @@ test('campus notices appear in the home notice list with an audience tag', () =>
   assert.match(homeNotices, /전체 공지/);
 });
 
+test('home notices collapse long lists and expose an accessible expand control', () => {
+  assert.match(homeNotices, /COLLAPSED_NOTICE_COUNT = 3/);
+  assert.match(homeNotices, /notices\.slice\(0, COLLAPSED_NOTICE_COUNT\)/);
+  assert.match(homeNotices, /aria-expanded=\{isExpanded\}/);
+  assert.match(homeNotices, /styles\.expandButton/);
+});
+
 test('campus dashboard no longer owns notices or the legacy inquiry board', () => {
   assert.doesNotMatch(campusPage, /campusNotices/);
   assert.doesNotMatch(campusPage, /문의 게시판 열기/);
