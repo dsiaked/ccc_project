@@ -1,11 +1,19 @@
 import { supabase } from './supabase';
 import type { ConfirmedTicket, ReturnBusReservation } from '../types/reservation';
+import {
+  filterAdminRolesForUser,
+  findSwitchableAdminRole,
+  selectAdminRole,
+  shouldLoadAdminRolesDirectly,
+} from './admin/adminRoleModel';
+import type { AdminRole, AdminRoleType } from './admin/adminRoleModel';
+
+export type { AdminRole, AdminRoleType } from './admin/adminRoleModel';
 
 // ===== 공통 타입 =====
 
 export const campusRequestReadEventName = 'campus-request-read';
 
-export type AdminRoleType = 'global_admin' | 'campus_admin' | 'boarding_manager';
 export type CampusRequestType =
   | 'notice'
   | 'late_signup'
@@ -19,18 +27,6 @@ export type CampusRequestStatus =
   | 'in_progress'
   | 'resolved'
   | 'on_hold';
-
-export interface AdminRole {
-  id: string;
-  user_id: string;
-  role: AdminRoleType;
-  campus_id: string | null;
-  district: string | null;
-  team: string | null;
-  campus: string | null;
-  created_at?: string;
-  updated_at?: string;
-}
 
 export interface AdminUserSearchResult {
   userId: string;
@@ -366,11 +362,12 @@ export async function getAdminRoles(userId: string) {
 
   const request = (async () => {
     const rpcResult = await supabase.rpc('get_my_admin_roles');
-    let roles = ((rpcResult.data ?? []) as AdminRole[]).filter(
-      (role) => role.user_id === userId
+    let roles = filterAdminRolesForUser(
+      (rpcResult.data ?? []) as AdminRole[],
+      userId
     );
 
-    if (rpcResult.error || roles.length === 0) {
+    if (shouldLoadAdminRolesDirectly(rpcResult.error, roles)) {
       const directResult = await supabase
         .from('admin_roles')
         .select('*')
@@ -406,31 +403,12 @@ export async function getAdminRoles(userId: string) {
 
 export async function getAdminRole(userId: string) {
   const roles = await getAdminRoles(userId);
-  const globalAdminRole = roles.find((item) => item.role === 'global_admin');
-
-  if (globalAdminRole) return globalAdminRole;
-
-  const activeRoleId = getStoredActiveCampusAdminRoleId(userId);
-  const storedRole = roles.find((item) => item.id === activeRoleId);
-  if (storedRole) return storedRole;
-
-  const boardingManagerRole = roles.find(
-    (item) => item.role === 'boarding_manager'
-  );
-  if (boardingManagerRole) return boardingManagerRole;
-
-  const campusAdminRoles = roles.filter(
-    (item) => item.role === 'campus_admin'
-  );
-
-  return campusAdminRoles[0] || null;
+  return selectAdminRole(roles, getStoredActiveCampusAdminRoleId(userId));
 }
 
 export async function setActiveAdminRole(userId: string, roleId: string) {
   const roles = await getAdminRoles(userId);
-  const targetRole = roles.find(
-    (item) => item.id === roleId && item.role !== 'global_admin'
-  );
+  const targetRole = findSwitchableAdminRole(roles, roleId);
 
   if (!targetRole) {
     throw new Error('선택한 관리자 권한을 찾을 수 없습니다.');

@@ -4,6 +4,10 @@ import test from 'node:test';
 
 const adminHeader = readFileSync('src/pages/admin/AdminHeader.tsx', 'utf8');
 const adminService = readFileSync('src/lib/adminService.ts', 'utf8');
+const adminRoleModel = readFileSync(
+  'src/lib/admin/adminRoleModel.ts',
+  'utf8'
+);
 const adminHeaderStyles = readFileSync(
   'src/pages/admin/AdminHeader.module.css',
   'utf8'
@@ -106,10 +110,14 @@ test('scoped administrator switcher distinguishes managed campuses and presents 
 
 test('scoped administrator switcher refreshes all owned roles including boarding manager access', () => {
   assert.match(adminService, /supabase\.rpc\('get_my_admin_roles'\)/);
-  assert.match(adminService, /if \(rpcResult\.error \|\| roles\.length === 0\)/);
+  assert.match(adminService, /shouldLoadAdminRolesDirectly\(rpcResult\.error, roles\)/);
   assert.match(
     adminService,
     /\.from\('admin_roles'\)[\s\S]*\.eq\('user_id', userId\)/
+  );
+  assert.match(
+    adminRoleModel,
+    /Boolean\(rpcError\) \|\| roles\.length === 0/
   );
   assert.match(adminHeader, /clearAdminRoleCache\(session\.user\.id\)/);
   assert.match(adminHeader, /table: 'admin_roles'/);
