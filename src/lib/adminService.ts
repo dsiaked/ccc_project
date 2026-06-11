@@ -9,6 +9,7 @@ import {
 import type { AdminRole, AdminRoleType } from './admin/adminRoleModel';
 
 export type { AdminRole, AdminRoleType } from './admin/adminRoleModel';
+export type { SelectOption } from './admin/campusOptionsModel';
 export {
   addBusOption,
   deleteBusOption,
@@ -20,6 +21,11 @@ export {
   updateBusOption,
   updateBusTicketPrice,
 } from './admin/busAllocationService';
+export {
+  getCampusesByTeam,
+  getDistrictsForAdmin,
+  getTeamsByDistrict,
+} from './admin/campusOptionsService';
 
 // ===== 공통 타입 =====
 
@@ -55,11 +61,6 @@ export interface AdminUserSearchResult {
     team: string | null;
     campus: string | null;
   }>;
-}
-
-export interface SelectOption {
-  id: string;
-  name: string;
 }
 
 export interface AdminCampusScope {
@@ -432,74 +433,6 @@ export async function setActiveCampusAdminRole(userId: string, roleId: string) {
   return setActiveAdminRole(userId, roleId);
 }
 // ===== campus_options view 기반 지구/팀/캠퍼스 조회 =====
-
-export async function getDistrictsForAdmin() {
-  const { data, error } = await supabase
-    .from('campus_options')
-    .select('district_id, district')
-    .order('district', { ascending: true });
-
-  if (error) throw error;
-
-  const map = new Map<string, SelectOption>();
-
-  (data ?? []).forEach((item) => {
-    if (item.district_id && item.district) {
-      map.set(item.district_id, {
-        id: item.district_id,
-        name: item.district,
-      });
-    }
-  });
-
-  return Array.from(map.values());
-}
-
-export async function getTeamsByDistrict(districtId: string) {
-  const { data, error } = await supabase
-    .from('campus_options')
-    .select('team_id, team')
-    .eq('district_id', districtId)
-    .order('team', { ascending: true });
-
-  if (error) throw error;
-
-  const map = new Map<string, SelectOption>();
-
-  (data ?? []).forEach((item) => {
-    if (item.team_id && item.team) {
-      map.set(item.team_id, {
-        id: item.team_id,
-        name: item.team,
-      });
-    }
-  });
-
-  return Array.from(map.values());
-}
-
-export async function getCampusesByTeam(teamId: string) {
-  const { data, error } = await supabase
-    .from('campus_options')
-    .select('campus_id, campus')
-    .eq('team_id', teamId)
-    .order('campus', { ascending: true });
-
-  if (error) throw error;
-
-  const map = new Map<string, SelectOption>();
-
-  (data ?? []).forEach((item) => {
-    if (item.campus_id && item.campus) {
-      map.set(item.campus_id, {
-        id: item.campus_id,
-        name: item.campus,
-      });
-    }
-  });
-
-  return Array.from(map.values());
-}
 
 export async function getCampusScopesForAdmin(): Promise<AdminCampusScope[]> {
   const { data, error } = await supabase

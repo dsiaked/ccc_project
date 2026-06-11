@@ -2,14 +2,19 @@ export {
   cancelCampusAdmin,
   getAdminRole,
   getAdminRoles,
-  getCampusesByTeam,
-  getDistrictsForAdmin,
-  getTeamsByDistrict,
   registerCampusAdmin,
   searchUsersForCampusManager,
   setActiveAdminRole,
   setActiveCampusAdminRole,
 } from '../adminService';
+
+export {
+  getCampusesByTeam,
+  getDistrictsForAdmin,
+  getTeamsByDistrict,
+} from './campusOptionsService';
+
+export type { SelectOption } from './campusOptionsModel';
 
 export type {
   AdminRole,
@@ -17,6 +22,5 @@ export type {
   AdminUserSearchResult,
   CampusManagerSearchParams,
   CampusOptionViewRow,
-  SelectOption,
   UserSearchResult,
 } from '../adminService';
