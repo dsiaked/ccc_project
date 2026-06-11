@@ -26077,6 +26077,7 @@ begin
   select pg_get_functiondef(
     'public.set_passenger_boarding_status(uuid,text,text)'::regprocedure
   ) into v_definition;
+  v_definition := replace(v_definition, E'\r\n', E'\n');
   v_updated_definition := replace(
     v_definition,
     E'if p_status = ''no_show'' and v_reason is null and not exists (\n    select 1\n    from public.boarding_bus_departures departure\n    where departure.allocation_id = v_allocation_id\n      and departure.cancelled_at is null\n      and departure.bus_id = v_bus_id\n  ) then\n    raise exception ''No-show status is available after bus departure.'';\n  end if;',
@@ -26090,6 +26091,7 @@ begin
   select pg_get_functiondef(
     'public.set_walk_in_boarding_status(uuid,text,text)'::regprocedure
   ) into v_definition;
+  v_definition := replace(v_definition, E'\r\n', E'\n');
   v_updated_definition := replace(
     v_definition,
     E'if p_status = ''no_show'' and v_reason is null and not exists (\n    select 1 from public.boarding_bus_departures\n    where allocation_id = v_walk_in.allocation_id\n      and bus_id = v_walk_in.bus_id\n      and cancelled_at is null\n  ) then\n    raise exception ''No-show status is available after bus departure.'';\n  end if;',
