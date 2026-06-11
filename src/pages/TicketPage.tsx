@@ -171,7 +171,7 @@ const TicketPage = () => {
           </div>
           <h1 className={styles.title}>버스 신청 현황</h1>
           <p className={styles.subtitle}>
-            신청한 귀가 버스 정보와 확정된 버스표를 확인할 수 있습니다
+            신청한 귀가 버스 정보와 확정된 탑승권을 확인할 수 있습니다
           </p>
         </div>
 
@@ -219,7 +219,7 @@ const TicketPage = () => {
                   <div>
                     <strong>잔여 좌석이 임시 확보되었습니다</strong>
                     <span>
-                      입금 확인이 완료되면 확정 버스표로 자동 전환됩니다.
+                      입금 확인이 완료되면 확정 탑승권으로 자동 전환됩니다.
                     </span>
                   </div>
                 </>
@@ -395,7 +395,7 @@ const TicketPage = () => {
                 <p>
                   {remainingSeatClaim
                     ? '입금 확인 전에는 직접 취소할 수 있습니다. 입금 확인 후 변경이나 취소는 관리자에게 문의해주세요.'
-                    : '아직 버스표가 확정되지 않았습니다. 관리자가 희망 행선지와 인원 현황을 확인한 뒤 호차와 행선지를 확정합니다.'}
+                    : '아직 탑승권이 확정되지 않았습니다. 관리자가 희망 행선지와 인원 현황을 확인한 뒤 호차와 행선지를 확정합니다.'}
                 </p>
               </div>
             )}
@@ -445,7 +445,7 @@ const TicketPage = () => {
             <p className={styles.emptyText}>
               {reservationDeadline.isClosed
                 ? '현재 신청 내역이 없습니다. 확정 배차 후 잔여 좌석이 열리면 잔여 좌석을 선택할 수 있습니다.'
-                : '귀가 버스를 신청하면 이곳에서 신청 내역과 버스표를 확인할 수 있습니다.'}
+                : '귀가 버스를 신청하면 이곳에서 신청 내역과 탑승권을 확인할 수 있습니다.'}
             </p>
             <button
               className={styles.primaryButton}

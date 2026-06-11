@@ -9,6 +9,8 @@ const loginPage = readFileSync('src/pages/LoginPage.tsx', 'utf8');
 const loginUrl = readFileSync('src/utils/cccSummerLogin.ts', 'utf8');
 
 test('login page continues through CCC Summer handoff authorization', () => {
+  assert.match(routes, /path: '\/signup', element: <LoginPage \/>/);
+  assert.doesNotMatch(routes, /import\('\.\.\/pages\/SignupPage'\)/);
   assert.match(loginPage, /getCccSummerLoginUrl/);
   assert.match(loginPage, /window\.location\.replace\(cccSummerLoginUrl\)/);
   assert.match(loginUrl, /VITE_CCC_SUMMER_BASE_URL/);

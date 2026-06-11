@@ -27,6 +27,10 @@ test('operation closeout readiness is emphasized in the page, sidebar, and dashb
   assert.match(dashboard, /getFinalPaymentReview/);
   assert.match(dashboard, /getOperationCloseoutState/);
   assert.match(dashboard, /setIsCloseoutReady\(nextCloseoutReady\)/);
+  assert.match(dashboard, /admin-dashboard-closeout-readiness-live/);
+  assert.match(dashboard, /dashboardRealtimeTables/);
+  assert.match(dashboard, /loadDashboardData\(true\)/);
+  assert.match(dashboard, /visibilitychange/);
 });
 
 test('operation closeout uses mixed automatic and manual confirmation', () => {

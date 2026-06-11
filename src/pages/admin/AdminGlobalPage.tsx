@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowRight,
@@ -51,6 +51,17 @@ import { buildBoardingExceptionRecords } from './boardingExceptionRecords';
 
 const closeoutReadyStorageKey = 'admin-operation-closeout-ready';
 const closeoutReadyEventName = 'admin-operation-closeout-ready-change';
+const dashboardRealtimeTables = [
+  'reservations',
+  'payments',
+  'campus_transfers',
+  'boarding_bus_departures',
+  'boarding_status_events',
+  'boarding_walk_in_passengers',
+  'boarding_exception_archives',
+  'manual_boarding_exception_records',
+  'app_settings',
+] as const;
 
 const operationScenarioSteps = [
   {
@@ -202,6 +213,7 @@ const AdminGlobalPage = () => {
   );
   const [boardingMoveRequests, setBoardingMoveRequests] =
     useState<BoardingMoveRequestSnapshot | null>(null);
+  const realtimeRefreshTimerRef = useRef<number | null>(null);
   const [isCloseoutReady, setIsCloseoutReady] = useState(() => {
     try {
       return window.localStorage.getItem(closeoutReadyStorageKey) === 'true';
@@ -235,9 +247,11 @@ const AdminGlobalPage = () => {
     });
   };
 
-  const loadDashboardData = useCallback(async () => {
-    setLoading(true);
-    setLoadError(null);
+  const loadDashboardData = useCallback(async (silent = false) => {
+    if (!silent) {
+      setLoading(true);
+      setLoadError(null);
+    }
 
     try {
       const [
@@ -370,9 +384,11 @@ const AdminGlobalPage = () => {
       );
     } catch (error) {
       console.error('Failed to load data:', error);
-      setLoadError('대시보드 데이터를 불러올 수 없습니다. 잠시 후 다시 시도해주세요.');
+      if (!silent) {
+        setLoadError('대시보드 데이터를 불러올 수 없습니다. 잠시 후 다시 시도해주세요.');
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
@@ -383,6 +399,40 @@ const AdminGlobalPage = () => {
 
     return () => {
       window.clearTimeout(timerId);
+    };
+  }, [loadDashboardData]);
+
+  useEffect(() => {
+    const scheduleRealtimeRefresh = () => {
+      if (realtimeRefreshTimerRef.current !== null) {
+        window.clearTimeout(realtimeRefreshTimerRef.current);
+      }
+      realtimeRefreshTimerRef.current = window.setTimeout(() => {
+        realtimeRefreshTimerRef.current = null;
+        void loadDashboardData(true);
+      }, 1000);
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') scheduleRealtimeRefresh();
+    };
+
+    let channel = supabase.channel('admin-dashboard-closeout-readiness-live');
+    dashboardRealtimeTables.forEach((table) => {
+      channel = channel.on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table },
+        scheduleRealtimeRefresh
+      );
+    });
+    channel.subscribe();
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (realtimeRefreshTimerRef.current !== null) {
+        window.clearTimeout(realtimeRefreshTimerRef.current);
+      }
+      void supabase.removeChannel(channel);
     };
   }, [loadDashboardData]);
 

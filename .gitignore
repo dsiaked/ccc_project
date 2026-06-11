@@ -16,6 +16,8 @@ outputs/windows-installer/
 .tmp
 .venv
 .codex-push-worktree/
+.codex-remote-attachments/
+.codex/
 __pycache__/
 .pytest_cache/
 *.py[cod]

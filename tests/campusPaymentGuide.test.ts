@@ -137,6 +137,18 @@ test('campus applicant list stays compact with search, filters, and pagination',
   assert.match(campusPageStyles, /\.applicantPagination\s*\{/);
 });
 
+test('name-only quick payment buttons toggle confirmed payments', () => {
+  assert.match(campusPage, /aria-label="빠른 입금 확인"/);
+  assert.match(campusPage, /초록색 이름을 다시\s*누르면 미입금으로 되돌립니다\./);
+  assert.match(campusPage, /handleDirectPaymentCheck\(reservation, !isCompleted\)/);
+  assert.match(campusPage, /verifying \|\| isRefunded \|\| isPaymentCheckLocked/);
+  assert.doesNotMatch(
+    campusPage,
+    /verifying \|\| isCompleted \|\| isRefunded \|\| isPaymentCheckLocked/
+  );
+  assert.match(campusPageStyles, /\.quickPaymentButtonCompleted\s*\{/);
+});
+
 test('campus bulk payment changes only the current filter results after confirmation', () => {
   assert.match(
     campusPage,

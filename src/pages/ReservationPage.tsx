@@ -487,7 +487,7 @@ useEffect(() => {
         setPaymentInfoError(
           isExternal
             ? '서울지구 입금 정보가 아직 등록되지 않았습니다. 카카오톡 등으로 안내받은 계좌에 입금했다면 신청을 계속할 수 있습니다.'
-            : '이 캠퍼스의 버스표 가격 또는 입금 계좌가 아직 등록되지 않았습니다. 카카오톡 등으로 안내받은 계좌에 입금했다면 신청을 계속할 수 있습니다.'
+            : '이 캠퍼스의 탑승권 가격 또는 입금 계좌가 아직 등록되지 않았습니다. 카카오톡 등으로 안내받은 계좌에 입금했다면 신청을 계속할 수 있습니다.'
         );
       }
     } catch (error) {
@@ -1167,7 +1167,7 @@ const handleConfirmCandidateStations = () => {
     if (savedReservation?.status === 'confirmed') {
       setFormStatus({
         type: 'error',
-        message: '이미 버스표가 확정되어 수정할 수 없습니다. 관리자에게 문의해주세요.',
+        message: '이미 탑승권이 확정되어 수정할 수 없습니다. 관리자에게 문의해주세요.',
       });
       return;
     }
@@ -1407,7 +1407,7 @@ const handleConfirmCandidateStations = () => {
 
             {isConfirmed && (
               <div className={styles.confirmedNoticeBox}>
-                버스표가 이미 확정되어 이 페이지에서 수정할 수 없습니다. 수정이
+                탑승권이 이미 확정되어 이 페이지에서 수정할 수 없습니다. 수정이
                 필요하면 관리자에게 문의해주세요.
               </div>
             )}
@@ -2043,7 +2043,7 @@ const handleConfirmCandidateStations = () => {
                   <p className={styles.infoText}>
                     <strong>안내:</strong>{' '}
                     {isConfirmed
-                      ? '버스표가 확정된 이후에는 신청 정보를 직접 수정할 수 없습니다.'
+                      ? '탑승권이 확정된 이후에는 신청 정보를 직접 수정할 수 없습니다.'
                       : '신청 완료 후 관리자가 희망 행선지를 참고하여 버스를 배정합니다.'}
                   </p>
                 </div>
@@ -2067,7 +2067,7 @@ const handleConfirmCandidateStations = () => {
                       className={styles.submitButton}
                       onClick={() => navigate('/ticket')}
                     >
-                      버스표 확인하기
+                      탑승권 확인하기
                     </button>
                   ) : reservationDeadline.isClosed ? null : currentStep <
                     reservationSteps.length - 1 ? (

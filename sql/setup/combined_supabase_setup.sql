@@ -21593,19 +21593,6 @@ notify pgrst, 'reload schema';
 -- =========================================================
 
 -- =========================================================
--- BEGIN sql/setup/188_enable_signup_email_duplicate_check.sql
--- =========================================================
-
--- Signup step 1 explicitly checks whether an email is already registered.
-grant execute on function public.email_exists(text) to anon, authenticated;
-
-notify pgrst, 'reload schema';
-
--- =========================================================
--- END sql/setup/188_enable_signup_email_duplicate_check.sql
--- =========================================================
-
--- =========================================================
 -- BEGIN sql/setup/150_require_boarding_transition_reason.sql
 -- =========================================================
 

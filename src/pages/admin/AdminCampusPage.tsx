@@ -1483,7 +1483,10 @@ const CampusAdminPage = () => {
           <div className={styles.quickPaymentHeader}>
             <div>
               <h2>빠른 입금 확인</h2>
-              <p>계좌 입금 내역에서 확인한 이름을 눌러주세요.</p>
+              <p>
+                계좌 입금 내역에서 확인한 이름을 누르세요. 초록색 이름을 다시
+                누르면 미입금으로 되돌립니다.
+              </p>
             </div>
             <div className={styles.quickPaymentLegend}>
               <span className={styles.quickPaymentPendingLegend}>미입금</span>
@@ -1507,14 +1510,16 @@ const CampusAdminPage = () => {
                     className={`${styles.quickPaymentButton} ${
                       isCompleted ? styles.quickPaymentButtonCompleted : ''
                     } ${isRefunded ? styles.quickPaymentButtonRefunded : ''}`}
-                    onClick={() => void handleDirectPaymentCheck(reservation, true)}
+                    onClick={() =>
+                      void handleDirectPaymentCheck(reservation, !isCompleted)
+                    }
                     disabled={
-                      verifying || isCompleted || isRefunded || isPaymentCheckLocked
+                      verifying || isRefunded || isPaymentCheckLocked
                     }
                     aria-pressed={isCompleted}
                     aria-label={`${reservation.name} ${
                       isCompleted
-                        ? '입금 확인됨'
+                        ? '입금 확인됨, 누르면 미입금으로 변경'
                         : isRefunded
                           ? '환불'
                           : '입금 확인'

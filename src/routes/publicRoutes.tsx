@@ -4,7 +4,6 @@ import { Navigate } from 'react-router-dom';
 
 const HomePage = lazy(() => import('../pages/HomePage'));
 const LoginPage = lazy(() => import('../pages/LoginPage'));
-const SignupPage = lazy(() => import('../pages/SignupPage'));
 const ReservationPage = lazy(() => import('../pages/ReservationPage'));
 const TicketPage = lazy(() => import('../pages/TicketPage'));
 const RemainingSeatPage = lazy(() => import('../pages/RemainingSeatPage'));
@@ -18,7 +17,7 @@ const ProfilePage = lazy(() => import('../pages/ProfilePage'));
 export const publicRoutes = [
   { path: '/', element: <HomePage /> },
   { path: '/login', element: <LoginPage /> },
-  { path: '/signup', element: <SignupPage /> },
+  { path: '/signup', element: <LoginPage /> },
   { path: '/auth/callback', element: <AuthCallbackPage /> },
   { path: '/handoff/callback', element: <CccSummerHandoffPage /> },
   { path: '/forgot-password', element: <ForgotPasswordPage /> },

@@ -10,6 +10,8 @@ const files = [
   'src/components/ProcessSection.tsx',
   'src/components/HomeDeadlineBanner.tsx',
   'src/components/HomeNoticeSection.tsx',
+  'src/pages/ReservationPage.tsx',
+  'src/pages/TicketPage.tsx',
 ];
 
 test('primary home components use readable Korean copy', () => {
@@ -18,5 +20,7 @@ test('primary home components use readable Korean copy', () => {
   assert.match(source, /CCC 여름수련회 귀가 버스/);
   assert.match(source, /귀가 버스를 편하게 신청하세요/);
   assert.match(source, /귀가 버스 이용 순서/);
+  assert.match(source, /탑승권 확인하기/);
+  assert.doesNotMatch(source, /버스표/);
   assert.doesNotMatch(source, /[濡踰좎댁뺤섏몄쒖吏]/u);
 });
