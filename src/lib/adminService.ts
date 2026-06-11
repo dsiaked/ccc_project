@@ -365,13 +365,27 @@ export async function getAdminRoles(userId: string) {
   }
 
   const request = (async () => {
-    const { data, error } = await supabase.rpc('get_my_admin_roles');
-
-    if (error) throw error;
-
-    const roles = ((data ?? []) as AdminRole[]).filter(
+    const rpcResult = await supabase.rpc('get_my_admin_roles');
+    let roles = ((rpcResult.data ?? []) as AdminRole[]).filter(
       (role) => role.user_id === userId
     );
+
+    if (rpcResult.error || roles.length === 0) {
+      const directResult = await supabase
+        .from('admin_roles')
+        .select('*')
+        .eq('user_id', userId)
+        .order('role', { ascending: false })
+        .order('updated_at', { ascending: false, nullsFirst: false })
+        .order('created_at', { ascending: false, nullsFirst: false });
+
+      if (directResult.error) {
+        if (rpcResult.error) throw rpcResult.error;
+        throw directResult.error;
+      }
+
+      roles = (directResult.data ?? []) as AdminRole[];
+    }
 
     adminRoleCache.set(userId, {
       value: roles,

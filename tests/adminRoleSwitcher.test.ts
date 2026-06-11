@@ -106,6 +106,11 @@ test('scoped administrator switcher distinguishes managed campuses and presents 
 
 test('scoped administrator switcher refreshes all owned roles including boarding manager access', () => {
   assert.match(adminService, /supabase\.rpc\('get_my_admin_roles'\)/);
+  assert.match(adminService, /if \(rpcResult\.error \|\| roles\.length === 0\)/);
+  assert.match(
+    adminService,
+    /\.from\('admin_roles'\)[\s\S]*\.eq\('user_id', userId\)/
+  );
   assert.match(adminHeader, /clearAdminRoleCache\(session\.user\.id\)/);
   assert.match(adminHeader, /table: 'admin_roles'/);
   assert.match(adminHeader, /filter: `user_id=eq\.\$\{session\.user\.id\}`/);
