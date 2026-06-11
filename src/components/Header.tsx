@@ -13,6 +13,10 @@ import LogoutModal from './LogoutModal';
 
 const Sidebar = lazy(() => import('./Sidebar'));
 
+const SIDEBAR_WIDTH = 320;
+const SWIPE_EDGE_WIDTH = 32;
+const SWIPE_THRESHOLD = 64;
+
 const adminShortcutCopyByRole: Record<
   AdminRole['role'],
   { description: string; buttonLabel: string }
@@ -52,7 +56,78 @@ const Header = () => {
   const closeSidebar = useCallback(() => setIsSidebarOpen(false), []);
 
   useEffect(() => {
+    if (location.pathname !== '/') return;
+
+    let startX: number | null = null;
+    let startY: number | null = null;
+
+    const handleTouchStart = (event: TouchEvent) => {
+      const touch = event.touches[0];
+      if (!touch) return;
+
+      const sidebarLeft = Math.max(0, window.innerWidth - SIDEBAR_WIDTH);
+      const canStartSwipe = isSidebarOpen
+        ? touch.clientX >= sidebarLeft
+        : touch.clientX >= window.innerWidth - SWIPE_EDGE_WIDTH;
+
+      if (!canStartSwipe) return;
+
+      startX = touch.clientX;
+      startY = touch.clientY;
+    };
+
+    const resetSwipe = () => {
+      startX = null;
+      startY = null;
+    };
+
+    const handleTouchEnd = (event: TouchEvent) => {
+      const touch = event.changedTouches[0];
+      if (!touch || startX === null || startY === null) {
+        resetSwipe();
+        return;
+      }
+
+      const distanceX = touch.clientX - startX;
+      const distanceY = touch.clientY - startY;
+      const isHorizontalSwipe =
+        Math.abs(distanceX) >= SWIPE_THRESHOLD &&
+        Math.abs(distanceX) > Math.abs(distanceY) * 1.2;
+
+      if (isHorizontalSwipe) {
+        if (!isSidebarOpen && distanceX < 0) {
+          setHasOpenedSidebar(true);
+          setIsSidebarOpen(true);
+        } else if (isSidebarOpen && distanceX > 0) {
+          closeSidebar();
+        }
+      }
+
+      resetSwipe();
+    };
+
+    window.addEventListener('touchstart', handleTouchStart, { passive: true });
+    window.addEventListener('touchend', handleTouchEnd, { passive: true });
+    window.addEventListener('touchcancel', resetSwipe, { passive: true });
+
+    return () => {
+      window.removeEventListener('touchstart', handleTouchStart);
+      window.removeEventListener('touchend', handleTouchEnd);
+      window.removeEventListener('touchcancel', resetSwipe);
+    };
+  }, [closeSidebar, isSidebarOpen, location.pathname]);
+
+  useEffect(() => {
     let isMounted = true;
+
+    const refreshUnreadNotificationCount = async () => {
+      const notifications = await getMyPersonalNotifications(20);
+      if (isMounted) {
+        setUnreadNotificationCount(
+          notifications.filter((notification) => !notification.readAt).length
+        );
+      }
+    };
 
     const updateAuthState = async (
       session: Awaited<ReturnType<typeof supabase.auth.getSession>>['data']['session']
@@ -76,12 +151,7 @@ const Header = () => {
           null
       );
 
-      const notifications = await getMyPersonalNotifications(20);
-      if (isMounted) {
-        setUnreadNotificationCount(
-          notifications.filter((notification) => !notification.readAt).length
-        );
-      }
+      await refreshUnreadNotificationCount();
     };
 
     const checkLogin = async () => {
@@ -98,13 +168,30 @@ const Header = () => {
     };
 
     void checkLogin();
+    window.addEventListener(
+      'personal-notification-read',
+      refreshUnreadNotificationCount
+    );
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
       void updateAuthState(session);
     });
+    const notificationChannel = supabase
+      .channel('header-personal-notifications')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'personal_notifications' },
+        () => void refreshUnreadNotificationCount()
+      )
+      .subscribe();
 
     return () => {
       isMounted = false;
+      window.removeEventListener(
+        'personal-notification-read',
+        refreshUnreadNotificationCount
+      );
       authListener.subscription.unsubscribe();
+      void supabase.removeChannel(notificationChannel);
     };
   }, []);
 
@@ -147,7 +234,7 @@ const Header = () => {
               type="button"
               className={styles.notificationButton}
               aria-label={`개인 알림 ${unreadNotificationCount}건`}
-              onClick={() => navigate('/#personal-notifications')}
+              onClick={() => navigate('/#notices')}
             >
               <Bell size={20} color="#1e40af" />
               {unreadNotificationCount > 0 && <strong>{unreadNotificationCount}</strong>}

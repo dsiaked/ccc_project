@@ -1,4 +1,5 @@
-import { ClipboardCheck, CreditCard, MapPin, TicketCheck } from 'lucide-react';
+import { useState } from 'react';
+import { ChevronDown, ClipboardCheck, CreditCard, MapPin, TicketCheck } from 'lucide-react';
 import styles from './ProcessSection.module.css';
 
 const steps = [
@@ -24,34 +25,49 @@ const steps = [
   },
 ];
 
-const ProcessSection = () => (
-  <section className={styles.section}>
-    <div className={styles.container}>
-      <div className={styles.header}>
-        <p>버스 신청 절차</p>
-        <h2>귀가 버스 이용 순서</h2>
+const ProcessSection = () => {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <section className={styles.section}>
+      <div className={styles.container}>
+        <button
+          type="button"
+          className={styles.toggle}
+          aria-expanded={isOpen}
+          aria-controls="bus-application-process"
+          onClick={() => setIsOpen((open) => !open)}
+        >
+          <div className={styles.header}>
+            <p>버스 신청 절차</p>
+            <h2>귀가 버스 이용 순서</h2>
+          </div>
+          <ChevronDown className={isOpen ? styles.chevronOpen : styles.chevron} size={22} />
+        </button>
+
+        {isOpen && (
+          <ol className={styles.stepList} id="bus-application-process">
+            {steps.map((step, index) => {
+              const Icon = step.icon;
+
+              return (
+                <li className={styles.stepCard} key={step.title}>
+                  <div className={styles.stepNumber}>{index + 1}</div>
+                  <div className={styles.iconBox}>
+                    <Icon size={20} />
+                  </div>
+                  <div>
+                    <h3>{step.title}</h3>
+                    <p>{step.description}</p>
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+        )}
       </div>
-
-      <ol className={styles.stepList}>
-        {steps.map((step, index) => {
-          const Icon = step.icon;
-
-          return (
-            <li className={styles.stepCard} key={step.title}>
-              <div className={styles.stepNumber}>{index + 1}</div>
-              <div className={styles.iconBox}>
-                <Icon size={20} />
-              </div>
-              <div>
-                <h3>{step.title}</h3>
-                <p>{step.description}</p>
-              </div>
-            </li>
-          );
-        })}
-      </ol>
-    </div>
-  </section>
-);
+    </section>
+  );
+};
 
 export default ProcessSection;

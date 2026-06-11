@@ -1,4 +1,5 @@
 .pageContainer {
+  position: relative;
   min-height: 100vh;
   min-height: 100dvh;
   max-width: 480px;
@@ -9,51 +10,39 @@
 
 .main {
   display: grid;
-  gap: 16px;
-  padding: 24px 14px calc(48px + env(safe-area-inset-bottom));
+  gap: 14px;
+  padding: 18px 14px calc(48px + env(safe-area-inset-bottom));
 }
 
 .pageHeader {
-  padding: 8px 10px 4px;
-  text-align: center;
-}
-
-.iconCircle {
-  width: 52px;
-  height: 52px;
-  margin: 0 auto 12px;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  background: #2563eb;
-  color: #ffffff;
+  padding: 2px 4px 4px;
 }
 
 .pageHeader h1 {
   margin: 0;
   color: #101828;
-  font-size: 23px;
+  font-size: 22px;
 }
 
 .pageHeader p {
-  margin: 7px 0 0;
+  margin: 5px 0 0;
   color: #667085;
   font-size: 13px;
-  line-height: 1.6;
+  line-height: 1.5;
 }
 
 .card,
 .statusCard {
-  padding: 20px;
+  padding: 16px;
   border: 1px solid #eaecf0;
-  border-radius: 18px;
+  border-radius: 16px;
   background: #ffffff;
   box-shadow: 0 6px 18px rgba(15, 23, 42, 0.045);
 }
 
 .card {
   display: grid;
-  gap: 16px;
+  gap: 14px;
 }
 
 .cardTitle {
@@ -61,6 +50,13 @@
   align-items: center;
   gap: 8px;
   color: #1d4ed8;
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .cardTitle h2 {
@@ -230,9 +226,9 @@
 }
 
 .errorBox,
-.successBox {
+.toast {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 8px;
   padding: 12px;
   border-radius: 10px;
@@ -246,12 +242,22 @@
   color: #b42318;
 }
 
-.successBox {
+.toast {
+  position: fixed;
+  z-index: 110;
+  right: max(16px, calc((100vw - 480px) / 2 + 16px));
+  bottom: calc(20px + env(safe-area-inset-bottom));
+  left: max(16px, calc((100vw - 480px) / 2 + 16px));
+  justify-content: center;
   background: #ecfdf3;
   color: #027a48;
+  border: 1px solid #abefc6;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.14);
+  animation: toastIn 0.2s ease-out;
 }
 
 .saveButton,
+.cancelButton,
 .secondaryButton,
 .retryButton,
 .statusCard button {
@@ -271,9 +277,33 @@
   color: #ffffff;
 }
 
-.saveButton:disabled {
+.saveButton:disabled,
+.cancelButton:disabled {
   cursor: not-allowed;
   opacity: 0.6;
+}
+
+.editButton {
+  min-height: 36px;
+  padding: 0 13px;
+  border: 1px solid #bfdbfe;
+  border-radius: 9px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.editActions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.cancelButton {
+  border: 1px solid #d0d5dd;
+  background: #ffffff;
+  color: #344054;
 }
 
 .secondaryButton {
@@ -323,5 +353,17 @@
 @keyframes spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }

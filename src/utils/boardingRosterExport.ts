@@ -120,6 +120,21 @@ const headers = [
   '비고',
 ];
 
+const PDF_ROWS_PER_PAGE = 38;
+
+const chunkPassengersForPdf = (passengers: BoardingPassenger[]) => {
+  if (passengers.length === 0) return [[]];
+
+  return Array.from(
+    { length: Math.ceil(passengers.length / PDF_ROWS_PER_PAGE) },
+    (_, pageIndex) =>
+      passengers.slice(
+        pageIndex * PDF_ROWS_PER_PAGE,
+        (pageIndex + 1) * PDF_ROWS_PER_PAGE
+      )
+  );
+};
+
 const getUniqueWorksheetName = (name: string, usedNames: Set<string>) => {
   const baseName = name.replace(/[\\/?*[\]:]/g, '_').trim().slice(0, 31) || '명단';
   let worksheetName = baseName;
@@ -214,21 +229,16 @@ export const printFullBoardingRosterPdf = (snapshot: BoardingSnapshot) => {
   }
   printWindow.opener = null;
 
-  const sections = snapshot.buses.map((bus) => {
+  const sections = snapshot.buses.flatMap((bus) => {
     const passengers = sortPassengers(
       snapshot.passengers.filter((passenger) => passenger.busNumber === bus.label)
     );
     const counts = getCounts(passengers);
-    const densityClass =
-      passengers.length > 60
-        ? 'density-tight'
-        : passengers.length > 45
-          ? 'density-dense'
-          : passengers.length > 35
-            ? 'density-compact'
-            : '';
-    return `
-      <section class="${densityClass}">
+    const passengerPages = chunkPassengersForPdf(passengers);
+
+    return passengerPages.map(
+      (pagePassengers, pageIndex) => `
+      <section class="a4-page">
         <div class="bus-header">
           <div>
             <p class="allocation-name">${escapeHtml(snapshot.allocationName)} 전체 탑승 명단</p>
@@ -237,10 +247,11 @@ export const printFullBoardingRosterPdf = (snapshot: BoardingSnapshot) => {
           </div>
           <p class="counts">총 ${counts.total}명 · 탑승 확인 ${counts.boarded} · 탑승 미확인 ${counts.unchecked} · 미탑승 ${counts.no_show}</p>
         </div>
+        <p class="page-count">${pageIndex + 1} / ${passengerPages.length}</p>
         ${exceptionLegend}
         <table>
           <thead><tr>${headers.map((header) => `<th>${escapeHtml(header)}</th>`).join('')}</tr></thead>
-          <tbody>${passengers
+          <tbody>${pagePassengers
             .map(
               (passenger) =>
                 `<tr class="${getPassengerHighlightClass(passenger, snapshot.buses)}">${passengerCells(passenger, snapshot.buses)
@@ -249,7 +260,8 @@ export const printFullBoardingRosterPdf = (snapshot: BoardingSnapshot) => {
             )
             .join('')}</tbody>
         </table>
-      </section>`;
+      </section>`
+    );
   });
 
   printWindow.document.write(`<!doctype html>
@@ -258,20 +270,24 @@ export const printFullBoardingRosterPdf = (snapshot: BoardingSnapshot) => {
         <meta charset="utf-8">
         <title>${escapeHtml(rosterFileName(snapshot.allocationName, 'pdf'))}</title>
         <style>
-          @page { size: A4 landscape; margin: 10mm; }
+          @page { size: A4 landscape; margin: 8mm; }
           * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-          body { margin: 0; color: #172554; font-family: Arial, "Malgun Gothic", sans-serif; }
-          section { break-after: page; break-inside: avoid-page; page-break-after: always; page-break-inside: avoid; }
-          section:last-child { break-after: auto; page-break-after: auto; }
+          html, body { margin: 0; padding: 0; }
+          body { color: #172554; font-family: Arial, "Malgun Gothic", sans-serif; }
+          .a4-page { width: 281mm; height: 194mm; overflow: hidden; break-after: page; page-break-after: always; }
+          .a4-page:last-child { break-after: auto; page-break-after: auto; }
           .bus-header { display: flex; align-items: end; justify-content: space-between; gap: 12px; margin: 0 0 6px; border-bottom: 2px solid #172554; }
           .bus-header p { margin: 0 0 5px; color: #475569; font-size: 9px; }
           .bus-header .allocation-name { margin-bottom: 2px; color: #1d4ed8; font-size: 8px; font-weight: 700; }
           h2 { margin: 0 0 2px; font-size: 14px; }
           .counts { font-weight: 700; text-align: right; }
+          .page-count { margin: -3px 0 3px; color: #64748b; font-size: 7px; font-weight: 700; text-align: right; }
           .legend { display: flex; gap: 4px; margin: 0 0 4px; font-size: 7px; }
           .legend span { padding: 2px 4px; border: 1px solid rgba(15, 23, 42, .15); border-radius: 3px; font-weight: 700; }
-          table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 8.5px; line-height: 1.12; }
-          th, td { overflow: hidden; padding: 3px; border: 1px solid #cbd5e1; text-align: left; text-overflow: ellipsis; vertical-align: middle; white-space: nowrap; }
+          table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 7.5px; line-height: 1.08; }
+          thead { display: table-header-group; }
+          tr { break-inside: avoid; page-break-inside: avoid; }
+          th, td { height: 3.8mm; overflow: hidden; padding: 1.5px 2px; border: 1px solid #cbd5e1; text-align: left; text-overflow: ellipsis; vertical-align: middle; white-space: nowrap; }
           th { background: #e2e8f0; }
           th:nth-child(1), td:nth-child(1) { width: 5%; }
           th:nth-child(2), td:nth-child(2) { width: 5%; }
@@ -289,12 +305,10 @@ export const printFullBoardingRosterPdf = (snapshot: BoardingSnapshot) => {
           tr.exception-departed-unchecked td, .legend .exception-departed-unchecked { background: #fed7aa; color: #9a3412; font-weight: 700; }
           tr.exception-no-show td, .legend .exception-no-show { background: #fecaca; color: #991b1b; font-weight: 700; }
           tr.exception-note td, .legend .exception-note { background: #dbeafe; color: #1e3a8a; }
-          .density-compact table { font-size: 7.5px; }
-          .density-compact th, .density-compact td { padding: 2px; }
-          .density-dense table { font-size: 6.5px; line-height: 1.08; }
-          .density-dense th, .density-dense td { padding: 1.5px; }
-          .density-tight table { font-size: 5.5px; line-height: 1; }
-          .density-tight th, .density-tight td { padding: 1px; }
+          @media screen {
+            body { padding: 12px; background: #e2e8f0; }
+            .a4-page { margin: 0 auto 12px; background: white; box-shadow: 0 2px 12px rgba(15, 23, 42, .18); }
+          }
         </style>
       </head>
       <body>

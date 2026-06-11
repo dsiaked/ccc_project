@@ -114,6 +114,71 @@
   font-weight: 800;
 }
 
+.noticeMeta {
+  display: grid;
+  justify-items: start;
+  gap: 7px;
+}
+
+.noticeTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 25px;
+  border-radius: 999px;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 900;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.personalTag {
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.campusTag {
+  border: 1px solid #fde68a;
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.publicTag {
+  border: 1px solid #d1d5db;
+  background: #ffffff;
+  color: #4b5563;
+  cursor: default;
+}
+
+.noticeTag i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #dc2626;
+}
+
+.noticeTag:focus-visible {
+  outline: 3px solid #60a5fa;
+  outline-offset: 2px;
+}
+
+.unreadNotice {
+  box-shadow: inset 3px 0 #2563eb;
+  background: #f8fbff;
+}
+
+.readError {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fff1f2;
+  color: #9f1239;
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .noticeContent h3 {
   margin: 0 0 6px;
   color: #111827;

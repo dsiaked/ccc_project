@@ -10,20 +10,16 @@ import {
   KeyRound,
   UserPlus,
   UserRound,
+  MessageCircle,
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import {
   getAdminRole,
   getAdminRoles,
-  getGlobalCampusNotices,
   setActiveAdminRole,
   type AdminRole,
 } from '../lib/adminService';
-import {
-  campusNoticeReadEventName,
-  getUnreadCampusNotices,
-} from '../lib/adminNoticeReadState';
 import {
   getPublicContactInfo,
   type ContactInfo,
@@ -44,6 +40,11 @@ interface Profile {
   email: string | null;
 }
 
+const getMetadataName = (userMetadata: Record<string, unknown>) => {
+  const name = userMetadata.name;
+  return typeof name === 'string' && name.trim() ? name.trim() : null;
+};
+
 const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -60,7 +61,6 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [adminRole, setAdminRole] = useState<AdminRole | null>(null);
   const [adminRoles, setAdminRoles] = useState<AdminRole[]>([]);
-  const [campusNoticeCount, setCampusNoticeCount] = useState(0);
   const [isReservationClosed, setIsReservationClosed] = useState(false);
   const [hasConfirmedTicket, setHasConfirmedTicket] = useState<boolean | null>(
     null
@@ -98,13 +98,18 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
       setProfile(null);
       setAdminRole(null);
       setAdminRoles([]);
-      setCampusNoticeCount(0);
       setHasConfirmedTicket(false);
       return;
     }
 
     setIsLoggedIn(true);
     setHasConfirmedTicket(null);
+    const metadataName = getMetadataName(data.session.user.user_metadata);
+    setProfile({
+      name: metadataName,
+      email: data.session.user.email ?? null,
+    });
+
     const [role, roles] = await Promise.all([
       getAdminRole(data.session.user.id),
       getAdminRoles(data.session.user.id),
@@ -114,23 +119,6 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
 
     setAdminRole(role);
     setAdminRoles(roles);
-
-    if (roles.some((item) => item.role === 'campus_admin')) {
-      const noticesResult = await getGlobalCampusNotices();
-
-      if (!isActiveRequest()) return;
-
-      setCampusNoticeCount(
-        (
-          await getUnreadCampusNotices(
-            data.session.user.id,
-            noticesResult.data ?? []
-          )
-        ).length
-      );
-    } else {
-      setCampusNoticeCount(0);
-    }
 
     const { data: reservationData, error: reservationError } = await supabase
       .from('reservations')
@@ -157,14 +145,14 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
     if (error) {
       console.error('프로필 로드 실패:', error);
       setProfile({
-        name: null,
+        name: metadataName,
         email: data.session.user.email ?? null,
       });
       return;
     }
 
     setProfile({
-      name: profileData?.name ?? null,
+      name: profileData?.name?.trim() || metadataName,
       email: profileData?.email ?? data.session.user.email ?? null,
     });
   };
@@ -181,13 +169,10 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
       loadUser();
     });
 
-    window.addEventListener(campusNoticeReadEventName, loadUser);
-
     return () => {
       isMountedRef.current = false;
       loadUserRequestIdRef.current += 1;
       subscription.unsubscribe();
-      window.removeEventListener(campusNoticeReadEventName, loadUser);
     };
   }, []);
 
@@ -436,6 +421,19 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
                   신청 내역
                 </button>
               </li>
+              <li>
+                <button
+                  type="button"
+                  className={navItemClassName('/inquiries')}
+                  onClick={() => handleProtectedMenuClick('/inquiries')}
+                  aria-current={
+                    location.pathname === '/inquiries' ? 'page' : undefined
+                  }
+                >
+                  <MessageCircle size={20} className={styles.navIcon} />
+                  개인 문의
+                </button>
+              </li>
               {isReservationClosed && hasConfirmedTicket === false && (
                 <li>
                   <button
@@ -484,11 +482,6 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
                   >
                     <ShieldCheck size={20} className={styles.navIcon} />
                     <span className={styles.navLabel}>캠퍼스 회계 순장님 페이지</span>
-                    {campusNoticeCount > 0 && (
-                      <span className={styles.navBadge}>
-                        공지 {campusNoticeCount}
-                      </span>
-                    )}
                   </button>
                 </li>
               )}

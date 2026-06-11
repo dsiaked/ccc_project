@@ -4,6 +4,14 @@ import test from 'node:test';
 
 const adminRoutes = readFileSync('src/routes/adminRoutes.tsx', 'utf8');
 const adminHeader = readFileSync('src/pages/admin/AdminHeader.tsx', 'utf8');
+const sidebarItems = adminHeader.slice(
+  adminHeader.indexOf('const navItems'),
+  adminHeader.indexOf('const searchableAdminItems')
+);
+const searchableItems = adminHeader.slice(
+  adminHeader.indexOf('const searchableAdminItems'),
+  adminHeader.indexOf('const normalizeSearchText')
+);
 const adminToolsPage = readFileSync(
   'src/pages/admin/AdminToolsPage.tsx',
   'utf8'
@@ -31,8 +39,9 @@ test('administrator tools are listed under operation preparation', () => {
 });
 
 test('invitation code management stays in the tools hub instead of the sidebar', () => {
-  assert.doesNotMatch(adminHeader, /label: '권한 등록 코드 관리'/);
-  assert.doesNotMatch(adminHeader, /path: '\/admin\/system\/invitation-codes'/);
+  assert.doesNotMatch(sidebarItems, /label: '권한 등록 코드 관리'/);
+  assert.doesNotMatch(sidebarItems, /path: '\/admin\/system\/invitation-codes'/);
+  assert.match(searchableItems, /path: '\/admin\/system\/invitation-codes'/);
   assert.match(adminToolsPage, /path: '\/admin\/system\/invitation-codes'/);
 });
 

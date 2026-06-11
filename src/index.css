@@ -19,7 +19,7 @@
 }
 
 body {
-  min-width: 320px;
+  min-width: 0;
   min-height: 100vh;
   min-height: 100dvh;
   font-family: var(--font-family);
@@ -32,8 +32,11 @@ body {
 }
 
 #root {
+  width: 100%;
+  min-width: 0;
   min-height: 100vh;
   min-height: 100dvh;
+  overflow-x: clip;
 }
 
 a {
@@ -56,7 +59,13 @@ button {
 input,
 select,
 textarea {
+  max-width: 100%;
   font-family: inherit;
+}
+
+button,
+a {
+  max-width: 100%;
 }
 
 @media (max-width: 640px) {

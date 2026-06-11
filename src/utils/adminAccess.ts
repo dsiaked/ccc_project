@@ -9,5 +9,5 @@ export const getAdminFallbackPath = (role: SupportedAdminRole | null) => {
   if (role === 'campus_admin') return '/admin/campus-dashboard';
   if (role === 'boarding_manager') return '/admin/boarding';
   if (role === 'global_admin') return '/admin/dashboard';
-  return '/admin/login';
+  return '/login';
 };

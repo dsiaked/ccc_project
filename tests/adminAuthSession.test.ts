@@ -6,7 +6,12 @@ const adminAuthProvider = readFileSync(
   'src/components/AdminAuthProvider.tsx',
   'utf8'
 );
-const adminLoginPage = readFileSync('src/pages/admin/AdminLoginPage.tsx', 'utf8');
+const adminRoutes = readFileSync('src/routes/adminRoutes.tsx', 'utf8');
+const adminProtectedRoute = readFileSync(
+  'src/components/AdminProtectedRoute.tsx',
+  'utf8'
+);
+const loginPage = readFileSync('src/pages/LoginPage.tsx', 'utf8');
 const supabaseClient = readFileSync('src/lib/supabase.ts', 'utf8');
 
 test('Supabase browser sessions persist and refresh without another login', () => {
@@ -21,24 +26,14 @@ test('admin auth refreshes the cached role on every non-initial auth event', () 
   assert.match(adminAuthProvider, /void loadAdminAuth\(nextSession\)/);
 });
 
-test('admin login redirects an already authenticated administrator', () => {
-  assert.match(adminLoginPage, /useAdminAuth\(\)/);
-  assert.match(
-    adminLoginPage,
-    /status !== 'authenticated' \|\| !adminRole/
-  );
-  assert.match(adminLoginPage, /getAdminFallbackPath\(adminRole\.role\)/);
+test('administrator login uses the ordinary login screen and preserves the target', () => {
+  assert.match(adminRoutes, /path: 'login', element: <AdminLoginRedirect \/>/);
+  assert.match(adminRoutes, /return <Navigate to="\/login" replace state=\{\{ from \}\} \/>/);
+  assert.match(adminProtectedRoute, /to="\/login"[\s\S]*location\.pathname/);
+  assert.doesNotMatch(loginPage, /to="\/admin\/login"/);
 });
 
-test('admin login rejects duplicate submissions before another auth request', () => {
-  assert.match(adminLoginPage, /if \(loginRequestRef\.current\) return/);
-  assert.match(adminLoginPage, /clearOAuthCallbackState\(\)[\s\S]*signInWithPassword/);
-  assert.match(
-    adminLoginPage,
-    /loginRequestRef\.current = true[\s\S]*signInWithPassword/
-  );
-  assert.match(
-    adminLoginPage,
-    /finally \{[\s\S]*loginRequestRef\.current = false/
-  );
+test('the separate administrator login form is not routed', () => {
+  assert.doesNotMatch(adminRoutes, /AdminLoginPage/);
+  assert.doesNotMatch(loginPage, /관리자·탑승 관리 간사님 로그인/);
 });

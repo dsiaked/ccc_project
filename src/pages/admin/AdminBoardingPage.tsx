@@ -1372,7 +1372,7 @@ const AdminBoardingPage = () => {
             {selectedBus && (
               <section className={styles.roster}>
                 <div className={styles.rosterHeader}>
-                  <div>
+                  <div className={styles.rosterHeading}>
                     <span>{isGlobalSearch ? `${boardingScopeLabel} 검색` : '선택 호차'}</span>
                     <h2>{isGlobalSearch ? `${boardingScopeLabel} 검색 결과` : `${formatBusLabel(selectedBus.label)} 탑승자 명단`}</h2>
                     <p>
@@ -1381,6 +1381,38 @@ const AdminBoardingPage = () => {
                         : `${selectedBus.destination} · ${selectedBus.departureTime} · ${selectedBus.boardingPlace}`}
                     </p>
                   </div>
+                  {!isGlobalSearch && (
+                    <div className={styles.checkInCodePanel}>
+                      <div className={styles.checkInCodeCopy}>
+                        <KeyRound size={14} aria-hidden="true" />
+                        <strong>탑승 코드</strong>
+                      </div>
+                      <div className={styles.checkInCodeValue} aria-live="polite">
+                        {selectedBus.checkInCode ?? '미생성'}
+                      </div>
+                      <div className={styles.checkInCodeActions}>
+                        {selectedBus.checkInCodeExpiresAt && selectedBus.checkInCode && (
+                          <span>
+                            {formatKoreanDateTime(selectedBus.checkInCodeExpiresAt)}까지
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => void handleRotateCheckInCode()}
+                          disabled={
+                            Boolean(rotatingCodeBusId) || Boolean(selectedBus.departedAt)
+                          }
+                        >
+                          <RefreshCw size={13} />
+                          {rotatingCodeBusId === selectedBus.id
+                            ? '생성 중...'
+                            : selectedBus.checkInCode
+                              ? '변경'
+                              : '생성'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                   {isGlobalSearch && (
                     <button
                       className={styles.clearSearch}
@@ -1395,39 +1427,6 @@ const AdminBoardingPage = () => {
                     </button>
                   )}
                 </div>
-
-                {!isGlobalSearch && (
-                  <div className={styles.checkInCodePanel}>
-                    <div className={styles.checkInCodeCopy}>
-                      <KeyRound size={16} aria-hidden="true" />
-                      <strong>탑승 코드</strong>
-                    </div>
-                    <div className={styles.checkInCodeValue} aria-live="polite">
-                      {selectedBus.checkInCode ?? '코드 미생성'}
-                    </div>
-                    <div className={styles.checkInCodeActions}>
-                      {selectedBus.checkInCodeExpiresAt && selectedBus.checkInCode && (
-                        <span>
-                          {formatKoreanDateTime(selectedBus.checkInCodeExpiresAt)}까지
-                        </span>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => void handleRotateCheckInCode()}
-                        disabled={
-                          Boolean(rotatingCodeBusId) || Boolean(selectedBus.departedAt)
-                        }
-                      >
-                        <RefreshCw size={15} />
-                        {rotatingCodeBusId === selectedBus.id
-                          ? '생성 중...'
-                          : selectedBus.checkInCode
-                            ? '코드 변경'
-                            : '탑승 코드 생성'}
-                      </button>
-                    </div>
-                  </div>
-                )}
 
                 {isSelectedBusLocked && !isGlobalSearch && (
                   <div className={styles.departureLockNotice} role="status">
@@ -1511,6 +1510,11 @@ const AdminBoardingPage = () => {
                           <span className={styles.passengerCampus} title={passenger.campus}>
                             {passenger.campus}
                           </span>
+                          {isGlobalSearch && (
+                            <span className={styles.passengerBus}>
+                              {formatBusLabel(passenger.busNumber)}
+                            </span>
+                          )}
                           {passenger.passengerKind === 'walk_in' && (
                             <span className={styles.walkInBadge}>현장 추가</span>
                           )}

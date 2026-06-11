@@ -68,8 +68,14 @@ test('selected bus tools share one workspace and use a compact boarding code con
   assert.match(boardingPage, /<strong>탑승 코드<\/strong>/);
   assert.doesNotMatch(boardingPage, /버스에 탑승한 탑승자에게 이 4자리 코드를 안내하세요/);
   assert.match(boardingStyles, /\.roster\s*\{[^}]*background:\s*#f1f5f9/i);
+  assert.match(boardingPage, /className=\{styles\.rosterHeading\}[\s\S]*?<\/div>\s*\{!isGlobalSearch && \(\s*<div className=\{styles\.checkInCodePanel\}/);
+  assert.match(boardingStyles, /\.rosterHeader\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s*auto/i);
   assert.match(boardingStyles, /\.checkInCodePanel\s*\{[^}]*display:\s*flex/i);
-  assert.match(boardingStyles, /\.checkInCodeValue\s*\{[^}]*font-size:\s*20px/i);
+  assert.match(boardingStyles, /\.checkInCodeValue\s*\{[^}]*font-size:\s*15px/i);
+  assert.doesNotMatch(boardingStyles, /\.checkInCodeCopy\s*\{[^}]*display:\s*none/i);
+  assert.doesNotMatch(boardingStyles, /\.checkInCodeActions span\s*\{[^}]*display:\s*none/i);
+  assert.match(boardingStyles, /\.rosterHeading h2,\s*\.rosterHeading p\s*\{[^}]*word-break:\s*keep-all/i);
+  assert.match(boardingStyles, /@media \(max-width:\s*760px\)[\s\S]*?\.checkInCodeActions span\s*\{[^}]*grid-row:\s*2/i);
 });
 
 test('full roster exports and sheet access remain global-admin only', () => {
@@ -107,6 +113,13 @@ test('boarding roster renders passengers as compact cards without roster numbers
   assert.match(
     boardingPage,
     /a\.seatNumber\.localeCompare\(b\.seatNumber, 'ko', \{ numeric: true \}\)/
+  );
+});
+
+test('global boarding search results identify each passenger bus', () => {
+  assert.match(
+    boardingPage,
+    /\{isGlobalSearch && \(\s*<span className=\{styles\.passengerBus\}>\s*\{formatBusLabel\(passenger\.busNumber\)\}/
   );
 });
 

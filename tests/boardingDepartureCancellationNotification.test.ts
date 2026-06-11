@@ -7,7 +7,7 @@ const migration = readFileSync(
   'utf8'
 );
 const notifications = readFileSync(
-  'src/components/PersonalNotificationSection.tsx',
+  'src/components/HomeNoticeSection.tsx',
   'utf8'
 );
 const boardingPage = readFileSync(

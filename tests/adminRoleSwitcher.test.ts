@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const adminHeader = readFileSync('src/pages/admin/AdminHeader.tsx', 'utf8');
+const adminService = readFileSync('src/lib/adminService.ts', 'utf8');
 const adminHeaderStyles = readFileSync(
   'src/pages/admin/AdminHeader.module.css',
   'utf8'
@@ -14,8 +15,8 @@ test('campus administrators keep the role switcher near the top of the sidebar',
     /\{isCampusAdmin && roleSwitcher && \(\s*<div className=\{styles\.topRoleSwitcher\}>/
   );
   assert.match(adminHeader, /\{!isCampusAdmin && roleSwitcher\}/);
-  assert.match(adminHeader, /탑승 관리 간사님 역할/);
-  assert.match(adminHeader, /캠퍼스 회계 순장님 ·/);
+  assert.doesNotMatch(adminHeader, /탑승 관리 간사님 역할/);
+  assert.doesNotMatch(adminHeader, /캠퍼스 회계 순장님 ·/);
   assert.match(adminHeaderStyles, /\.topRoleSwitcher\s*\{/);
   assert.match(
     adminHeaderStyles,
@@ -70,7 +71,7 @@ test('administrator header omits the logout action', () => {
   assert.doesNotMatch(adminHeaderStyles, /\.logoutButton|\.logoutLabel/);
 });
 
-test('scoped administrator switcher includes accessible administrator functions', () => {
+test('scoped administrator switcher distinguishes managed campuses and presents shared functions once', () => {
   assert.match(
     adminHeader,
     /adminRole !== null && adminRole !== 'global_admin'/
@@ -78,13 +79,44 @@ test('scoped administrator switcher includes accessible administrator functions'
   assert.match(adminHeader, /const availableScopedRoles =/);
   assert.match(adminHeader, /\? \[activeAdminRole, \.\.\.switchableRoles\]/);
   assert.match(adminHeader, /availableScopedRoles\.map\(\(role\) =>/);
-  assert.match(adminHeader, /<optgroup label="관리자 기능">/);
-  assert.match(adminHeader, /aria-label="역할 또는 관리자 기능 선택"/);
+  assert.match(adminHeader, /value=\{`role:\$\{role\.id\}`\}/);
+  assert.match(
+    adminHeader,
+    /`캠퍼스 회계 순장님 페이지 · \$\{\[\s*role\.district,\s*role\.team,\s*role\.campus,?\s*\]/
+  );
+  assert.doesNotMatch(adminHeader, /<optgroup/);
+  assert.match(adminHeader, /<span>관리자 메뉴<\/span>/);
+  assert.match(adminHeader, /aria-label="관리자 메뉴 선택"/);
   assert.match(adminHeader, /const scopedAdminFunctionItems = navItems\.filter/);
   assert.match(adminHeader, /role === 'campus_admin' \|\| role === 'boarding_manager'/);
-  assert.match(adminHeader, /scopedAdminFunctionItems\.map\(\(item\) =>/);
-  assert.match(adminHeader, /disabled=\{!canUseAdminFunction\(item\)\}/);
-  assert.match(adminHeader, /' · 권한 필요'/);
+  assert.match(
+    adminHeader,
+    /const accessibleScopedAdminFunctionItems = scopedAdminFunctionItems\.filter\(\s*canUseAdminFunction\s*\)/
+  );
+  assert.match(
+    adminHeader,
+    /const sharedScopedAdminFunctionItems = accessibleScopedAdminFunctionItems\.filter/
+  );
+  assert.match(adminHeader, /sharedScopedAdminFunctionItems\.map\(\(item\) =>/);
+  assert.doesNotMatch(adminHeader, /disabled=\{!canUseAdminFunction\(item\)\}/);
+  assert.doesNotMatch(adminHeader, /' · 권한 필요'/);
   assert.match(adminHeader, /value=\{`nav:\$\{item\.path\}`\}/);
   assert.match(adminHeader, /handleNavItemClick\(item\)/);
+});
+
+test('scoped administrator switcher refreshes all owned roles including boarding manager access', () => {
+  assert.match(adminService, /supabase\.rpc\('get_my_admin_roles'\)/);
+  assert.match(adminHeader, /clearAdminRoleCache\(session\.user\.id\)/);
+  assert.match(adminHeader, /table: 'admin_roles'/);
+  assert.match(adminHeader, /filter: `user_id=eq\.\$\{session\.user\.id\}`/);
+  assert.match(
+    adminHeader,
+    /roles\.filter\(\(item\) => item\.role !== 'global_admin'\)/
+  );
+  assert.match(adminHeader, /\.subscribe\(\);\s*\n\s*refreshRoles\(\);/);
+  assert.doesNotMatch(
+    adminHeader,
+    /loadAdminRole\(\)\.catch\(\(\) => \{\s*if \(isMounted\) setSwitchableRoles\(\[\]\)/
+  );
+  assert.match(adminHeader, /role\.role === 'campus_admin'[\s\S]*: '탑승 확인 관리'/);
 });

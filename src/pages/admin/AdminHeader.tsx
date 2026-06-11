@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Banknote,
@@ -14,6 +14,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Route,
+  Search,
   FlaskConical,
   History,
   Home,
@@ -25,18 +26,19 @@ import {
 
 import {
   campusRequestReadEventName,
+  clearAdminRoleCache,
   getAdminRoles,
-  getGlobalCampusNotices,
   getUnreadCampusRequestIds,
   type AdminRole,
   type AdminRoleType,
 } from '../../lib/adminService';
 import { useAdminAuth } from '../../components/AdminAuthProvider';
-import {
-  campusNoticeReadEventName,
-  getUnreadCampusNotices,
-} from '../../lib/adminNoticeReadState';
 import { supabase } from '../../lib/supabase';
+import {
+  getUnreadPersonalInquiryCount,
+  personalInquiryChangedEventName,
+  personalInquiryReadEventName,
+} from '../../lib/personalInquiryService';
 import { canAdminRoleAccess } from '../../utils/adminAccess';
 import styles from './AdminHeader.module.css';
 
@@ -44,6 +46,7 @@ interface AdminNavItem {
   label: string;
   path: string;
   icon: LucideIcon;
+  keywords?: string[];
   stageGroup:
     | 'prepare'
     | 'application'
@@ -119,9 +122,10 @@ const navItems: AdminNavItem[] = [
     label: '공지·문의 관리',
     path: '/admin/communications',
     icon: MessageSquare,
+    matchPaths: ['/admin/communications/personal'],
     stageGroup: 'application',
     targetGroup: 'campus',
-    allowedRoles: ['global_admin', 'campus_admin'],
+    allowedRoles: ['global_admin'],
   },
   {
     label: '배차 계산',
@@ -197,6 +201,85 @@ const navItems: AdminNavItem[] = [
   },
 ];
 
+const searchableAdminItems: AdminNavItem[] = [
+  ...navItems,
+  {
+    label: '캠퍼스 회계 순장님 관리',
+    path: '/admin/access/campus-admins',
+    icon: UserCog,
+    keywords: ['캠퍼스 관리자', '회계 순장님', '권한'],
+    stageGroup: 'prepare',
+    targetGroup: 'campus',
+    allowedRoles: ['global_admin'],
+  },
+  {
+    label: '참여 목표 설정',
+    path: '/admin/settings/participation-targets',
+    icon: ClipboardCheck,
+    keywords: ['목표 인원', '참여 인원'],
+    stageGroup: 'prepare',
+    targetGroup: 'global',
+    allowedRoles: ['global_admin'],
+  },
+  {
+    label: '신청 마감 설정',
+    path: '/admin/settings/reservation-deadline',
+    icon: ClipboardCheck,
+    keywords: ['예약 마감', '마감 시간', '신청 기간'],
+    stageGroup: 'prepare',
+    targetGroup: 'global',
+    allowedRoles: ['global_admin'],
+  },
+  {
+    label: '배차 작업 공간',
+    path: '/admin/allocations/workspace',
+    icon: Route,
+    keywords: ['배차 편집', '수동 배차'],
+    stageGroup: 'allocation',
+    targetGroup: 'global',
+    allowedRoles: ['global_admin'],
+  },
+  {
+    label: '배차 로직 안내',
+    path: '/admin/allocations/logic',
+    icon: Route,
+    keywords: ['배차 기준', '알고리즘'],
+    stageGroup: 'allocation',
+    targetGroup: 'global',
+    allowedRoles: ['global_admin'],
+  },
+  {
+    label: 'AI 운영 보고서',
+    path: '/admin/system/ai-reports',
+    icon: ClipboardList,
+    keywords: ['AI 보고서', '운영 분석'],
+    stageGroup: 'followUp',
+    targetGroup: 'global',
+    allowedRoles: ['global_admin'],
+  },
+  {
+    label: 'AI 활동 로그',
+    path: '/admin/system/ai-reports/logs',
+    icon: History,
+    keywords: ['AI 로그', '활동 기록'],
+    stageGroup: 'followUp',
+    targetGroup: 'global',
+    allowedRoles: ['global_admin'],
+  },
+  {
+    label: '권한 등록 코드 관리',
+    path: '/admin/system/invitation-codes',
+    icon: UserCog,
+    keywords: ['초대 코드', '관리자 등록', '권한 코드'],
+    stageGroup: 'prepare',
+    targetGroup: 'global',
+    allowedRoles: ['global_admin'],
+  },
+];
+
+const normalizeSearchText = (value: string) =>
+  value.toLocaleLowerCase().replace(/\s+/g, '');
+
 const stageNavGroups = [
   { id: 'prepare', label: '1. 운영 준비' },
   { id: 'application', label: '2. 신청 · 소통' },
@@ -224,6 +307,10 @@ const rolePagePreloads: Record<'campus_admin' | 'boarding_manager', () => Promis
   campus_admin: () => import('./AdminCampusPage'),
   boarding_manager: () => import('./AdminBoardingPage'),
 };
+const scopedRoleLandingPaths: Record<'campus_admin' | 'boarding_manager', string> = {
+  campus_admin: '/admin/campus-dashboard',
+  boarding_manager: '/admin/boarding',
+};
 
 const AdminHeader = () => {
   const location = useLocation();
@@ -234,8 +321,11 @@ const AdminHeader = () => {
     switchAdminRole,
   } = useAdminAuth();
   const [switchableRoles, setSwitchableRoles] = useState<AdminRole[]>([]);
-  const [activeRoleId, setActiveRoleId] = useState('');
   const [switchingRoleId, setSwitchingRoleId] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [activeSearchIndex, setActiveSearchIndex] = useState(0);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [campusNoticeCount, setCampusNoticeCount] = useState(0);
   const [isCloseoutReady, setIsCloseoutReady] = useState(() => {
     try {
@@ -275,6 +365,21 @@ const AdminHeader = () => {
   );
 
   useEffect(() => {
+    if (activeAdminRole?.role !== 'global_admin') return;
+
+    const handleSearchShortcut = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setIsSearchOpen(true);
+        window.setTimeout(() => searchInputRef.current?.focus());
+      }
+    };
+
+    window.addEventListener('keydown', handleSearchShortcut);
+    return () => window.removeEventListener('keydown', handleSearchShortcut);
+  }, [activeAdminRole?.role]);
+
+  useEffect(() => {
     const handleCloseoutReadyChange = (event: Event) => {
       setIsCloseoutReady(
         (event as CustomEvent<{ ready?: boolean }>).detail?.ready === true
@@ -297,37 +402,25 @@ const AdminHeader = () => {
         return;
       }
 
+      clearAdminRoleCache(session.user.id);
       const roles = await getAdminRoles(session.user.id);
 
       if (isMounted) {
         setSwitchableRoles(
           roles.filter((item) => item.role !== 'global_admin')
         );
-        setActiveRoleId(activeAdminRole?.id ?? '');
       }
 
-      if (
-        activeAdminRole?.role === 'campus_admin' ||
-        activeAdminRole?.role === 'global_admin'
-      ) {
-        const [unreadRequestIds, noticesResult] = await Promise.all([
+      if (activeAdminRole?.role === 'global_admin') {
+        const [unreadRequestIds, unreadPersonalInquiryCount] = await Promise.all([
           getUnreadCampusRequestIds(),
-          activeAdminRole.role === 'campus_admin'
-            ? getGlobalCampusNotices()
-            : Promise.resolve({ data: [], error: null }),
+          getUnreadPersonalInquiryCount(),
         ]);
-        const unreadNoticeCount =
-          activeAdminRole.role === 'campus_admin'
-            ? (
-                await getUnreadCampusNotices(
-                  session.user.id,
-                  noticesResult.data ?? []
-                )
-              ).length
-            : 0;
 
         if (isMounted) {
-          setCampusNoticeCount(unreadRequestIds.size + unreadNoticeCount);
+          setCampusNoticeCount(
+            unreadRequestIds.size + unreadPersonalInquiryCount
+          );
         }
       } else if (isMounted) {
         setCampusNoticeCount(0);
@@ -335,43 +428,36 @@ const AdminHeader = () => {
     };
 
     loadAdminRole().catch(() => {
-      if (isMounted) setSwitchableRoles([]);
+      if (isMounted) setCampusNoticeCount(0);
     });
 
-    window.addEventListener(campusNoticeReadEventName, loadAdminRole);
     window.addEventListener(campusRequestReadEventName, loadAdminRole);
+    window.addEventListener(personalInquiryReadEventName, loadAdminRole);
+    window.addEventListener(personalInquiryChangedEventName, loadAdminRole);
 
     return () => {
       isMounted = false;
-      window.removeEventListener(campusNoticeReadEventName, loadAdminRole);
       window.removeEventListener(campusRequestReadEventName, loadAdminRole);
+      window.removeEventListener(personalInquiryReadEventName, loadAdminRole);
+      window.removeEventListener(personalInquiryChangedEventName, loadAdminRole);
     };
   }, [session, activeAdminRole]);
 
   useEffect(() => {
     if (
       !session ||
-      (activeAdminRole?.role !== 'campus_admin' &&
-        activeAdminRole?.role !== 'global_admin')
+      activeAdminRole?.role !== 'global_admin'
     ) {
       return;
     }
 
     const refreshBadge = async () => {
       const unreadRequestIds = await getUnreadCampusRequestIds();
-      let unreadNoticeCount = 0;
+      const unreadPersonalInquiryCount = await getUnreadPersonalInquiryCount();
 
-      if (activeAdminRole.role === 'campus_admin') {
-        const noticesResult = await getGlobalCampusNotices();
-        unreadNoticeCount = (
-          await getUnreadCampusNotices(
-            session.user.id,
-            noticesResult.data ?? []
-          )
-        ).length;
-      }
-
-      setCampusNoticeCount(unreadRequestIds.size + unreadNoticeCount);
+      setCampusNoticeCount(
+        unreadRequestIds.size + unreadPersonalInquiryCount
+      );
     };
     let refreshTimerId: number | null = null;
     const scheduleBadgeRefresh = () => {
@@ -396,6 +482,16 @@ const AdminHeader = () => {
         { event: '*', schema: 'public', table: 'campus_request_messages' },
         scheduleBadgeRefresh
       )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'personal_inquiries' },
+        scheduleBadgeRefresh
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'personal_inquiry_messages' },
+        scheduleBadgeRefresh
+      )
       .subscribe();
 
     return () => {
@@ -406,23 +502,63 @@ const AdminHeader = () => {
     };
   }, [session, activeAdminRole]);
 
+  useEffect(() => {
+    if (!session) return;
+
+    const refreshRoles = () => {
+      clearAdminRoleCache(session.user.id);
+      void getAdminRoles(session.user.id).then((roles) => {
+        setSwitchableRoles(
+          roles.filter((item) => item.role !== 'global_admin')
+        );
+      }).catch(() => undefined);
+    };
+
+    const channel = supabase
+      .channel(`admin-header-roles-${session.user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'admin_roles',
+          filter: `user_id=eq.${session.user.id}`,
+        },
+        refreshRoles
+      )
+      .subscribe();
+
+    refreshRoles();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [session]);
+
   const handleAdminRoleChange = async (roleId: string) => {
     if (!session) {
-      navigate('/admin/login');
+      navigate('/login');
+      return;
+    }
+
+    const targetRole =
+      activeAdminRole?.id === roleId
+        ? activeAdminRole
+        : switchableRoles.find((role) => role.id === roleId);
+
+    if (
+      targetRole?.role !== 'campus_admin' &&
+      targetRole?.role !== 'boarding_manager'
+    ) {
       return;
     }
 
     setSwitchingRoleId(roleId);
 
     try {
-      const targetRole = switchableRoles.find((role) => role.id === roleId);
-
-      if (targetRole?.role === 'campus_admin' || targetRole?.role === 'boarding_manager') {
-        await rolePagePreloads[targetRole.role]();
-      }
-
-      const role = await switchAdminRole(roleId);
-      navigate(role.role === 'boarding_manager' ? '/admin/boarding' : '/admin/campus-dashboard');
+      await rolePagePreloads[targetRole.role]();
+      await switchAdminRole(roleId);
+      navigate(scopedRoleLandingPaths[targetRole.role]);
     } finally {
       setSwitchingRoleId('');
     }
@@ -430,7 +566,7 @@ const AdminHeader = () => {
 
   const handleNavItemClick = async (item: AdminNavItem) => {
     if (!session || !activeAdminRole) {
-      navigate('/admin/login');
+      navigate('/login');
       return;
     }
 
@@ -547,6 +683,25 @@ const AdminHeader = () => {
       availableScopedRoles.some((role) =>
         canAdminRoleAccess(role.role, item.allowedRoles)
       ));
+  const accessibleScopedAdminFunctionItems = scopedAdminFunctionItems.filter(
+    canUseAdminFunction
+  );
+  const sharedScopedAdminFunctionItems = accessibleScopedAdminFunctionItems.filter(
+    (item) =>
+      item.path !== scopedRoleLandingPaths.campus_admin &&
+      item.path !== scopedRoleLandingPaths.boarding_manager
+  );
+  const normalizedSearchQuery = normalizeSearchText(searchQuery);
+  const searchResults = normalizedSearchQuery
+    ? searchableAdminItems.filter((item) => {
+        if (!canUseAdminFunction(item)) return false;
+
+        return normalizeSearchText(
+          [item.label, item.path, ...(item.keywords ?? [])].join(' ')
+        ).includes(normalizedSearchQuery);
+      })
+    : [];
+  const visibleSearchResults = searchResults.slice(0, 8);
   const isCampusAdmin = adminRole === 'campus_admin';
   const isBoardingManager = adminRole === 'boarding_manager';
   const hasCompactMobileHeader = isCampusAdmin || isBoardingManager;
@@ -558,6 +713,9 @@ const AdminHeader = () => {
     effectiveSidebarView === 'stage'
       ? activeItem?.stageGroup
       : activeItem?.targetGroup;
+  const activeItemIsRoleLandingPage =
+    activeItem?.path === scopedRoleLandingPaths.campus_admin ||
+    activeItem?.path === scopedRoleLandingPaths.boarding_manager;
   const handleSwitcherChange = (value: string) => {
     if (value.startsWith('role:')) {
       void handleAdminRoleChange(value.slice('role:'.length));
@@ -565,46 +723,76 @@ const AdminHeader = () => {
     }
 
     if (value.startsWith('nav:')) {
-      const item = scopedAdminFunctionItems.find(
+      const item = sharedScopedAdminFunctionItems.find(
         (navItem) => navItem.path === value.slice('nav:'.length)
       );
 
-      if (item && canUseAdminFunction(item)) void handleNavItemClick(item);
+      if (item) void handleNavItemClick(item);
+    }
+  };
+  const handleSearchItemClick = async (item: AdminNavItem) => {
+    setIsSearchOpen(false);
+    setSearchQuery('');
+    setActiveSearchIndex(0);
+    await handleNavItemClick(item);
+  };
+  const handleSearchKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Escape') {
+      setIsSearchOpen(false);
+      searchInputRef.current?.blur();
+      return;
+    }
+
+    if (visibleSearchResults.length === 0) return;
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      setActiveSearchIndex((index) => (index + 1) % visibleSearchResults.length);
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      setActiveSearchIndex(
+        (index) =>
+          (index - 1 + visibleSearchResults.length) % visibleSearchResults.length
+      );
+    } else if (event.key === 'Enter') {
+      event.preventDefault();
+      void handleSearchItemClick(
+        visibleSearchResults[activeSearchIndex] ?? visibleSearchResults[0]
+      );
     }
   };
   const roleSwitcher =
     adminRole !== null && adminRole !== 'global_admin' ? (
       <label className={styles.campusSwitcher}>
-        <span>역할 및 관리자 기능</span>
+        <span>관리자 메뉴</span>
         <select
-          value={`role:${activeRoleId}`}
-          aria-label="역할 또는 관리자 기능 선택"
+          value={
+            activeItemIsRoleLandingPage
+              ? `role:${activeAdminRole?.id ?? ''}`
+              : `nav:${activeItem?.path ?? sharedScopedAdminFunctionItems[0]?.path ?? ''}`
+          }
+          aria-label="관리자 메뉴 선택"
           disabled={Boolean(switchingRoleId)}
           onChange={(event) => handleSwitcherChange(event.target.value)}
         >
-          <optgroup label="사용 역할">
-            {availableScopedRoles.map((role) => (
-              <option key={role.id} value={`role:${role.id}`}>
-                {role.role === 'boarding_manager'
-                  ? '탑승 관리 간사님 역할'
-                  : `캠퍼스 회계 순장님 · ${[role.district, role.team, role.campus]
-                      .filter(Boolean)
-                      .join(' / ')}`}
-              </option>
-            ))}
-          </optgroup>
-          <optgroup label="관리자 기능">
-            {scopedAdminFunctionItems.map((item) => (
-              <option
-                key={item.path}
-                value={`nav:${item.path}`}
-                disabled={!canUseAdminFunction(item)}
-              >
-                {item.label}
-                {!canUseAdminFunction(item) ? ' · 권한 필요' : ''}
-              </option>
-            ))}
-          </optgroup>
+          {availableScopedRoles.map((role) => (
+            <option key={role.id} value={`role:${role.id}`}>
+              {role.role === 'campus_admin'
+                ? `캠퍼스 회계 순장님 페이지 · ${[
+                    role.district,
+                    role.team,
+                    role.campus,
+                  ]
+                    .filter(Boolean)
+                    .join(' / ')}`
+                : '탑승 확인 관리'}
+            </option>
+          ))}
+          {sharedScopedAdminFunctionItems.map((item) => (
+            <option key={item.path} value={`nav:${item.path}`}>
+              {item.label}
+            </option>
+          ))}
         </select>
       </label>
     ) : null;
@@ -682,6 +870,64 @@ const AdminHeader = () => {
             <Users size={15} />
             <span>대상별</span>
           </button>
+        </div>
+      )}
+
+      {adminRole === 'global_admin' && (
+        <div className={styles.functionSearch}>
+          <Search size={16} aria-hidden="true" />
+          <input
+            ref={searchInputRef}
+            type="search"
+            value={searchQuery}
+            placeholder="관리자 기능 검색"
+            aria-label="관리자 기능 검색"
+            aria-expanded={isSearchOpen && Boolean(searchQuery)}
+            aria-controls="admin-function-search-results"
+            onFocus={() => setIsSearchOpen(true)}
+            onChange={(event) => {
+              setSearchQuery(event.target.value);
+              setActiveSearchIndex(0);
+              setIsSearchOpen(true);
+            }}
+            onKeyDown={handleSearchKeyDown}
+          />
+          <kbd>Ctrl K</kbd>
+          {isSearchOpen && searchQuery && (
+            <div
+              id="admin-function-search-results"
+              className={styles.searchResults}
+              role="listbox"
+            >
+              {searchResults.length > 0 ? (
+                visibleSearchResults.map((item, index) => {
+                  const Icon = item.icon;
+
+                  return (
+                    <button
+                      key={item.path}
+                      type="button"
+                      role="option"
+                      aria-selected={index === activeSearchIndex}
+                      className={
+                        index === activeSearchIndex
+                          ? styles.activeSearchResult
+                          : undefined
+                      }
+                      onMouseDown={(event) => event.preventDefault()}
+                      onMouseEnter={() => setActiveSearchIndex(index)}
+                      onClick={() => void handleSearchItemClick(item)}
+                    >
+                      <Icon size={16} />
+                      <span>{item.label}</span>
+                    </button>
+                  );
+                })
+              ) : (
+                <p>사용 가능한 기능을 찾지 못했습니다.</p>
+              )}
+            </div>
+          )}
         </div>
       )}
 

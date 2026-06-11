@@ -234,6 +234,21 @@
   display: none;
 }
 
+.header.collapsed .functionSearch {
+  justify-content: center;
+  padding: 0;
+}
+
+.header.collapsed .functionSearch input,
+.header.collapsed .functionSearch kbd {
+  display: none;
+}
+
+.header.collapsed .searchResults {
+  top: 0;
+  left: calc(100% + 8px);
+}
+
 .header.collapsed .viewSwitcher {
   grid-template-columns: 1fr;
 }
@@ -305,6 +320,93 @@
 .viewSwitcher .activeView:hover {
   background: #dbeafe;
   color: #1d4ed8;
+}
+
+.functionSearch {
+  position: relative;
+  min-width: 0;
+  height: 40px;
+  padding: 0 8px 0 10px;
+  border: 1px solid #334155;
+  border-radius: 9px;
+  background: #0b1220;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #94a3b8;
+}
+
+.functionSearch input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #ffffff;
+  font: inherit;
+  font-size: 13px;
+}
+
+.functionSearch input::placeholder {
+  color: #94a3b8;
+}
+
+.functionSearch kbd {
+  flex: 0 0 auto;
+  padding: 2px 5px;
+  border: 1px solid #475569;
+  border-radius: 5px;
+  color: #94a3b8;
+  font: inherit;
+  font-size: 9px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.searchResults {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 30;
+  width: max(100%, 260px);
+  max-height: 340px;
+  padding: 5px;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  background: #111827;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.35);
+  overflow-y: auto;
+}
+
+.searchResults button {
+  width: 100%;
+  min-height: 40px;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #d1d5db;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.searchResults button:hover,
+.searchResults .activeSearchResult {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.searchResults p {
+  margin: 0;
+  padding: 12px 9px;
+  color: #94a3b8;
+  font-size: 12px;
 }
 
 .navGroupItems button:hover,
@@ -430,6 +532,15 @@
     padding-top: max(10px, env(safe-area-inset-top));
   }
 
+  .header > *,
+  .sidebarTop,
+  .headerActions,
+  .nav,
+  .topRoleSwitcher,
+  .functionSearch {
+    min-width: 0;
+  }
+
   .header.collapsed {
     width: 100%;
     padding: 10px 14px;
@@ -483,6 +594,26 @@
     grid-area: switcher;
     display: flex;
     width: fit-content;
+  }
+
+  .functionSearch {
+    grid-area: switcher;
+    width: min(100%, 360px);
+  }
+
+  .header.collapsed .functionSearch {
+    justify-content: flex-start;
+    padding: 0 8px 0 10px;
+  }
+
+  .header.collapsed .functionSearch input,
+  .header.collapsed .functionSearch kbd {
+    display: block;
+  }
+
+  .header.collapsed .searchResults {
+    top: calc(100% + 6px);
+    left: 0;
   }
 
   .header.collapsed .viewSwitcher {
@@ -604,9 +735,11 @@
 @media (max-width: 560px) {
   .header,
   .header.collapsed {
+    grid-template-columns: auto minmax(0, 1fr);
     grid-template-areas:
       "logo actions"
       "switcher switcher"
+      "search search"
       "nav nav";
     padding: max(8px, env(safe-area-inset-top)) 10px 8px;
   }
@@ -627,6 +760,7 @@
   }
 
   .compactRoleHeader .headerActions {
+    justify-content: flex-end;
     min-width: 0;
   }
 
@@ -643,6 +777,30 @@
 
   .viewSwitcher,
   .header.collapsed .viewSwitcher {
+    display: none;
+  }
+
+  .functionSearch,
+  .header.collapsed .functionSearch {
+    grid-area: search;
+    width: 100%;
+  }
+
+  .searchResults,
+  .header.collapsed .searchResults {
+    position: fixed;
+    top: auto;
+    right: 10px;
+    left: 10px;
+    width: auto;
+    max-height: min(52vh, 360px);
+  }
+
+  .searchResults button {
+    min-width: 0;
+  }
+
+  .functionSearch kbd {
     display: none;
   }
 

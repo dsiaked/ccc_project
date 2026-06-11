@@ -11,8 +11,6 @@ import {
   CircleCheck,
   Download,
   Landmark,
-  Megaphone,
-  MessageSquare,
   RotateCcw,
   Save,
   Search,
@@ -28,18 +26,12 @@ import {
   getCampusTransferByScope,
   getCampusTransferStats,
   getCampusScopesForAdmin,
-  getGlobalCampusNotices,
   getReservationsWithPaymentByTeamCampus,
   cancelCampusTransferReport,
   createOrUpdatePaymentStatus,
   markCampusTransferSent,
-  type CampusRequest,
   type CampusTransferStat,
 } from '../../lib/adminService';
-import {
-  getUnreadCampusNotices,
-  markCampusNoticesRead,
-} from '../../lib/adminNoticeReadState';
 import { getDistrictTransferAccountNumber } from '../../lib/districtTransferAccountService';
 import {
   getCampusPaymentAccount,
@@ -103,6 +95,7 @@ interface CampusAdminScope {
 type ApplicantPaymentFilter = 'all' | 'pending' | 'completed' | 'refunded';
 
 const APPLICANT_PAGE_SIZE = 10;
+const SHOW_DETAILED_PAYMENT_GUIDE = false;
 
 const getScopeKey = (scope: CampusAdminScope) =>
   [scope.district, scope.team, scope.campus].join('\0');
@@ -142,6 +135,14 @@ const getStationName = (
   reservation.station_preferences?.find(
     (preference) => preference.rank === rank
   )?.station?.name || '-';
+
+const maskPhoneNumber = (phone: string) => {
+  const digits = phone.replace(/\D/g, '');
+
+  if (digits.length < 8) return phone;
+
+  return `${digits.slice(0, 3)}-****-${digits.slice(-4)}`;
+};
 
 const getPaymentStatusLabel = (payment: PaymentInfo | null) => {
   if (payment?.status === 'completed') return '입금 확인';
@@ -226,7 +227,6 @@ const CampusAdminPage = () => {
   );
   const [campusTransfer, setCampusTransfer] =
     useState<CampusTransferStat | null>(null);
-  const [campusNotices, setCampusNotices] = useState<CampusRequest[]>([]);
   const [campus, setCampus] = useState('');
   const [ticketPrice, setTicketPrice] = useState(0);
   const [districtTransferAccountNumber, setDistrictTransferAccountNumber] =
@@ -339,7 +339,6 @@ const CampusAdminPage = () => {
             setAdminScope(null);
             setReservations([]);
             setCampusTransfer(null);
-            setCampusNotices([]);
           }
           return;
         }
@@ -348,7 +347,6 @@ const CampusAdminPage = () => {
           reservationsResult,
           priceResult,
           transferStatusResult,
-          noticesResult,
           transferAccountNumberResult,
           paymentAccountResult,
           reservationDeadlineResult,
@@ -359,16 +357,6 @@ const CampusAdminPage = () => {
           ),
           getBusTicketPrice(),
           loadCampusTransferStatus(nextScope),
-          adminRole.role === 'campus_admin'
-            ? getGlobalCampusNotices().then((result) => {
-                if (result.error) throw result.error;
-
-                return getUnreadCampusNotices(
-                  session.user.id,
-                  result.data ?? []
-                );
-              })
-            : Promise.resolve([]),
           getDistrictTransferAccountNumber(),
           getCampusPaymentAccount(nextScope.campusId),
           getReservationDeadline(),
@@ -401,11 +389,6 @@ const CampusAdminPage = () => {
             );
           }
 
-          if (noticesResult.status === 'fulfilled') {
-            setCampusNotices(noticesResult.value);
-          } else {
-            console.warn('Failed to load campus notices:', noticesResult.reason);
-          }
 
           if (transferAccountNumberResult.status === 'fulfilled') {
             setDistrictTransferAccountNumber(transferAccountNumberResult.value);
@@ -493,6 +476,29 @@ const CampusAdminPage = () => {
       pending,
       refunded,
     };
+  }, [reservations]);
+
+  const quickPaymentReservations = useMemo(
+    () =>
+      [...reservations].sort((left, right) =>
+        left.name.localeCompare(right.name, 'ko-KR')
+      ),
+    [reservations]
+  );
+
+  const duplicateApplicantNames = useMemo(() => {
+    const nameCounts = new Map<string, number>();
+
+    reservations.forEach((reservation) => {
+      const name = reservation.name.trim();
+      nameCounts.set(name, (nameCounts.get(name) ?? 0) + 1);
+    });
+
+    return new Set(
+      [...nameCounts.entries()]
+        .filter(([, count]) => count > 1)
+        .map(([name]) => name)
+    );
   }, [reservations]);
 
   const filteredReservations = useMemo(() => {
@@ -882,6 +888,22 @@ const CampusAdminPage = () => {
     }
   };
 
+  const handleQuickPaymentToggle = (
+    reservation: ReservationWithPayment,
+    isCompleted: boolean
+  ) => {
+    if (
+      isCompleted &&
+      !window.confirm(
+        `${reservation.name}님의 입금 확인을 취소하고 미입금으로 되돌릴까요?`
+      )
+    ) {
+      return;
+    }
+
+    void handleDirectPaymentCheck(reservation, !isCompleted);
+  };
+
   const handleBulkPaymentCheck = (checked: boolean) => {
     if (verifying) return;
 
@@ -993,7 +1015,7 @@ const CampusAdminPage = () => {
       } = await supabase.auth.getSession();
 
       if (!session) {
-        navigate('/admin/login');
+        navigate('/login');
         return;
       }
 
@@ -1052,25 +1074,6 @@ const CampusAdminPage = () => {
     } finally {
       setTransferSending(false);
     }
-  };
-
-  const handleOpenCampusRequests = () => {
-    if (adminScope && campusNotices.length > 0) {
-      void supabase.auth.getSession().then(({ data }) => {
-        const userId = data.session?.user.id;
-
-        if (userId) {
-          void markCampusNoticesRead(
-            userId,
-            campusNotices.map((notice) => notice.id)
-          ).catch((error) => {
-            console.error('Failed to mark campus notices read:', error);
-          });
-        }
-      });
-    }
-
-    navigate('/admin/communications');
   };
 
   const updatePaymentAccountDraft = (
@@ -1209,51 +1212,18 @@ const CampusAdminPage = () => {
           aria-label="캠퍼스 회계 순장님 운영 화면"
         >
         <section className={styles.header}>
-          <div className={styles.roleBanner}>
-            <span className={styles.roleBannerIcon}>
-              <Building2 size={20} aria-hidden="true" />
-            </span>
-            <span>
-              <strong>캠퍼스 회계 순장님 전용 운영 화면</strong>
-              <small>소속 캠퍼스 신청자와 입금·송금 업무를 관리합니다.</small>
-            </span>
-          </div>
-          {adminScope && (
-            <div className={styles.adminScopeBadge}>
-              <Building2 size={15} aria-hidden="true" />
-              {adminScope.district} · {adminScope.team} · {adminScope.campus}
+          <div className={styles.headerTitleRow}>
+            <div>
+              <h1>캠퍼스 회계</h1>
+              <p>신청자 입금 확인과 본부 송금을 관리합니다.</p>
             </div>
-          )}
-          <h1>캠퍼스 회계 순장님 페이지</h1>
-          <p>
-            버스 신청자 확인부터 캠퍼스 입금 및 본부 송금 절차까지 이곳에서
-            진행합니다.
-          </p>
-        </section>
-
-        {campusNotices.length > 0 && (
-          <section className={styles.noticeAlert}>
-            <div className={styles.noticeAlertIcon}>
-              <Megaphone size={20} />
-            </div>
-            <div className={styles.noticeAlertContent}>
-              <div className={styles.noticeAlertHeader}>
-                <strong>본부 공지 {campusNotices.length}건</strong>
-                <span>
-                  최근 공지 {formatDateTime(campusNotices[0]?.createdAt ?? null)}
-                </span>
+            {adminScope && (
+              <div className={styles.adminScopeBadge}>
+                <Building2 size={15} aria-hidden="true" />
+                {adminScope.district} · {adminScope.team} · {adminScope.campus}
               </div>
-              <p>{campusNotices[0]?.title}</p>
-            </div>
-            <button
-              type="button"
-              className={styles.noticeAlertButton}
-              onClick={handleOpenCampusRequests}
-            >
-              공지 확인
-            </button>
-          </section>
-        )}
+            )}
+          </div>
 
         <section className={styles.guidePanel}>
           <button
@@ -1271,9 +1241,41 @@ const CampusAdminPage = () => {
           </button>
 
           {isGuideOpen && (
+            <div id="campus-payment-guide" className={styles.guideSummary}>
+              <ol className={styles.guideSummarySteps}>
+                <li>
+                  <span>1</span>
+                  <strong>계좌 등록</strong>
+                </li>
+                <li>
+                  <span>2</span>
+                  <strong>입금 확인</strong>
+                </li>
+                <li>
+                  <span>3</span>
+                  <strong>본부 송금</strong>
+                </li>
+              </ol>
+              <button
+                type="button"
+                className={styles.guideCloseButton}
+                onClick={() => setIsGuideOpen(false)}
+              >
+                <ChevronUp size={16} aria-hidden="true" />
+                접기
+              </button>
+            </div>
+          )}
+
+          {SHOW_DETAILED_PAYMENT_GUIDE && (
             <div id="campus-payment-guide" className={styles.guideSection}>
-              <div className={styles.preparationGuide}>
-                <strong>0. 사전 준비 단계</strong>
+              <div
+                className={`${styles.preparationGuide} ${styles.guideStep} ${styles.guideStepPreparation}`}
+              >
+                <div className={styles.guideStepHeading}>
+                  <span className={styles.guideStepNumber}>0</span>
+                  <strong>사전 준비 단계</strong>
+                </div>
                 <section
                   className={`${styles.preparationItem} ${styles.preparationItemWarning}`}
                 >
@@ -1407,8 +1409,11 @@ const CampusAdminPage = () => {
                 </section>
               </div>
 
-              <div>
-                <strong>1. 신청자 입금 확인</strong>
+              <div className={styles.guideStep}>
+                <div className={styles.guideStepHeading}>
+                  <span className={styles.guideStepNumber}>1</span>
+                  <strong>신청자 입금 확인</strong>
+                </div>
                 <ol className={styles.guideList}>
                   <li>
                     신청자가 등록된 캠퍼스 입금 계좌로 입금했는지 실제 계좌
@@ -1425,8 +1430,11 @@ const CampusAdminPage = () => {
                   <li>전체가 확인되면 목록 상단 체크박스로 한 번에 처리할 수 있습니다.</li>
                 </ol>
               </div>
-              <div>
-                <strong>2. 서울지구 계좌로 송금 후 &quot;송금 완료&quot; 누르기</strong>
+              <div className={styles.guideStep}>
+                <div className={styles.guideStepHeading}>
+                  <span className={styles.guideStepNumber}>2</span>
+                  <strong>서울지구 계좌로 송금 후 &quot;송금 완료&quot; 누르기</strong>
+                </div>
                 <ol className={styles.guideList}>
                   <li>
                     신청 마감 이후 활성 신청자 전원의 입금 확인이 끝나면 화면의
@@ -1442,8 +1450,11 @@ const CampusAdminPage = () => {
                   </li>
                 </ol>
               </div>
-              <div>
-                <strong>3. 완료 보고 이후</strong>
+              <div className={styles.guideStep}>
+                <div className={styles.guideStepHeading}>
+                  <span className={styles.guideStepNumber}>3</span>
+                  <strong>완료 보고 이후</strong>
+                </div>
                 <ol className={styles.guideList}>
                   <li>
                     송금 완료를 보고한 뒤에는 신청자 입금 확인을 수정할 수 없습니다.
@@ -1458,8 +1469,11 @@ const CampusAdminPage = () => {
                   </li>
                 </ol>
               </div>
-              <div>
-                <strong>4. 추가 송금</strong>
+              <div className={styles.guideStep}>
+                <div className={styles.guideStepHeading}>
+                  <span className={styles.guideStepNumber}>4</span>
+                  <strong>추가 송금</strong>
+                </div>
                 <ol className={styles.guideList}>
                   <li>
                     완료 보고 후 추가 신청 등으로 금액이 증가하면 새 신청자의
@@ -1475,6 +1489,92 @@ const CampusAdminPage = () => {
                   본부와 먼저 확인해주세요.
                 </span>
               </div>
+            </div>
+          )}
+        </section>
+        </section>
+
+        <section
+          className={styles.paymentRoster}
+          aria-labelledby="payment-roster-title"
+        >
+          <div className={styles.paymentRosterHeader}>
+            <div className={styles.paymentRosterHeading}>
+              <div className={styles.paymentRosterTitleRow}>
+              <h2 id="payment-roster-title">신청자 입금 명단</h2>
+                <button
+                  type="button"
+                  className={styles.paymentRosterPngButton}
+                  onClick={handleSaveApplicantListImage}
+                  disabled={reservations.length === 0 || savingApplicantImage}
+                >
+                  <Download size={14} />
+                  {savingApplicantImage ? '저장 중' : 'PNG'}
+                </button>
+              </div>
+              <p>
+                {stats.total}명 중 {stats.completed}명 입금 확인
+              </p>
+            </div>
+          </div>
+
+          <div className={styles.paymentRosterColumns} aria-hidden="true">
+            <span>입금</span>
+            <span>이름</span>
+            <span>연락처</span>
+            <span>배차</span>
+          </div>
+
+          {quickPaymentReservations.length === 0 ? (
+            <p className={styles.paymentRosterEmpty}>버스 신청자가 없습니다.</p>
+          ) : (
+            <div className={styles.paymentRosterRows}>
+              {quickPaymentReservations.map((reservation) => {
+                const payment = getPayment(reservation);
+                const isCompleted = payment?.status === 'completed';
+                const isRefunded = payment?.status === 'refunded';
+                const isDuplicateName = duplicateApplicantNames.has(
+                  reservation.name.trim()
+                );
+                const confirmedTicket = reservation.confirmed_ticket;
+
+                return (
+                  <div
+                    key={`payment-roster-${reservation.id}`}
+                    className={`${styles.paymentRosterRow} ${
+                      isCompleted ? styles.paymentRosterRowCompleted : ''
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      className={`${styles.paymentRosterStatus} ${
+                        isCompleted ? styles.paymentRosterStatusCompleted : ''
+                      } ${isRefunded ? styles.paymentRosterStatusRefunded : ''}`}
+                      onClick={() =>
+                        handleQuickPaymentToggle(reservation, isCompleted)
+                      }
+                      disabled={verifying || isRefunded || isPaymentCheckLocked}
+                      aria-pressed={isCompleted}
+                    >
+                      {isRefunded ? '환불' : isCompleted ? '확인' : '미입금'}
+                    </button>
+                    <strong className={styles.paymentRosterName}>
+                      {reservation.name}
+                      {isDuplicateName && <small>동명이인</small>}
+                    </strong>
+                    <span className={styles.paymentRosterPhone}>
+                      {maskPhoneNumber(reservation.phone)}
+                    </span>
+                    <span className={styles.paymentRosterTicket}>
+                      {confirmedTicket
+                        ? `${formatBusLabel(confirmedTicket.busNumber) || '-'} · ${
+                            confirmedTicket.dropoffStation || '-'
+                          }`
+                        : '미확정'}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           )}
         </section>
@@ -1498,10 +1598,13 @@ const CampusAdminPage = () => {
             <p className={styles.quickPaymentEmpty}>버스 신청자가 없습니다.</p>
           ) : (
             <div className={styles.quickPaymentButtons}>
-              {reservations.map((reservation) => {
+              {quickPaymentReservations.map((reservation) => {
                 const payment = getPayment(reservation);
                 const isCompleted = payment?.status === 'completed';
                 const isRefunded = payment?.status === 'refunded';
+                const isDuplicateName = duplicateApplicantNames.has(
+                  reservation.name.trim()
+                );
 
                 return (
                   <button
@@ -1511,13 +1614,15 @@ const CampusAdminPage = () => {
                       isCompleted ? styles.quickPaymentButtonCompleted : ''
                     } ${isRefunded ? styles.quickPaymentButtonRefunded : ''}`}
                     onClick={() =>
-                      void handleDirectPaymentCheck(reservation, !isCompleted)
+                      handleQuickPaymentToggle(reservation, isCompleted)
                     }
                     disabled={
                       verifying || isRefunded || isPaymentCheckLocked
                     }
                     aria-pressed={isCompleted}
-                    aria-label={`${reservation.name} ${
+                    aria-label={`${reservation.name}${
+                      isDuplicateName ? ' 동명이인' : ''
+                    } ${
                       isCompleted
                         ? '입금 확인됨, 누르면 미입금으로 변경'
                         : isRefunded
@@ -1525,7 +1630,12 @@ const CampusAdminPage = () => {
                           : '입금 확인'
                     }`}
                   >
-                    {reservation.name}
+                    <span>{reservation.name}</span>
+                    {isDuplicateName && (
+                      <small className={styles.quickPaymentDuplicate}>
+                        동명이인
+                      </small>
+                    )}
                   </button>
                 );
               })}
@@ -2063,27 +2173,6 @@ const CampusAdminPage = () => {
           )}
         </div>
 
-        <div className={styles.requestHelpBox}>
-          <div className={styles.requestHelpText}>
-            <MessageSquare size={18} />
-            <div>
-              <strong>문의 게시판</strong>
-              <p>
-                마감 이후 추가 신청, 환불, 입금 오류, 명단 수정처럼 본부 확인이
-                필요한 내용을 남기는 공간입니다. 송금 완료 보고와는 별도로
-                필요할 때만 사용해주세요.
-              </p>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            className={styles.outlineButton}
-            onClick={() => navigate('/admin/communications')}
-          >
-            문의 게시판 열기
-          </button>
-        </div>
         </section>
       </main>
 

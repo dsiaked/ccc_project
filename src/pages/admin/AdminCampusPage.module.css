@@ -16,15 +16,11 @@
 
 .header {
   margin-bottom: 24px;
-  padding: 20px;
+  padding: 18px 20px 0;
   overflow: hidden;
   border: 1px solid #a7d7c5;
-  border-top: 5px solid #047857;
-  border-radius: 14px;
-  background:
-    radial-gradient(circle at top right, rgba(16, 185, 129, 0.16), transparent 38%),
-    #ffffff;
-  box-shadow: 0 8px 24px rgba(6, 78, 59, 0.08);
+  border-radius: 10px;
+  background: #ffffff;
 }
 
 .globalAdminPanel {
@@ -203,7 +199,7 @@
   gap: 6px;
   min-height: 30px;
   padding: 6px 10px;
-  margin-bottom: 10px;
+  margin-bottom: 0;
   border-radius: 999px;
   background: #ecfdf5;
   color: #047857;
@@ -212,10 +208,10 @@
 }
 
 .header h1 {
-  font-size: 30px;
+  font-size: 24px;
   font-weight: 900;
   color: #064e3b;
-  margin: 0 0 8px;
+  margin: 0 0 4px;
 }
 
 .header p {
@@ -224,6 +220,86 @@
   margin: 0;
   font-weight: 700;
   line-height: 1.6;
+}
+
+.headerTitleRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 16px;
+}
+
+.header .guidePanel {
+  margin: 0;
+  border-bottom: 0;
+}
+
+.header .guideToggle {
+  padding: 13px 0;
+}
+
+.guideSummary {
+  padding: 16px 0;
+  border-top: 1px solid #eef2f7;
+}
+
+.guideSummarySteps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.guideSummarySteps li {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.guideSummarySteps span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 25px;
+  height: 25px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #166534;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.guideSummarySteps strong {
+  color: #334155;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.guideCloseButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 32px;
+  margin: 14px auto 0;
+  padding: 5px 12px;
+  border: 0;
+  border-radius: 6px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.guideCloseButton:hover {
+  background: #e2e8f0;
+  color: #0f172a;
 }
 
 .noticeAlert {
@@ -389,19 +465,19 @@
 
 .preparationItem {
   margin: 0;
-  padding: 18px;
-  border: 1px solid #dbe3ed;
-  border-radius: 8px;
-  background: #ffffff;
+  padding: 18px 0;
+  border: 0;
+  border-bottom: 1px solid #e5e7eb;
+  border-radius: 0;
+  background: transparent;
 }
 
 .preparationItemWarning {
-  border-color: #fde68a;
-  background: #fffdf7;
+  border-bottom-color: #fde68a;
 }
 
 .preparationItemAccount {
-  border-color: #bfdbfe;
+  border-bottom-color: #bfdbfe;
 }
 
 .preparationItemHeader {
@@ -572,10 +648,8 @@
 
 .guidePanel {
   margin-bottom: 20px;
-  overflow: hidden;
-  border: 1px solid #dbe3ed;
-  border-radius: 8px;
-  background: #ffffff;
+  border-top: 1px solid #dbe3ed;
+  border-bottom: 1px solid #dbe3ed;
 }
 
 @media (max-width: 800px) {
@@ -590,16 +664,16 @@
   justify-content: space-between;
   gap: 16px;
   width: 100%;
-  padding: 14px 16px;
+  padding: 14px 0;
   border: 0;
-  background: #ffffff;
+  background: transparent;
   color: #0f172a;
   text-align: left;
   cursor: pointer;
 }
 
 .guideToggle:hover {
-  background: #f8fafc;
+  color: #2563eb;
 }
 
 .guideToggle span {
@@ -621,8 +695,8 @@
 .guideSection {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  padding: 0 12px 12px;
+  gap: 14px;
+  padding: 16px 0 20px;
   border-top: 1px solid #eef2f7;
 }
 
@@ -632,14 +706,65 @@
 
 .preparationGuide {
   display: grid;
-  gap: 12px;
+  gap: 0;
+}
+
+.guideSection > .guideStep {
+  padding: 18px;
+  border: 1px solid #dbe3ed;
+  border-left: 5px solid #2563eb;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.05);
+}
+
+.guideSection > .guideStepPreparation {
+  border-left-color: #047857;
+  background: linear-gradient(135deg, #f0fdf4 0%, #ffffff 42%);
+}
+
+.guideStepHeading {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-bottom: 14px;
+}
+
+.guideStepNumber {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  border-radius: 10px;
+  background: #2563eb;
+  color: #ffffff;
+  font-size: 18px;
+  font-weight: 950;
+  line-height: 1;
+  box-shadow: 0 4px 10px rgba(37, 99, 235, 0.22);
+}
+
+.guideStepPreparation .guideStepNumber {
+  background: #047857;
+  box-shadow: 0 4px 10px rgba(4, 120, 87, 0.22);
+}
+
+.guideSection .guideStepHeading strong {
+  margin: 0;
+  color: #0f172a;
+  font-size: 16px;
+  font-weight: 900;
+  line-height: 1.4;
+}
+
+.preparationGuide .preparationItem:last-child {
+  border-bottom: 0;
 }
 
 .guideSection > div {
-  padding: 14px;
-  border-radius: 8px;
-  background: #f8fafc;
-  border: 1px solid #e5e7eb;
+  padding: 18px;
 }
 
 .guideSection strong {
@@ -744,6 +869,197 @@
 }
 
 .quickPaymentPanel {
+  display: none !important;
+}
+
+.listToolbar,
+.applicantListContent {
+  display: none !important;
+}
+
+.paymentRoster {
+  margin-bottom: 24px;
+  border-top: 2px solid #0f172a;
+  border-bottom: 1px solid #cbd5e1;
+  background: #ffffff;
+}
+
+.paymentRosterHeader {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 0;
+}
+
+.paymentRosterHeading {
+  display: grid;
+  gap: 4px;
+}
+
+.paymentRosterTitleRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.paymentRosterHeader h2,
+.paymentRosterHeader p {
+  margin: 0;
+}
+
+.paymentRosterHeader h2 {
+  color: #0f172a;
+  font-size: 20px;
+  font-weight: 900;
+}
+
+.paymentRosterHeader p {
+  color: #475569;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.paymentRosterPngButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 28px;
+  padding: 4px 7px;
+  border: 1px solid #cbd5e1;
+  border-radius: 5px;
+  background: #ffffff;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.paymentRosterPngButton:hover:not(:disabled) {
+  border-color: #2563eb;
+  color: #1d4ed8;
+}
+
+.paymentRosterPngButton:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.paymentRosterColumns,
+.paymentRosterRow {
+  display: grid;
+  grid-template-columns: 88px minmax(120px, 0.8fr) minmax(140px, 1fr) minmax(180px, 1.5fr);
+  align-items: center;
+  gap: 14px;
+}
+
+.paymentRosterColumns {
+  padding: 10px 12px;
+  border-top: 1px solid #cbd5e1;
+  border-bottom: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.paymentRosterRows {
+  max-height: 520px;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+.paymentRosterRow {
+  min-height: 58px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #e2e8f0;
+  color: #334155;
+  font-size: 14px;
+}
+
+.paymentRosterRow:last-child {
+  border-bottom: 0;
+}
+
+.paymentRosterRowCompleted {
+  background: #f0fdf4;
+}
+
+.paymentRosterStatus {
+  min-height: 34px;
+  padding: 6px 9px;
+  border: 1px solid #f59e0b;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #92400e;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.paymentRosterStatusCompleted {
+  border-color: #16a34a;
+  background: #16a34a;
+  color: #ffffff;
+}
+
+.paymentRosterStatusRefunded {
+  border-color: #cbd5e1;
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.paymentRosterStatus:disabled {
+  cursor: default;
+}
+
+.paymentRosterName {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: #0f172a;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.paymentRosterName small {
+  flex: 0 0 auto;
+  padding: 2px 5px;
+  border-radius: 999px;
+  background: #fee2e2;
+  color: #b91c1c;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.paymentRosterPhone,
+.paymentRosterTicket {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.paymentRosterPhone {
+  color: #64748b;
+  font-variant-numeric: tabular-nums;
+}
+
+.paymentRosterTicket {
+  color: #334155;
+  font-weight: 800;
+}
+
+.paymentRosterEmpty {
+  margin: 0;
+  padding: 30px 12px;
+  color: #64748b;
+  font-size: 14px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.quickPaymentPanel {
   display: grid;
   gap: 16px;
   margin-bottom: 14px;
@@ -804,9 +1120,18 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
   gap: 8px;
+  max-height: 360px;
+  padding-right: 4px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .quickPaymentButton {
+  display: grid;
+  place-items: center;
+  gap: 3px;
   min-height: 48px;
   padding: 9px 10px;
   border: 1px solid #f59e0b;
@@ -816,6 +1141,21 @@
   font-size: 15px;
   font-weight: 900;
   cursor: pointer;
+}
+
+.quickPaymentDuplicate {
+  padding: 2px 5px;
+  border-radius: 999px;
+  background: #fee2e2;
+  color: #b91c1c;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.quickPaymentButtonCompleted .quickPaymentDuplicate {
+  background: #ffffff;
+  color: #b91c1c;
 }
 
 .quickPaymentButton:hover:not(:disabled) {
@@ -1503,6 +1843,50 @@ input[type='checkbox'] {
     font-size: 24px;
   }
 
+  .headerTitleRow {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .guideSummarySteps {
+    gap: 8px;
+  }
+
+  .guideSummarySteps li {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .paymentRosterHeader {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .paymentRosterColumns {
+    display: none;
+  }
+
+  .paymentRosterRow {
+    grid-template-columns: 74px minmax(0, 1fr);
+    gap: 4px 10px;
+    padding: 10px 4px;
+  }
+
+  .paymentRosterStatus {
+    grid-row: 1 / span 2;
+  }
+
+  .paymentRosterName {
+    grid-column: 2;
+  }
+
+  .paymentRosterPhone,
+  .paymentRosterTicket {
+    grid-column: 2;
+    font-size: 12px;
+  }
+
   .quickPaymentHeader {
     flex-direction: column;
   }
@@ -1518,17 +1902,21 @@ input[type='checkbox'] {
 
   .guideSection {
     grid-template-columns: 1fr;
-    padding: 0 8px 8px;
+    padding: 0 0 8px;
   }
 
   .guideToggle {
     min-height: 58px;
-    padding: 14px;
+    padding: 14px 0;
   }
 
   .guideSection > div,
   .preparationItem {
-    padding: 14px;
+    padding: 16px 0;
+  }
+
+  .guideSection > .guideStep {
+    padding: 15px;
   }
 
   .paymentAccountFields input {

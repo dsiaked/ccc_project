@@ -31,7 +31,13 @@ const AdminProtectedRoute = ({
   }
 
   if (status === 'anonymous') {
-    return <Navigate to="/admin/login" replace state={{ from: location }} />;
+    return (
+      <Navigate
+        to="/login"
+        replace
+        state={{ from: `${location.pathname}${location.search}${location.hash}` }}
+      />
+    );
   }
 
   if (status === 'error') {

@@ -5,7 +5,6 @@ import { AdminAuthProvider } from '../components/AdminAuthProvider';
 import AdminProtectedRoute from '../components/AdminProtectedRoute';
 import type { AdminRoleType } from '../lib/adminService';
 
-const AdminLoginPage = lazy(() => import('../pages/admin/AdminLoginPage'));
 const AdminCampusDashboardPage = lazy(
   () => import('../pages/admin/AdminCampusPage')
 );
@@ -27,6 +26,9 @@ const AdminReservationDeadlinePage = lazy(
 );
 const AdminCampusRequestsPage = lazy(
   () => import('../pages/admin/AdminCampusRequestsPage')
+);
+const AdminPersonalInquiriesPage = lazy(
+  () => import('../pages/admin/AdminPersonalInquiriesPage')
 );
 const AdminUsersPage = lazy(
   () => import('../pages/admin/AdminPersonalTicketPage')
@@ -82,11 +84,6 @@ const boardingAccess = [
   'global_admin',
   'boarding_manager',
 ] as const satisfies readonly AdminRoleType[];
-const allAdminRoles = [
-  'global_admin',
-  'campus_admin',
-] as const satisfies readonly AdminRoleType[];
-
 const adminRoute = (
   element: ReactNode,
   allowedRoles: readonly AdminRoleType[]
@@ -104,8 +101,24 @@ const RedirectWithSearch = ({ to }: { to: string }) => {
   return <Navigate to={destination} replace />;
 };
 
+const AdminLoginRedirect = () => {
+  const location = useLocation();
+  const requestedLocation = location.state?.from;
+  const from =
+    requestedLocation &&
+    typeof requestedLocation.pathname === 'string' &&
+    requestedLocation.pathname.startsWith('/admin/') &&
+    requestedLocation.pathname !== '/admin/login'
+      ? `${requestedLocation.pathname}${requestedLocation.search ?? ''}${
+          requestedLocation.hash ?? ''
+        }`
+      : '/admin/dashboard';
+
+  return <Navigate to="/login" replace state={{ from }} />;
+};
+
 const canonicalAdminRoutes = [
-  { path: 'login', element: <AdminLoginPage /> },
+  { path: 'login', element: <AdminLoginRedirect /> },
   { path: '', element: <Navigate to="/admin/dashboard" replace /> },
   {
     path: 'dashboard',
@@ -181,7 +194,11 @@ const canonicalAdminRoutes = [
   },
   {
     path: 'communications',
-    element: adminRoute(<AdminCampusRequestsPage />, allAdminRoles),
+    element: adminRoute(<AdminCampusRequestsPage />, globalAdminOnly),
+  },
+  {
+    path: 'communications/personal',
+    element: adminRoute(<AdminPersonalInquiriesPage />, globalAdminOnly),
   },
   {
     path: 'allocations',
@@ -246,7 +263,7 @@ const legacyAdminRoutes = [
   {
     path: 'campus-requests',
     to: '/admin/communications',
-    roles: allAdminRoles,
+    roles: globalAdminOnly,
   },
   {
     path: 'home-announcements',
@@ -323,7 +340,7 @@ const AdminRoutes = () => (
           )}
         />
       ))}
-      <Route path="*" element={<Navigate to="/admin/login" replace />} />
+      <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   </AdminAuthProvider>
 );

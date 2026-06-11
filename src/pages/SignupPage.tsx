@@ -1,5 +1,5 @@
 import type { FormEvent } from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CheckCircle2, ChevronLeft, MailCheck, UserPlus } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -28,6 +28,7 @@ import styles from './SignupPage.module.css';
 const validateEmail = (value: string) => /^\S+@\S+\.\S+$/.test(value);
 const validatePhone = (value: string) => /^010-\d{4}-\d{4}$/.test(value);
 const EXTERNAL_DISTRICT_ID = 'external';
+type EmailCheckStatus = 'idle' | 'checking' | 'available' | 'duplicate' | 'error';
 
 const loadSignupDraft = (): SignupDraft =>
   loadSignupDraftFromStorage(window.sessionStorage, window.localStorage);
@@ -62,6 +63,8 @@ const SignupPage = () => {
 
   const [email, setEmail] = useState(initialDraft.email);
   const [emailMessage, setEmailMessage] = useState<string | null>(null);
+  const [emailCheckStatus, setEmailCheckStatus] = useState<EmailCheckStatus>('idle');
+  const emailCheckRequestId = useRef(0);
 
   const [password, setPassword] = useState('');
   const [passwordConfirm, setPasswordConfirm] = useState('');
@@ -234,15 +237,55 @@ const SignupPage = () => {
     };
   }, [teamId]);
 
-  const handleNextStep = () => {
+  const handleEmailAvailabilityCheck = async () => {
     setError(null);
+    setSuccess(null);
 
-    if (!validateEmail(email.trim().toLowerCase())) {
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (!validateEmail(normalizedEmail)) {
+      setEmailCheckStatus('idle');
       setEmailMessage('유효한 이메일을 입력해주세요.');
-      return;
+      return false;
     }
 
+    const requestId = ++emailCheckRequestId.current;
+    setEmailCheckStatus('checking');
     setEmailMessage(null);
+
+    try {
+      const { data: emailExists, error: emailCheckError } = await supabase.rpc(
+        'email_exists',
+        { p_email: normalizedEmail }
+      );
+
+      if (emailCheckError) throw emailCheckError;
+      if (requestId !== emailCheckRequestId.current) return false;
+
+      if (emailExists) {
+        setEmailCheckStatus('duplicate');
+        setEmailMessage('이미 가입된 이메일입니다.');
+        return false;
+      }
+
+      setEmailCheckStatus('available');
+      setEmailMessage('사용 가능한 이메일입니다.');
+      return true;
+    } catch (emailCheckError) {
+      if (requestId !== emailCheckRequestId.current) return false;
+
+      console.error('이메일 중복 확인 실패:', emailCheckError);
+      setEmailCheckStatus('error');
+      setEmailMessage('이메일 중복 확인에 실패했습니다. 잠시 후 다시 시도해주세요.');
+      return false;
+    }
+  };
+
+  const handleNextStep = async () => {
+    const emailAvailable =
+      emailCheckStatus === 'available' || (await handleEmailAvailabilityCheck());
+
+    if (!emailAvailable) return;
 
     if (password.length < 6) {
       setError('비밀번호는 최소 6자 이상이어야 합니다.');
@@ -261,7 +304,7 @@ const SignupPage = () => {
     e.preventDefault();
 
     if (currentStep === 0) {
-      handleNextStep();
+      await handleNextStep();
       return;
     }
 
@@ -406,8 +449,9 @@ const SignupPage = () => {
 
       if (signUpError) {
         if (isAlreadyRegisteredSignupError(signUpError)) {
-          clearSignupDraft();
-          setSignupResult('verification-required');
+          setCurrentStep(0);
+          setEmailCheckStatus('duplicate');
+          setEmailMessage('이미 가입된 이메일입니다.');
           return;
         }
 
@@ -426,8 +470,9 @@ const SignupPage = () => {
       setSignupResult('complete');
     } catch (error) {
       if (isAlreadyRegisteredSignupError(error)) {
-        clearSignupDraft();
-        setSignupResult('verification-required');
+        setCurrentStep(0);
+        setEmailCheckStatus('duplicate');
+        setEmailMessage('이미 가입된 이메일입니다.');
         return;
       }
 
@@ -490,7 +535,7 @@ const SignupPage = () => {
               type="button"
               className={styles.resultButton}
               onClick={() =>
-                navigate('/login', {
+                navigate('/local-login', {
                   state: { email: email.trim().toLowerCase() },
                 })
               }
@@ -541,7 +586,7 @@ const SignupPage = () => {
               aria-current={currentStep === 1 ? 'step' : undefined}
               onClick={() => {
                 if (currentStep === 1) return;
-                handleNextStep();
+                void handleNextStep();
               }}
             >
               <span>2</span>
@@ -566,19 +611,33 @@ const SignupPage = () => {
                   setError(null);
                   setSuccess(null);
                   setEmailMessage(null);
+                  setEmailCheckStatus('idle');
+                  emailCheckRequestId.current += 1;
                 }}
                 autoComplete="email"
                 aria-describedby={emailMessage ? 'signup-email-message' : undefined}
-                aria-invalid={Boolean(emailMessage)}
+                aria-invalid={Boolean(emailMessage) && emailCheckStatus !== 'available'}
                 required
               />
+              <button
+                type="button"
+                className={styles.emailCheckButton}
+                onClick={() => void handleEmailAvailabilityCheck()}
+                disabled={emailCheckStatus === 'checking'}
+              >
+                {emailCheckStatus === 'checking' ? '확인 중...' : '중복 확인'}
+              </button>
             </div>
 
             {emailMessage && (
               <p
                 id="signup-email-message"
-                className={styles.errorMessage}
-                role="alert"
+                className={
+                  emailCheckStatus === 'available'
+                    ? styles.successMessage
+                    : styles.errorMessage
+                }
+                role={emailCheckStatus === 'available' ? 'status' : 'alert'}
               >
                 {emailMessage}
               </p>
@@ -687,6 +746,14 @@ const SignupPage = () => {
             <p className={styles.phoneGuide}>
               원활한 배차 소통을 위해 반드시 본인의 정확한 연락처를
               입력해주세요.
+            </p>
+          </div>
+
+          <div className={styles.affiliationGuide} role="note">
+            <strong>소속 정보 선택 안내</strong>
+            <p>
+              본인이 CCC 회원이 아닌 경우, 함께 온 캠퍼스의 지구·팀·캠퍼스
+              정보를 선택해주세요.
             </p>
           </div>
 
@@ -886,9 +953,10 @@ const SignupPage = () => {
             <button
               type="button"
               className={styles.submitButton}
-              onClick={handleNextStep}
+              onClick={() => void handleNextStep()}
+              disabled={emailCheckStatus === 'checking'}
             >
-              다음
+              {emailCheckStatus === 'checking' ? '이메일 확인 중...' : '다음'}
             </button>
           ) : (
             <div className={styles.buttonGroup}>

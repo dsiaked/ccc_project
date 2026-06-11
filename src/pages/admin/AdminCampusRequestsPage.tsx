@@ -1021,6 +1021,19 @@ const AdminCampusRequestsPage = () => {
           <small>일반 사용자 대상 공지를 관리합니다.</small>
         </span>
       </button>
+
+      <button
+        type="button"
+        onClick={() => navigate('/admin/communications/personal')}
+      >
+        <span className={styles.globalSectionIcon}>
+          <MessageSquare size={18} />
+        </span>
+        <span className={styles.globalSectionCopy}>
+          <strong>개인 문의</strong>
+          <small>개인 사용자의 문의를 확인하고 답변합니다.</small>
+        </span>
+      </button>
     </nav>
   );
 

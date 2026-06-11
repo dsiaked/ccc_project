@@ -11,14 +11,14 @@ const campusPageStyles = readFileSync(
 
 test('campus payment guide explains the full transfer workflow', () => {
   for (const text of [
-    '0. 사전 준비 단계',
+    '사전 준비 단계',
     '입금 계좌 등록',
     '서울지구 소속이 아니더라도 본인 캠퍼스와 함께 온 친구들은 본인',
     '캠퍼스로 회원가입하도록 안내해주세요.',
-    '1. 신청자 입금 확인',
-    '2. 서울지구 계좌로 송금 후 &quot;송금 완료&quot; 누르기',
-    '3. 완료 보고 이후',
-    '4. 추가 송금',
+    '신청자 입금 확인',
+    '서울지구 계좌로 송금 후 &quot;송금 완료&quot; 누르기',
+    '완료 보고 이후',
+    '추가 송금',
     '송금 완료 보고 취소',
     '증가 금액만 추가 송금',
   ]) {
@@ -34,6 +34,33 @@ test('campus preparation items share one checklist card language', () => {
   assert.match(campusPageStyles, /\.preparationItem\s*\{/);
   assert.match(campusPageStyles, /\.preparationStatusComplete\s*\{/);
   assert.match(campusPageStyles, /\.preparationStatusRequired\s*\{/);
+});
+
+test('campus payment guide shows only a three-step summary with a close button', () => {
+  assert.match(campusPage, /className=\{styles\.guideSummarySteps\}/);
+  assert.match(campusPage, /<strong>계좌 등록<\/strong>/);
+  assert.match(campusPage, /<strong>입금 확인<\/strong>/);
+  assert.match(campusPage, /<strong>본부 송금<\/strong>/);
+  assert.match(campusPage, /className=\{styles\.guideCloseButton\}/);
+  assert.match(campusPage, /onClick=\{\(\) => setIsGuideOpen\(false\)\}/);
+  assert.match(campusPageStyles, /\.guideCloseButton\s*\{/);
+});
+
+test('campus payment guide clearly separates and emphasizes workflow steps', () => {
+  assert.match(
+    campusPageStyles,
+    /\.guidePanel\s*\{[\s\S]*border-top:\s*1px solid #dbe3ed;[\s\S]*border-bottom:\s*1px solid #dbe3ed;/
+  );
+  assert.match(campusPage, /className=\{styles\.guideStepHeading\}/);
+  assert.match(campusPage, /className=\{styles\.guideStepNumber\}>0<\/span>/);
+  assert.match(campusPage, /className=\{styles\.guideStepNumber\}>4<\/span>/);
+  assert.match(campusPageStyles, /\.guideSection > \.guideStep\s*\{/);
+  assert.match(campusPageStyles, /\.guideStepNumber\s*\{/);
+  assert.match(campusPageStyles, /\.guideStepPreparation \.guideStepNumber\s*\{/);
+  assert.match(
+    campusPageStyles,
+    /\.preparationItem\s*\{[\s\S]*background:\s*transparent;/
+  );
 });
 
 test('campus payment account button communicates registration, edits, and saved state', () => {
@@ -137,6 +164,41 @@ test('campus applicant list stays compact with search, filters, and pagination',
   assert.match(campusPageStyles, /\.applicantPagination\s*\{/);
 });
 
+test('quick payment names are sorted in Korean alphabetical order only', () => {
+  assert.match(campusPage, /const quickPaymentReservations = useMemo/);
+  assert.match(campusPage, /\[\.\.\.reservations\]\.sort/);
+  assert.match(campusPage, /left\.name\.localeCompare\(right\.name, 'ko-KR'\)/);
+  assert.match(campusPage, /quickPaymentReservations\.map\(\(reservation\) =>/);
+  assert.match(campusPage, /reservations\.forEach\(\(reservation, index\) =>/);
+  assert.match(
+    campusPageStyles,
+    /\.quickPaymentButtons\s*\{[\s\S]*max-height:\s*360px;[\s\S]*overflow-y:\s*auto;/
+  );
+});
+
+test('campus payment workflow is presented as one flat payment roster', () => {
+  assert.match(campusPage, /className=\{styles\.paymentRoster\}/);
+  assert.match(campusPage, /신청자 입금 명단/);
+  assert.match(campusPage, /maskPhoneNumber\(reservation\.phone\)/);
+  assert.match(campusPage, /className=\{styles\.paymentRosterRows\}/);
+  assert.match(campusPageStyles, /\.paymentRosterRow\s*\{/);
+  assert.doesNotMatch(
+    campusPageStyles,
+    /\.paymentRosterRows\s*\{[^}]*overscroll-behavior:\s*contain;/
+  );
+  assert.match(campusPage, /className=\{styles\.paymentRosterTitleRow\}/);
+  assert.match(campusPage, /className=\{styles\.paymentRosterPngButton\}/);
+  assert.match(campusPageStyles, /\.paymentRosterPngButton\s*\{/);
+  assert.match(
+    campusPageStyles,
+    /\.quickPaymentPanel\s*\{\s*display:\s*none !important;/
+  );
+  assert.match(
+    campusPageStyles,
+    /\.listToolbar,\s*\n\.applicantListContent\s*\{\s*display:\s*none !important;/
+  );
+});
+
 test('name-only quick payment buttons toggle confirmed payments', () => {
   assert.match(campusPage, /aria-label="빠른 입금 확인"/);
   assert.match(campusPage, /초록색 이름을 다시\s*누르면 미입금으로 되돌립니다\./);
@@ -147,6 +209,15 @@ test('name-only quick payment buttons toggle confirmed payments', () => {
     /verifying \|\| isCompleted \|\| isRefunded \|\| isPaymentCheckLocked/
   );
   assert.match(campusPageStyles, /\.quickPaymentButtonCompleted\s*\{/);
+});
+
+test('name-only quick payment buttons warn about duplicate applicant names', () => {
+  assert.match(campusPage, /const duplicateApplicantNames = useMemo/);
+  assert.match(campusPage, /\.filter\(\(\[, count\]\) => count > 1\)/);
+  assert.match(campusPage, /duplicateApplicantNames\.has\(/);
+  assert.match(campusPage, /isDuplicateName \? ' 동명이인' : ''/);
+  assert.match(campusPage, /className=\{styles\.quickPaymentDuplicate\}/);
+  assert.match(campusPageStyles, /\.quickPaymentDuplicate\s*\{/);
 });
 
 test('campus bulk payment changes only the current filter results after confirmation', () => {
@@ -183,10 +254,10 @@ test('campus applicant list owns the payment progress summary', () => {
 });
 
 test('campus administrator page is visually identified as a dedicated workspace', () => {
-  assert.match(campusPage, /캠퍼스 회계 순장님 전용 운영 화면/);
-  assert.match(campusPage, /<h1>캠퍼스 회계 순장님 페이지<\/h1>/);
-  assert.match(campusPageStyles, /\.roleBanner\s*\{/);
-  assert.match(campusPageStyles, /border-top: 5px solid #047857/);
+  assert.match(campusPage, /<h1>캠퍼스 회계<\/h1>/);
+  assert.match(campusPage, /신청자 입금 확인과 본부 송금을 관리합니다/);
+  assert.match(campusPageStyles, /\.headerTitleRow\s*\{/);
+  assert.match(campusPageStyles, /\.header \.guidePanel\s*\{/);
 });
 
 test('global-only campus controls are separated from the campus administrator view', () => {

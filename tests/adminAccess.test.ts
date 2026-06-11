@@ -19,7 +19,7 @@ test('scoped administrators only receive explicitly allowed permissions', () => 
 });
 
 test('administrator fallback routes never loop users without a role', () => {
-  assert.equal(getAdminFallbackPath(null), '/admin/login');
+  assert.equal(getAdminFallbackPath(null), '/login');
   assert.equal(getAdminFallbackPath('global_admin'), '/admin/dashboard');
   assert.equal(getAdminFallbackPath('campus_admin'), '/admin/campus-dashboard');
   assert.equal(getAdminFallbackPath('boarding_manager'), '/admin/boarding');

@@ -3,6 +3,10 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const adminHeader = readFileSync('src/pages/admin/AdminHeader.tsx', 'utf8');
+const sidebarItems = adminHeader.slice(
+  adminHeader.indexOf('const navItems'),
+  adminHeader.indexOf('const searchableAdminItems')
+);
 const adminHeaderStyles = readFileSync(
   'src/pages/admin/AdminHeader.module.css',
   'utf8'
@@ -48,8 +52,8 @@ test('admin sidebar places boarding manager permissions under boarding operation
   assert.match(boardingManagerItem, /path: '\/admin\/access\/boarding-managers'/);
   assert.match(boardingManagerItem, /stageGroup: 'boarding'/);
   assert.match(boardingManagerItem, /allowedRoles: \['global_admin'\]/);
-  assert.doesNotMatch(adminHeader, /label: '캠퍼스 회계 순장님 관리'/);
-  assert.doesNotMatch(adminHeader, /path: '\/admin\/access\/campus-admins'/);
+  assert.doesNotMatch(sidebarItems, /label: '캠퍼스 회계 순장님 관리'/);
+  assert.doesNotMatch(sidebarItems, /path: '\/admin\/access\/campus-admins'/);
 });
 
 test('admin sidebar prevents desktop horizontal scrolling', () => {

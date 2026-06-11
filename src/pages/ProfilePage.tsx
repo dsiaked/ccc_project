@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import {
   AlertCircle,
-  Building2,
   CheckCircle2,
   IdCard,
   Mail,
@@ -73,6 +72,7 @@ const ProfilePage = () => {
   const [fieldErrors, setFieldErrors] =
     useState<ProfileFormErrors>(defaultFieldErrors);
   const [success, setSuccess] = useState('');
+  const [isEditing, setIsEditing] = useState(false);
 
   const loadCccSummerProfile = useCallback(async () => {
     setCccSummerLoading(true);
@@ -160,9 +160,22 @@ const ProfilePage = () => {
     };
   }, [loadAttempt, loadCccSummerProfile, navigate]);
 
+  useEffect(() => {
+    if (!success) return;
+
+    const timeoutId = window.setTimeout(() => setSuccess(''), 3000);
+    return () => window.clearTimeout(timeoutId);
+  }, [success]);
+
+  const hasChanges = Boolean(
+    profile &&
+      (name.trim() !== profile.name.trim() ||
+        formatPhone(phone) !== formatPhone(profile.phone))
+  );
+
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    if (saving) return;
+    if (saving || !hasChanges) return;
 
     const normalizedName = name.trim();
     const normalizedPhone = formatPhone(phone);
@@ -221,6 +234,7 @@ const ProfilePage = () => {
       setName(normalizedName);
       setPhone(normalizedPhone);
       setSuccess('프로필이 저장되었습니다.');
+      setIsEditing(false);
     } catch (saveError) {
       console.error('프로필 저장 실패:', saveError);
       setFormError(
@@ -229,6 +243,16 @@ const ProfilePage = () => {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleCancelEdit = () => {
+    if (!profile || saving) return;
+
+    setName(profile.name ?? '');
+    setPhone(profile.phone ?? '');
+    setFieldErrors(defaultFieldErrors());
+    setFormError('');
+    setIsEditing(false);
   };
 
   const visibleEmail =
@@ -248,13 +272,8 @@ const ProfilePage = () => {
       <Header />
       <main className={styles.main}>
         <header className={styles.pageHeader}>
-          <div className={styles.iconCircle}>
-            <UserRound size={30} />
-          </div>
           <h1>프로필</h1>
-          <p>
-            버스 예약에 사용하는 기본 정보와 연결 정보를 확인합니다.
-          </p>
+          <p>예약에 사용하는 기본 정보와 연결 정보를 관리합니다.</p>
         </header>
 
         {loading ? (
@@ -276,59 +295,91 @@ const ProfilePage = () => {
         ) : (
           <>
             <form className={styles.card} onSubmit={handleSubmit}>
-              <div className={styles.cardTitle}>
-                <UserRound size={20} />
-                <h2>버스 예약 기본 정보</h2>
+              <div className={styles.cardHeader}>
+                <div className={styles.cardTitle}>
+                  <UserRound size={20} />
+                  <h2>기본 정보</h2>
+                </div>
+                {!isEditing && (
+                  <button
+                    className={styles.editButton}
+                    type="button"
+                    onClick={() => setIsEditing(true)}
+                  >
+                    수정
+                  </button>
+                )}
               </div>
-              <label className={styles.field} htmlFor="profile-name">
-                이름
-                <input
-                  ref={nameInputRef}
-                  id="profile-name"
-                  value={name}
-                  onChange={(event) => {
-                    setName(event.target.value);
-                    setFieldErrors((current) => ({ ...current, name: '' }));
-                    setSuccess('');
-                  }}
-                  autoComplete="name"
-                  maxLength={50}
-                  aria-invalid={Boolean(fieldErrors.name)}
-                  aria-describedby={
-                    fieldErrors.name ? 'profile-name-error' : undefined
-                  }
-                />
-                {fieldErrors.name && (
-                  <p className={styles.fieldError} id="profile-name-error">
-                    {fieldErrors.name}
-                  </p>
-                )}
-              </label>
-              <label className={styles.field} htmlFor="profile-phone">
-                연락처
-                <input
-                  ref={phoneInputRef}
-                  id="profile-phone"
-                  value={phone}
-                  onChange={(event) => {
-                    setPhone(formatPhone(event.target.value));
-                    setFieldErrors((current) => ({ ...current, phone: '' }));
-                    setSuccess('');
-                  }}
-                  inputMode="tel"
-                  autoComplete="tel"
-                  maxLength={13}
-                  aria-invalid={Boolean(fieldErrors.phone)}
-                  aria-describedby={
-                    fieldErrors.phone ? 'profile-phone-error' : undefined
-                  }
-                />
-                {fieldErrors.phone && (
-                  <p className={styles.fieldError} id="profile-phone-error">
-                    {fieldErrors.phone}
-                  </p>
-                )}
-              </label>
+              {isEditing ? (
+                <>
+                  <label className={styles.field} htmlFor="profile-name">
+                    이름
+                    <input
+                      ref={nameInputRef}
+                      id="profile-name"
+                      value={name}
+                      onChange={(event) => {
+                        setName(event.target.value);
+                        setFieldErrors((current) => ({ ...current, name: '' }));
+                        setSuccess('');
+                      }}
+                      autoComplete="name"
+                      maxLength={50}
+                      aria-invalid={Boolean(fieldErrors.name)}
+                      aria-describedby={
+                        fieldErrors.name ? 'profile-name-error' : undefined
+                      }
+                    />
+                    {fieldErrors.name && (
+                      <p className={styles.fieldError} id="profile-name-error">
+                        {fieldErrors.name}
+                      </p>
+                    )}
+                  </label>
+                  <label className={styles.field} htmlFor="profile-phone">
+                    연락처
+                    <input
+                      ref={phoneInputRef}
+                      id="profile-phone"
+                      value={phone}
+                      onChange={(event) => {
+                        setPhone(formatPhone(event.target.value));
+                        setFieldErrors((current) => ({ ...current, phone: '' }));
+                        setSuccess('');
+                      }}
+                      inputMode="tel"
+                      autoComplete="tel"
+                      maxLength={13}
+                      aria-invalid={Boolean(fieldErrors.phone)}
+                      aria-describedby={
+                        fieldErrors.phone ? 'profile-phone-error' : undefined
+                      }
+                    />
+                    {fieldErrors.phone && (
+                      <p className={styles.fieldError} id="profile-phone-error">
+                        {fieldErrors.phone}
+                      </p>
+                    )}
+                  </label>
+                </>
+              ) : (
+                <>
+                  <div className={styles.infoRow}>
+                    <UserRound size={18} />
+                    <div>
+                      <span>이름</span>
+                      <strong>{profile.name || '정보 없음'}</strong>
+                    </div>
+                  </div>
+                  <div className={styles.infoRow}>
+                    <Phone size={18} />
+                    <div>
+                      <span>연락처</span>
+                      <strong>{profile.phone || '정보 없음'}</strong>
+                    </div>
+                  </div>
+                </>
+              )}
               <div className={styles.infoRow}>
                 <Mail size={18} />
                 <div>
@@ -336,38 +387,10 @@ const ProfilePage = () => {
                   <strong>{visibleEmail ?? 'CCC Summer 연동 계정'}</strong>
                 </div>
               </div>
-              {isCccSummer && (
-                <p className={styles.helpText}>
-                  이름과 연락처는 버스 예약에만 사용됩니다. CCC Summer로 다시
-                  로그인하면 CCC에 등록된 정보로 변경될 수 있습니다.
-                </p>
-              )}
-              {formError && (
-                <div className={styles.errorBox} role="alert">
-                  <AlertCircle size={18} />
-                  {formError}
-                </div>
-              )}
-              {success && (
-                <div className={styles.successBox} role="status">
-                  <CheckCircle2 size={18} />
-                  {success}
-                </div>
-              )}
-              <button className={styles.saveButton} type="submit" disabled={saving}>
-                {saving ? '저장 중...' : '기본 정보 저장'}
-              </button>
-            </form>
-
-            <section className={styles.card}>
-              <div className={styles.cardTitle}>
-                <Building2 size={20} />
-                <h2>버스 소속 정보</h2>
-              </div>
               <div className={styles.infoRow}>
                 <MapPin size={18} />
                 <div>
-                  <span>현재 버스 소속</span>
+                  <span>소속</span>
                   <strong>{affiliation || '소속 정보 없음'}</strong>
                 </div>
               </div>
@@ -389,19 +412,50 @@ const ProfilePage = () => {
                   <ShieldCheck size={18} />
                   <div>
                     <span>소속 연결 방식</span>
-                    <strong>CCC Summer 소속과 연결된 버스 캠퍼스</strong>
+                    <strong>CCC Summer 소속과 연결된 캠퍼스</strong>
                   </div>
                 </div>
               )}
-              <p className={styles.helpText}>
-                {isCccSummer
-                  ? 'CCC Summer에서 받은 소속을 기준으로 버스 캠퍼스가 연결됩니다.'
-                  : '소속 변경은 버스 요청 화면에서 예약 정보와 함께 반영해주세요.'}
-              </p>
+              {isCccSummer && (
+                <p className={styles.helpText}>
+                  이름과 연락처는 버스 예약에만 사용됩니다. CCC Summer로 다시
+                  로그인하면 CCC에 등록된 정보로 변경될 수 있습니다.
+                </p>
+              )}
+              {!isCccSummer && (
+                <p className={styles.helpText}>
+                  소속 변경은 버스 요청 화면에서 예약 정보와 함께 반영해주세요.
+                </p>
+              )}
+              {isEditing && formError && (
+                <div className={styles.errorBox} role="alert">
+                  <AlertCircle size={18} />
+                  {formError}
+                </div>
+              )}
+              {isEditing && (
+                <div className={styles.editActions}>
+                  <button
+                    className={styles.cancelButton}
+                    type="button"
+                    onClick={handleCancelEdit}
+                    disabled={saving}
+                  >
+                    취소
+                  </button>
+                  <button
+                    className={styles.saveButton}
+                    type="submit"
+                    disabled={saving || !hasChanges}
+                  >
+                    {saving ? '저장 중...' : '저장'}
+                  </button>
+                </div>
+              )}
               <Link to="/reservation" className={styles.secondaryButton}>
                 버스 요청 정보 확인
               </Link>
-            </section>
+            </form>
 
             {isCccSummer && (
               <section className={styles.card}>
@@ -478,6 +532,12 @@ const ProfilePage = () => {
           </>
         )}
       </main>
+      {success && (
+        <div className={styles.toast} role="status">
+          <CheckCircle2 size={18} />
+          {success}
+        </div>
+      )}
     </div>
   );
 };

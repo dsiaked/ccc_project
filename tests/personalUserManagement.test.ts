@@ -24,7 +24,7 @@ const enhancementMigrationSql = readFileSync(
   'utf8'
 );
 const notificationSection = readFileSync(
-  'src/components/PersonalNotificationSection.tsx',
+  'src/components/HomeNoticeSection.tsx',
   'utf8'
 );
 const notificationService = readFileSync(
@@ -66,7 +66,8 @@ test('personal user management exposes status, payment, notification, and histor
   assert.match(adminPage, /입금 처리/);
   assert.match(adminPage, /개인 앱 알림/);
   assert.match(adminPage, /개인 작업 이력/);
-  assert.match(homePage, /PersonalNotificationSection/);
+  assert.doesNotMatch(homePage, /PersonalNotificationSection/);
+  assert.match(homePage, /HomeNoticeSection/);
 });
 
 test('personal user operations link atomic cancellation, payment reset, audit, and safe revert', () => {
@@ -87,18 +88,16 @@ test('personal user page exposes tabs, attention filter, templates, permissions,
   assert.match(adminPage, /일괄 입금 확인/);
   assert.match(adminPage, /작업 되돌리기/);
   assert.match(adminPage, /위험 작업 확인/);
-  assert.match(notificationSection, /개인 알림함/);
+  assert.match(notificationSection, /개인 알림/);
   assert.match(notificationSection, /markPersonalNotificationRead/);
 });
 
-test('personal notification center exposes failures and preserves partial read results', () => {
+test('notice list exposes personal notification failures and read state', () => {
   assert.match(notificationService, /limit = 20/);
   assert.match(notificationSection, /supabase\.auth\.getSession/);
-  assert.match(notificationSection, /if \(!loggedIn\) \{/);
-  assert.match(notificationSection, /if \(isAuthLoading \|\| !isLoggedIn\) return null/);
   assert.match(notificationSection, /Promise\.allSettled/);
-  assert.match(notificationSection, /readIds\.includes/);
-  assert.match(notificationSection, /개인 알림을 불러오지 못했습니다/);
+  assert.match(notificationSection, /personalTag/);
+  assert.match(notificationSection, /읽음 처리하지 못했습니다/);
   assert.match(notificationSection, /role="alert"/);
   assert.match(notificationSection, /다시 시도/);
 });

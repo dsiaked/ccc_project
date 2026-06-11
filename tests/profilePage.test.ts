@@ -34,7 +34,7 @@ test('profile page loads the authenticated profile and limits edits to basic inf
   );
   assert.match(
     page,
-    /CCC Summer에서 받은 소속을 기준으로 버스 캠퍼스가 연결됩니다\./
+    /<span>소속<\/span>/
   );
   assert.doesNotMatch(page, /\.update\(\{[\s\S]*campus_id/);
 });
@@ -50,6 +50,26 @@ test('profile page attaches validation errors to the edited fields', () => {
   assert.match(page, /id="profile-phone-error"/);
 });
 
+test('profile page uses read mode until the user starts editing basic information', () => {
+  assert.match(page, /const \[isEditing, setIsEditing\] = useState\(false\)/);
+  assert.match(page, /!isEditing && \(/);
+  assert.match(page, /onClick=\{\(\) => setIsEditing\(true\)\}/);
+  assert.match(page, />\s*수정\s*<\/button>/);
+  assert.match(page, /isEditing \? \(/);
+  assert.match(page, /<span>이름<\/span>/);
+  assert.match(page, /<span>연락처<\/span>/);
+  assert.match(page, /handleCancelEdit/);
+  assert.match(page, />\s*취소\s*<\/button>/);
+});
+
+test('profile page only enables saving for changed values and shows transient success feedback', () => {
+  assert.match(page, /const hasChanges = Boolean\(/);
+  assert.match(page, /disabled=\{saving \|\| !hasChanges\}/);
+  assert.match(page, /window\.setTimeout\(\(\) => setSuccess\(''\), 3000\)/);
+  assert.match(page, /className=\{styles\.toast\}/);
+  assert.match(page, /\{saving \? '저장 중\.\.\.' : '저장'\}/);
+});
+
 test('profile page displays every field received from CCC Summer', () => {
   assert.match(page, /getCccSummerLinkedProfile/);
   assert.match(page, /cccSummerProfile\.subjectId/);
@@ -61,11 +81,13 @@ test('profile page displays every field received from CCC Summer', () => {
   assert.match(handoffService, /body: \{ action: 'profile' \}/);
 });
 
-test('profile page prioritizes bus information and progressively discloses CCC technical fields', () => {
+test('profile page includes affiliation in basic information and progressively discloses CCC technical fields', () => {
   assert.ok(
-    page.indexOf('<h2>버스 소속 정보</h2>') <
+    page.indexOf('<span>소속</span>') <
       page.indexOf('<h2>CCC Summer 연결 정보</h2>')
   );
+  assert.match(page, /<h2>기본 정보<\/h2>/);
+  assert.doesNotMatch(page, /버스 소속 정보|현재 버스 소속/);
   assert.match(page, /<details className=\{styles\.technicalDetails\}>/);
   assert.match(page, /<summary>기술 정보 보기<\/summary>/);
   assert.match(page, /cccSummerLoading/);
