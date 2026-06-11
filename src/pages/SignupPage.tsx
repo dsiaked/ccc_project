@@ -12,10 +12,6 @@ import {
   type CampusOption,
 } from '../lib/organizationService';
 import {
-  parseInvitationCodes,
-  validateInvitationCodes,
-} from '../lib/invitationCodeService';
-import {
   clearSignupDraft as clearSignupDraftStorage,
   loadSignupDraft as loadSignupDraftFromStorage,
   saveSignupDraft as saveSignupDraftToSession,
@@ -90,7 +86,6 @@ const SignupPage = () => {
   const [coordinatorPhone, setCoordinatorPhone] = useState(
     initialDraft.coordinatorPhone
   );
-  const [invitationCodeInput, setInvitationCodeInput] = useState('');
   const isExternal = districtId === EXTERNAL_DISTRICT_ID;
 
   const [loadingOptions, setLoadingOptions] = useState(false);
@@ -404,21 +399,6 @@ const SignupPage = () => {
     setLoading(true);
 
     try {
-      const invitationCodes = parseInvitationCodes(invitationCodeInput);
-
-      if (invitationCodes.length > 0) {
-        const validation = await validateInvitationCodes(invitationCodes);
-
-        if (!validation.valid) {
-          setError(
-            `${validation.errorIndex ? `${validation.errorIndex}번째 코드: ` : ''}${
-              validation.errorMessage ?? '권한 등록 코드를 확인해주세요.'
-            }`
-          );
-          return;
-        }
-      }
-
       clearOAuthCallbackState();
       const { data, error: signUpError } = await supabase.auth.signUp({
         email: normalizedEmail,
@@ -441,7 +421,6 @@ const SignupPage = () => {
             affiliation_type: isExternal ? 'external' : 'seoul',
             coordinator_name: isExternal ? coordinatorName.trim() : '',
             coordinator_phone: isExternal ? coordinatorPhone.trim() : '',
-            invitation_codes: invitationCodes,
           },
           emailRedirectTo: `${window.location.origin}/auth/callback`,
         },
@@ -918,29 +897,6 @@ const SignupPage = () => {
             </>
           )}
             </>
-          )}
-
-          {currentStep === 1 && (
-            <div className={styles.inputGroup}>
-              <label className={styles.label} htmlFor="signup-invitation-codes">
-                권한 등록 코드 (선택)
-              </label>
-              <textarea
-                id="signup-invitation-codes"
-                className={styles.invitationCodeInput}
-                value={invitationCodeInput}
-                onChange={(event) => {
-                  setInvitationCodeInput(event.target.value);
-                  setError(null);
-                }}
-                placeholder="여러 코드는 줄바꿈이나 쉼표로 구분하세요."
-                rows={4}
-              />
-              <p className={styles.phoneGuide}>
-                유효하지 않거나 만료된 코드가 하나라도 있으면 회원가입이 진행되지
-                않습니다.
-              </p>
-            </div>
           )}
 
           {error && <p className={styles.formError} role="alert">{error}</p>}

@@ -116,3 +116,28 @@ test('allocation optimizer launcher validates and documents its service-account 
   assert.match(readme, /supabase secrets set --env-file/);
   assert.match(readme, /roles\/run\.jobsExecutorWithOverrides/);
 });
+
+test('live deployment separates the production and simulation Supabase projects', () => {
+  const workflow = readFileSync(
+    '.github/workflows/firebase-hosting-merge.yml',
+    'utf8'
+  );
+
+  assert.match(workflow, /VITE_SIMULATION_PROJECT_ID: pjbvxoesgwhbxfsfjliw/);
+  assert.equal(
+    [
+      ...workflow.matchAll(
+        /supabase functions deploy [^\r\n]+ --project-ref qdpfccuqeumguhishifu/g
+      ),
+    ].length,
+    3
+  );
+  assert.doesNotMatch(
+    workflow,
+    /supabase functions deploy [^\r\n]+ --project-ref pjbvxoesgwhbxfsfjliw/
+  );
+  assert.match(
+    workflow,
+    /name: Deploy changed Edge Functions[\s\S]*if: \$\{\{ env\.SUPABASE_ACCESS_TOKEN != '' \}\}/
+  );
+});
