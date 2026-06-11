@@ -27,7 +27,7 @@ test('remaining seat claims require a valid payment account and positive amount'
   );
   assert.match(
     remainingSeatPage,
-    /?낃툑 怨꾩쥖 ?먮뒗 湲덉븸???깅줉?섏? ?딆븘 ?좎껌?????놁뒿?덈떎\. 愿由ъ옄?먭쾶 臾몄쓽?댁＜?몄슂\./
+    /입금 계좌 또는 금액이 등록되지 않아 신청할 수 없습니다\. 관리자에게 문의해주세요\./
   );
 });
 
@@ -55,10 +55,15 @@ test('claim failures survive the immediate options refresh', () => {
   );
 });
 
-test('remaining seat cancellation warns paid users to check with an administrator', () => {
+test('remaining seat cancellation requires refund confirmation after payment', () => {
   assert.match(ticketPage, /setCancelDialogOpen\(true\)/);
   assert.match(ticketPage, /role="dialog"/);
-  assert.match(ticketPage, /?좎껌 痍⑥냼 쨌 醫뚯꽍 ?ㅼ떆 怨듦컻/);
+  assert.match(
+    ticketPage,
+    /이미 입금했다면 환불은[\s\S]*자동 처리되지 않을 수 있으므로 관리자에게 문의하고 환불 여부를[\s\S]*반드시 확인해주세요\./
+  );
+  assert.match(ticketPage, /신청 취소는 환불 완료를 의미하지 않습니다\./);
+  assert.match(ticketPage, /신청 취소 · 좌석 다시 공개/);
   assert.match(ticketPage, /className=\{styles\.modalCancelButton\}[\s\S]*autoFocus/);
   assert.doesNotMatch(ticketPage, /window\.confirm/);
 });
@@ -69,7 +74,7 @@ test('remaining seat cancellation blocks duplicate requests and keeps failures v
     ticketPage,
     /cancelInFlightRef\.current = true[\s\S]*cancelRemainingSeatClaim\(reservation\.id\)[\s\S]*cancelInFlightRef\.current = false/
   );
-  assert.match(ticketPage, /setCancelError\('?붿뿬 醫뚯꽍 ?좎껌??痍⑥냼?섏? 紐삵뻽?듬땲??/);
+  assert.match(ticketPage, /setCancelError\('잔여 좌석 신청을 취소하지 못했습니다/);
   assert.match(ticketPage, /className=\{styles\.cancelError\} role="alert"/);
 });
 

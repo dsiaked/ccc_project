@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const invitationPage = readFileSync('src/pages/InvitationCodePage.tsx', 'utf8');
+const signupPage = readFileSync('src/pages/SignupPage.tsx', 'utf8');
 const resetPasswordPage = readFileSync('src/pages/ResetPasswordPage.tsx', 'utf8');
 const authCallbackPage = readFileSync('src/pages/AuthCallbackPage.tsx', 'utf8');
 
@@ -12,6 +13,15 @@ test('invitation codes require a separate preview and final redemption action', 
   assert.match(invitationPage, /await redeemInvitationCodes\(validatedCodes\)/);
   assert.match(invitationPage, /type="button"[\s\S]*확인한 권한 최종 등록/);
   assert.doesNotMatch(invitationPage, /handleValidate\(\)[\s\S]*redeemInvitationCodes/);
+});
+
+test('ordinary signup does not request or redeem administrator invitation codes', () => {
+  assert.doesNotMatch(signupPage, /권한 등록 코드|invitation_codes/);
+  assert.doesNotMatch(
+    signupPage,
+    /parseInvitationCodes|validateInvitationCodes|redeemInvitationCodes/
+  );
+  assert.match(invitationPage, /createLoginRequiredRedirectState\('\/invitation-codes'\)/);
 });
 
 test('password changes are limited to verified recovery sessions', () => {
