@@ -495,6 +495,21 @@ const CampusAdminPage = () => {
     };
   }, [reservations]);
 
+  const duplicateApplicantNames = useMemo(() => {
+    const nameCounts = new Map<string, number>();
+
+    reservations.forEach((reservation) => {
+      const name = reservation.name.trim();
+      nameCounts.set(name, (nameCounts.get(name) ?? 0) + 1);
+    });
+
+    return new Set(
+      [...nameCounts.entries()]
+        .filter(([, count]) => count > 1)
+        .map(([name]) => name)
+    );
+  }, [reservations]);
+
   const filteredReservations = useMemo(() => {
     const query = applicantQuery.trim().toLocaleLowerCase('ko');
     const compactQuery = query.replaceAll(/\s|-/g, '');
@@ -993,7 +1008,7 @@ const CampusAdminPage = () => {
       } = await supabase.auth.getSession();
 
       if (!session) {
-        navigate('/admin/login');
+        navigate('/login');
         return;
       }
 
@@ -1502,6 +1517,9 @@ const CampusAdminPage = () => {
                 const payment = getPayment(reservation);
                 const isCompleted = payment?.status === 'completed';
                 const isRefunded = payment?.status === 'refunded';
+                const isDuplicateName = duplicateApplicantNames.has(
+                  reservation.name.trim()
+                );
 
                 return (
                   <button
@@ -1517,7 +1535,7 @@ const CampusAdminPage = () => {
                       verifying || isRefunded || isPaymentCheckLocked
                     }
                     aria-pressed={isCompleted}
-                    aria-label={`${reservation.name} ${
+                    aria-label={`${reservation.name}${isDuplicateName ? ' 동명이인' : ''} ${
                       isCompleted
                         ? '입금 확인됨, 누르면 미입금으로 변경'
                         : isRefunded
@@ -1525,7 +1543,12 @@ const CampusAdminPage = () => {
                           : '입금 확인'
                     }`}
                   >
-                    {reservation.name}
+                    <span>{reservation.name}</span>
+                    {isDuplicateName && (
+                      <small className={styles.quickPaymentDuplicate}>
+                        동명이인
+                      </small>
+                    )}
                   </button>
                 );
               })}
