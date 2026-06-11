@@ -65,7 +65,7 @@ test('live Firebase deployment updates the AI report Edge Function before hostin
   const deployIndex = mergeWorkflow.indexOf('FirebaseExtended/action-hosting-deploy@v0');
 
   assert.match(mergeWorkflow, /SUPABASE_ACCESS_TOKEN: \$\{\{ secrets\.SUPABASE_ACCESS_TOKEN \}\}/);
-  assert.match(mergeWorkflow, /test -n "\$SUPABASE_ACCESS_TOKEN"/);
+  assert.match(mergeWorkflow, /if: \$\{\{ env\.SUPABASE_ACCESS_TOKEN != '' \}\}/);
   assert.notEqual(functionDeployIndex, -1, 'Missing AI report Edge Function deployment.');
   assert.match(mergeWorkflow, /supabase functions deploy allocation-optimizer-launcher/);
   assert.match(mergeWorkflow, /supabase functions deploy ccc-summer-handoff/);

@@ -136,4 +136,8 @@ test('live deployment separates the production and simulation Supabase projects'
     workflow,
     /supabase functions deploy [^\r\n]+ --project-ref pjbvxoesgwhbxfsfjliw/
   );
+  assert.match(
+    workflow,
+    /name: Deploy changed Edge Functions[\s\S]*if: \$\{\{ env\.SUPABASE_ACCESS_TOKEN != '' \}\}/
+  );
 });
