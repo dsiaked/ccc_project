@@ -5,7 +5,7 @@ import test from 'node:test';
 const pullRequestWorkflow = readFileSync(
   '.github/workflows/firebase-hosting-pull-request.yml',
   'utf8'
-);
+).replaceAll('\r\n', '\n');
 
 function jobSource(jobName: string, nextJobName?: string) {
   const startMarker = `  ${jobName}:\n`;
