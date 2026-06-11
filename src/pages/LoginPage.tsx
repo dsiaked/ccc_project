@@ -1,5 +1,5 @@
 import type { FormEvent } from 'react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import {
   AlertCircle,
@@ -15,6 +15,7 @@ import {
   rememberKakaoOAuthState,
 } from '../utils/oauthCallbackState';
 import { normalizeAppRedirect } from '../utils/redirect';
+import { getCccSummerLoginUrl } from '../utils/cccSummerLogin';
 import styles from './LoginPage.module.css';
 
 const validateEmail = (value: string) => /^\S+@\S+\.\S+$/.test(value);
@@ -39,6 +40,10 @@ const LoginPage = () => {
   const initialEmail =
     typeof location.state?.email === 'string' ? location.state.email : '';
   const redirectTo = normalizeAppRedirect(location.state?.from);
+  const cccSummerLoginUrl = getCccSummerLoginUrl(
+    import.meta.env,
+    `${window.location.origin}/handoff/callback`
+  );
 
   const [email, setEmail] = useState(initialEmail);
   const [password, setPassword] = useState('');
@@ -46,7 +51,15 @@ const LoginPage = () => {
   const [loadingMethod, setLoadingMethod] = useState<'email' | 'kakao' | null>(
     null
   );
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(
+    cccSummerLoginUrl ? null : 'CCC Summer 로그인 설정을 확인하지 못했습니다.'
+  );
+
+  useEffect(() => {
+    if (!cccSummerLoginUrl) return;
+
+    window.location.replace(cccSummerLoginUrl);
+  }, [cccSummerLoginUrl]);
 
   const handleKakaoLogin = async () => {
     setError(null);
@@ -236,7 +249,11 @@ const LoginPage = () => {
 
         <div className={styles.signupPrompt}>
           <span>아직 회원이 아니신가요?</span>
-          <Link to="/signup" className={styles.signupLink}>
+          <Link
+            to="/signup"
+            state={{ from: redirectTo }}
+            className={styles.signupLink}
+          >
             회원가입
           </Link>
         </div>

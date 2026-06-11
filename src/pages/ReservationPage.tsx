@@ -372,7 +372,7 @@ useEffect(() => {
         if (!isMounted) return;
 
         console.error('조직 정보 로드 실패:', error);
-        alert('지구 정보를 불러오지 못했습니다.');
+        setInitialLoadError('지구 정보를 불러오지 못했습니다. 다시 시도해주세요.');
       }
     };
 
@@ -381,7 +381,7 @@ useEffect(() => {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [initialLoadAttempt]);
 
 useEffect(() => {
   let isMounted = true;
@@ -535,7 +535,7 @@ useEffect(() => {
       if (!isMounted) return;
 
       console.error('행선지 정보 로드 실패:', error);
-      alert('행선지 정보를 불러오지 못했습니다.');
+      setInitialLoadError('행선지 정보를 불러오지 못했습니다. 다시 시도해주세요.');
     } finally {
       if (isMounted) setIsStationLoading(false);
     }
@@ -546,7 +546,7 @@ useEffect(() => {
   return () => {
     isMounted = false;
   };
-}, []);
+}, [initialLoadAttempt]);
 
 const searchPlaceCandidates = useCallback((keywordValue?: string) => {
   const keyword = (keywordValue ?? placeSearchInput).trim();
@@ -665,7 +665,10 @@ const handlePlaceConfirm = (place: PlaceCandidate) => {
 
   if (stationOptions.length === 0) {
     setNearbyStations([]);
-    alert('행선지 후보 정보를 불러오지 못했습니다.');
+    setFormStatus({
+      type: 'error',
+      message: '행선지 후보 정보를 불러오지 못했습니다. 다시 시도해주세요.',
+    });
     return;
   }
 
@@ -695,12 +698,26 @@ const handleApplyRecommendation = (
   rank: 1 | 2
 ) => {
   if (rank === 1 && secondStation?.id === station.id) {
-    alert('이미 2지망으로 선택한 행선지입니다.');
+    setFormErrors((current) => ({
+      ...current,
+      stationPreference: '이미 2지망으로 선택한 행선지입니다.',
+    }));
+    setFormStatus({
+      type: 'error',
+      message: '1지망과 2지망은 서로 다른 행선지를 선택해주세요.',
+    });
     return;
   }
 
   if (rank === 2 && firstStation?.id === station.id) {
-    alert('이미 1지망으로 선택한 행선지입니다.');
+    setFormErrors((current) => ({
+      ...current,
+      stationPreference: '이미 1지망으로 선택한 행선지입니다.',
+    }));
+    setFormStatus({
+      type: 'error',
+      message: '1지망과 2지망은 서로 다른 행선지를 선택해주세요.',
+    });
     return;
   }
 
@@ -781,7 +798,10 @@ const stationCandidateResults = useMemo(() => {
     } catch (error) {
       if (teamOptionsRequestIdRef.current !== requestId) return;
       console.error('팀 정보 로드 실패:', error);
-      alert('팀 정보를 불러오지 못했습니다.');
+      setFormStatus({
+        type: 'error',
+        message: '팀 정보를 불러오지 못했습니다. 지구를 다시 선택해주세요.',
+      });
     }
   };
 
@@ -806,7 +826,10 @@ const stationCandidateResults = useMemo(() => {
     } catch (error) {
       if (campusOptionsRequestIdRef.current !== requestId) return;
       console.error('캠퍼스 정보 로드 실패:', error);
-      alert('캠퍼스 정보를 불러오지 못했습니다.');
+      setFormStatus({
+        type: 'error',
+        message: '캠퍼스 정보를 불러오지 못했습니다. 팀을 다시 선택해주세요.',
+      });
     }
   };
 
@@ -1171,7 +1194,10 @@ const handleConfirmCandidateStations = () => {
       } = await supabase.auth.getSession();
 
       if (sessionError || !session?.user?.id) {
-        alert('로그인 정보를 불러올 수 없습니다. 다시 로그인해주세요.');
+        setFormStatus({
+          type: 'error',
+          message: '로그인 정보를 불러올 수 없습니다. 다시 로그인해주세요.',
+        });
         return;
       }
 
@@ -1347,6 +1373,14 @@ const handleConfirmCandidateStations = () => {
     >
       다시 시도
     </button>
+  </section>
+) : isLoginRequiredModalOpen ? (
+  <section className={styles.loginRequiredContainer}>
+    <div className={styles.loginRequiredIcon} aria-hidden="true">
+      <Bus size={32} />
+    </div>
+    <h1>로그인 후 버스를 신청할 수 있어요</h1>
+    <p>로그인하거나 회원가입하면 버스 신청 화면으로 자동 이동합니다.</p>
   </section>
 ) : (
           <>
@@ -2143,7 +2177,8 @@ const handleConfirmCandidateStations = () => {
       <div className={styles.deleteRefundWarning}>
         <AlertTriangle size={18} aria-hidden="true" />
         <span>
-          신청을 삭제하면 연결된 입금 상태도 함께 제거됩니다.
+          결제 기록 삭제는 실제 환불 처리를 의미하지 않습니다. 이미 입금했다면
+          관리자에게 환불 여부를 확인해주세요.
         </span>
       </div>
       {reservationDeleteError && (
@@ -2401,6 +2436,12 @@ const handleConfirmCandidateStations = () => {
           onClose={() => navigate('/', { replace: true })}
           onConfirm={() =>
             navigate('/login', {
+              replace: true,
+              state: createLoginRequiredRedirectState('/reservation'),
+            })
+          }
+          onSignup={() =>
+            navigate('/signup', {
               replace: true,
               state: createLoginRequiredRedirectState('/reservation'),
             })

@@ -844,6 +844,7 @@ const AdminFinalPaymentReviewPage = () => {
               <option value="missing">입금 정보 없음</option>
               <option value="pending">미입금</option>
               <option value="completed">입금 완료</option>
+              <option value="refunded">환불 상태</option>
             </select>
           </div>
           <div className={styles.tableWrap}>
@@ -915,6 +916,8 @@ const AdminFinalPaymentReviewPage = () => {
                             ? '입금 정보 없음'
                             : person.paymentStatus === 'completed'
                               ? '입금 완료'
+                            : person.paymentStatus === 'refunded'
+                              ? '환불 상태'
                               : '미입금'}
                         </span>
                       </td>
@@ -1167,8 +1170,8 @@ const AdminFinalPaymentReviewPage = () => {
               {pendingCampusRevert.campus} 캠퍼스 확인을 취소할까요?
             </h2>
             <p id="campus-revert-description">
-              본부 입금 확인 완료 상태가 송금 보고 상태로 돌아갑니다. 실제 입금
-              취소를 처리하는 기능은 아닙니다.
+              본부 입금 확인 완료 상태가 송금 보고 상태로 돌아갑니다. 실제 환불이나
+              입금 취소를 처리하는 기능은 아닙니다.
             </p>
             <dl className={styles.confirmSummary}>
               <div>

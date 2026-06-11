@@ -356,6 +356,11 @@
   line-height: 1;
 }
 
+.readyNavBadge {
+  background: #16a34a;
+  font-size: 9px;
+}
+
 .headerActions {
   display: grid;
   gap: 10px;

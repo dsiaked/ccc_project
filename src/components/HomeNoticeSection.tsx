@@ -27,9 +27,7 @@ const HomeNoticeSection = () => {
       setLoadError(false);
       try {
         const items = await getPublishedHomeAnnouncements();
-        if (!isMounted) return;
-
-        setAnnouncements(items);
+        if (isMounted) setAnnouncements(items);
       } catch (error) {
         console.error('홈 화면 공지 로드 실패:', error);
         if (isMounted) setLoadError(true);
@@ -38,16 +36,13 @@ const HomeNoticeSection = () => {
       }
     };
 
-    loadAnnouncements();
-
+    void loadAnnouncements();
     return () => {
       isMounted = false;
     };
   }, [loadAttempt]);
 
-  if (!isLoading && !loadError && announcements.length === 0) {
-    return null;
-  }
+  if (!isLoading && !loadError && announcements.length === 0) return null;
 
   return (
     <section className={styles.section}>
@@ -67,10 +62,7 @@ const HomeNoticeSection = () => {
         ) : loadError ? (
           <div className={styles.errorState} role="alert">
             <span>공지를 불러오지 못했습니다.</span>
-            <button
-              type="button"
-              onClick={() => setLoadAttempt((attempt) => attempt + 1)}
-            >
+            <button type="button" onClick={() => setLoadAttempt((attempt) => attempt + 1)}>
               다시 시도
             </button>
           </div>

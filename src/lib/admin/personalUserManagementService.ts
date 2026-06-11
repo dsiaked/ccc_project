@@ -1,6 +1,10 @@
 import { supabase } from '../supabase';
 
-export type PersonalUserPaymentStatus = 'pending' | 'completed';
+export type PersonalUserPaymentStatus =
+  | 'pending'
+  | 'completed'
+  | 'refund_required'
+  | 'refunded';
 
 export interface PersonalUserNotification {
   id: string;

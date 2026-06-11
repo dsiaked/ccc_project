@@ -52,7 +52,7 @@ import styles from './AdminCampusPage.module.css';
 interface PaymentInfo {
   id: string;
   amount: number;
-  status: 'pending' | 'completed';
+  status: 'pending' | 'completed' | 'refunded';
   paid_at: string | null;
   verified_by: string | null;
   verified_at: string | null;
@@ -100,8 +100,7 @@ interface CampusAdminScope {
   campus: string;
 }
 
-type ApplicantPaymentFilter = 'all' | 'pending' | 'completed';
-type CurrentTaskTarget = 'account' | 'applicants' | 'transfer' | 'inquiry';
+type ApplicantPaymentFilter = 'all' | 'pending' | 'completed' | 'refunded';
 
 const APPLICANT_PAGE_SIZE = 10;
 
@@ -146,15 +145,9 @@ const getStationName = (
 
 const getPaymentStatusLabel = (payment: PaymentInfo | null) => {
   if (payment?.status === 'completed') return '입금 확인';
+  if (payment?.status === 'refunded') return '환불';
+
   return '미입금';
-};
-
-const maskPhoneNumber = (value: string) => {
-  const digits = value.replace(/\D/g, '');
-
-  if (digits.length < 7) return '연락처 확인 필요';
-
-  return `${digits.slice(0, 3)}-****-${digits.slice(-4)}`;
 };
 
 const getConfirmedTicketLines = (
@@ -217,13 +210,11 @@ const CampusAdminPage = () => {
   const [transferSending, setTransferSending] = useState(false);
   const [savingPaymentAccount, setSavingPaymentAccount] = useState(false);
   const [savingApplicantImage, setSavingApplicantImage] = useState(false);
-  const [isApplicantListOpen, setIsApplicantListOpen] = useState(true);
+  const [isApplicantListOpen, setIsApplicantListOpen] = useState(false);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
   const [applicantQuery, setApplicantQuery] = useState('');
   const [applicantPaymentFilter, setApplicantPaymentFilter] =
-    useState<ApplicantPaymentFilter>('pending');
-  const [recentlyConfirmedReservationIds, setRecentlyConfirmedReservationIds] =
-    useState<Set<string>>(() => new Set());
+    useState<ApplicantPaymentFilter>('all');
   const [applicantPage, setApplicantPage] = useState(1);
 
   const [adminScope, setAdminScope] = useState<CampusAdminScope | null>(null);
@@ -491,10 +482,16 @@ const CampusAdminPage = () => {
       return !payment || payment.status === 'pending';
     }).length;
 
+    const refunded = reservations.filter((reservation) => {
+      const payment = getPayment(reservation);
+      return payment?.status === 'refunded';
+    }).length;
+
     return {
       total: reservations.length,
       completed,
       pending,
+      refunded,
     };
   }, [reservations]);
 
@@ -508,11 +505,7 @@ const CampusAdminPage = () => {
 
       if (
         applicantPaymentFilter !== 'all' &&
-        paymentStatus !== applicantPaymentFilter &&
-        !(
-          applicantPaymentFilter === 'pending' &&
-          recentlyConfirmedReservationIds.has(reservation.id)
-        )
+        paymentStatus !== applicantPaymentFilter
       ) {
         return false;
       }
@@ -536,16 +529,12 @@ const CampusAdminPage = () => {
         searchableText.replaceAll(/\s|-/g, '').includes(compactQuery)
       );
     });
-  }, [
-    applicantPaymentFilter,
-    applicantQuery,
-    recentlyConfirmedReservationIds,
-    reservations,
-  ]);
+  }, [applicantPaymentFilter, applicantQuery, reservations]);
 
   const filteredCheckableReservations = useMemo(() => {
     return filteredReservations.filter((reservation) => {
-      return Boolean(reservation);
+      const payment = getPayment(reservation);
+      return payment?.status !== 'refunded';
     });
   }, [filteredReservations]);
 
@@ -566,12 +555,6 @@ const CampusAdminPage = () => {
     effectiveApplicantPage * APPLICANT_PAGE_SIZE,
     filteredReservations.length
   );
-  const applicantEmptyMessage =
-    reservations.length === 0
-      ? '버스 신청자가 없습니다.'
-      : applicantPaymentFilter === 'pending' && stats.pending === 0
-        ? '모든 신청자의 입금을 확인했습니다.'
-        : '검색 조건에 맞는 신청자가 없습니다.';
 
   const allChecked =
     filteredCheckableReservations.length > 0 &&
@@ -599,7 +582,6 @@ const CampusAdminPage = () => {
       const columns = [
         { label: '번호', width: 70 },
         { label: '이름', width: 140 },
-        { label: '연락처', width: 160 },
         { label: '1지망', width: 150 },
         { label: '2지망', width: 150 },
         { label: '배차 확정', width: 350 },
@@ -684,7 +666,6 @@ const CampusAdminPage = () => {
         const values = [
           String(index + 1),
           reservation.name,
-          maskPhoneNumber(reservation.phone),
           getStationName(reservation, 1),
           getStationName(reservation, 2),
           getConfirmedTicketLines(reservation),
@@ -754,7 +735,7 @@ const CampusAdminPage = () => {
       context.font =
         '500 12px "Pretendard", "Noto Sans KR", "Malgun Gothic", sans-serif';
       context.fillText(
-        '연락처 가운데 번호를 마스킹했습니다. 필요한 범위에서만 사용해주세요.',
+        '개인정보가 포함된 이미지입니다. 필요한 범위에서만 사용해주세요.',
         margin,
         logicalHeight - 22
       );
@@ -858,97 +839,6 @@ const CampusAdminPage = () => {
                 : needsAdditionalTransfer
                   ? `추가 신청으로 송금할 금액이 ${transferAmountToSend.toLocaleString()}원 증가했습니다. 아래 계좌로 추가 금액만 송금한 뒤 완료 사실을 보고해주세요.`
                   : `신청자 ${totalPeople}명 전원의 입금을 확인했습니다. ${transferAmountToSend.toLocaleString()}원을 아래 계좌로 송금한 뒤 완료 사실을 보고해주세요.`;
-  const currentTask: {
-    step: string;
-    title: string;
-    description: string;
-    actionLabel?: string;
-    target?: CurrentTaskTarget;
-    complete?: boolean;
-  } = !hasSavedPaymentAccount
-    ? {
-        step: '1단계',
-        title: '신청자가 입금할 캠퍼스 계좌를 등록해주세요',
-        description:
-          '계좌를 등록하면 신청자가 버스 신청 과정에서 정확한 입금 정보를 확인할 수 있습니다.',
-        actionLabel: '입금 계좌 등록하기',
-        target: 'account',
-      }
-    : totalPeople === 0
-      ? {
-          step: '2단계',
-          title: '버스 신청자를 기다리고 있습니다',
-          description:
-            '신청자가 접수되면 실제 계좌 입금 내역과 대조해 입금 확인을 진행해주세요.',
-        }
-      : remainingPaymentCount > 0
-        ? {
-            step: '2단계',
-            title: `미입금 신청자 ${remainingPaymentCount}명을 확인해주세요`,
-            description:
-              '실제 캠퍼스 계좌 입금 내역을 확인한 신청자만 입금 확인으로 변경해주세요.',
-            actionLabel: '미입금 신청자 확인하기',
-            target: 'applicants',
-          }
-        : isHeadOfficeConfirmed
-          ? {
-              step: '3단계',
-              title: '이번 캠퍼스 버스비 정산이 완료되었습니다',
-              description:
-                '본부 입금 확인까지 끝났습니다. 추가 정정이 필요하면 문의 게시판을 이용해주세요.',
-              complete: true,
-            }
-          : hasReportedTransfer && !needsAdditionalTransfer
-            ? {
-                step: '3단계',
-                title: '본부 입금 확인을 기다리고 있습니다',
-                description:
-                  '송금 완료 보고가 접수되었습니다. 본부에서 실제 입금 내역을 확인하면 정산이 완료됩니다.',
-              }
-            : !isReservationDeadlineClosed
-              ? {
-                  step: '2단계',
-                  title: '입금 확인을 마쳤습니다. 신청 마감을 기다려주세요',
-                  description:
-                    '새 신청이나 변경 사항이 생길 수 있습니다. 마감 전까지 신청자 입금 상태를 확인해주세요.',
-                  actionLabel: '신청자 목록 다시 확인',
-                  target: 'applicants',
-                }
-              : !hasDistrictTransferAccount
-                ? {
-                    step: '3단계',
-                    title: '본부 송금 계좌를 확인할 수 없습니다',
-                    description:
-                      '계좌가 표시되기 전에는 송금하지 말고 문의 게시판으로 본부에 알려주세요.',
-                    actionLabel: '본부에 문의하기',
-                    target: 'inquiry',
-                  }
-                : {
-                    step: '3단계',
-                    title: needsAdditionalTransfer
-                      ? '추가 금액을 본부로 송금해주세요'
-                      : '캠퍼스 버스비를 본부로 송금해주세요',
-                    description: `${transferAmountToSend.toLocaleString()}원을 실제 송금한 뒤 앱에서 완료 사실을 보고해주세요.`,
-                    actionLabel: '본부 송금 정보 확인하기',
-                    target: 'transfer',
-                  };
-
-  const handleCurrentTaskAction = (target: CurrentTaskTarget) => {
-    if (target === 'inquiry') {
-      navigate('/admin/communications');
-      return;
-    }
-
-    if (target === 'account') {
-      setIsGuideOpen(true);
-    }
-
-    window.setTimeout(() => {
-      document
-        .getElementById(`campus-task-${target}`)
-        ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 0);
-  };
 
   const handleDirectPaymentCheck = async (
     reservation: ReservationWithPayment,
@@ -981,14 +871,6 @@ const CampusAdminPage = () => {
         status: nextStatus,
         verifiedBy: checked ? session.user.id : undefined,
       });
-
-      if (checked && applicantPaymentFilter === 'pending') {
-        setRecentlyConfirmedReservationIds((current) => {
-          const next = new Set(current);
-          next.add(reservation.id);
-          return next;
-        });
-      }
 
       await refreshReservations(campus, adminScope?.team);
     } catch (error) {
@@ -1046,16 +928,6 @@ const CampusAdminPage = () => {
           });
         })
       );
-
-      if (checked && applicantPaymentFilter === 'pending') {
-        setRecentlyConfirmedReservationIds((current) => {
-          const next = new Set(current);
-          filteredCheckableReservations.forEach((reservation) => {
-            next.add(reservation.id);
-          });
-          return next;
-        });
-      }
 
       await refreshReservations(campus, adminScope?.team);
       setPendingBulkPaymentStatus(null);
@@ -1383,33 +1255,6 @@ const CampusAdminPage = () => {
           </section>
         )}
 
-        <section
-          className={`${styles.currentTaskCard} ${
-            currentTask.complete ? styles.currentTaskCardComplete : ''
-          }`}
-          aria-label="현재 해야 할 일"
-        >
-          <div className={styles.currentTaskHeading}>
-            <span className={styles.currentTaskEyebrow}>지금 할 일</span>
-            <span className={styles.currentTaskStep}>{currentTask.step}</span>
-          </div>
-          <div className={styles.currentTaskContent}>
-            <div>
-              <strong>{currentTask.title}</strong>
-              <p>{currentTask.description}</p>
-            </div>
-            {currentTask.actionLabel && currentTask.target && (
-              <button
-                type="button"
-                className={styles.currentTaskButton}
-                onClick={() => handleCurrentTaskAction(currentTask.target!)}
-              >
-                {currentTask.actionLabel}
-              </button>
-            )}
-          </div>
-        </section>
-
         <section className={styles.guidePanel}>
           <button
             type="button"
@@ -1457,7 +1302,6 @@ const CampusAdminPage = () => {
                 </section>
 
                 <section
-                  id="campus-task-account"
                   className={`${styles.preparationItem} ${styles.preparationItemAccount}`}
                 >
                   <div className={styles.preparationItemHeader}>
@@ -1609,7 +1453,7 @@ const CampusAdminPage = () => {
                     누른 뒤 수정하고 다시 보고합니다.
                   </li>
                   <li>
-                    본부 확인 이후 입금 오류나 명단 수정이 필요하면 문의
+                    본부 확인 이후 취소·환불, 입금 오류, 명단 수정이 필요하면 문의
                     게시판에 요청을 남겨주세요.
                   </li>
                 </ol>
@@ -1627,7 +1471,7 @@ const CampusAdminPage = () => {
                   </li>
                 </ol>
                 <span className={styles.guideWarning}>
-                  입금 오류나 명단 변경은 임의로 처리하지 말고 문의 게시판으로
+                  취소·환불이나 명단 변경은 임의로 처리하지 말고 문의 게시판으로
                   본부와 먼저 확인해주세요.
                 </span>
               </div>
@@ -1635,15 +1479,62 @@ const CampusAdminPage = () => {
           )}
         </section>
 
+        <section className={styles.quickPaymentPanel} aria-label="빠른 입금 확인">
+          <div className={styles.quickPaymentHeader}>
+            <div>
+              <h2>빠른 입금 확인</h2>
+              <p>계좌 입금 내역에서 확인한 이름을 눌러주세요.</p>
+            </div>
+            <div className={styles.quickPaymentLegend}>
+              <span className={styles.quickPaymentPendingLegend}>미입금</span>
+              <span className={styles.quickPaymentCompletedLegend}>확인됨</span>
+            </div>
+          </div>
+
+          {reservations.length === 0 ? (
+            <p className={styles.quickPaymentEmpty}>버스 신청자가 없습니다.</p>
+          ) : (
+            <div className={styles.quickPaymentButtons}>
+              {reservations.map((reservation) => {
+                const payment = getPayment(reservation);
+                const isCompleted = payment?.status === 'completed';
+                const isRefunded = payment?.status === 'refunded';
+
+                return (
+                  <button
+                    key={`quick-payment-${reservation.id}`}
+                    type="button"
+                    className={`${styles.quickPaymentButton} ${
+                      isCompleted ? styles.quickPaymentButtonCompleted : ''
+                    } ${isRefunded ? styles.quickPaymentButtonRefunded : ''}`}
+                    onClick={() => void handleDirectPaymentCheck(reservation, true)}
+                    disabled={
+                      verifying || isCompleted || isRefunded || isPaymentCheckLocked
+                    }
+                    aria-pressed={isCompleted}
+                    aria-label={`${reservation.name} ${
+                      isCompleted
+                        ? '입금 확인됨'
+                        : isRefunded
+                          ? '환불'
+                          : '입금 확인'
+                    }`}
+                  >
+                    {reservation.name}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
         <div className={styles.listToolbar}>
           <div className={styles.listToolbarHeader}>
             <div>
-              <h2 id="campus-task-applicants" className={styles.listTitle}>
-                버스 신청자 목록
-              </h2>
+              <h2 className={styles.listTitle}>상세 신청자 명단</h2>
               <p className={styles.listMeta}>
-                총 {reservations.length}명 · 화면에는 10명씩 표시하고 PNG에는 전체
-                명단을 저장합니다.
+                동명이인 확인이나 연락이 필요할 때 펼쳐보세요. PNG에는 전체 명단을
+                저장합니다.
               </p>
             </div>
 
@@ -1660,7 +1551,7 @@ const CampusAdminPage = () => {
                 ) : (
                   <ChevronDown size={18} />
                 )}
-                {isApplicantListOpen ? '접기' : '펼치기'}
+                {isApplicantListOpen ? '상세 명단 접기' : '상세 명단 보기'}
               </button>
 
               <button
@@ -1724,6 +1615,7 @@ const CampusAdminPage = () => {
                 ['all', '전체', stats.total],
                 ['pending', '미입금', stats.pending],
                 ['completed', '확인됨', stats.completed],
+                ['refunded', '환불', stats.refunded],
               ] as const).map(([value, label, count]) => (
                 <button
                   key={value}
@@ -1751,14 +1643,6 @@ const CampusAdminPage = () => {
               {filteredReservations.length > 0 &&
                 ` · ${applicantRangeStart}-${applicantRangeEnd}명 표시`}
             </p>
-            {applicantPaymentFilter === 'pending' &&
-              filteredReservations.some((reservation) =>
-                recentlyConfirmedReservationIds.has(reservation.id)
-              ) && (
-                <p className={styles.applicantResultMeta}>
-                  방금 입금 확인한 신청자는 새로고침 전까지 이 목록에 표시됩니다.
-                </p>
-              )}
           </section>
 
           <label className={styles.mobileBulkCheck}>
@@ -1785,7 +1669,9 @@ const CampusAdminPage = () => {
           <div className={styles.mobileApplicantList}>
             {pagedReservations.length === 0 ? (
               <p className={styles.mobileEmptyState}>
-                {applicantEmptyMessage}
+                {reservations.length === 0
+                  ? '버스 신청자가 없습니다.'
+                  : '검색 조건에 맞는 신청자가 없습니다.'}
               </p>
             ) : (
               pagedReservations.map((reservation) => {
@@ -1817,6 +1703,7 @@ const CampusAdminPage = () => {
                           }
                           disabled={
                             verifying ||
+                            payment?.status === 'refunded' ||
                             isPaymentCheckLocked
                           }
                         />
@@ -1829,7 +1716,9 @@ const CampusAdminPage = () => {
                       >
                         {paymentStatus === 'completed'
                           ? '✓ 확인됨'
-                          : '대기 중'}
+                          : paymentStatus === 'refunded'
+                            ? '환불'
+                            : '대기 중'}
                       </span>
                     </div>
 
@@ -1899,7 +1788,9 @@ const CampusAdminPage = () => {
               {pagedReservations.length === 0 ? (
                 <tr>
                   <td colSpan={8} className={styles.emptyCell}>
-                    {applicantEmptyMessage}
+                    {reservations.length === 0
+                      ? '버스 신청자가 없습니다.'
+                      : '검색 조건에 맞는 신청자가 없습니다.'}
                   </td>
                 </tr>
               ) : (
@@ -1937,6 +1828,7 @@ const CampusAdminPage = () => {
                           }
                           disabled={
                             verifying ||
+                            payment?.status === 'refunded' ||
                             isPaymentCheckLocked
                           }
                           title={
@@ -1989,7 +1881,9 @@ const CampusAdminPage = () => {
                             ? '✓ 확인됨'
                             : paymentStatus === 'pending'
                               ? '대기 중'
-                              : '대기 중'}
+                              : paymentStatus === 'refunded'
+                                ? '환불'
+                                : '대기 중'}
                         </span>
                       </td>
 
@@ -2047,7 +1941,6 @@ const CampusAdminPage = () => {
         )}
 
         <div
-          id="campus-task-transfer"
           className={`${styles.transferBox} ${
             hasReportedTransfer ? styles.transferBoxReported : ''
           } ${
@@ -2171,7 +2064,7 @@ const CampusAdminPage = () => {
             <div>
               <strong>문의 게시판</strong>
               <p>
-                마감 이후 추가 신청, 입금 오류, 명단 수정처럼 본부 확인이
+                마감 이후 추가 신청, 환불, 입금 오류, 명단 수정처럼 본부 확인이
                 필요한 내용을 남기는 공간입니다. 송금 완료 보고와는 별도로
                 필요할 때만 사용해주세요.
               </p>
@@ -2216,7 +2109,8 @@ const CampusAdminPage = () => {
                 변경할까요?
               </h2>
               <p id="bulk-payment-confirm-description">
-                검색어와 입금 상태 필터에 포함된 신청자만 변경합니다.
+                검색어와 입금 상태 필터에 포함된 신청자만 변경하며, 환불 상태
+                신청자는 제외합니다.
               </p>
             </div>
             <dl className={styles.bulkConfirmSummary}>

@@ -55,14 +55,14 @@ test('claim failures survive the immediate options refresh', () => {
   );
 });
 
-test('remaining seat cancellation is limited to payment-pending claims', () => {
+test('remaining seat cancellation requires refund confirmation after payment', () => {
   assert.match(ticketPage, /setCancelDialogOpen\(true\)/);
   assert.match(ticketPage, /role="dialog"/);
   assert.match(
     ticketPage,
-    /입금 확인이 완료된[\s\S]*신청은 취소할 수 없습니다\./
+    /이미 입금했다면 환불은[\s\S]*자동 처리되지 않을 수 있으므로 관리자에게 문의하고 환불 여부를[\s\S]*반드시 확인해주세요\./
   );
-  assert.match(ticketPage, /입금 확인 전 신청만 취소할 수 있습니다\./);
+  assert.match(ticketPage, /신청 취소는 환불 완료를 의미하지 않습니다\./);
   assert.match(ticketPage, /신청 취소 · 좌석 다시 공개/);
   assert.match(ticketPage, /className=\{styles\.modalCancelButton\}[\s\S]*autoFocus/);
   assert.doesNotMatch(ticketPage, /window\.confirm/);

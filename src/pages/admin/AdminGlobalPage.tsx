@@ -38,9 +38,19 @@ import {
   type BoardingMoveRequestSnapshot,
   type BoardingSnapshot,
 } from '../../lib/admin/boardingManagementService';
+import {
+  getBoardingExceptionArchiveSnapshot,
+  getManualBoardingExceptionRecords,
+} from '../../lib/admin/boardingExceptionArchiveService';
+import { getFinalPaymentReview } from '../../lib/admin/finalPaymentReviewService';
+import { getOperationCloseoutState } from '../../lib/admin/operationCloseoutService';
 
 import styles from './AdminGlobalPage.module.css';
 import AdminHeader from './AdminHeader';
+import { buildBoardingExceptionRecords } from './boardingExceptionRecords';
+
+const closeoutReadyStorageKey = 'admin-operation-closeout-ready';
+const closeoutReadyEventName = 'admin-operation-closeout-ready-change';
 
 const operationScenarioSteps = [
   {
@@ -192,6 +202,24 @@ const AdminGlobalPage = () => {
   );
   const [boardingMoveRequests, setBoardingMoveRequests] =
     useState<BoardingMoveRequestSnapshot | null>(null);
+  const [isCloseoutReady, setIsCloseoutReady] = useState(() => {
+    try {
+      return window.localStorage.getItem(closeoutReadyStorageKey) === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    const handleCloseoutReadyChange = (event: Event) => {
+      setIsCloseoutReady(
+        (event as CustomEvent<{ ready?: boolean }>).detail?.ready === true
+      );
+    };
+    window.addEventListener(closeoutReadyEventName, handleCloseoutReadyChange);
+    return () =>
+      window.removeEventListener(closeoutReadyEventName, handleCloseoutReadyChange);
+  }, []);
 
   const handleToggleScenarioStep = (stepId: string) => {
     const previous = checkedScenarioStepIds;
@@ -224,6 +252,10 @@ const AdminGlobalPage = () => {
         recentAuditLogsResult,
         boardingSnapshotResult,
         boardingMoveRequestsResult,
+        boardingExceptionArchive,
+        manualBoardingExceptions,
+        finalPaymentReview,
+        operationCloseoutState,
       ] =
         await Promise.all([
           supabase
@@ -263,6 +295,10 @@ const AdminGlobalPage = () => {
             console.warn('Failed to load boarding move readiness:', error);
             return null;
           }),
+          getBoardingExceptionArchiveSnapshot(),
+          getManualBoardingExceptionRecords(),
+          getFinalPaymentReview(),
+          getOperationCloseoutState(),
         ]);
 
       const dashboardError =
@@ -286,6 +322,52 @@ const AdminGlobalPage = () => {
       setRecentAuditLogs(recentAuditLogsResult);
       setBoardingSnapshot(boardingSnapshotResult);
       setBoardingMoveRequests(boardingMoveRequestsResult);
+
+      const automaticExceptions = buildBoardingExceptionRecords(
+        boardingSnapshotResult
+      );
+      const archivedExceptionKeys = new Set(boardingExceptionArchive.archivedKeys);
+      const unresolvedExceptionCount = [
+        ...automaticExceptions.map((record) => record.id),
+        ...manualBoardingExceptions.map(
+          (record) => `${record.allocationId}:manual:${record.id}`
+        ),
+      ].filter((key) => !archivedExceptionKeys.has(key)).length;
+      const closeoutBusCount = boardingSnapshotResult?.buses.length ?? 0;
+      const closeoutDepartedBusCount =
+        boardingSnapshotResult?.buses.filter((bus) => Boolean(bus.departedAt))
+          .length ?? 0;
+      const unpaidCount = Math.max(
+        finalPaymentReview.totalPaymentTargets -
+          finalPaymentReview.paidPaymentTargets,
+        0
+      );
+      const unconfirmedTransferCount = finalPaymentReview.campusTransfers.filter(
+        (campus) =>
+          campus.status !== 'confirmed' || campus.hasAdditionalSettlement
+      ).length;
+      const nextCloseoutReady =
+        !operationCloseoutState.closed &&
+        closeoutBusCount > 0 &&
+        closeoutDepartedBusCount === closeoutBusCount &&
+        unresolvedExceptionCount === 0 &&
+        unpaidCount === 0 &&
+        unconfirmedTransferCount === 0;
+
+      setIsCloseoutReady(nextCloseoutReady);
+      try {
+        window.localStorage.setItem(
+          closeoutReadyStorageKey,
+          String(nextCloseoutReady)
+        );
+      } catch {
+        // The dashboard badge remains available when browser storage is unavailable.
+      }
+      window.dispatchEvent(
+        new CustomEvent(closeoutReadyEventName, {
+          detail: { ready: nextCloseoutReady },
+        })
+      );
     } catch (error) {
       console.error('Failed to load data:', error);
       setLoadError('대시보드 데이터를 불러올 수 없습니다. 잠시 후 다시 시도해주세요.');
@@ -685,6 +767,16 @@ const AdminGlobalPage = () => {
                         {isChecked ? '완료' : isCurrent ? '진행' : '대기'}
                       </span>
                       <h3>{step.title}</h3>
+                      {step.id === 'follow-up-review' && isCloseoutReady && (
+                        <button
+                          type="button"
+                          className={styles.closeoutReadyBadge}
+                          onClick={() => navigate('/admin/system/closeout')}
+                        >
+                          마감 가능
+                          <ArrowRight size={12} />
+                        </button>
+                      )}
                     </div>
                     <div className={styles.scenarioTiming}>
                       <Timer size={14} aria-hidden="true" />

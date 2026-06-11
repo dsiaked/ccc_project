@@ -5,7 +5,6 @@ import {
   formatReservationDeadline,
   getReservationDeadline,
 } from '../lib/reservationDeadlineService';
-
 import styles from './HomeDeadlineBanner.module.css';
 
 const SECOND_MS = 1000;
@@ -23,14 +22,8 @@ const getRemainingText = (deadlineAt: string, nowMs: number) => {
   const minutes = Math.floor((remainingMs % HOUR_MS) / MINUTE_MS);
   const seconds = Math.floor((remainingMs % MINUTE_MS) / SECOND_MS);
 
-  if (days > 0) {
-    return `${days}일 ${hours}시간 ${minutes}분 남음`;
-  }
-
-  if (hours > 0) {
-    return `${hours}시간 ${minutes}분 ${seconds}초 남음`;
-  }
-
+  if (days > 0) return `${days}일 ${hours}시간 ${minutes}분 남음`;
+  if (hours > 0) return `${hours}시간 ${minutes}분 ${seconds}초 남음`;
   return `${minutes}분 ${seconds}초 남음`;
 };
 
@@ -49,25 +42,17 @@ const HomeDeadlineBanner = () => {
       setLoadError(false);
       try {
         const setting = await getReservationDeadline();
-
-        if (isMounted) {
-          setDeadlineAt(setting.deadlineAt);
-        }
+        if (isMounted) setDeadlineAt(setting.deadlineAt);
       } catch (error) {
-        console.error('Failed to load reservation deadline:', error);
+        console.error('신청 마감 정보 로드 실패:', error);
         if (isMounted) setLoadError(true);
       } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
+        if (isMounted) setLoading(false);
       }
     };
 
     void loadDeadline();
-
-    const timerId = window.setInterval(() => {
-      setNowMs(Date.now());
-    }, SECOND_MS);
+    const timerId = window.setInterval(() => setNowMs(Date.now()), SECOND_MS);
 
     return () => {
       isMounted = false;
@@ -75,13 +60,11 @@ const HomeDeadlineBanner = () => {
     };
   }, [loadAttempt]);
 
-  const isClosed = Boolean(
-    deadlineAt && new Date(deadlineAt).getTime() <= nowMs
+  const isClosed = Boolean(deadlineAt && new Date(deadlineAt).getTime() <= nowMs);
+  const remainingText = useMemo(
+    () => (deadlineAt ? getRemainingText(deadlineAt, nowMs) : ''),
+    [deadlineAt, nowMs]
   );
-  const remainingText = useMemo(() => {
-    if (!deadlineAt) return '';
-    return getRemainingText(deadlineAt, nowMs);
-  }, [deadlineAt, nowMs]);
 
   if (loading || (!deadlineAt && !loadError)) return null;
 
@@ -93,12 +76,9 @@ const HomeDeadlineBanner = () => {
       <div className={styles.iconBox}>
         <Clock3 size={18} />
       </div>
-
       <div className={styles.content}>
         <span>신청 마감</span>
-        <strong>
-          {loadError ? '마감 정보를 확인하지 못했습니다' : remainingText}
-        </strong>
+        <strong>{loadError ? '마감 정보를 확인하지 못했습니다.' : remainingText}</strong>
         {loadError && (
           <button
             type="button"
@@ -108,9 +88,7 @@ const HomeDeadlineBanner = () => {
             다시 시도
           </button>
         )}
-        {deadlineAt && (
-          <p>신청 마감 일시: {formatReservationDeadline(deadlineAt)}</p>
-        )}
+        {deadlineAt && <p>신청 마감 일시: {formatReservationDeadline(deadlineAt)}</p>}
       </div>
     </section>
   );

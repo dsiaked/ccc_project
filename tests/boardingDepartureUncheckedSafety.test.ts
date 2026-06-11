@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const migration = readFileSync(
-  'supabase/migrations/20260611000015_185_block_departure_with_unchecked_passengers.sql',
+  'supabase/migrations/20260611000019_185_block_departure_with_unchecked_passengers.sql',
   'utf8'
 );
 const page = readFileSync('src/pages/admin/AdminBoardingPage.tsx', 'utf8');

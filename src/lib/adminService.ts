@@ -9,6 +9,7 @@ export type AdminRoleType = 'global_admin' | 'campus_admin' | 'boarding_manager'
 export type CampusRequestType =
   | 'notice'
   | 'late_signup'
+  | 'cancel_refund'
   | 'payment_issue'
   | 'roster_change'
   | 'transfer_issue'
@@ -760,7 +761,7 @@ export async function createOrUpdatePaymentStatus({
   reservationId: string;
   userId: string;
   amount: number;
-  status: 'pending' | 'completed';
+  status: 'pending' | 'completed' | 'refunded';
   verifiedBy?: string;
 }) {
   const { data, error } = await supabase.rpc('upsert_reservation_payment', {

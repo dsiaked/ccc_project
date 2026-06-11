@@ -7,7 +7,7 @@ const service = readFileSync(
   'utf8'
 );
 const migration = readFileSync(
-  'supabase/migrations/20260611000016_186_require_reason_for_every_no_show.sql',
+  'supabase/migrations/20260611000022_186_require_reason_for_every_no_show.sql',
   'utf8'
 );
 

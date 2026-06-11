@@ -59,6 +59,15 @@ const formatDateTime = (value: string | null) =>
       }).format(new Date(value))
     : '-';
 
+const closeoutReadyStorageKey = 'admin-operation-closeout-ready';
+const closeoutReadyEventName = 'admin-operation-closeout-ready-change';
+const requiredCloseoutCheckIds = new Set([
+  'departures',
+  'exceptions',
+  'payments',
+  'transfers',
+]);
+
 const AdminOperationCloseoutPage = () => {
   const navigate = useNavigate();
   const [checks, setChecks] = useState<CloseoutCheck[]>([]);
@@ -188,13 +197,37 @@ const AdminOperationCloseoutPage = () => {
   }, []);
 
   useEffect(() => {
-    void loadData();
+    const timeoutId = window.setTimeout(() => {
+      void loadData();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
   }, [loadData]);
 
   const warningCount = useMemo(
     () => checks.filter((check) => !check.passed).length,
     [checks]
   );
+  const isCloseoutReady =
+    !loading &&
+    !closeout.closed &&
+    checks.filter((check) => requiredCloseoutCheckIds.has(check.id)).every(
+      (check) => check.passed
+    );
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(closeoutReadyStorageKey, String(isCloseoutReady));
+    } catch {
+      // The in-page status remains available when browser storage is unavailable.
+    }
+    window.dispatchEvent(
+      new CustomEvent(closeoutReadyEventName, {
+        detail: { ready: isCloseoutReady },
+      })
+    );
+  }, [isCloseoutReady]);
+
   const expectedConfirmation = closeout.closed ? '종료 취소' : '운영 종료';
   const canSubmit =
     reviewed &&
@@ -232,7 +265,10 @@ const AdminOperationCloseoutPage = () => {
           <span className={styles.heroIcon}><ClipboardCheck size={26} /></span>
           <div>
             <span>{closeout.closed ? '운영 종료 기록됨' : '6단계 사후 관리'}</span>
-            <h1>운영 종료 점검</h1>
+            <h1>
+              운영 종료 점검
+              {isCloseoutReady && <em className={styles.readyBadge}>마감 가능</em>}
+            </h1>
             <p>자동 점검 결과와 관리자 최종 확인을 함께 기록합니다.</p>
           </div>
           <button type="button" onClick={() => void loadData()} disabled={loading}>

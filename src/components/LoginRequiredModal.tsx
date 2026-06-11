@@ -6,11 +6,13 @@ import styles from './LoginRequiredModal.module.css';
 interface LoginRequiredModalProps {
   onClose: () => void;
   onConfirm: () => void;
+  onSignup?: () => void;
 }
 
 const LoginRequiredModal = ({
   onClose,
   onConfirm,
+  onSignup,
 }: LoginRequiredModalProps) => {
   const modalRef = useRef<HTMLElement>(null);
   const loginButtonRef = useRef<HTMLButtonElement>(null);
@@ -92,6 +94,15 @@ const LoginRequiredModal = ({
         >
           로그인하기
         </button>
+        {onSignup && (
+          <button
+            type="button"
+            className={styles.signupButton}
+            onClick={onSignup}
+          >
+            처음이신가요? 회원가입
+          </button>
+        )}
       </section>
     </div>
   );

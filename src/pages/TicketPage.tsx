@@ -230,6 +230,51 @@ const TicketPage = () => {
               )}
             </div>
 
+            <section className={styles.progressSection} aria-labelledby="application-progress-title">
+              <div className={styles.progressHeader}>
+                <div>
+                  <span>신청 이후 진행 상황</span>
+                  <h3 id="application-progress-title">
+                    {remainingSeatClaim ? '입금 확인을 기다리고 있어요' : '배차 확정을 기다리고 있어요'}
+                  </h3>
+                </div>
+                <Clock size={20} aria-hidden="true" />
+              </div>
+              <ol className={styles.progressList}>
+                {(remainingSeatClaim
+                  ? [
+                      { label: '잔여 좌석 신청', detail: '완료', state: 'done' },
+                      { label: '좌석 임시 확보', detail: '완료', state: 'done' },
+                      { label: '입금 확인', detail: '현재 단계', state: 'current' },
+                      { label: '탑승권 발급', detail: '예정', state: 'upcoming' },
+                    ]
+                  : [
+                      { label: '버스 신청', detail: '완료', state: 'done' },
+                      { label: '배차 확정', detail: '현재 대기 중', state: 'current' },
+                      { label: '입금 확인', detail: '예정', state: 'upcoming' },
+                      { label: '탑승권 발급', detail: '예정', state: 'upcoming' },
+                    ]
+                ).map((step) => (
+                  <li
+                    key={step.label}
+                    className={`${styles.progressItem} ${
+                      step.state === 'done'
+                        ? styles.progressDone
+                        : step.state === 'current'
+                          ? styles.progressCurrent
+                          : styles.progressUpcoming
+                    }`}
+                  >
+                    <span className={styles.progressMarker} aria-hidden="true">
+                      {step.state === 'done' ? <CheckCircle2 size={18} /> : null}
+                    </span>
+                    <strong>{step.label}</strong>
+                    <small>{step.detail}</small>
+                  </li>
+                ))}
+              </ol>
+            </section>
+
             {remainingSeatClaim && (
               <section className={styles.claimSummary} aria-label="임시 확보 좌석">
                 <div className={styles.claimSummaryHeader}>
@@ -442,8 +487,9 @@ const TicketPage = () => {
               미입금 신청을 취소할까요?
             </h2>
             <p id="remaining-seat-cancel-description">
-              취소하면 확보한 좌석은 즉시 다시 공개됩니다. 입금 확인이 완료된
-              신청은 취소할 수 없습니다.
+              취소하면 확보한 좌석은 즉시 다시 공개됩니다. 이미 입금했다면 환불은
+              자동 처리되지 않을 수 있으므로 관리자에게 문의하고 환불 여부를
+              반드시 확인해주세요.
             </p>
             <dl className={styles.cancelDialogSummary}>
               <div>
@@ -469,7 +515,7 @@ const TicketPage = () => {
             </dl>
             <div className={styles.refundWarning}>
               <AlertTriangle size={18} aria-hidden="true" />
-              <span>입금 확인 전 신청만 취소할 수 있습니다.</span>
+              <span>신청 취소는 환불 완료를 의미하지 않습니다.</span>
             </div>
             {cancelError && (
               <p className={styles.cancelError} role="alert">
@@ -510,6 +556,12 @@ const TicketPage = () => {
           onClose={() => navigate('/', { replace: true })}
           onConfirm={() =>
             navigate('/login', {
+              replace: true,
+              state: createLoginRequiredRedirectState('/ticket'),
+            })
+          }
+          onSignup={() =>
+            navigate('/signup', {
               replace: true,
               state: createLoginRequiredRedirectState('/ticket'),
             })

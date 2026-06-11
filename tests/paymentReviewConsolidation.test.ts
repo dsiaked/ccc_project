@@ -65,7 +65,7 @@ test('personal unpaid rows can be marked paid from the consolidated review', () 
 test('individual review targets remain visible after payment completion', () => {
   assert.match(
     reviewService,
-    /export type FinalPaymentStatus = 'missing' \| 'pending' \| 'completed'/
+    /export type FinalPaymentStatus = 'missing' \| 'pending' \| 'completed' \| 'refunded'/
   );
   assert.match(
     reviewService,
@@ -130,7 +130,7 @@ test('campus confirmation revert explains the state change and blocks duplicate 
     reviewPage,
     /campusRevertInFlightRef\.current = true[\s\S]*revertCampusTransferConfirmationById[\s\S]*campusRevertInFlightRef\.current = false/
   );
-  assert.match(reviewPage, /실제 입금[\s\S]*취소를 처리하는 기능은 아닙니다/);
+  assert.match(reviewPage, /실제 환불이나[\s\S]*입금 취소를 처리하는 기능은 아닙니다/);
   assert.match(reviewPage, /기존 확인 금액/);
   assert.match(reviewPage, /송금 보고됨 · 본부 재확인 필요/);
   assert.doesNotMatch(

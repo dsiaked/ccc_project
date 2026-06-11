@@ -95,7 +95,7 @@ stable
 security definer
 set search_path = public
 as $$
-  select 167;
+  select 186;
 $$;
 
 create or replace function public.assert_deployment_compatibility(
@@ -108,7 +108,7 @@ security invoker
 set search_path = public
 as $$
 declare
-  v_deployed_version constant integer := 167;
+  v_deployed_version constant integer := 186;
 begin
   if p_required_version > v_deployed_version then
     raise exception 'Database deployment version % is older than required version %.',

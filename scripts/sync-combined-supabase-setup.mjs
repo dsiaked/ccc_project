@@ -111,6 +111,7 @@ const setupFiles = [
   '147_secure_admin_created_account_source.sql',
   '148_store_invitation_code_plaintext.sql',
   '149_disable_signup_email_enumeration.sql',
+  '188_enable_signup_email_duplicate_check.sql',
   '150_require_boarding_transition_reason.sql',
   '151_personal_user_management_enhancements.sql',
   '152_fix_boarding_station_preferences.sql',

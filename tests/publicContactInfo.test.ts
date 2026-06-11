@@ -12,7 +12,7 @@ const setupPage = readFileSync(
 );
 const setupSql = readFileSync('sql/setup/186_public_contact_info.sql', 'utf8');
 const migrationSql = readFileSync(
-  'supabase/migrations/20260611000016_186_public_contact_info.sql',
+  'supabase/migrations/20260611000021_186_public_contact_info.sql',
   'utf8'
 );
 

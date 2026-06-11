@@ -216,6 +216,8 @@ const targetNavGroups = [
 const sidebarCollapsedStorageKey = 'admin-sidebar-collapsed';
 const sidebarViewStorageKey = 'admin-sidebar-view';
 const expandedNavGroupsStorageKey = 'admin-expanded-nav-groups';
+const closeoutReadyStorageKey = 'admin-operation-closeout-ready';
+const closeoutReadyEventName = 'admin-operation-closeout-ready-change';
 type SidebarView = 'stage' | 'target';
 type NavGroupId = AdminNavItem['stageGroup'] | AdminNavItem['targetGroup'];
 const rolePagePreloads: Record<'campus_admin' | 'boarding_manager', () => Promise<unknown>> = {
@@ -235,6 +237,13 @@ const AdminHeader = () => {
   const [activeRoleId, setActiveRoleId] = useState('');
   const [switchingRoleId, setSwitchingRoleId] = useState('');
   const [campusNoticeCount, setCampusNoticeCount] = useState(0);
+  const [isCloseoutReady, setIsCloseoutReady] = useState(() => {
+    try {
+      return window.localStorage.getItem(closeoutReadyStorageKey) === 'true';
+    } catch {
+      return false;
+    }
+  });
   const [sidebarView, setSidebarView] = useState<SidebarView>(() => {
     try {
       return window.localStorage.getItem(sidebarViewStorageKey) === 'target'
@@ -264,6 +273,17 @@ const AdminHeader = () => {
       }
     }
   );
+
+  useEffect(() => {
+    const handleCloseoutReadyChange = (event: Event) => {
+      setIsCloseoutReady(
+        (event as CustomEvent<{ ready?: boolean }>).detail?.ready === true
+      );
+    };
+    window.addEventListener(closeoutReadyEventName, handleCloseoutReadyChange);
+    return () =>
+      window.removeEventListener(closeoutReadyEventName, handleCloseoutReadyChange);
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -735,6 +755,12 @@ const AdminHeader = () => {
                         campusNoticeCount > 0 && (
                           <span className={styles.navBadge}>
                             {campusNoticeCount}
+                          </span>
+                        )}
+                      {item.path === '/admin/system/closeout' &&
+                        isCloseoutReady && (
+                          <span className={`${styles.navBadge} ${styles.readyNavBadge}`}>
+                            마감 가능
                           </span>
                         )}
                     </button>

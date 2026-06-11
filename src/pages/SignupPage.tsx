@@ -1,6 +1,6 @@
 import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { CheckCircle2, ChevronLeft, MailCheck, UserPlus } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import {
@@ -19,6 +19,7 @@ import {
 } from '../utils/signupDraftStorage';
 import { isAlreadyRegisteredSignupError } from '../utils/signupAuthError';
 import { clearOAuthCallbackState } from '../utils/oauthCallbackState';
+import { normalizeAppRedirect } from '../utils/redirect';
 import styles from './SignupPage.module.css';
 
 const validateEmail = (value: string) => /^\S+@\S+\.\S+$/.test(value);
@@ -53,11 +54,16 @@ const formatPhoneNumber = (value: string) => {
 
 const SignupPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const redirectTo = normalizeAppRedirect(location.state?.from);
   const [initialDraft] = useState(loadSignupDraft);
   const [currentStep, setCurrentStep] = useState(0);
 
   const [email, setEmail] = useState(initialDraft.email);
   const [emailMessage, setEmailMessage] = useState<string | null>(null);
+  const [emailCheckStatus, setEmailCheckStatus] = useState<
+    'idle' | 'checking' | 'available' | 'duplicate'
+  >('idle');
 
   const [password, setPassword] = useState('');
   const [passwordConfirm, setPasswordConfirm] = useState('');
@@ -103,6 +109,43 @@ const SignupPage = () => {
     passwordConfirm.length > 0 && password === passwordConfirm;
 
   const hasRestoredDraft = Object.values(initialDraft).some(Boolean);
+
+  const handleEmailCheck = async () => {
+    const normalizedEmail = email.trim().toLowerCase();
+
+    setError(null);
+    setSuccess(null);
+
+    if (!validateEmail(normalizedEmail)) {
+      setEmailCheckStatus('idle');
+      setEmailMessage('유효한 이메일을 입력해주세요.');
+      return;
+    }
+
+    setEmailCheckStatus('checking');
+    setEmailMessage(null);
+
+    try {
+      const { data, error: emailCheckError } = await supabase.rpc('email_exists', {
+        p_email: normalizedEmail,
+      });
+
+      if (emailCheckError) throw emailCheckError;
+
+      if (data) {
+        setEmailCheckStatus('duplicate');
+        setEmailMessage('이미 가입된 이메일입니다.');
+        return;
+      }
+
+      setEmailCheckStatus('available');
+      setEmailMessage('사용 가능한 이메일입니다.');
+    } catch (error) {
+      console.error('이메일 중복확인 실패:', error);
+      setEmailCheckStatus('idle');
+      setEmailMessage('이메일 중복확인을 완료하지 못했습니다. 다시 시도해주세요.');
+    }
+  };
 
   useEffect(() => {
     if (signupResult) return;
@@ -270,6 +313,11 @@ const SignupPage = () => {
       return;
     }
 
+    if (emailCheckStatus !== 'available') {
+      setEmailMessage('이메일 중복확인을 해주세요.');
+      return;
+    }
+
     if (password.length < 6) {
       setError('비밀번호는 최소 6자 이상이어야 합니다.');
       return;
@@ -403,6 +451,12 @@ const SignupPage = () => {
       }
 
       clearSignupDraft();
+
+      if (redirectTo !== '/') {
+        navigate(redirectTo, { replace: true });
+        return;
+      }
+
       setSignupResult('complete');
     } catch (error) {
       if (isAlreadyRegisteredSignupError(error)) {
@@ -471,7 +525,10 @@ const SignupPage = () => {
               className={styles.resultButton}
               onClick={() =>
                 navigate('/login', {
-                  state: { email: email.trim().toLowerCase() },
+                  state: {
+                    email: email.trim().toLowerCase(),
+                    from: redirectTo,
+                  },
                 })
               }
             >
@@ -546,19 +603,32 @@ const SignupPage = () => {
                   setError(null);
                   setSuccess(null);
                   setEmailMessage(null);
+                  setEmailCheckStatus('idle');
                 }}
                 autoComplete="email"
                 aria-describedby={emailMessage ? 'signup-email-message' : undefined}
                 aria-invalid={Boolean(emailMessage)}
                 required
               />
+              <button
+                type="button"
+                className={styles.emailCheckButton}
+                onClick={handleEmailCheck}
+                disabled={emailCheckStatus === 'checking' || !email.trim()}
+              >
+                {emailCheckStatus === 'checking' ? '확인 중...' : '중복확인'}
+              </button>
             </div>
 
             {emailMessage && (
               <p
                 id="signup-email-message"
-                className={styles.errorMessage}
-                role="alert"
+                className={
+                  emailCheckStatus === 'available'
+                    ? styles.successMessage
+                    : styles.errorMessage
+                }
+                role={emailCheckStatus === 'available' ? 'status' : 'alert'}
               >
                 {emailMessage}
               </p>

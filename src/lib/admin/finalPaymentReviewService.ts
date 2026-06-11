@@ -5,7 +5,7 @@ import {
 } from '../adminService';
 import { supabase } from '../supabase';
 
-export type FinalPaymentStatus = 'missing' | 'pending' | 'completed';
+export type FinalPaymentStatus = 'missing' | 'pending' | 'completed' | 'refunded';
 export type IndividualReviewReason =
   | 'remaining_seat'
   | 'outside_seoul'
@@ -39,7 +39,7 @@ export interface FinalPaymentReview {
 
 type PaymentRow = {
   id?: string | null;
-  status?: 'pending' | 'completed' | null;
+  status?: 'pending' | 'completed' | 'refunded' | null;
 };
 
 type ReservationRow = {
@@ -235,6 +235,8 @@ export async function getFinalPaymentReview(): Promise<FinalPaymentReview> {
         paymentStatus:
           payment?.status === 'completed'
             ? 'completed'
+            : payment?.status === 'refunded'
+            ? 'refunded'
             : payment?.status === 'pending'
               ? 'pending'
               : 'missing',

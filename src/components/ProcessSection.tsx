@@ -9,51 +9,49 @@ const steps = [
   },
   {
     title: '입금 확인',
-    description: '캠퍼스 회계 순장님이 신청자별 입금 상태를 확인합니다.',
+    description: '캠퍼스 회계 담당자가 신청자별 입금 상태를 확인합니다.',
     icon: CreditCard,
   },
   {
     title: '배차 확정',
-    description: '전체 관리자가 신청 현황을 기준으로 버스와 행선지를 확정합니다.',
+    description: '관리자가 신청 현황을 바탕으로 버스와 행선지를 확정합니다.',
     icon: MapPin,
   },
   {
-    title: '버스표 확인',
-    description: '확정 후 홈 화면이나 버스표 페이지에서 탑승 정보를 확인합니다.',
+    title: '탑승권 확인',
+    description: '배차 확정 후 탑승 호차와 출발 정보를 확인합니다.',
     icon: TicketCheck,
   },
 ];
 
-const ProcessSection = () => {
-  return (
-    <section className={styles.section}>
-      <div className={styles.container}>
-        <div className={styles.header}>
-          <p>버스 신청 절차</p>
-          <h2>귀가 버스 이용 순서</h2>
-        </div>
-
-        <ol className={styles.stepList}>
-          {steps.map((step, index) => {
-            const Icon = step.icon;
-
-            return (
-              <li className={styles.stepCard} key={step.title}>
-                <div className={styles.stepNumber}>{index + 1}</div>
-                <div className={styles.iconBox}>
-                  <Icon size={20} />
-                </div>
-                <div>
-                  <h3>{step.title}</h3>
-                  <p>{step.description}</p>
-                </div>
-              </li>
-            );
-          })}
-        </ol>
+const ProcessSection = () => (
+  <section className={styles.section}>
+    <div className={styles.container}>
+      <div className={styles.header}>
+        <p>버스 신청 절차</p>
+        <h2>귀가 버스 이용 순서</h2>
       </div>
-    </section>
-  );
-};
+
+      <ol className={styles.stepList}>
+        {steps.map((step, index) => {
+          const Icon = step.icon;
+
+          return (
+            <li className={styles.stepCard} key={step.title}>
+              <div className={styles.stepNumber}>{index + 1}</div>
+              <div className={styles.iconBox}>
+                <Icon size={20} />
+              </div>
+              <div>
+                <h3>{step.title}</h3>
+                <p>{step.description}</p>
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+    </div>
+  </section>
+);
 
 export default ProcessSection;

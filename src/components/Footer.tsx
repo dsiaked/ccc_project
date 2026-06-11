@@ -33,11 +33,12 @@ const Footer = () => {
   return (
     <footer className={styles.footer}>
       <div className={styles.container}>
-        
         <div className={styles.section}>
-          <h3 className={styles.title}>CCC 여름수련회 버스</h3>
+          <h3 className={styles.title}>CCC 여름수련회 귀가 버스</h3>
           <p className={styles.text}>
-            믿음의 동역자들과 함께하는<br/>은혜로운 여정
+            수련회를 마친 참가자들의
+            <br />
+            안전한 귀가를 돕습니다.
           </p>
         </div>
 
@@ -45,7 +46,7 @@ const Footer = () => {
           <h4 className={styles.subtitle}>바로가기</h4>
           <ul className={styles.linkList}>
             <li><Link to="/reservation" className={styles.link}>버스 신청</Link></li>
-            <li><Link to="/ticket" className={styles.link}>버스표</Link></li>
+            <li><Link to="/ticket" className={styles.link}>신청 현황</Link></li>
             {contactInfo.email && (
               <li><a href={`mailto:${contactInfo.email}`} className={styles.link}>문의하기</a></li>
             )}
@@ -62,9 +63,8 @@ const Footer = () => {
             </p>
           </div>
         )}
-
       </div>
-      
+
       <div className={styles.bottomBar}>
         <p className={styles.copyright}>
           © 2026 CCC 여름수련회. All rights reserved.

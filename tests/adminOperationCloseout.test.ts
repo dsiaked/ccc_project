@@ -3,6 +3,8 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const page = readFileSync('src/pages/admin/AdminOperationCloseoutPage.tsx', 'utf8');
+const header = readFileSync('src/pages/admin/AdminHeader.tsx', 'utf8');
+const dashboard = readFileSync('src/pages/admin/AdminGlobalPage.tsx', 'utf8');
 const service = readFileSync('src/lib/admin/operationCloseoutService.ts', 'utf8');
 const routes = readFileSync('src/routes/adminRoutes.tsx', 'utf8');
 const sql = readFileSync('sql/setup/185_operation_closeout.sql', 'utf8');
@@ -11,6 +13,20 @@ test('operation closeout is a separate global administrator screen', () => {
   assert.match(routes, /path: 'system\/closeout'/);
   assert.match(routes, /<AdminOperationCloseoutPage \/>/);
   assert.match(page, /운영 종료 점검/);
+});
+
+test('operation closeout readiness is emphasized in the page, sidebar, and dashboard', () => {
+  assert.match(page, /마감 가능/);
+  assert.match(page, /admin-operation-closeout-ready/);
+  assert.match(page, /requiredCloseoutCheckIds/);
+  assert.match(header, /마감 가능/);
+  assert.match(dashboard, /closeoutReadyBadge/);
+  assert.match(dashboard, /마감 가능/);
+  assert.match(dashboard, /onClick=\{\(\) => navigate\('\/admin\/system\/closeout'\)\}/);
+  assert.match(dashboard, /getBoardingExceptionArchiveSnapshot/);
+  assert.match(dashboard, /getFinalPaymentReview/);
+  assert.match(dashboard, /getOperationCloseoutState/);
+  assert.match(dashboard, /setIsCloseoutReady\(nextCloseoutReady\)/);
 });
 
 test('operation closeout uses mixed automatic and manual confirmation', () => {

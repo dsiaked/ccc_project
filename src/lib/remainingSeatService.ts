@@ -52,9 +52,6 @@ const throwRemainingSeatError = (error: { code?: string; message?: string }) => 
   if (message.includes('Remaining seat sales are closed')) {
     throw new Error('잔여 좌석 신청이 현재 마감되었습니다.');
   }
-  if (message.includes('Payment-confirmed remaining seat claims cannot be cancelled')) {
-    throw new Error('입금 확인이 완료된 잔여 좌석 신청은 취소할 수 없습니다.');
-  }
   if (message.includes('not open for remaining seat sales')) {
     throw new Error('선택한 버스의 잔여 좌석 신청이 중단되었습니다.');
   }
