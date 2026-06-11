@@ -29,11 +29,15 @@ jobs:
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
           VITE_KAKAO_JAVASCRIPT_KEY: ${{ secrets.VITE_KAKAO_JAVASCRIPT_KEY }}
           VITE_SIMULATION_PROJECT_ID: pjbvxoesgwhbxfsfjliw
+          VITE_CCC_SUMMER_BASE_URL: https://ccc-summer.vercel.app
+          VITE_CCC_SUMMER_CLIENT_ID: bus-seoul-return
         run: |
           test -n "$VITE_SUPABASE_URL"
           test -n "$VITE_SUPABASE_ANON_KEY"
           test -n "$VITE_KAKAO_JAVASCRIPT_KEY"
           test -n "$VITE_SIMULATION_PROJECT_ID"
+          test -n "$VITE_CCC_SUMMER_BASE_URL"
+          test -n "$VITE_CCC_SUMMER_CLIENT_ID"
           npm ci
           npm run lint
           npm run test:unit

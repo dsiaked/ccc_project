@@ -141,3 +141,25 @@ test('live deployment separates the production and simulation Supabase projects'
     /name: Deploy changed Edge Functions[\s\S]*if: \$\{\{ env\.SUPABASE_ACCESS_TOKEN != '' \}\}/
   );
 });
+
+test('Firebase builds include the public CCC Summer handoff client settings', () => {
+  const liveWorkflow = readFileSync(
+    '.github/workflows/firebase-hosting-merge.yml',
+    'utf8'
+  );
+  const previewWorkflow = readFileSync(
+    '.github/workflows/firebase-hosting-pull-request.yml',
+    'utf8'
+  );
+
+  for (const workflow of [liveWorkflow, previewWorkflow]) {
+    assert.match(
+      workflow,
+      /VITE_CCC_SUMMER_BASE_URL: https:\/\/ccc-summer\.vercel\.app/
+    );
+    assert.match(workflow, /VITE_CCC_SUMMER_CLIENT_ID: bus-seoul-return/);
+  }
+
+  assert.match(liveWorkflow, /test -n "\$VITE_CCC_SUMMER_BASE_URL"/);
+  assert.match(liveWorkflow, /test -n "\$VITE_CCC_SUMMER_CLIENT_ID"/);
+});
