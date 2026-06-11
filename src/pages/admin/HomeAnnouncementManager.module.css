@@ -272,17 +272,81 @@
 }
 
 @media (max-width: 720px) {
-  .composerHeader,
-  .listHeader,
-  .cardHeader,
-  .headerActions {
-    align-items: stretch;
-    flex-direction: column;
+  .manager {
+    gap: 16px;
   }
 
-  .secondaryButton,
-  .primaryButton {
+  .composer,
+  .card {
+    padding: 14px;
+  }
+
+  .composerHeader {
+    display: grid;
+    gap: 14px;
+  }
+
+  .headerActions {
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .headerActions > span {
+    flex: 1 1 auto;
+  }
+
+  .headerActions .secondaryButton {
+    flex: 0 1 auto;
+  }
+
+  .formActions .primaryButton {
     width: 100%;
+  }
+
+  .listHeader {
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .listHeader > div {
+    flex: 1 1 190px;
+    min-width: 0;
+  }
+
+  .listHeader .secondaryButton {
+    flex: 0 0 auto;
+  }
+
+  .cardHeader {
+    display: grid;
+    gap: 8px;
+  }
+
+  .cardHeader > div,
+  .card h3,
+  .card p,
+  .scheduleText {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .card time {
+    white-space: normal;
+  }
+
+  .cardActions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .cardActions > button,
+  .cardActions > button:not(.primaryButton):not(.secondaryButton) {
+    width: 100%;
+    min-height: 40px;
+    min-width: 0;
+    justify-content: center;
   }
 
   .dateGrid {

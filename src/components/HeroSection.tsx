@@ -3,7 +3,8 @@ import { AlertCircle, ArrowRight, CheckCircle2, Clock3, Ticket } from 'lucide-re
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { getReservationDeadline } from '../lib/reservationDeadlineService';
-import { getReservation } from '../lib/reservationService';
+import { getReservationForUser } from '../lib/reservationService';
+import { preloadPublicRoute } from '../routes/publicRoutes';
 import type { ReturnBusReservation } from '../types/reservation';
 import { createLoginRequiredRedirectState } from '../utils/redirect';
 import LoginRequiredModal from './LoginRequiredModal';
@@ -35,8 +36,10 @@ const HeroSection = () => {
         if (!isMounted) return;
         if (sessionError) throw sessionError;
 
-        const deadline = await getReservationDeadline();
-        const savedReservation = session ? await getReservation() : null;
+        const [deadline, savedReservation] = await Promise.all([
+          getReservationDeadline(),
+          session ? getReservationForUser(session.user.id) : Promise.resolve(null),
+        ]);
 
         if (isMounted) {
           setIsLoggedIn(Boolean(session));
@@ -122,6 +125,8 @@ const HeroSection = () => {
             <div className={styles.imageWrapper}>
               <img
                 src="https://images.unsplash.com/photo-1511632765486-a01980e01a18?q=80&w=1000&auto=format&fit=crop"
+                srcSet="https://images.unsplash.com/photo-1511632765486-a01980e01a18?q=76&w=480&auto=format&fit=crop 480w, https://images.unsplash.com/photo-1511632765486-a01980e01a18?q=78&w=800&auto=format&fit=crop 800w, https://images.unsplash.com/photo-1511632765486-a01980e01a18?q=80&w=1000&auto=format&fit=crop 1000w"
+                sizes="(min-width: 760px) 720px, 100vw"
                 alt="함께 모인 수련회 참가자들"
                 className={styles.image}
                 width="1000"
@@ -140,6 +145,8 @@ const HeroSection = () => {
                   type="button"
                   className={styles.ctaButton}
                   disabled={isLoading}
+                  onMouseEnter={() => preloadPublicRoute(content.path)}
+                  onFocus={() => preloadPublicRoute(content.path)}
                   onClick={() => {
                     if (loadError) {
                       setLoadAttempt((attempt) => attempt + 1);

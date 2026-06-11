@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import type { Session } from '@supabase/supabase-js';
 import { Bell, ChevronDown, ChevronRight, ChevronUp, Megaphone } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -55,16 +56,10 @@ const HomeNoticeSection = () => {
 
   useEffect(() => {
     let isMounted = true;
+    let currentSession: Session | null = null;
 
-    const loadNotices = async () => {
-      setIsLoading(true);
-      setLoadError(false);
-      setReadError(false);
-
-      const { data: sessionData, error: sessionError } =
-        await supabase.auth.getSession();
-      const session = sessionData.session;
-      const campusNoticePromise = session
+    const fetchCampusNotices = (session: Session | null) =>
+      session
         ? getAdminRoles(session.user.id).then(async (roles) => {
             const isCampusAdmin = roles.some(
               (role) => role.role === 'campus_admin'
@@ -93,10 +88,33 @@ const HomeNoticeSection = () => {
           })
         : Promise.resolve({ notices: [], unreadIds: new Set<string>() });
 
+    const refreshPersonalNotifications = async () => {
+      const notifications = currentSession
+        ? await getMyPersonalNotifications()
+        : [];
+      if (isMounted) setPersonalNotifications(notifications);
+    };
+
+    const refreshCampusNotices = async () => {
+      const result = await fetchCampusNotices(currentSession);
+      if (!isMounted) return;
+      setCampusNotices(result.notices);
+      setUnreadCampusNoticeIds(result.unreadIds);
+    };
+
+    const loadNotices = async () => {
+      setIsLoading(true);
+      setLoadError(false);
+      setReadError(false);
+
+      const { data: sessionData, error: sessionError } =
+        await supabase.auth.getSession();
+      currentSession = sessionData.session;
+
       const results = await Promise.allSettled([
         getPublishedHomeAnnouncements(),
-        session ? getMyPersonalNotifications() : Promise.resolve([]),
-        campusNoticePromise,
+        currentSession ? getMyPersonalNotifications() : Promise.resolve([]),
+        fetchCampusNotices(currentSession),
       ]);
 
       if (!isMounted) return;
@@ -135,12 +153,18 @@ const HomeNoticeSection = () => {
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'personal_notifications' },
-        () => void loadNotices()
+        () =>
+          void refreshPersonalNotifications().catch((error) =>
+            console.error('Failed to refresh personal notifications:', error)
+          )
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'campus_requests' },
-        () => void loadNotices()
+        () =>
+          void refreshCampusNotices().catch((error) =>
+            console.error('Failed to refresh campus notices:', error)
+          )
       )
       .subscribe();
 
@@ -217,7 +241,7 @@ const HomeNoticeSection = () => {
   if (!isLoading && !loadError && notices.length === 0) return null;
 
   return (
-    <section id="notices" className={styles.section}>
+    <section id="notices" className={styles.section} tabIndex={-1}>
       <div className={styles.container}>
         <div className={styles.header}>
           <div className={styles.iconBox}>

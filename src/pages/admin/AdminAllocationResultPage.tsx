@@ -174,6 +174,7 @@ const getAllReservationRows = async (): Promise<ReservationRow[]> => {
       .select(
         'id, created_at, user_id, name, phone, campus, station_preferences, status, confirmed_ticket, data, payments(status)'
       )
+      .or('status.neq.cancelled,status.is.null')
       .order('created_at', { ascending: true })
       .order('id', { ascending: true })
       .limit(RESERVATION_FETCH_PAGE_SIZE);
@@ -286,15 +287,15 @@ const AdminAllocationResultPage = () => {
     setLoadError(null);
 
     try {
-      const [latestAllocation, reservationRows] = await Promise.all([
+      const [latestAllocation, reservationRows, profileResult] = await Promise.all([
         getLatestConfirmedBusAllocation(),
         getAllReservationRows(),
+        supabase
+          .from('profiles')
+          .select('id, account_source')
+          .eq('account_source', 'admin_created'),
       ]);
 
-      const profileResult = await supabase
-        .from('profiles')
-        .select('id, account_source')
-        .eq('account_source', 'admin_created');
       const adminCreatedUserIds = new Set(
         (profileResult.data ?? []).map((profile) => profile.id)
       );

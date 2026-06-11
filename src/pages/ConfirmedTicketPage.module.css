@@ -1475,6 +1475,16 @@
   min-height: 48px;
 }
 
+@media (min-width: 720px) {
+  .pageContainer {
+    max-width: 720px;
+  }
+
+  .main {
+    max-width: 680px;
+  }
+}
+
 .tripSummaryRow {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   margin-bottom: 0;

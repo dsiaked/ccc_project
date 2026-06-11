@@ -14,6 +14,18 @@
   padding: 18px 14px calc(48px + env(safe-area-inset-bottom));
 }
 
+@media (min-width: 720px) {
+  .pageContainer {
+    max-width: 720px;
+  }
+
+  .main {
+    max-width: 680px;
+    margin-inline: auto;
+    width: 100%;
+  }
+}
+
 .pageHeader {
   padding: 2px 4px 4px;
 }

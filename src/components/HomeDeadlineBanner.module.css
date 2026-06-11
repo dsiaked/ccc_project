@@ -79,3 +79,53 @@
   outline: 3px solid #1d4ed8;
   outline-offset: 2px;
 }
+
+.loadingBanner {
+  min-height: 85px;
+  pointer-events: none;
+}
+
+.loadingContent {
+  display: grid;
+  flex: 1;
+  gap: 6px;
+}
+
+.loadingContent span,
+.loadingContent strong,
+.loadingContent p {
+  display: block;
+  height: 10px;
+  border-radius: 999px;
+}
+
+.loadingContent span {
+  width: 72px;
+}
+
+.loadingContent strong {
+  width: min(220px, 75%);
+  height: 16px;
+}
+
+.loadingContent p {
+  width: min(280px, 90%);
+}
+
+.skeleton {
+  background: linear-gradient(90deg, #dbeafe 25%, #ffffff 50%, #dbeafe 75%);
+  background-size: 200% 100%;
+  animation: deadlineSkeleton 1.2s ease-in-out infinite;
+}
+
+@keyframes deadlineSkeleton {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+  }
+}

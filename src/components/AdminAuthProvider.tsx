@@ -14,6 +14,7 @@ import type { Session } from '@supabase/supabase-js';
 import {
   clearAdminRoleCache,
   getAdminRole,
+  getAdminRoles,
   setActiveAdminRole,
   type AdminRole,
 } from '../lib/adminService';
@@ -25,7 +26,9 @@ interface AdminAuthContextValue {
   status: AdminAuthStatus;
   session: Session | null;
   adminRole: AdminRole | null;
+  adminRoles: AdminRole[];
   refresh: () => Promise<void>;
+  refreshRoles: () => Promise<void>;
   switchAdminRole: (roleId: string) => Promise<AdminRole>;
 }
 
@@ -36,6 +39,7 @@ export const AdminAuthProvider = ({ children }: { children: ReactNode }) => {
   const [status, setStatus] = useState<AdminAuthStatus>('loading');
   const [session, setSession] = useState<Session | null>(null);
   const [adminRole, setAdminRole] = useState<AdminRole | null>(null);
+  const [adminRoles, setAdminRoles] = useState<AdminRole[]>([]);
 
   const loadAdminAuth = useCallback(async (nextSession?: Session | null) => {
     const requestId = (requestIdRef.current += 1);
@@ -56,15 +60,20 @@ export const AdminAuthProvider = ({ children }: { children: ReactNode }) => {
 
       if (!resolvedSession) {
         setAdminRole(null);
+        setAdminRoles([]);
         setStatus('anonymous');
         return;
       }
 
       clearAdminRoleCache(resolvedSession.user.id);
-      const role = await getAdminRole(resolvedSession.user.id);
+      const [roles, role] = await Promise.all([
+        getAdminRoles(resolvedSession.user.id),
+        getAdminRole(resolvedSession.user.id),
+      ]);
 
       if (requestIdRef.current !== requestId) return;
 
+      setAdminRoles(roles);
       setAdminRole(role);
       setStatus('authenticated');
     } catch (error) {
@@ -72,9 +81,31 @@ export const AdminAuthProvider = ({ children }: { children: ReactNode }) => {
 
       console.error('Failed to load administrator authentication:', error);
       setAdminRole(null);
+      setAdminRoles([]);
       setStatus('error');
     }
   }, []);
+
+  const refreshRoles = useCallback(async () => {
+    const requestId = (requestIdRef.current += 1);
+
+    if (!session) {
+      setAdminRole(null);
+      setAdminRoles([]);
+      return;
+    }
+
+    clearAdminRoleCache(session.user.id);
+    const [roles, role] = await Promise.all([
+      getAdminRoles(session.user.id),
+      getAdminRole(session.user.id),
+    ]);
+
+    if (requestIdRef.current !== requestId) return;
+
+    setAdminRoles(roles);
+    setAdminRole(role);
+  }, [session]);
 
   useEffect(() => {
     Promise.resolve().then(() => {
@@ -100,7 +131,9 @@ export const AdminAuthProvider = ({ children }: { children: ReactNode }) => {
       status,
       session,
       adminRole,
+      adminRoles,
       refresh: () => loadAdminAuth(),
+      refreshRoles,
       switchAdminRole: async (roleId: string) => {
         if (!session) {
           throw new Error('관리자 역할을 변경하려면 다시 로그인해주세요.');
@@ -111,7 +144,7 @@ export const AdminAuthProvider = ({ children }: { children: ReactNode }) => {
         return role;
       },
     }),
-    [status, session, adminRole, loadAdminAuth]
+    [status, session, adminRole, adminRoles, loadAdminAuth, refreshRoles]
   );
 
   return (

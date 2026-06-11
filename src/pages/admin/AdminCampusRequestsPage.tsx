@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
   Archive,
@@ -8,7 +8,6 @@ import {
   ChevronUp,
   Edit2,
   History,
-  House,
   MessageSquare,
   Megaphone,
   RefreshCw,
@@ -69,19 +68,20 @@ const statusOptions: Array<{
   value: CampusRequestStatus;
   label: string;
 }> = [
-  { value: 'open', label: '접수' },
-  { value: 'in_progress', label: '처리 중' },
+  { value: 'in_progress', label: '미처리' },
   { value: 'resolved', label: '완료' },
-  { value: 'on_hold', label: '보류' },
 ];
 
 const typeLabelMap = Object.fromEntries(
   requestTypeOptions.map((option) => [option.value, option.label])
 ) as Record<CampusRequestType, string>;
 
-const statusLabelMap = Object.fromEntries(
-  statusOptions.map((option) => [option.value, option.label])
-) as Record<CampusRequestStatus, string>;
+const statusLabelMap: Record<CampusRequestStatus, string> = {
+  open: '미처리',
+  in_progress: '미처리',
+  resolved: '완료',
+  on_hold: '미처리',
+};
 
 const auditActionLabelMap = {
   status_changed: '처리 상태 변경',
@@ -94,8 +94,10 @@ const campusRequestTypeOptions = requestTypeOptions.filter(
   (option) => option.value !== 'notice'
 );
 const PAGE_SIZE = 15;
-type GlobalAdminTab = 'requests' | 'notices' | 'home';
+type GlobalAdminTab = 'requests' | 'notices';
 type NoticeAudienceMode = 'all' | 'unpaid' | 'custom';
+type RequestStatusFilter = CampusRequestStatus | 'all' | 'active';
+type PageFeedback = { tone: 'success' | 'error'; message: string };
 
 const getCampusTargetKey = (target: CampusNoticeTarget) =>
   `${target.district}\u0000${target.team}\u0000${target.campus}`;
@@ -174,7 +176,7 @@ const AdminCampusRequestsPage = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { session, adminRole: activeAdminRole } = useAdminAuth();
-  const [loading, setLoading] = useState(() => searchParams.get('tab') !== 'home');
+  const [loading, setLoading] = useState(true);
   const adminRole = activeAdminRole;
   const [requests, setRequests] = useState<CampusRequest[]>([]);
   const [typeInput, setTypeInput] = useState<CampusRequestType>('late_signup');
@@ -185,7 +187,7 @@ const AdminCampusRequestsPage = () => {
   const requestedTab = searchParams.get('tab');
   const globalAdminTab: GlobalAdminTab =
     requestedTab === 'notices' || requestedTab === 'home'
-      ? requestedTab
+      ? 'notices'
       : 'requests';
   const [isNoticeFormOpen, setIsNoticeFormOpen] = useState(false);
   const [campusTargets, setCampusTargets] = useState<CampusTransferStat[]>([]);
@@ -195,10 +197,12 @@ const AdminCampusRequestsPage = () => {
     Set<string>
   >(() => new Set());
   const [submitting, setSubmitting] = useState(false);
+  const submissionInFlightRef = useRef(false);
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [searchKeyword, setSearchKeyword] = useState('');
-  const [statusFilter, setStatusFilter] = useState<CampusRequestStatus | 'all'>(
-    'all'
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<RequestStatusFilter>(
+    'active'
   );
   const [typeFilter, setTypeFilter] = useState<CampusRequestType | 'all'>('all');
   const [statusDrafts, setStatusDrafts] = useState<
@@ -212,6 +216,10 @@ const AdminCampusRequestsPage = () => {
   );
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingMessageDraft, setEditingMessageDraft] = useState('');
+  const [editingNoticeId, setEditingNoticeId] = useState<string | null>(null);
+  const [editingNoticeTitle, setEditingNoticeTitle] = useState('');
+  const [editingNoticeContent, setEditingNoticeContent] = useState('');
+  const [pageFeedback, setPageFeedback] = useState<PageFeedback | null>(null);
   const currentUserId = session?.user.id ?? null;
   const [expandedRequestIds, setExpandedRequestIds] = useState<Set<string>>(
     () => new Set()
@@ -234,14 +242,24 @@ const AdminCampusRequestsPage = () => {
     Boolean(contentInput.trim()) ||
     Boolean(noticeTitleInput.trim()) ||
     Boolean(noticeContentInput.trim()) ||
+    Boolean(editingNoticeId) ||
     Object.values(messageDrafts).some((draft) => Boolean(draft.trim())) ||
     Object.entries(responseDrafts).some(([requestId, draft]) => {
       const request = requests.find((item) => item.id === requestId);
       return draft.trim() !== (request?.adminResponse?.trim() ?? '');
     });
 
+  const confirmDiscardDrafts = () =>
+    !hasUnsavedBoardDrafts ||
+    window.confirm('작성 중인 내용이 있습니다. 이동하면 입력 내용이 사라집니다.');
+
   const handleGlobalTabChange = (tab: GlobalAdminTab) => {
-    setSearchParams(tab === 'requests' ? {} : { tab });
+    if (tab === globalAdminTab || !confirmDiscardDrafts()) return;
+    if (tab === 'requests') {
+      navigate('/admin/communications');
+      return;
+    }
+    setSearchParams({ tab });
     setStatusFilter('all');
     setTypeFilter('all');
     setSearchKeyword('');
@@ -293,7 +311,7 @@ const AdminCampusRequestsPage = () => {
           role.role === 'global_admin' && globalAdminTab === 'notices'
             ? 'notices'
             : 'requests',
-        status: statusFilter,
+        status: role.role === 'global_admin' ? statusFilter : 'all',
         type: typeFilter,
         search: debouncedSearchKeyword,
       }),
@@ -331,6 +349,23 @@ const AdminCampusRequestsPage = () => {
     setUnreadRequestIds(await getUnreadCampusRequestIds());
   };
 
+  const refreshRealtimeBoard = useEffectEvent(
+    (role: AdminRole, includeSummary: boolean) => {
+      void loadRequests(role);
+      void loadUnreadRequests();
+      if (includeSummary) void loadSummary(role);
+    }
+  );
+  const isRealtimeBoardSyncBlocked = useEffectEvent(
+    (includeMessageEditing: boolean) =>
+      Boolean(
+        processingId ||
+          submitting ||
+          hasUnsavedBoardDrafts ||
+          (includeMessageEditing && editingMessageId)
+      )
+  );
+
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
       setDebouncedSearchKeyword(searchKeyword);
@@ -342,10 +377,6 @@ const AdminCampusRequestsPage = () => {
 
   useEffect(() => {
     if (!adminRole) return;
-
-    if (adminRole.role === 'global_admin' && globalAdminTab === 'home') {
-      return;
-    }
 
     // Loading the current server page synchronizes this view with Supabase.
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -396,9 +427,7 @@ const AdminCampusRequestsPage = () => {
       }
       realtimeSyncTimerId = window.setTimeout(() => {
         realtimeSyncTimerId = null;
-        void loadRequests(adminRole);
-        void loadUnreadRequests();
-        if (shouldLoadSummary) void loadSummary(adminRole);
+        refreshRealtimeBoard(adminRole, shouldLoadSummary);
         shouldLoadSummary = false;
       }, 250);
     };
@@ -411,9 +440,7 @@ const AdminCampusRequestsPage = () => {
         () => {
           if (
             document.visibilityState !== 'visible' ||
-            processingId ||
-            submitting ||
-            hasUnsavedBoardDrafts
+            isRealtimeBoardSyncBlocked(false)
           ) return;
           scheduleRealtimeSync(adminRole.role === 'global_admin');
         }
@@ -424,10 +451,7 @@ const AdminCampusRequestsPage = () => {
         () => {
           if (
             document.visibilityState !== 'visible' ||
-            processingId ||
-            submitting ||
-            editingMessageId ||
-            hasUnsavedBoardDrafts
+            isRealtimeBoardSyncBlocked(true)
           ) return;
           scheduleRealtimeSync(false);
         }
@@ -440,15 +464,7 @@ const AdminCampusRequestsPage = () => {
       }
       void supabase.removeChannel(channel);
     };
-    // The current board state is intentionally read by realtime callbacks.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    adminRole,
-    editingMessageId,
-    hasUnsavedBoardDrafts,
-    processingId,
-    submitting,
-  ]);
+  }, [adminRole]);
 
   const selectedNoticeTargets = useMemo<CampusNoticeTarget[]>(() => {
     const availableTargets = campusTargets.map(({ district, team, campus }) => ({
@@ -483,6 +499,10 @@ const AdminCampusRequestsPage = () => {
       const matchesStatus =
         request.isGlobalNotice ||
         statusFilter === 'all' ||
+        (statusFilter === 'active' &&
+          (request.status === 'open' ||
+            request.status === 'in_progress' ||
+            request.status === 'on_hold')) ||
         request.status === statusFilter;
       const matchesType = typeFilter === 'all' || request.type === typeFilter;
       const searchTarget = [
@@ -535,7 +555,11 @@ const AdminCampusRequestsPage = () => {
 
     if (keyword) chips.push(`검색: ${keyword}`);
     if (globalAdminTab === 'requests' && statusFilter !== 'all') {
-      chips.push(`상태: ${statusLabelMap[statusFilter]}`);
+      chips.push(
+        `상태: ${
+          statusFilter === 'active' ? '미처리' : statusLabelMap[statusFilter]
+        }`
+      );
     }
     if (typeFilter !== 'all') chips.push(`유형: ${typeLabelMap[typeFilter]}`);
 
@@ -560,6 +584,13 @@ const AdminCampusRequestsPage = () => {
 
   const resetFilters = () => {
     setSearchKeyword('');
+    setStatusFilter(globalAdminTab === 'requests' ? 'active' : 'all');
+    setTypeFilter('all');
+    setPage(1);
+  };
+
+  const clearFilters = () => {
+    setSearchKeyword('');
     setStatusFilter('all');
     setTypeFilter('all');
     setPage(1);
@@ -577,7 +608,7 @@ const AdminCampusRequestsPage = () => {
   }, [currentUserId, globalNotices, isCampusAdmin]);
 
   const handleCreateGlobalNotice = async () => {
-    if (!isGlobalAdmin) return;
+    if (!isGlobalAdmin || submissionInFlightRef.current) return;
 
     const title = noticeTitleInput.trim();
     const content = noticeContentInput.trim();
@@ -592,18 +623,19 @@ const AdminCampusRequestsPage = () => {
       return;
     }
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      alert('로그인이 필요합니다.');
-      return;
-    }
-
+    submissionInFlightRef.current = true;
     setSubmitting(true);
 
     try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        alert('로그인이 필요합니다.');
+        return;
+      }
+
       const createdNotice = await createGlobalCampusNotice({
         title,
         content,
@@ -630,11 +662,18 @@ const AdminCampusRequestsPage = () => {
       setIsNoticeFormOpen(false);
       if (adminRole) void loadSummary(adminRole);
 
-      alert('전체 캠퍼스 공지를 등록했습니다.');
+      setPageFeedback({
+        tone: 'success',
+        message: '전체 캠퍼스 공지를 등록했습니다.',
+      });
     } catch (error) {
       console.error('전체 공지 등록 실패:', error);
-      alert(`공지 등록 중 오류가 발생했습니다: ${getErrorMessage(error)}`);
+      setPageFeedback({
+        tone: 'error',
+        message: `공지 등록 중 오류가 발생했습니다: ${getErrorMessage(error)}`,
+      });
     } finally {
+      submissionInFlightRef.current = false;
       setSubmitting(false);
     }
   };
@@ -660,11 +699,30 @@ const AdminCampusRequestsPage = () => {
     }
   };
 
+  const startEditGlobalNotice = (notice: CampusRequest) => {
+    setEditingNoticeId(notice.id);
+    setEditingNoticeTitle(notice.title);
+    setEditingNoticeContent(notice.content);
+  };
+
+  const cancelEditGlobalNotice = () => {
+    setEditingNoticeId(null);
+    setEditingNoticeTitle('');
+    setEditingNoticeContent('');
+  };
+
   const handleEditGlobalNotice = async (notice: CampusRequest) => {
-    const title = window.prompt('공지 제목', notice.title)?.trim();
-    if (!title) return;
-    const content = window.prompt('공지 내용', notice.content)?.trim();
-    if (!content) return;
+    const title = editingNoticeTitle.trim();
+    const content = editingNoticeContent.trim();
+
+    if (!title || !content) {
+      setPageFeedback({
+        tone: 'error',
+        message: '공지 제목과 내용을 모두 입력해주세요.',
+      });
+      return;
+    }
+
     setProcessingId(notice.id);
     try {
       const updated = await updateGlobalCampusNotice({
@@ -677,16 +735,23 @@ const AdminCampusRequestsPage = () => {
       setRequests((current) =>
         current.map((item) => (item.id === notice.id ? updated : item))
       );
-      alert('공지를 수정했습니다. 대상 캠퍼스에 새 공지로 다시 알립니다.');
+      cancelEditGlobalNotice();
+      setPageFeedback({
+        tone: 'success',
+        message: '공지를 수정하고 대상 캠퍼스에 다시 알렸습니다.',
+      });
     } catch (error) {
-      alert(`공지를 수정하지 못했습니다: ${getErrorMessage(error)}`);
+      setPageFeedback({
+        tone: 'error',
+        message: `공지를 수정하지 못했습니다: ${getErrorMessage(error)}`,
+      });
     } finally {
       setProcessingId(null);
     }
   };
 
   const handleCreateRequest = async () => {
-    if (!adminRole || !isCampusAdmin) return;
+    if (!adminRole || !isCampusAdmin || submissionInFlightRef.current) return;
 
     const title = titleInput.trim();
     const content = contentInput.trim();
@@ -696,18 +761,19 @@ const AdminCampusRequestsPage = () => {
       return;
     }
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      alert('로그인이 필요합니다.');
-      return;
-    }
-
+    submissionInFlightRef.current = true;
     setSubmitting(true);
 
     try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        alert('로그인이 필요합니다.');
+        return;
+      }
+
       const createdRequest = await createCampusRequest({
         type: typeInput,
         title,
@@ -739,6 +805,7 @@ const AdminCampusRequestsPage = () => {
       console.error('문의 등록 실패:', error);
       alert(`문의 등록 중 오류가 발생했습니다: ${getErrorMessage(error)}`);
     } finally {
+      submissionInFlightRef.current = false;
       setSubmitting(false);
     }
   };
@@ -793,7 +860,10 @@ const AdminCampusRequestsPage = () => {
       );
       if (adminRole) void loadSummary(adminRole);
 
-      alert('문의 처리 상태를 저장했습니다.');
+      setPageFeedback({
+        tone: 'success',
+        message: '답변과 처리 상태를 저장했습니다.',
+      });
     } catch (error) {
       console.error('문의 처리 저장 실패:', error);
       alert(`문의 처리 중 오류가 발생했습니다: ${getErrorMessage(error)}`);
@@ -954,16 +1024,10 @@ const AdminCampusRequestsPage = () => {
         '신청 마감 이후 추가 신청, 입금 오류, 명단 수정 요청을 확인하고 처리합니다.',
     },
     notices: {
-      eyebrow: '캠퍼스 커뮤니케이션',
-      title: '캠퍼스 공지',
+      eyebrow: '공지 커뮤니케이션',
+      title: '공지 관리',
       description:
-        '전체 또는 선택한 캠퍼스 회계 순장님에게 전달할 운영 공지를 작성하고 관리합니다.',
-    },
-    home: {
-      eyebrow: '사용자 커뮤니케이션',
-      title: '홈 화면 공지',
-      description:
-        '일반 사용자의 홈 화면에 표시되는 안내와 중요 공지를 관리합니다.',
+        '홈 화면에 표시할 전체 사용자 공지와 캠퍼스 운영 공지를 한곳에서 관리합니다.',
     },
   } satisfies Record<
     GlobalAdminTab,
@@ -1001,41 +1065,35 @@ const AdminCampusRequestsPage = () => {
           <Megaphone size={18} />
         </span>
         <span className={styles.globalSectionCopy}>
-          <strong>캠퍼스 공지</strong>
-          <small>캠퍼스 회계 순장님 대상 공지를 관리합니다.</small>
+          <strong>공지 관리</strong>
+          <small>전체 사용자와 캠퍼스 대상 공지를 함께 관리합니다.</small>
         </span>
         <em>{summary.notices}</em>
       </button>
 
-      <button
-        type="button"
-        className={globalAdminTab === 'home' ? styles.globalSectionActive : ''}
-        onClick={() => handleGlobalTabChange('home')}
-        aria-current={globalAdminTab === 'home' ? 'page' : undefined}
-      >
-        <span className={styles.globalSectionIcon}>
-          <House size={18} />
-        </span>
-        <span className={styles.globalSectionCopy}>
-          <strong>홈 화면 공지</strong>
-          <small>일반 사용자 대상 공지를 관리합니다.</small>
-        </span>
-      </button>
-
-      <button
-        type="button"
-        onClick={() => navigate('/admin/communications/personal')}
-      >
-        <span className={styles.globalSectionIcon}>
-          <MessageSquare size={18} />
-        </span>
-        <span className={styles.globalSectionCopy}>
-          <strong>개인 문의</strong>
-          <small>개인 사용자의 문의를 확인하고 답변합니다.</small>
-        </span>
-      </button>
     </nav>
   );
+
+  const renderPageFeedback = () =>
+    pageFeedback ? (
+      <div
+        className={`${styles.pageFeedback} ${
+          pageFeedback.tone === 'error'
+            ? styles.pageFeedbackError
+            : styles.pageFeedbackSuccess
+        }`}
+        role={pageFeedback.tone === 'error' ? 'alert' : 'status'}
+      >
+        <span>{pageFeedback.message}</span>
+        <button
+          type="button"
+          onClick={() => setPageFeedback(null)}
+          aria-label="알림 닫기"
+        >
+          <X size={15} />
+        </button>
+      </div>
+    ) : null;
 
   if (loading) {
     return (
@@ -1054,42 +1112,6 @@ const AdminCampusRequestsPage = () => {
         <AdminHeader />
         <main className={styles.main}>
           <p>관리자만 접근할 수 있습니다.</p>
-        </main>
-      </div>
-    );
-  }
-
-  if (isGlobalAdmin && globalAdminTab === 'home') {
-    return (
-      <div className={styles.page}>
-        <AdminHeader />
-
-        <main className={styles.main}>
-          <button
-            type="button"
-            className={styles.backButton}
-            onClick={() => navigate('/admin/dashboard')}
-          >
-            <ArrowLeft size={18} />
-            전체 관리자 화면
-          </button>
-
-          <section className={styles.headerSection}>
-            <div>
-              <p className={styles.eyebrow}>{activeGlobalSection.eyebrow}</p>
-              <h1 className={styles.title}>{activeGlobalSection.title}</h1>
-              <p className={styles.description}>{activeGlobalSection.description}</p>
-            </div>
-
-            <div className={styles.scopeBadge}>
-              <MessageSquare size={18} />
-              전체 관리자
-            </div>
-          </section>
-
-          {renderGlobalSectionNav()}
-
-          <HomeAnnouncementManager />
         </main>
       </div>
     );
@@ -1137,50 +1159,49 @@ const AdminCampusRequestsPage = () => {
         {isGlobalAdmin && (
           renderGlobalSectionNav()
         )}
+        {renderPageFeedback()}
 
         {isGlobalAdmin && globalAdminTab === 'requests' && (
           <section className={styles.summaryGrid}>
-            <button type="button" className={styles.summaryCard} onClick={() => setStatusFilter('all')}>
-              <span>전체 문의</span>
-              <strong>{summary.total}</strong>
+            <button
+              type="button"
+              className={`${styles.summaryCard} ${
+                statusFilter === 'active' ? styles.summaryCardActive : ''
+              }`}
+              onClick={() => setStatusFilter('active')}
+            >
+              <span>미처리</span>
+              <strong>{summary.unresolved}</strong>
             </button>
-            <button type="button" className={styles.summaryCard} onClick={() => setStatusFilter('open')}>
-              <span>접수</span>
-              <strong>{summary.open}</strong>
-            </button>
-            <button type="button" className={styles.summaryCard} onClick={() => setStatusFilter('in_progress')}>
-              <span>처리 중</span>
-              <strong>{summary.inProgress}</strong>
-            </button>
-            <button type="button" className={styles.summaryCard} onClick={() => setStatusFilter('resolved')}>
+            <button type="button" className={`${styles.summaryCard} ${statusFilter === 'resolved' ? styles.summaryCardActive : ''}`} onClick={() => setStatusFilter('resolved')}>
               <span>완료</span>
               <strong>{summary.resolved}</strong>
             </button>
-            <button type="button" className={styles.summaryCard} onClick={() => setStatusFilter('on_hold')}>
-              <span>보류</span>
-              <strong>{summary.onHold}</strong>
-            </button>
           </section>
+        )}
+
+        {isGlobalAdmin && globalAdminTab === 'notices' && (
+          <HomeAnnouncementManager />
         )}
 
         {isGlobalAdmin && globalAdminTab === 'notices' && (
           <section className={`${styles.writePanel} ${styles.noticeWritePanel}`}>
             <div className={styles.noticeComposerHeader}>
               <div className={styles.sectionHeader}>
-                <h2>전체 캠퍼스 공지</h2>
+                <h2>캠퍼스 운영 공지</h2>
                 <p>
                   등록한 공지는 모든 캠퍼스 회계 순장님 홈과 문의 게시판에 표시됩니다.
                 </p>
               </div>
               <div className={styles.noticeComposerActions}>
-                <span>등록된 공지 {summary.notices}건</span>
                 <button
                   type="button"
-                  className={styles.secondaryButton}
+                  className={styles.primaryButton}
                   onClick={() => setIsNoticeFormOpen((prev) => !prev)}
+                  aria-expanded={isNoticeFormOpen}
                 >
                   <Megaphone size={16} />
-                  {isNoticeFormOpen ? '작성 닫기' : '전체 공지 작성'}
+                  {isNoticeFormOpen ? '작성 닫기' : '캠퍼스 운영 공지 작성'}
                 </button>
               </div>
             </div>
@@ -1262,7 +1283,7 @@ const AdminCampusRequestsPage = () => {
                     disabled={submitting}
                   >
                     <Megaphone size={16} />
-                    {submitting ? '등록 중...' : '전체 공지 등록'}
+                    {submitting ? '등록 중...' : '캠퍼스 운영 공지 등록'}
                   </button>
                 </div>
               </div>
@@ -1359,12 +1380,27 @@ const AdminCampusRequestsPage = () => {
         {isGlobalAdmin ? (
           <section
             className={`${styles.filterPanel} ${
+              globalAdminTab === 'notices' ? styles.noticeFilterPanel : ''
+            } ${
               hasActiveFilters ? styles.filterPanelActive : ''
             }`}
           >
             <div className={styles.filterTitle}>
-              <SlidersHorizontal size={17} />
-              <span>{globalAdminTab === 'requests' ? '문의 필터' : '공지 필터'}</span>
+              <span>
+                <SlidersHorizontal size={17} />
+                {globalAdminTab === 'requests' ? '문의 필터' : '공지 필터'}
+              </span>
+              <button
+                type="button"
+                className={styles.filterToggle}
+                onClick={() => setIsFilterOpen((open) => !open)}
+                aria-expanded={isFilterOpen}
+                aria-controls="communications-filter-details"
+              >
+                상세 필터
+                {activeFilterChips.length > 0 && <em>{activeFilterChips.length}</em>}
+                <ChevronDown size={16} />
+              </button>
             </div>
 
             <div
@@ -1390,82 +1426,80 @@ const AdminCampusRequestsPage = () => {
               )}
             </div>
 
-            <select
-              className={`${styles.select} ${
-                globalAdminTab === 'requests' && statusFilter !== 'all'
-                  ? styles.filterControlActive
-                  : ''
+            <div
+              id="communications-filter-details"
+              className={`${styles.filterDetails} ${
+                isFilterOpen ? styles.filterDetailsOpen : ''
               }`}
-                value={statusFilter}
-                onChange={(event) => {
-                  setStatusFilter(
-                    event.target.value as CampusRequestStatus | 'all'
-                  );
-                  setPage(1);
-                }}
-                disabled={globalAdminTab === 'notices'}
-              >
-              <option value="all">전체 상태</option>
-              {statusOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-
-            <select
-              className={`${styles.select} ${
-                typeFilter !== 'all' ? styles.filterControlActive : ''
-              }`}
-              value={typeFilter}
-              onChange={(event) => {
-                setTypeFilter(event.target.value as CampusRequestType | 'all');
-                setPage(1);
-              }}
             >
-              <option value="all">전체 유형</option>
-              {requestTypeOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+              {globalAdminTab === 'requests' && (
+                <select
+                  className={`${styles.select} ${
+                    statusFilter !== 'all' ? styles.filterControlActive : ''
+                  }`}
+                  value={statusFilter}
+                  onChange={(event) => {
+                    setStatusFilter(
+                      event.target.value as RequestStatusFilter
+                    );
+                    setPage(1);
+                  }}
+                >
+                  <option value="active">미처리</option>
+                  <option value="all">전체 상태</option>
+                  <option value="resolved">완료</option>
+                </select>
+              )}
 
-            <div className={styles.filterActions}>
-              <button
-                type="button"
-                className={styles.secondaryButton}
-                onClick={resetFilters}
-                disabled={!hasActiveFilters}
-              >
-                <X size={16} />
-                초기화
-              </button>
-              <button
-                type="button"
-                className={styles.secondaryButton}
-                onClick={() => void loadRequests(adminRole)}
-              >
-                <RefreshCw size={16} />
-                새로고침
-              </button>
-            </div>
+              {globalAdminTab === 'requests' && (
+                <select
+                  className={`${styles.select} ${
+                    typeFilter !== 'all' ? styles.filterControlActive : ''
+                  }`}
+                  value={typeFilter}
+                  onChange={(event) => {
+                    setTypeFilter(event.target.value as CampusRequestType | 'all');
+                    setPage(1);
+                  }}
+                >
+                  <option value="all">전체 유형</option>
+                  {requestTypeOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              )}
 
-            <div className={styles.filterFeedback} aria-live="polite">
-              {hasActiveFilters ? (
-                <>
-                  <div className={styles.filterChips}>
-                    {activeFilterChips.map((chip) => (
-                      <span key={chip}>{chip}</span>
-                    ))}
-                  </div>
-                  <strong>{totalItems.toLocaleString()}건 검색됨</strong>
-                </>
-              ) : (
-                <>
-                  <span>전체 조건</span>
-                  <strong>{totalItems.toLocaleString()}건 검색됨</strong>
-                </>
+              <div className={styles.filterActions}>
+                <button
+                  type="button"
+                  className={styles.secondaryButton}
+                  onClick={resetFilters}
+                  disabled={!hasActiveFilters}
+                >
+                  <X size={16} />
+                  초기화
+                </button>
+                <button
+                  type="button"
+                  className={styles.secondaryButton}
+                  onClick={() => void loadRequests(adminRole)}
+                >
+                  <RefreshCw size={16} />
+                  새로고침
+                </button>
+              </div>
+
+              {hasActiveFilters && (
+                <div className={styles.filterFeedback} aria-live="polite">
+                    <div className={styles.filterChips}>
+                      {activeFilterChips.map((chip) => (
+                        <span key={chip}>{chip}</span>
+                      ))}
+                    </div>
+                    <strong>{totalItems.toLocaleString()}건 검색됨</strong>
+                </div>
               )}
             </div>
           </section>
@@ -1505,7 +1539,27 @@ const AdminCampusRequestsPage = () => {
         <section className={styles.requestList}>
           {visibleRequests.length === 0 ? (
             <div className={styles.emptyBox}>
-              {isGlobalAdmin ? '조건에 맞는 문의가 없습니다.' : '등록된 문의가 없습니다.'}
+              <Search size={24} />
+              <strong>
+                {isGlobalAdmin
+                  ? `조건에 맞는 ${globalAdminTab === 'notices' ? '공지가' : '문의가'} 없습니다.`
+                  : '등록된 문의가 없습니다.'}
+              </strong>
+              <span>
+                {isGlobalAdmin
+                  ? '검색어나 필터 조건을 변경해 다시 확인해 주세요.'
+                  : '본부 확인이 필요한 문의를 등록하면 이곳에 표시됩니다.'}
+              </span>
+              {isGlobalAdmin && hasActiveFilters && (
+                <button
+                  type="button"
+                  className={styles.secondaryButton}
+                  onClick={clearFilters}
+                >
+                  <X size={16} />
+                  전체 {globalAdminTab === 'notices' ? '공지' : '문의'} 보기
+                </button>
+              )}
             </div>
           ) : (
             visibleRequests.map((request) => {
@@ -1721,7 +1775,7 @@ const AdminCampusRequestsPage = () => {
                     })}
                   </div>
 
-                  {!request.isGlobalNotice && (
+                  {!request.isGlobalNotice && !isGlobalAdmin && (
                   <div className={styles.messageForm}>
                     <label className={styles.field}>
                       <span>답장</span>
@@ -1754,16 +1808,63 @@ const AdminCampusRequestsPage = () => {
                   </div>
                   )}
                   {isGlobalAdmin && request.isGlobalNotice && (
-                    <div className={styles.noticeManageActions}>
-                      <button type="button" className={styles.secondaryButton} disabled={processingId === request.id} onClick={() => void handleEditGlobalNotice(request)}>
-                        <Edit2 size={15} />
-                        수정 후 재알림
-                      </button>
-                      <button type="button" className={styles.secondaryButton} disabled={processingId === request.id || request.isArchived} onClick={() => void handleArchiveGlobalNotice(request)}>
-                        <Archive size={15} />
-                        보관
-                      </button>
-                    </div>
+                    editingNoticeId === request.id ? (
+                      <div className={styles.noticeEditPanel}>
+                        <label className={styles.field}>
+                          <span>공지 제목</span>
+                          <input
+                            value={editingNoticeTitle}
+                            onChange={(event) =>
+                              setEditingNoticeTitle(event.target.value)
+                            }
+                          />
+                        </label>
+                        <label className={styles.field}>
+                          <span>공지 내용</span>
+                          <textarea
+                            value={editingNoticeContent}
+                            onChange={(event) =>
+                              setEditingNoticeContent(event.target.value)
+                            }
+                            rows={5}
+                          />
+                        </label>
+                        <p>
+                          저장하면 대상 캠퍼스에 수정된 공지가 새 알림으로 전달됩니다.
+                        </p>
+                        <div className={styles.inlineActions}>
+                          <button
+                            type="button"
+                            className={styles.secondaryButton}
+                            onClick={cancelEditGlobalNotice}
+                            disabled={processingId === request.id}
+                          >
+                            <X size={15} />
+                            취소
+                          </button>
+                          <button
+                            type="button"
+                            className={styles.primaryButton}
+                            onClick={() => void handleEditGlobalNotice(request)}
+                            disabled={processingId === request.id}
+                          >
+                            <Save size={15} />
+                            {processingId === request.id ? '저장 중...' : '수정 후 재알림'}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className={styles.noticeManageActions}>
+                        <button type="button" className={styles.secondaryButton} disabled={processingId === request.id} onClick={() => startEditGlobalNotice(request)}>
+                          <Edit2 size={15} />
+                          공지 수정
+                        </button>
+                        <button type="button" className={styles.secondaryButton} disabled={processingId === request.id || request.isArchived} onClick={() => void handleArchiveGlobalNotice(request)}>
+                          <Archive size={15} />
+                          보관
+                        </button>
+                      </div>
+                    )
                   )}
                     </div>
                   )}
@@ -1771,10 +1872,19 @@ const AdminCampusRequestsPage = () => {
 
                 {isGlobalAdmin && isExpanded && !request.isGlobalNotice && (
                   <div className={styles.adminPanel}>
+                    <div className={styles.adminPanelHeader}>
+                      <strong>답변 및 처리</strong>
+                      <span>캠퍼스에 전달할 답변과 처리 상태를 함께 저장합니다.</span>
+                    </div>
                     <label className={styles.field}>
                       <span>처리 상태</span>
                       <select
-                        value={statusDrafts[request.id] || request.status}
+                        value={
+                          (statusDrafts[request.id] || request.status) ===
+                          'resolved'
+                            ? 'resolved'
+                            : 'in_progress'
+                        }
                         onChange={(event) =>
                           setStatusDrafts((prev) => ({
                             ...prev,
@@ -1792,7 +1902,7 @@ const AdminCampusRequestsPage = () => {
                     </label>
 
                     <label className={styles.field}>
-                      <span>본부 답변</span>
+                      <span>캠퍼스에 보낼 답변</span>
                       <textarea
                         value={responseDrafts[request.id] || ''}
                         onChange={(event) =>
@@ -1802,7 +1912,7 @@ const AdminCampusRequestsPage = () => {
                           }))
                         }
                         rows={4}
-                        placeholder="처리 내용이나 안내 사항을 남겨주세요."
+                        placeholder="처리 결과와 캠퍼스가 다음에 해야 할 일을 명확히 적어주세요."
                       />
                     </label>
 
@@ -1813,7 +1923,7 @@ const AdminCampusRequestsPage = () => {
                       disabled={processingId === request.id}
                     >
                       <Save size={16} />
-                      {processingId === request.id ? '저장 중...' : '처리 저장'}
+                      {processingId === request.id ? '저장 중...' : '답변 및 상태 저장'}
                     </button>
 
                     <details className={styles.auditPanel}>

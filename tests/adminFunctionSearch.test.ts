@@ -43,10 +43,10 @@ test('admin function search reuses role-aware navigation', () => {
   assert.match(adminHeaderStyles, /\.activeSearchResult/);
 });
 
-test('mobile admin header gives search and navigation separate grid rows', () => {
+test('mobile admin header places search between the logo and actions', () => {
   assert.match(
     adminHeaderStyles,
-    /"switcher switcher"\s+"search search"\s+"nav nav"/
+    /grid-template-columns: auto minmax\(0, 1fr\) auto;[\s\S]*?"logo search actions"\s+"nav nav nav"/
   );
   assert.match(
     adminHeaderStyles,

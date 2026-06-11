@@ -1,21 +1,47 @@
-/* eslint-disable react-refresh/only-export-components */
-import { lazy } from 'react';
+import { lazy, type ComponentType } from 'react';
 import { Navigate } from 'react-router-dom';
 
-const HomePage = lazy(() => import('../pages/HomePage'));
-const LoginPage = lazy(() => import('../pages/LoginPage'));
-const SignupPage = lazy(() => import('../pages/SignupPage'));
-const AuthEntryPage = lazy(() => import('../pages/AuthEntryPage'));
-const ReservationPage = lazy(() => import('../pages/ReservationPage'));
-const TicketPage = lazy(() => import('../pages/TicketPage'));
-const RemainingSeatPage = lazy(() => import('../pages/RemainingSeatPage'));
-const AuthCallbackPage = lazy(() => import('../pages/AuthCallbackPage'));
-const CccSummerHandoffPage = lazy(() => import('../pages/CccSummerHandoffPage'));
-const ForgotPasswordPage = lazy(() => import('../pages/ForgotPasswordPage'));
-const ResetPasswordPage = lazy(() => import('../pages/ResetPasswordPage'));
-const InvitationCodePage = lazy(() => import('../pages/InvitationCodePage'));
-const ProfilePage = lazy(() => import('../pages/ProfilePage'));
-const PersonalInquiryPage = lazy(() => import('../pages/PersonalInquiryPage'));
+type PageModule = { default: ComponentType };
+type PageLoader = () => Promise<PageModule>;
+
+const pageLoaders: Record<string, PageLoader> = {
+  '/': () => import('../pages/HomePage'),
+  '/login': () => import('../pages/AuthEntryPage'),
+  '/signup': () => import('../pages/AuthEntryPage'),
+  '/local-login': () => import('../pages/LoginPage'),
+  '/local-signup': () => import('../pages/SignupPage'),
+  '/auth/callback': () => import('../pages/AuthCallbackPage'),
+  '/handoff/callback': () => import('../pages/CccSummerHandoffPage'),
+  '/forgot-password': () => import('../pages/ForgotPasswordPage'),
+  '/reset-password': () => import('../pages/ResetPasswordPage'),
+  '/reservation': () => import('../pages/ReservationPage'),
+  '/ticket': () => import('../pages/TicketPage'),
+  '/remaining-seats': () => import('../pages/RemainingSeatPage'),
+  '/invitation-codes': () => import('../pages/InvitationCodePage'),
+  '/profile': () => import('../pages/ProfilePage'),
+  '/inquiries': () => import('../pages/PersonalInquiryPage'),
+};
+
+const lazyPage = (path: string) => lazy(pageLoaders[path]);
+
+export const preloadPublicRoute = (path: string) => {
+  void pageLoaders[path]?.();
+};
+
+const HomePage = lazyPage('/');
+const LoginPage = lazyPage('/local-login');
+const SignupPage = lazyPage('/local-signup');
+const AuthEntryPage = lazyPage('/login');
+const ReservationPage = lazyPage('/reservation');
+const TicketPage = lazyPage('/ticket');
+const RemainingSeatPage = lazyPage('/remaining-seats');
+const AuthCallbackPage = lazyPage('/auth/callback');
+const CccSummerHandoffPage = lazyPage('/handoff/callback');
+const ForgotPasswordPage = lazyPage('/forgot-password');
+const ResetPasswordPage = lazyPage('/reset-password');
+const InvitationCodePage = lazyPage('/invitation-codes');
+const ProfilePage = lazyPage('/profile');
+const PersonalInquiryPage = lazyPage('/inquiries');
 
 export const publicRoutes = [
   { path: '/', element: <HomePage /> },

@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 
 import {
@@ -6,11 +6,37 @@ import {
   AppLoadingScreen,
   AppSetupScreen,
 } from './components/AppStatusScreen';
-import ActivityTracker from './components/ActivityTracker';
 import { publicRoutes } from './routes/publicRoutes';
 import { getSupabaseConfigStatus } from './utils/appConfig';
 
 const AdminRoutes = lazy(() => import('./routes/adminRoutes'));
+const ActivityTracker = lazy(() => import('./components/ActivityTracker'));
+
+const DeferredActivityTracker = () => {
+  const [enabled, setEnabled] = useState(false);
+
+  useEffect(() => {
+    const enable = () => setEnabled(true);
+
+    if (typeof window.requestIdleCallback === 'function') {
+      const idleCallbackId = window.requestIdleCallback(enable, {
+        timeout: 2000,
+      });
+      return () => window.cancelIdleCallback(idleCallbackId);
+    }
+
+    const timeoutId = globalThis.setTimeout(enable, 1000);
+    return () => globalThis.clearTimeout(timeoutId);
+  }, []);
+
+  if (!enabled) return null;
+
+  return (
+    <Suspense fallback={null}>
+      <ActivityTracker />
+    </Suspense>
+  );
+};
 
 const App = () => {
   const supabaseConfigStatus = getSupabaseConfigStatus(
@@ -24,7 +50,7 @@ const App = () => {
   return (
     <AppErrorBoundary>
       <BrowserRouter>
-        <ActivityTracker />
+        <DeferredActivityTracker />
         <Suspense fallback={<AppLoadingScreen />}>
           <Routes>
             {publicRoutes.map((route) => (

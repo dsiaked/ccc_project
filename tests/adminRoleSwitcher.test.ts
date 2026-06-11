@@ -3,6 +3,10 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const adminHeader = readFileSync('src/pages/admin/AdminHeader.tsx', 'utf8');
+const adminAuthProvider = readFileSync(
+  'src/components/AdminAuthProvider.tsx',
+  'utf8'
+);
 const adminService = readFileSync('src/lib/adminService.ts', 'utf8');
 const adminRoleModel = readFileSync(
   'src/lib/admin/adminRoleModel.ts',
@@ -32,7 +36,7 @@ test('campus administrators keep the role switcher near the top of the sidebar',
   );
   assert.match(
     adminHeaderStyles,
-    /@media \(max-width: 560px\)[\s\S]*"switcher switcher"/
+    /@media \(max-width: 560px\)[\s\S]*"logo search actions"\s+"nav nav nav"/
   );
 });
 
@@ -119,14 +123,16 @@ test('scoped administrator switcher refreshes all owned roles including boarding
     adminRoleModel,
     /Boolean\(rpcError\) \|\| roles\.length === 0/
   );
-  assert.match(adminHeader, /clearAdminRoleCache\(session\.user\.id\)/);
+  assert.match(adminAuthProvider, /clearAdminRoleCache\(session\.user\.id\)/);
+  assert.match(adminAuthProvider, /adminRoles: AdminRole\[\]/);
   assert.match(adminHeader, /table: 'admin_roles'/);
   assert.match(adminHeader, /filter: `user_id=eq\.\$\{session\.user\.id\}`/);
   assert.match(
     adminHeader,
-    /roles\.filter\(\(item\) => item\.role !== 'global_admin'\)/
+    /adminRoles\.filter\(\(item\) => item\.role !== 'global_admin'\)/
   );
-  assert.match(adminHeader, /\.subscribe\(\);\s*\n\s*refreshRoles\(\);/);
+  assert.match(adminHeader, /handleRolesChanged/);
+  assert.doesNotMatch(adminHeader, /\.subscribe\(\);\s*\n\s*refreshRoles\(\);/);
   assert.doesNotMatch(
     adminHeader,
     /loadAdminRole\(\)\.catch\(\(\) => \{\s*if \(isMounted\) setSwitchableRoles\(\[\]\)/

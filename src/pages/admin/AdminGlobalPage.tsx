@@ -143,8 +143,8 @@ const quickActions = [
     icon: CreditCard,
   },
   {
-    title: '공지·문의 관리',
-    description: '캠퍼스 문의와 캠퍼스 공지, 홈 화면 공지를 함께 관리합니다.',
+    title: '문의함·공지 관리',
+    description: '개인·캠퍼스 문의를 한 문의함에서 처리하고 공지를 관리합니다.',
     path: '/admin/communications',
     icon: CircleHelp,
   },

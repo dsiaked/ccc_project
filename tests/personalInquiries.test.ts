@@ -25,6 +25,10 @@ const adminPage = readFileSync(
   'src/pages/admin/AdminPersonalInquiriesPage.tsx',
   'utf8'
 );
+const unifiedAdminPage = readFileSync(
+  'src/pages/admin/AdminUnifiedInquiriesPage.tsx',
+  'utf8'
+);
 const publicRoutes = readFileSync('src/routes/publicRoutes.tsx', 'utf8');
 const adminRoutes = readFileSync('src/routes/adminRoutes.tsx', 'utf8');
 const sidebar = readFileSync('src/components/Sidebar.tsx', 'utf8');
@@ -70,11 +74,20 @@ test('personal users can open inquiries and view answers', () => {
 
 test('global administrators can process personal inquiries', () => {
   assert.match(service, /respondToPersonalInquiry/);
-  assert.match(adminPage, /개인 문의 처리/);
-  assert.match(adminPage, /관리자 답변/);
-  assert.match(adminPage, /status === 'resolved'/);
+  assert.match(unifiedAdminPage, /개인 사용자와 캠퍼스 관리자의 문의를 한곳에서 처리합니다/);
+  assert.match(unifiedAdminPage, /respondToPersonalInquiry/);
+  assert.match(unifiedAdminPage, /updateCampusRequestStatus/);
+  assert.match(unifiedAdminPage, /답변 및 상태 저장/);
   assert.match(adminRoutes, /path: 'communications\/personal'/);
-  assert.match(communications, /navigate\('\/admin\/communications\/personal'\)/);
+  assert.match(adminRoutes, /source=personal/);
+  assert.doesNotMatch(communications, /navigate\('\/admin\/communications\/personal'\)/);
+});
+
+test('personal inquiry management remains available while the enhanced RPC is pending', () => {
+  assert.match(service, /isMissingPersonalInquiryPageRpc/u);
+  assert.match(service, /getLegacyCompatiblePersonalInquiryPage/u);
+  assert.match(service, /get_personal_inquiries_as_global_admin/u);
+  assert.match(service, /getLegacyPersonalInquiryMessages/u);
 });
 
 test('personal inquiries support conversations, unread badges, audit, pagination, and rate limits', () => {
@@ -88,10 +101,32 @@ test('personal inquiries support conversations, unread badges, audit, pagination
   assert.match(service, /addPersonalInquiryMessage/);
   assert.match(service, /markPersonalInquiryRead/);
   assert.match(userPage, /personal_inquiry_messages/);
-  assert.match(adminPage, /getPersonalInquiriesPageAsGlobalAdmin/);
-  assert.match(adminPage, /markPersonalInquiryRead/);
+  assert.match(unifiedAdminPage, /getPersonalInquiriesPageAsGlobalAdmin/);
+  assert.match(unifiedAdminPage, /markPersonalInquiryRead/);
   assert.match(service, /getPersonalInquiryAuditLogs/);
   assert.match(adminPage, /처리 이력/);
   assert.match(realtimeRlsSql, /user_id = auth\.uid\(\) or public\.is_global_admin\(\)/i);
   assert.match(realtimeRlsSql, /grant select on public\.personal_inquiry_messages to authenticated/i);
+});
+
+test('global administrators use one inbox for campus and personal inquiries', () => {
+  assert.match(adminRoutes, /path: 'communications',[\s\S]*?<AdminUnifiedInquiriesPage/);
+  assert.match(adminRoutes, /path: 'communications\/notices'/);
+  assert.match(unifiedAdminPage, /getCampusRequestsPage/);
+  assert.match(unifiedAdminPage, /getPersonalInquiriesPageAsGlobalAdmin/);
+  assert.match(unifiedAdminPage, /sourceLabel: '캠퍼스 문의'/);
+  assert.match(unifiedAdminPage, /sourceLabel: '개인 문의'/);
+  assert.match(unifiedAdminPage, /admin-unified-inquiries/);
+  assert.match(unifiedAdminPage, /loadPersonalStatusItems/);
+});
+
+test('unified inquiry read receipts do not block the inbox from rendering', () => {
+  assert.match(
+    unifiedAdminPage,
+    /void Promise\.allSettled\([\s\S]*?markPersonalInquiryRead[\s\S]*?markCampusRequestRead/
+  );
+  assert.doesNotMatch(
+    unifiedAdminPage,
+    /await Promise\.allSettled\([\s\S]*?markPersonalInquiryRead[\s\S]*?markCampusRequestRead/
+  );
 });

@@ -16,4 +16,7 @@ test('boarding roster PDF is paginated for A4 landscape printing', () => {
     /\.a4-page \{ width: 281mm; height: 194mm; overflow: hidden;/
   );
   assert.match(boardingRosterExport, /thead \{ display: table-header-group; \}/);
+  assert.doesNotMatch(boardingRosterExport, /document\.write/);
+  assert.match(boardingRosterExport, /new Blob\(\[printHtml\]/);
+  assert.match(boardingRosterExport, /printWindow\.location\.replace\(printUrl\)/);
 });

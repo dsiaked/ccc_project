@@ -25,6 +25,7 @@ import {
   type ContactInfo,
 } from '../lib/contactInfoService';
 import { getReservationDeadline } from '../lib/reservationDeadlineService';
+import { preloadPublicRoute } from '../routes/publicRoutes';
 import { createLoginRequiredRedirectState } from '../utils/redirect';
 import LoginRequiredModal from './LoginRequiredModal';
 import LogoutModal from './LogoutModal';
@@ -110,40 +111,35 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
       email: data.session.user.email ?? null,
     });
 
-    const [role, roles] = await Promise.all([
+    const [role, roles, reservationResult, profileResult] = await Promise.all([
       getAdminRole(data.session.user.id),
       getAdminRoles(data.session.user.id),
+      supabase
+        .from('reservations')
+        .select('confirmed_ticket')
+        .eq('user_id', data.session.user.id)
+        .maybeSingle(),
+      supabase
+        .from('profiles')
+        .select('name, email')
+        .eq('id', data.session.user.id)
+        .maybeSingle(),
     ]);
 
     if (!isActiveRequest()) return;
 
     setAdminRole(role);
     setAdminRoles(roles);
+    const { data: profileData, error: profileError } = profileResult;
 
-    const { data: reservationData, error: reservationError } = await supabase
-      .from('reservations')
-      .select('confirmed_ticket')
-      .eq('user_id', data.session.user.id)
-      .maybeSingle();
-
-    if (!isActiveRequest()) return;
-
-    if (reservationError) {
-      console.error('확정표 보유 여부 조회 실패:', reservationError);
+    if (reservationResult.error) {
+      console.error('확정표 보유 여부 조회 실패:', reservationResult.error);
     } else {
-      setHasConfirmedTicket(Boolean(reservationData?.confirmed_ticket));
+      setHasConfirmedTicket(Boolean(reservationResult.data?.confirmed_ticket));
     }
 
-    const { data: profileData, error } = await supabase
-      .from('profiles')
-      .select('name, email')
-      .eq('id', data.session.user.id)
-      .maybeSingle();
-
-    if (!isActiveRequest()) return;
-
-    if (error) {
-      console.error('프로필 로드 실패:', error);
+    if (profileError) {
+      console.error('프로필 로드 실패:', profileError);
       setProfile({
         name: metadataName,
         email: data.session.user.email ?? null,
@@ -271,6 +267,14 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
 
   const navItemClassName = (path: string) =>
     `${styles.navItem} ${location.pathname === path ? styles.activeNavItem : ''}`;
+  const preloadNavTarget = (target: EventTarget | null) => {
+    if (!(target instanceof Element)) return;
+
+    const path = target
+      .closest<HTMLButtonElement>('button[data-route-path]')
+      ?.dataset.routePath;
+    if (path) preloadPublicRoute(path);
+  };
 
   return (
     <>
@@ -351,19 +355,17 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
                   <UserPlus size={20} className={styles.buttonIcon} />
                   회원가입
                 </button>
-                <button
-                  type="button"
-                  className={styles.recoveryButton}
-                  onClick={() => handleMenuClick('/forgot-password')}
-                >
-                  비밀번호 찾기
-                </button>
               </div>
             </>
           )}
         </div>
 
-        <nav className={styles.nav} aria-label="주요 메뉴">
+        <nav
+          className={styles.nav}
+          aria-label="주요 메뉴"
+          onMouseOver={(event) => preloadNavTarget(event.target)}
+          onFocusCapture={(event) => preloadNavTarget(event.target)}
+        >
           <section className={styles.navSection} aria-labelledby="service-menu">
             <h3 className={styles.navSectionLabel} id="service-menu">
               서비스
@@ -372,6 +374,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
               <li>
                 <button
                   type="button"
+                  data-route-path="/"
                   className={navItemClassName('/')}
                   onClick={() => handleMenuClick('/')}
                   aria-current={
@@ -385,6 +388,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
               <li>
                 <button
                   type="button"
+                  data-route-path="/profile"
                   className={navItemClassName('/profile')}
                   onClick={() => handleProtectedMenuClick('/profile')}
                   aria-current={
@@ -398,6 +402,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
               <li>
                 <button
                   type="button"
+                  data-route-path="/reservation"
                   className={navItemClassName('/reservation')}
                   onClick={() => handleProtectedMenuClick('/reservation')}
                   aria-current={
@@ -411,6 +416,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
               <li>
                 <button
                   type="button"
+                  data-route-path="/ticket"
                   className={navItemClassName('/ticket')}
                   onClick={() => handleProtectedMenuClick('/ticket')}
                   aria-current={
@@ -424,6 +430,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
               <li>
                 <button
                   type="button"
+                  data-route-path="/inquiries"
                   className={navItemClassName('/inquiries')}
                   onClick={() => handleProtectedMenuClick('/inquiries')}
                   aria-current={
@@ -438,6 +445,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
                 <li>
                   <button
                     type="button"
+                    data-route-path="/remaining-seats"
                     className={navItemClassName('/remaining-seats')}
                     onClick={() => handleProtectedMenuClick('/remaining-seats')}
                     aria-current={
@@ -505,6 +513,7 @@ const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
               <li>
                 <button
                   type="button"
+                  data-route-path="/invitation-codes"
                   className={navItemClassName('/invitation-codes')}
                   onClick={() => handleProtectedMenuClick('/invitation-codes')}
                   aria-current={

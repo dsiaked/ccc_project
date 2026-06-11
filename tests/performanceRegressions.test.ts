@@ -34,6 +34,76 @@ test('campus request realtime refreshes are coalesced', () => {
   assert.match(header, /const scheduleBadgeRefresh = \(\)/);
 });
 
+test('administrator header reuses provider roles and parallelizes badge requests', () => {
+  const provider = readSource('src/components/AdminAuthProvider.tsx');
+  const header = readSource('src/pages/admin/AdminHeader.tsx');
+
+  assert.match(provider, /adminRoles: AdminRole\[\]/);
+  assert.match(header, /adminRoles\.filter\(\(item\) => item\.role !== 'global_admin'\)/);
+  assert.doesNotMatch(header, /clearAdminRoleCache|const roles = await getAdminRoles/);
+  assert.match(
+    header,
+    /const refreshBadge = async \(\) => \{[\s\S]*Promise\.all\(\[[\s\S]*getUnreadCampusRequestIds\(\)[\s\S]*getUnreadPersonalInquiryCount\(\)/
+  );
+});
+
+test('home deadline and reservation requests avoid duplicate waterfalls', () => {
+  const deadlineService = readSource('src/lib/reservationDeadlineService.ts');
+  const reservationService = readSource('src/lib/reservationService.ts');
+  const hero = readSource('src/components/HeroSection.tsx');
+
+  assert.match(deadlineService, /reservationDeadlineRequest/);
+  assert.match(reservationService, /getReservationForUser/);
+  assert.match(hero, /Promise\.all\(\[[\s\S]*getReservationDeadline\(\)[\s\S]*getReservationForUser/);
+});
+
+test('home notice realtime events refresh only their affected data', () => {
+  const notices = readSource('src/components/HomeNoticeSection.tsx');
+
+  assert.match(notices, /const refreshPersonalNotifications = async/);
+  assert.match(notices, /const refreshCampusNotices = async/);
+  assert.doesNotMatch(
+    notices,
+    /table: 'personal_notifications'[\s\S]{0,180}\(\) => void loadNotices\(\)/
+  );
+  assert.doesNotMatch(
+    notices,
+    /table: 'campus_requests'[\s\S]{0,180}\(\) => void loadNotices\(\)/
+  );
+});
+
+test('allocation result parallelizes independent initial queries', () => {
+  const resultPage = readSource('src/pages/admin/AdminAllocationResultPage.tsx');
+
+  assert.match(resultPage, /\.or\('status\.neq\.cancelled,status\.is\.null'\)/);
+  assert.match(
+    resultPage,
+    /const \[latestAllocation, reservationRows, profileResult\] = await Promise\.all/
+  );
+});
+
+test('boarding passenger cards defer offscreen rendering', () => {
+  const styles = readSource('src/pages/admin/AdminBoardingPage.module.css');
+
+  assert.match(styles, /\.passenger \{[^}]*content-visibility: auto;/);
+  assert.match(styles, /\.passenger \{[^}]*contain-intrinsic-size:/);
+});
+
+test('campus request realtime subscription stays connected while editing', () => {
+  const board = readSource('src/pages/admin/AdminCampusRequestsPage.tsx');
+  const realtimeEffect = board.slice(
+    board.indexOf('const refreshRealtimeBoard = useEffectEvent'),
+    board.indexOf('const selectedNoticeTargets = useMemo')
+  );
+
+  assert.match(realtimeEffect, /isRealtimeBoardSyncBlocked = useEffectEvent/);
+  assert.match(realtimeEffect, /\}, \[adminRole\]\);/);
+  assert.doesNotMatch(
+    board,
+    /\}, \[\s*adminRole,\s*editingMessageId,\s*hasUnsavedBoardDrafts,\s*processingId,\s*submitting,\s*\]\);/
+  );
+});
+
 test('optimizer validation indexes seats by bus instead of rescanning assignments', () => {
   const source = readSource('optimizer/exact_optimizer/validation.py');
 

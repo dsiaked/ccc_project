@@ -1,7 +1,12 @@
 .section {
   width: 100%;
+  scroll-margin-top: 76px;
   padding: 4px 20px 28px;
   background: #ffffff;
+}
+
+.section:focus {
+  outline: none;
 }
 
 .container {

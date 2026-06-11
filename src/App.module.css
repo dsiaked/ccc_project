@@ -17,3 +17,9 @@
   display: flex;
   flex-direction: column;
 }
+
+@media (min-width: 720px) {
+  .appContainer {
+    max-width: 720px;
+  }
+}

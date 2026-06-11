@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { GripVertical } from 'lucide-react';
 
 import {
@@ -17,6 +17,7 @@ const PASSENGER_TABLE_OVERSCAN = 6;
 interface PassengerRowProps {
   passenger: AllocationWorkspacePassenger;
   buses: AllocationWorkspaceBus[];
+  busById: Map<string, AllocationWorkspaceBus>;
   passengerCountByBus: Map<string, number>;
   issueFields?: Set<PassengerIssueField>;
   readOnly: boolean;
@@ -27,6 +28,7 @@ interface PassengerRowProps {
 const PassengerRow = memo(function PassengerRow({
   passenger,
   buses,
+  busById,
   passengerCountByBus,
   issueFields,
   readOnly,
@@ -34,7 +36,7 @@ const PassengerRow = memo(function PassengerRow({
   onSeat,
 }: PassengerRowProps) {
   const remainingSeat = isRemainingSeatPassenger(passenger);
-  const assignedBus = buses.find((bus) => bus.id === passenger.busId);
+  const assignedBus = passenger.busId ? busById.get(passenger.busId) : undefined;
   const remainingSeatLabel =
     passenger.remainingSeatStatus === 'pending_payment'
       ? '잔여 좌석 · 미입금'
@@ -198,6 +200,10 @@ export const VirtualPassengerTable = memo(function VirtualPassengerTable({
     startIndex + visibleRowCount + PASSENGER_TABLE_OVERSCAN * 2
   );
   const visiblePassengers = passengers.slice(startIndex, endIndex);
+  const busById = useMemo(
+    () => new Map(buses.map((bus) => [bus.id, bus])),
+    [buses]
+  );
   const topSpacerHeight = startIndex * PASSENGER_ROW_HEIGHT;
   const bottomSpacerHeight =
     (passengers.length - endIndex) * PASSENGER_ROW_HEIGHT;
@@ -275,6 +281,7 @@ export const VirtualPassengerTable = memo(function VirtualPassengerTable({
                 key={passenger.reservationId}
                 passenger={passenger}
                 buses={buses}
+                busById={busById}
                 passengerCountByBus={passengerCountByBus}
                 issueFields={passengerIssueFields.get(passenger.reservationId)}
                 readOnly={readOnly}

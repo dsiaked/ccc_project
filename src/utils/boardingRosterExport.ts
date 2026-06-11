@@ -264,7 +264,7 @@ export const printFullBoardingRosterPdf = (snapshot: BoardingSnapshot) => {
     );
   });
 
-  printWindow.document.write(`<!doctype html>
+  const printHtml = `<!doctype html>
     <html lang="ko">
       <head>
         <meta charset="utf-8">
@@ -314,8 +314,18 @@ export const printFullBoardingRosterPdf = (snapshot: BoardingSnapshot) => {
       <body>
         ${sections.join('')}
       </body>
-    </html>`);
-  printWindow.document.close();
-  printWindow.focus();
-  printWindow.setTimeout(() => printWindow.print(), 250);
+    </html>`;
+  const printUrl = URL.createObjectURL(
+    new Blob([printHtml], { type: 'text/html;charset=utf-8' })
+  );
+  printWindow.addEventListener(
+    'load',
+    () => {
+      URL.revokeObjectURL(printUrl);
+      printWindow.focus();
+      printWindow.setTimeout(() => printWindow.print(), 250);
+    },
+    { once: true }
+  );
+  printWindow.location.replace(printUrl);
 };

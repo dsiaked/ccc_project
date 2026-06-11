@@ -128,6 +128,19 @@
   outline-offset: 3px;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .ctaButton {
+    transition: none;
+  }
+
+  .card:hover,
+  .ctaButton:hover,
+  .ctaButton:active {
+    transform: none;
+  }
+}
+
 @container (max-width: 640px) {
   .card {
     min-height: 240px;

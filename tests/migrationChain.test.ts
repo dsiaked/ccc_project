@@ -34,6 +34,7 @@ test('migration chain starts with the required foundation schema', () => {
     'profiles',
     'stations',
     'campus_requests',
+    'campus_notice_reads',
     'home_announcements',
   ]) {
     assert.match(
@@ -42,6 +43,26 @@ test('migration chain starts with the required foundation schema', () => {
       `Foundation migration must create ${table}.`
     );
   }
+});
+
+test('campus notice read state is restored independently of migration history', () => {
+  const migration = readFileSync(
+    `${migrationDirectory}/20260612000004_199_restore_campus_notice_reads.sql`,
+    'utf8'
+  );
+
+  assert.match(
+    migration,
+    /create table if not exists public\.campus_notice_reads/i
+  );
+  assert.match(
+    migration,
+    /create policy "Users can create own campus notice reads"[\s\S]*campus_requests\.is_global_notice = true/i
+  );
+  assert.match(
+    migration,
+    /grant select, insert, delete on table public\.campus_notice_reads to authenticated/i
+  );
 });
 
 test('migration files preserve valid UTF-8 text', () => {

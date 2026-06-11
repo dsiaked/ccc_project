@@ -126,6 +126,17 @@
   color: #6d28d9;
 }
 
+@media (min-width: 720px) {
+  .pageContainer {
+    max-width: 720px;
+  }
+
+  .main {
+    max-width: 680px;
+    padding-inline: 20px;
+  }
+}
+
 .progressSection {
   margin-top: 18px;
   padding: 18px;

@@ -9,7 +9,15 @@ import {
 import type { AdminRole, AdminRoleType } from './admin/adminRoleModel';
 
 export type { AdminRole, AdminRoleType } from './admin/adminRoleModel';
+export type {
+  AdminCampusScope,
+  CampusAdminAssignment,
+} from './admin/campusAdminScopeModel';
 export type { SelectOption } from './admin/campusOptionsModel';
+export type {
+  ReservationDataResetOptions,
+  ReservationDataResetStats,
+} from './admin/reservationDataResetModel';
 export {
   addBusOption,
   deleteBusOption,
@@ -22,10 +30,18 @@ export {
   updateBusTicketPrice,
 } from './admin/busAllocationService';
 export {
+  getCampusAdminAssignments,
+  getCampusScopesForAdmin,
+} from './admin/campusAdminScopeService';
+export {
   getCampusesByTeam,
   getDistrictsForAdmin,
   getTeamsByDistrict,
 } from './admin/campusOptionsService';
+export {
+  getReservationDataResetStats,
+  resetReservationData,
+} from './admin/reservationDataResetService';
 
 // ===== 공통 타입 =====
 
@@ -61,21 +77,6 @@ export interface AdminUserSearchResult {
     team: string | null;
     campus: string | null;
   }>;
-}
-
-export interface AdminCampusScope {
-  campusId: string;
-  district: string;
-  team: string;
-  campus: string;
-}
-
-export interface CampusAdminAssignment extends AdminCampusScope {
-  adminRoleId: string;
-  userId: string;
-  name: string;
-  email: string | null;
-  phone: string | null;
 }
 
 export interface CampusOptionViewRow {
@@ -212,112 +213,6 @@ type CampusRequestAuditLogRow = {
   created_at: string;
 };
 
-export type ReservationDataResetStats = {
-  reservations: number;
-  payments: number;
-  campusTransfers: number;
-  busAllocations: number;
-  campusRequests: number;
-  campusRequestMessages: number;
-  stations: number;
-  busOptions: number;
-  appSettings: number;
-  homeAnnouncements: number;
-  campusAdminRoles: number;
-  organization: number;
-  userAccounts: number;
-};
-
-export type ReservationDataResetOptions = {
-  reservations: boolean;
-  payments: boolean;
-  campusTransfers: boolean;
-  busAllocations: boolean;
-  campusRequests: boolean;
-  stations: boolean;
-  busOptions: boolean;
-  appSettings: boolean;
-  homeAnnouncements: boolean;
-  campusAdminRoles: boolean;
-  organization: boolean;
-  userAccounts: boolean;
-};
-
-const emptyReservationDataResetStats = (): ReservationDataResetStats => ({
-  reservations: 0,
-  payments: 0,
-  campusTransfers: 0,
-  busAllocations: 0,
-  campusRequests: 0,
-  campusRequestMessages: 0,
-  stations: 0,
-  busOptions: 0,
-  appSettings: 0,
-  homeAnnouncements: 0,
-  campusAdminRoles: 0,
-  organization: 0,
-  userAccounts: 0,
-});
-
-const toReservationDataResetStats = (
-  value: unknown
-): ReservationDataResetStats => {
-  const source =
-    value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
-
-  return {
-    reservations: Number(source.reservations ?? 0),
-    payments: Number(source.payments ?? 0),
-    campusTransfers: Number(source.campusTransfers ?? 0),
-    busAllocations: Number(source.busAllocations ?? 0),
-    campusRequests: Number(source.campusRequests ?? 0),
-    campusRequestMessages: Number(source.campusRequestMessages ?? 0),
-    stations: Number(source.stations ?? 0),
-    busOptions: Number(source.busOptions ?? 0),
-    appSettings: Number(source.appSettings ?? 0),
-    homeAnnouncements: Number(source.homeAnnouncements ?? 0),
-    campusAdminRoles: Number(source.campusAdminRoles ?? 0),
-    organization: Number(source.organization ?? 0),
-    userAccounts: Number(source.userAccounts ?? 0),
-  };
-};
-
-async function getTableCount(tableName: string) {
-  const { count, error } = await supabase
-    .from(tableName)
-    .select('*', { count: 'exact', head: true });
-
-  if (error) throw error;
-
-  return count ?? 0;
-}
-
-async function getCampusAdminRoleCount() {
-  const { count, error } = await supabase
-    .from('admin_roles')
-    .select('*', { count: 'exact', head: true })
-    .eq('role', 'campus_admin');
-
-  if (error) throw error;
-
-  return count ?? 0;
-}
-
-async function getDeletableUserCount() {
-  const { data, error } = await supabase.rpc('get_deletable_user_count');
-
-  if (error) {
-    console.warn(
-      'Failed to load deletable auth user count, using profile count:',
-      error
-    );
-    return Math.max(0, (await getTableCount('profiles')) - 1);
-  }
-
-  return Number(data ?? 0);
-}
-
-
 // ===== 관리자 권한 기본 =====
 
 const ADMIN_ROLE_CACHE_TTL_MS = 30_000;
@@ -412,6 +307,8 @@ export async function getAdminRole(userId: string) {
 }
 
 export async function setActiveAdminRole(userId: string, roleId: string) {
+  // Role switches are authorization-sensitive, so never trust the short-lived UI cache.
+  invalidateAdminRoleCache(userId);
   const roles = await getAdminRoles(userId);
   const targetRole = findSwitchableAdminRole(roles, roleId);
 
@@ -432,65 +329,6 @@ export async function setActiveAdminRole(userId: string, roleId: string) {
 export async function setActiveCampusAdminRole(userId: string, roleId: string) {
   return setActiveAdminRole(userId, roleId);
 }
-// ===== campus_options view 기반 지구/팀/캠퍼스 조회 =====
-
-export async function getCampusScopesForAdmin(): Promise<AdminCampusScope[]> {
-  const { data, error } = await supabase
-    .from('campus_options')
-    .select('campus_id, district, team, campus')
-    .order('district', { ascending: true })
-    .order('team', { ascending: true })
-    .order('campus', { ascending: true });
-
-  if (error) throw error;
-
-  return (data ?? []).map((item) => ({
-    campusId: item.campus_id,
-    district: item.district,
-    team: item.team,
-    campus: item.campus,
-  }));
-}
-
-export async function getCampusAdminAssignments(): Promise<
-  CampusAdminAssignment[]
-> {
-  const { data: roles, error: roleError } = await supabase
-    .from('admin_roles')
-    .select('id, user_id, campus_id, district, team, campus')
-    .eq('role', 'campus_admin');
-
-  if (roleError) throw roleError;
-  if (!roles || roles.length === 0) return [];
-
-  const userIds = [...new Set(roles.map((role) => role.user_id))];
-  const { data: profiles, error: profileError } = await supabase
-    .from('profiles')
-    .select('id, name, email, phone')
-    .in('id', userIds);
-
-  if (profileError) throw profileError;
-
-  const profileMap = new Map(
-    (profiles ?? []).map((profile) => [profile.id, profile])
-  );
-
-  return roles.map((role) => {
-    const profile = profileMap.get(role.user_id);
-    return {
-      campusId: role.campus_id ?? '',
-      district: role.district ?? '',
-      team: role.team ?? '',
-      campus: role.campus ?? '',
-      adminRoleId: role.id,
-      userId: role.user_id,
-      name: profile?.name || '이름 없음',
-      email: profile?.email ?? null,
-      phone: profile?.phone ?? null,
-    };
-  });
-}
-
 export async function deleteUserAccountForAdmin(userId: string) {
   const { data, error } = await supabase.rpc('delete_user_account_as_admin', {
     p_user_id: userId,
@@ -1171,7 +1009,7 @@ export interface CampusRequestPageParams {
   page: number;
   pageSize: number;
   kind?: 'requests' | 'notices';
-  status?: CampusRequestStatus | 'all';
+  status?: CampusRequestStatus | 'all' | 'active';
   type?: CampusRequestType | 'all';
   search?: string;
 }
@@ -1369,8 +1207,8 @@ export async function getCampusRequestsPage(
   let query = supabase
     .from('campus_requests')
     .select('*', { count: 'exact' })
-    .order('created_at', { ascending: false })
-    .order('id', { ascending: false })
+    .order('created_at', { ascending: status === 'active' })
+    .order('id', { ascending: status === 'active' })
     .range(from, to);
 
   if (adminRole.role === 'campus_admin') {
@@ -1383,7 +1221,9 @@ export async function getCampusRequestsPage(
     query = query.eq('is_global_notice', kind === 'notices');
   }
 
-  if (kind === 'requests' && status !== 'all') {
+  if (kind === 'requests' && status === 'active') {
+    query = query.in('status', ['open', 'in_progress', 'on_hold']);
+  } else if (kind === 'requests' && status !== 'all') {
     query = query.eq('status', status);
   }
 
@@ -1844,133 +1684,4 @@ export async function getReservationsWithPaymentByTeamCampus(
     console.error('Failed to get reservations with payment:', error);
     throw error;
   }
-}
-
-export async function getReservationDataResetStats(): Promise<ReservationDataResetStats> {
-  const [
-    reservations,
-    payments,
-    campusTransfers,
-    busAllocations,
-    campusRequests,
-    campusRequestMessages,
-    stations,
-    busOptions,
-    appSettings,
-    homeAnnouncements,
-    campusAdminRoles,
-    districts,
-    teams,
-    campuses,
-    userAccounts,
-  ] = await Promise.all([
-    getTableCount('reservations'),
-    getTableCount('payments'),
-    getTableCount('campus_transfers'),
-    getTableCount('bus_allocations'),
-    getTableCount('campus_requests'),
-    getTableCount('campus_request_messages'),
-    getTableCount('stations'),
-    getTableCount('bus_options'),
-    getTableCount('app_settings'),
-    getTableCount('home_announcements'),
-    getCampusAdminRoleCount(),
-    getTableCount('districts'),
-    getTableCount('teams'),
-    getTableCount('campuses'),
-    getDeletableUserCount(),
-  ]);
-
-  return {
-    ...emptyReservationDataResetStats(),
-    reservations,
-    payments,
-    campusTransfers,
-    busAllocations,
-    campusRequests,
-    campusRequestMessages,
-    stations,
-    busOptions,
-    appSettings,
-    homeAnnouncements,
-    campusAdminRoles,
-    organization: districts + teams + campuses,
-    userAccounts,
-  };
-}
-
-export async function resetReservationData(
-  options: ReservationDataResetOptions
-): Promise<ReservationDataResetStats> {
-  const operationOptions = {
-    p_reset_reservations: options.reservations,
-    p_reset_payments: options.payments,
-    p_reset_campus_transfers: options.campusTransfers,
-    p_reset_bus_allocations: options.busAllocations,
-    p_reset_campus_requests: options.campusRequests,
-  };
-  const hasSelectedSetupReset =
-    options.stations ||
-    options.busOptions ||
-    options.appSettings ||
-    options.homeAnnouncements ||
-    options.campusAdminRoles ||
-    options.organization ||
-    options.userAccounts;
-  const isMissingResetRpc = (error: { code?: string; message: string }) =>
-    error.code === 'PGRST202' ||
-    error.code === '42883' ||
-    error.message.includes('schema cache') ||
-    error.message.includes('Could not find the function');
-
-  const { data, error } = await supabase.rpc('reset_reservation_data', {
-    ...operationOptions,
-    p_reset_stations: options.stations,
-    p_reset_bus_options: options.busOptions,
-    p_reset_app_settings: options.appSettings,
-    p_reset_home_announcements: options.homeAnnouncements,
-    p_reset_campus_admin_roles: options.campusAdminRoles,
-    p_reset_organization: options.organization,
-    p_reset_user_accounts: options.userAccounts,
-  });
-
-  if (!error) {
-    return toReservationDataResetStats(data);
-  }
-
-  if (!isMissingResetRpc(error)) {
-    console.error('Failed to reset reservation data:', error);
-    throw new Error(error.message);
-  }
-
-  if (hasSelectedSetupReset) {
-    throw new Error(
-      '선택한 확장 초기화 항목을 처리하려면 Supabase에 sql/setup/60_reset_reservation_data.sql을 적용해야 합니다.'
-    );
-  }
-
-  const legacyResult = await supabase.rpc(
-    'reset_reservation_data',
-    operationOptions
-  );
-
-  if (!legacyResult.error) {
-    return toReservationDataResetStats(legacyResult.data);
-  }
-
-  const resetsAllOperationData = Object.values(operationOptions).every(Boolean);
-
-  if (isMissingResetRpc(legacyResult.error) && resetsAllOperationData) {
-    const oldestResult = await supabase.rpc('reset_reservation_data');
-
-    if (!oldestResult.error) {
-      return toReservationDataResetStats(oldestResult.data);
-    }
-
-    console.error('Failed to reset reservation data:', oldestResult.error);
-    throw new Error(oldestResult.error.message);
-  }
-
-  console.error('Failed to reset reservation data:', legacyResult.error);
-  throw new Error(legacyResult.error.message);
 }

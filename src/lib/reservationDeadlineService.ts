@@ -19,6 +19,8 @@ export interface ReservationDeadlineSetting {
   isClosed: boolean;
 }
 
+let reservationDeadlineRequest: Promise<ReservationDeadlineSetting> | null = null;
+
 export const hasConfirmedAllocation = async (): Promise<boolean> => {
   const { data, error } = await supabase
     .from('bus_allocations')
@@ -33,24 +35,32 @@ export const hasConfirmedAllocation = async (): Promise<boolean> => {
   return Boolean(data?.length);
 };
 
-export const getReservationDeadline = async (): Promise<ReservationDeadlineSetting> => {
-  const { data, error } = await supabase
-    .from('app_settings')
-    .select('key, value')
-    .eq('key', RESERVATION_DEADLINE_KEY)
-    .maybeSingle();
+export const getReservationDeadline = (): Promise<ReservationDeadlineSetting> => {
+  if (reservationDeadlineRequest) return reservationDeadlineRequest;
 
-  if (error && error.code !== 'PGRST116') {
-    throw error;
-  }
+  reservationDeadlineRequest = (async () => {
+    const { data, error } = await supabase
+      .from('app_settings')
+      .select('key, value')
+      .eq('key', RESERVATION_DEADLINE_KEY)
+      .maybeSingle();
 
-  const setting = data as SettingRow | null;
-  const deadlineAt = normalizeReservationDeadline(setting?.value?.deadline_at);
+    if (error && error.code !== 'PGRST116') {
+      throw error;
+    }
 
-  return {
-    deadlineAt,
-    isClosed: isReservationDeadlineClosed(deadlineAt),
-  };
+    const setting = data as SettingRow | null;
+    const deadlineAt = normalizeReservationDeadline(setting?.value?.deadline_at);
+
+    return {
+      deadlineAt,
+      isClosed: isReservationDeadlineClosed(deadlineAt),
+    };
+  })();
+
+  return reservationDeadlineRequest.finally(() => {
+    reservationDeadlineRequest = null;
+  });
 };
 
 export const updateReservationDeadline = async (

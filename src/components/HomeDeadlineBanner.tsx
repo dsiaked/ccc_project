@@ -52,13 +52,18 @@ const HomeDeadlineBanner = () => {
     };
 
     void loadDeadline();
-    const timerId = window.setInterval(() => setNowMs(Date.now()), SECOND_MS);
 
     return () => {
       isMounted = false;
-      window.clearInterval(timerId);
     };
   }, [loadAttempt]);
+
+  useEffect(() => {
+    if (!deadlineAt) return;
+
+    const timerId = window.setInterval(() => setNowMs(Date.now()), SECOND_MS);
+    return () => window.clearInterval(timerId);
+  }, [deadlineAt]);
 
   const isClosed = Boolean(deadlineAt && new Date(deadlineAt).getTime() <= nowMs);
   const remainingText = useMemo(
@@ -66,7 +71,24 @@ const HomeDeadlineBanner = () => {
     [deadlineAt, nowMs]
   );
 
-  if (loading || (!deadlineAt && !loadError)) return null;
+  if (loading) {
+    return (
+      <section
+        className={`${styles.banner} ${styles.loadingBanner}`}
+        aria-label="신청 마감 정보를 불러오는 중"
+        aria-busy="true"
+      >
+        <div className={`${styles.iconBox} ${styles.skeleton}`} />
+        <div className={styles.loadingContent}>
+          <span className={styles.skeleton} />
+          <strong className={styles.skeleton} />
+          <p className={styles.skeleton} />
+        </div>
+      </section>
+    );
+  }
+
+  if (!deadlineAt && !loadError) return null;
 
   return (
     <section

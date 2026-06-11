@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+/* eslint-disable react-refresh/only-export-components */
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Banknote,
@@ -26,10 +27,7 @@ import {
 
 import {
   campusRequestReadEventName,
-  clearAdminRoleCache,
-  getAdminRoles,
   getUnreadCampusRequestIds,
-  type AdminRole,
   type AdminRoleType,
 } from '../../lib/adminService';
 import { useAdminAuth } from '../../components/AdminAuthProvider';
@@ -42,7 +40,7 @@ import {
 import { canAdminRoleAccess } from '../../utils/adminAccess';
 import styles from './AdminHeader.module.css';
 
-interface AdminNavItem {
+export interface AdminNavItem {
   label: string;
   path: string;
   icon: LucideIcon;
@@ -60,7 +58,7 @@ interface AdminNavItem {
   allowedRoles: AdminRoleType[];
 }
 
-const navItems: AdminNavItem[] = [
+export const navItems: AdminNavItem[] = [
   {
     label: '운영 대시보드',
     path: '/admin/dashboard',
@@ -119,10 +117,13 @@ const navItems: AdminNavItem[] = [
     allowedRoles: ['campus_admin'],
   },
   {
-    label: '공지·문의 관리',
+    label: '문의함',
     path: '/admin/communications',
     icon: MessageSquare,
-    matchPaths: ['/admin/communications/personal'],
+    matchPaths: [
+      '/admin/communications/personal',
+      '/admin/communications/notices',
+    ],
     stageGroup: 'application',
     targetGroup: 'campus',
     allowedRoles: ['global_admin'],
@@ -280,7 +281,7 @@ const searchableAdminItems: AdminNavItem[] = [
 const normalizeSearchText = (value: string) =>
   value.toLocaleLowerCase().replace(/\s+/g, '');
 
-const stageNavGroups = [
+export const stageNavGroups = [
   { id: 'prepare', label: '1. 운영 준비' },
   { id: 'application', label: '2. 신청 · 소통' },
   { id: 'allocation', label: '3. 배차' },
@@ -318,9 +319,14 @@ const AdminHeader = () => {
   const {
     session,
     adminRole: activeAdminRole,
+    adminRoles,
+    refreshRoles,
     switchAdminRole,
   } = useAdminAuth();
-  const [switchableRoles, setSwitchableRoles] = useState<AdminRole[]>([]);
+  const switchableRoles = useMemo(
+    () => adminRoles.filter((item) => item.role !== 'global_admin'),
+    [adminRoles]
+  );
   const [switchingRoleId, setSwitchingRoleId] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -393,24 +399,7 @@ const AdminHeader = () => {
   useEffect(() => {
     let isMounted = true;
 
-    const loadAdminRole = async () => {
-      if (!session) {
-        if (isMounted) {
-          setSwitchableRoles([]);
-          setCampusNoticeCount(0);
-        }
-        return;
-      }
-
-      clearAdminRoleCache(session.user.id);
-      const roles = await getAdminRoles(session.user.id);
-
-      if (isMounted) {
-        setSwitchableRoles(
-          roles.filter((item) => item.role !== 'global_admin')
-        );
-      }
-
+    const refreshBadge = async () => {
       if (activeAdminRole?.role === 'global_admin') {
         const [unreadRequestIds, unreadPersonalInquiryCount] = await Promise.all([
           getUnreadCampusRequestIds(),
@@ -427,21 +416,21 @@ const AdminHeader = () => {
       }
     };
 
-    loadAdminRole().catch(() => {
+    refreshBadge().catch(() => {
       if (isMounted) setCampusNoticeCount(0);
     });
 
-    window.addEventListener(campusRequestReadEventName, loadAdminRole);
-    window.addEventListener(personalInquiryReadEventName, loadAdminRole);
-    window.addEventListener(personalInquiryChangedEventName, loadAdminRole);
+    window.addEventListener(campusRequestReadEventName, refreshBadge);
+    window.addEventListener(personalInquiryReadEventName, refreshBadge);
+    window.addEventListener(personalInquiryChangedEventName, refreshBadge);
 
     return () => {
       isMounted = false;
-      window.removeEventListener(campusRequestReadEventName, loadAdminRole);
-      window.removeEventListener(personalInquiryReadEventName, loadAdminRole);
-      window.removeEventListener(personalInquiryChangedEventName, loadAdminRole);
+      window.removeEventListener(campusRequestReadEventName, refreshBadge);
+      window.removeEventListener(personalInquiryReadEventName, refreshBadge);
+      window.removeEventListener(personalInquiryChangedEventName, refreshBadge);
     };
-  }, [session, activeAdminRole]);
+  }, [activeAdminRole]);
 
   useEffect(() => {
     if (
@@ -452,8 +441,10 @@ const AdminHeader = () => {
     }
 
     const refreshBadge = async () => {
-      const unreadRequestIds = await getUnreadCampusRequestIds();
-      const unreadPersonalInquiryCount = await getUnreadPersonalInquiryCount();
+      const [unreadRequestIds, unreadPersonalInquiryCount] = await Promise.all([
+        getUnreadCampusRequestIds(),
+        getUnreadPersonalInquiryCount(),
+      ]);
 
       setCampusNoticeCount(
         unreadRequestIds.size + unreadPersonalInquiryCount
@@ -505,14 +496,7 @@ const AdminHeader = () => {
   useEffect(() => {
     if (!session) return;
 
-    const refreshRoles = () => {
-      clearAdminRoleCache(session.user.id);
-      void getAdminRoles(session.user.id).then((roles) => {
-        setSwitchableRoles(
-          roles.filter((item) => item.role !== 'global_admin')
-        );
-      }).catch(() => undefined);
-    };
+    const handleRolesChanged = () => void refreshRoles().catch(() => undefined);
 
     const channel = supabase
       .channel(`admin-header-roles-${session.user.id}`)
@@ -524,16 +508,14 @@ const AdminHeader = () => {
           table: 'admin_roles',
           filter: `user_id=eq.${session.user.id}`,
         },
-        refreshRoles
+        handleRolesChanged
       )
       .subscribe();
-
-    refreshRoles();
 
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [session]);
+  }, [refreshRoles, session]);
 
   const handleAdminRoleChange = async (roleId: string) => {
     if (!session) {
@@ -556,8 +538,10 @@ const AdminHeader = () => {
     setSwitchingRoleId(roleId);
 
     try {
-      await rolePagePreloads[targetRole.role]();
-      await switchAdminRole(roleId);
+      await Promise.all([
+        rolePagePreloads[targetRole.role](),
+        switchAdminRole(roleId),
+      ]);
       navigate(scopedRoleLandingPaths[targetRole.role]);
     } finally {
       setSwitchingRoleId('');
@@ -585,10 +569,14 @@ const AdminHeader = () => {
 
     try {
       if (targetRole.role === 'campus_admin' || targetRole.role === 'boarding_manager') {
-        await rolePagePreloads[targetRole.role]();
+        await Promise.all([
+          rolePagePreloads[targetRole.role](),
+          switchAdminRole(targetRole.id),
+        ]);
+      } else {
+        await switchAdminRole(targetRole.id);
       }
 
-      await switchAdminRole(targetRole.id);
       navigate(item.path);
     } finally {
       setSwitchingRoleId('');
@@ -809,9 +797,9 @@ const AdminHeader = () => {
         <button
           type="button"
           className={styles.logo}
-          onClick={() => navigate('/')}
-          aria-label="서비스 홈 화면으로 이동"
-          title={isSidebarCollapsed ? '홈 화면으로' : undefined}
+          onClick={() => navigate('/admin/home')}
+          aria-label="관리자 홈으로 이동"
+          title={isSidebarCollapsed ? '관리자 홈으로' : undefined}
         >
           <span className={styles.logoMark}>CCC</span>
           <span className={styles.logoLabel}>버스 관리자</span>

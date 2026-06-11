@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   Bus,
   CheckCircle2,
@@ -61,9 +68,18 @@ const statusSortOrder: Record<BoardingStatus, number> = {
   boarded: 2,
 };
 
-const boardingRosterGoogleSheetUrl = String(
-  import.meta.env.VITE_BOARDING_ROSTER_GOOGLE_SHEET_URL ?? ''
-).trim();
+const getSafeExternalHttpsUrl = (value: unknown) => {
+  try {
+    const url = new URL(String(value ?? '').trim());
+    return url.protocol === 'https:' ? url.toString() : '';
+  } catch {
+    return '';
+  }
+};
+
+const boardingRosterGoogleSheetUrl = getSafeExternalHttpsUrl(
+  import.meta.env.VITE_BOARDING_ROSTER_GOOGLE_SHEET_URL
+);
 const boardingRosterGoogleSheetSyncEnabled =
   import.meta.env.VITE_BOARDING_ROSTER_GOOGLE_SHEET_SYNC_ENABLED === 'true';
 
@@ -266,9 +282,35 @@ const AdminBoardingPage = () => {
     };
   }, [loadSnapshot]);
 
-  const selectedBus = snapshot?.buses.find((bus) => bus.id === selectedBusId);
+  const busById = useMemo(
+    () => new Map(snapshot?.buses.map((bus) => [bus.id, bus]) ?? []),
+    [snapshot?.buses]
+  );
+  const passengerByReservationId = useMemo(
+    () =>
+      new Map(
+        snapshot?.passengers.map((passenger) => [
+          passenger.reservationId,
+          passenger,
+        ]) ?? []
+      ),
+    [snapshot?.passengers]
+  );
+  const latestEventByReservationId = useMemo(() => {
+    const events = new Map<string, BoardingEvent>();
+
+    snapshot?.events.forEach((event) => {
+      if (!events.has(event.reservationId)) {
+        events.set(event.reservationId, event);
+      }
+    });
+
+    return events;
+  }, [snapshot?.events]);
+  const selectedBus = selectedBusId ? busById.get(selectedBusId) : undefined;
   const isSelectedBusLocked = Boolean(selectedBus?.departedAt);
-  const normalizedSearch = search.trim().toLocaleLowerCase('ko');
+  const deferredSearch = useDeferredValue(search);
+  const normalizedSearch = deferredSearch.trim().toLocaleLowerCase('ko');
   const isGlobalSearch = Boolean(normalizedSearch);
   const matchingPassengers = useMemo(() => {
     const busLabel = selectedBus?.label;
@@ -415,9 +457,7 @@ const AdminBoardingPage = () => {
   ) ?? [];
   const departureCancellationRestoreCount = selectedBus
     ? snapshot?.passengers.filter((passenger) => {
-        const latestEvent = snapshot.events.find(
-          (event) => event.reservationId === passenger.reservationId
-        );
+        const latestEvent = latestEventByReservationId.get(passenger.reservationId);
         return (
           passenger.busId === selectedBus.id &&
           passenger.boardingStatus === 'no_show' &&
@@ -434,22 +474,11 @@ const AdminBoardingPage = () => {
       }
     : null;
 
-  const latestEventByReservationId = useMemo(() => {
-    const events = new Map<string, BoardingEvent>();
-
-    snapshot?.events.forEach((event) => {
-      if (!events.has(event.reservationId)) {
-        events.set(event.reservationId, event);
-      }
-    });
-
-    return events;
-  }, [snapshot?.events]);
-  const selectedPassenger = snapshot?.passengers.find(
-    (passenger) => passenger.reservationId === selectedPassengerId
-  );
-  const selectedPassengerBus = selectedPassenger
-    ? snapshot?.buses.find((bus) => bus.id === selectedPassenger.busId)
+  const selectedPassenger = selectedPassengerId
+    ? passengerByReservationId.get(selectedPassengerId)
+    : undefined;
+  const selectedPassengerBus = selectedPassenger?.busId
+    ? busById.get(selectedPassenger.busId)
     : undefined;
   const isSelectedPassengerBusDeparted = Boolean(selectedPassengerBus?.departedAt);
   const selectedPassengerEvent = selectedPassenger
@@ -625,7 +654,7 @@ const AdminBoardingPage = () => {
     noShowReasonSaved = false,
     transitionReason = ''
   ) => {
-    const passengerBus = snapshot?.buses.find((bus) => bus.id === passenger.busId);
+    const passengerBus = passenger.busId ? busById.get(passenger.busId) : undefined;
     if (status === 'unchecked' && passengerBus?.departedAt) {
       setError(
         '출발 완료된 호차에서는 탑승자를 미확인 상태로 되돌릴 수 없습니다. 출발 완료를 먼저 취소해주세요.'
@@ -947,7 +976,7 @@ const AdminBoardingPage = () => {
   };
 
   const openMove = (passenger: BoardingPassenger) => {
-    const passengerBus = snapshot?.buses.find((bus) => bus.id === passenger.busId);
+    const passengerBus = passenger.busId ? busById.get(passenger.busId) : undefined;
     if (passengerBus?.departedAt) {
       setError(
         '출발 완료된 호차는 변경할 수 없습니다. 출발 완료를 먼저 취소해주세요.'
@@ -2006,9 +2035,8 @@ const AdminBoardingPage = () => {
                   disabled={
                     !boardingTransitionReason.trim() ||
                     Boolean(
-                      snapshot?.buses.find(
-                        (bus) => bus.id === boardingTransitionPassenger.busId
-                      )?.departedAt
+                      boardingTransitionPassenger.busId &&
+                        busById.get(boardingTransitionPassenger.busId)?.departedAt
                     )
                   }
                 >

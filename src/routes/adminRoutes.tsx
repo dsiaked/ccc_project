@@ -8,6 +8,7 @@ import type { AdminRoleType } from '../lib/adminService';
 const AdminCampusDashboardPage = lazy(
   () => import('../pages/admin/AdminCampusPage')
 );
+const AdminHomePage = lazy(() => import('../pages/admin/AdminHomePage'));
 const AdminDashboardPage = lazy(() => import('../pages/admin/AdminGlobalPage'));
 const AdminAllocationsPage = lazy(
   () => import('../pages/admin/AdminExactAllocationPage')
@@ -27,8 +28,8 @@ const AdminReservationDeadlinePage = lazy(
 const AdminCampusRequestsPage = lazy(
   () => import('../pages/admin/AdminCampusRequestsPage')
 );
-const AdminPersonalInquiriesPage = lazy(
-  () => import('../pages/admin/AdminPersonalInquiriesPage')
+const AdminUnifiedInquiriesPage = lazy(
+  () => import('../pages/admin/AdminUnifiedInquiriesPage')
 );
 const AdminUsersPage = lazy(
   () => import('../pages/admin/AdminPersonalTicketPage')
@@ -84,6 +85,11 @@ const boardingAccess = [
   'global_admin',
   'boarding_manager',
 ] as const satisfies readonly AdminRoleType[];
+const allAdminRoles = [
+  'global_admin',
+  'campus_admin',
+  'boarding_manager',
+] as const satisfies readonly AdminRoleType[];
 const adminRoute = (
   element: ReactNode,
   allowedRoles: readonly AdminRoleType[]
@@ -119,7 +125,11 @@ const AdminLoginRedirect = () => {
 
 const canonicalAdminRoutes = [
   { path: 'login', element: <AdminLoginRedirect /> },
-  { path: '', element: <Navigate to="/admin/dashboard" replace /> },
+  { path: '', element: <Navigate to="/admin/home" replace /> },
+  {
+    path: 'home',
+    element: adminRoute(<AdminHomePage />, allAdminRoles),
+  },
   {
     path: 'dashboard',
     element: adminRoute(<AdminDashboardPage />, globalAdminOnly),
@@ -194,11 +204,18 @@ const canonicalAdminRoutes = [
   },
   {
     path: 'communications',
+    element: adminRoute(<AdminUnifiedInquiriesPage />, globalAdminOnly),
+  },
+  {
+    path: 'communications/notices',
     element: adminRoute(<AdminCampusRequestsPage />, globalAdminOnly),
   },
   {
     path: 'communications/personal',
-    element: adminRoute(<AdminPersonalInquiriesPage />, globalAdminOnly),
+    element: adminRoute(
+      <RedirectWithSearch to="/admin/communications?source=personal" />,
+      globalAdminOnly
+    ),
   },
   {
     path: 'allocations',
@@ -267,7 +284,7 @@ const legacyAdminRoutes = [
   },
   {
     path: 'home-announcements',
-    to: '/admin/communications?tab=home',
+    to: '/admin/communications?tab=notices',
     roles: globalAdminOnly,
   },
   { path: 'allocation', to: '/admin/allocations', roles: globalAdminOnly },

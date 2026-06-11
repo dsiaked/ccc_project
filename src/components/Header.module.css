@@ -181,6 +181,7 @@
 }
 
 .logo:focus-visible,
+.notificationButton:focus-visible,
 .adminBarButton:focus-visible,
 .loginButton:focus-visible,
 .menuButton:focus-visible {

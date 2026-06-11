@@ -27470,3 +27470,407 @@ notify pgrst, 'reload schema';
 -- =========================================================
 -- END sql/setup/194_explicit_high_risk_rpc_authorization.sql
 -- =========================================================
+
+-- =========================================================
+-- BEGIN sql/setup/195_campus_request_creation_idempotency.sql
+-- =========================================================
+
+-- Prevent duplicate campus requests caused by same-tick submits or network retries.
+
+create index if not exists idx_campus_requests_creator_recent
+  on public.campus_requests(created_by, created_at desc)
+  where is_global_notice = false;
+
+create or replace function public.create_campus_request_with_message(
+  p_type text,
+  p_title text,
+  p_content text,
+  p_district text,
+  p_team text,
+  p_campus text
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_actor_id uuid := auth.uid();
+  v_title text := btrim(coalesce(p_title, ''));
+  v_content text := btrim(coalesce(p_content, ''));
+  v_role public.admin_roles%rowtype;
+  v_request public.campus_requests%rowtype;
+  v_message public.campus_request_messages%rowtype;
+begin
+  if v_actor_id is null then
+    raise exception 'Authentication is required.';
+  end if;
+  if p_type not in (
+    'late_signup',
+    'cancel_refund',
+    'payment_issue',
+    'roster_change',
+    'transfer_issue',
+    'etc'
+  ) then
+    raise exception 'Campus request type is invalid.';
+  end if;
+  if v_title = '' or v_content = '' then
+    raise exception 'Campus request title and content are required.';
+  end if;
+
+  select admin_role.*
+  into v_role
+  from public.admin_roles admin_role
+  where admin_role.user_id = v_actor_id
+    and admin_role.role = 'campus_admin'
+    and admin_role.district = p_district
+    and admin_role.team = p_team
+    and admin_role.campus = p_campus
+  limit 1;
+
+  if v_role.id is null then
+    raise exception 'Only the matching campus administrator can create this request.';
+  end if;
+
+  perform pg_advisory_xact_lock(
+    hashtextextended('campus-request-create:' || v_actor_id::text, 0)
+  );
+
+  select request.*
+  into v_request
+  from public.campus_requests request
+  where request.created_by = v_actor_id
+    and request.is_global_notice = false
+    and request.type = p_type
+    and request.title = v_title
+    and request.content = v_content
+    and request.district = p_district
+    and request.team = p_team
+    and request.campus = p_campus
+    and request.created_at >= clock_timestamp() - interval '30 seconds'
+  order by request.created_at desc, request.id desc
+  limit 1;
+
+  if v_request.id is not null then
+    select message.*
+    into v_message
+    from public.campus_request_messages message
+    where message.request_id = v_request.id
+      and message.sender_role = 'campus_admin'
+    order by message.created_at, message.id
+    limit 1;
+
+    return jsonb_build_object(
+      'request', to_jsonb(v_request),
+      'message', case when v_message.id is null then null else to_jsonb(v_message) end
+    );
+  end if;
+
+  insert into public.campus_requests (
+    type,
+    status,
+    title,
+    content,
+    is_global_notice,
+    district_id,
+    team_id,
+    campus_id,
+    district,
+    team,
+    campus,
+    created_by
+  )
+  values (
+    p_type,
+    'open',
+    v_title,
+    v_content,
+    false,
+    v_role.district_id,
+    v_role.team_id,
+    v_role.campus_id,
+    p_district,
+    p_team,
+    p_campus,
+    v_actor_id
+  )
+  returning * into v_request;
+
+  insert into public.campus_request_messages (
+    request_id,
+    sender_id,
+    sender_role,
+    message
+  )
+  values (
+    v_request.id,
+    v_actor_id,
+    'campus_admin',
+    v_content
+  )
+  returning * into v_message;
+
+  return jsonb_build_object(
+    'request', to_jsonb(v_request),
+    'message', to_jsonb(v_message)
+  );
+end;
+$$;
+
+revoke all on function public.create_campus_request_with_message(
+  text, text, text, text, text, text
+) from public, anon;
+grant execute on function public.create_campus_request_with_message(
+  text, text, text, text, text, text
+) to authenticated;
+
+notify pgrst, 'reload schema';
+
+-- =========================================================
+-- END sql/setup/195_campus_request_creation_idempotency.sql
+-- =========================================================
+
+-- =========================================================
+-- BEGIN sql/setup/196_personal_inquiry_retry_idempotency.sql
+-- =========================================================
+
+-- Return committed personal inquiry mutations when clients retry after a lost response.
+
+create index if not exists idx_personal_inquiries_user_recent
+  on public.personal_inquiries(user_id, created_at desc);
+
+create index if not exists idx_personal_inquiry_messages_sender_recent
+  on public.personal_inquiry_messages(inquiry_id, sender_id, created_at desc);
+
+create or replace function public.create_personal_inquiry(
+  p_category text,
+  p_title text,
+  p_content text
+)
+returns public.personal_inquiries
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_user_id uuid := auth.uid();
+  v_title text := btrim(coalesce(p_title, ''));
+  v_content text := btrim(coalesce(p_content, ''));
+  v_inquiry public.personal_inquiries;
+begin
+  if v_user_id is null then raise exception 'Authentication is required.'; end if;
+  if p_category not in ('reservation', 'payment', 'ticket', 'boarding', 'etc') then
+    raise exception 'Personal inquiry category is invalid.';
+  end if;
+  if v_title = '' or v_content = '' then
+    raise exception 'Personal inquiry title and content are required.';
+  end if;
+  if length(v_title) > 100 or length(v_content) > 2000 then
+    raise exception 'Personal inquiry is too long.';
+  end if;
+
+  perform pg_advisory_xact_lock(hashtextextended('personal-inquiry:' || v_user_id::text, 0));
+
+  select inquiry.*
+  into v_inquiry
+  from public.personal_inquiries inquiry
+  where inquiry.user_id = v_user_id
+    and inquiry.category = p_category
+    and inquiry.title = v_title
+    and inquiry.content = v_content
+    and inquiry.created_at > clock_timestamp() - interval '60 seconds'
+  order by inquiry.created_at desc, inquiry.id desc
+  limit 1;
+
+  if v_inquiry.id is not null then
+    return v_inquiry;
+  end if;
+
+  if (
+    select count(*)
+    from public.personal_inquiries inquiry
+    where inquiry.user_id = v_user_id and inquiry.status <> 'resolved'
+  ) >= 3 then
+    raise exception 'Resolve an existing inquiry before creating another one.';
+  end if;
+  if exists (
+    select 1
+    from public.personal_inquiries inquiry
+    where inquiry.user_id = v_user_id
+      and inquiry.created_at > clock_timestamp() - interval '60 seconds'
+  ) then
+    raise exception 'Please wait before creating another inquiry.';
+  end if;
+
+  insert into public.personal_inquiries (user_id, category, title, content)
+  values (v_user_id, p_category, v_title, v_content)
+  returning * into v_inquiry;
+
+  insert into public.personal_inquiry_messages (
+    inquiry_id, sender_id, sender_role, message
+  )
+  values (v_inquiry.id, v_user_id, 'user', v_content);
+
+  return v_inquiry;
+end;
+$$;
+
+create or replace function public.add_personal_inquiry_message(
+  p_inquiry_id uuid,
+  p_message text
+)
+returns public.personal_inquiry_messages
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_actor_id uuid := auth.uid();
+  v_is_global_admin boolean := public.is_global_admin();
+  v_message_text text := btrim(coalesce(p_message, ''));
+  v_inquiry public.personal_inquiries;
+  v_message public.personal_inquiry_messages;
+begin
+  if v_actor_id is null then raise exception 'Authentication is required.'; end if;
+  if v_message_text = '' or length(v_message_text) > 2000 then
+    raise exception 'Personal inquiry message is invalid.';
+  end if;
+
+  select * into v_inquiry
+  from public.personal_inquiries
+  where id = p_inquiry_id
+  for update;
+  if not found or (not v_is_global_admin and v_inquiry.user_id <> v_actor_id) then
+    raise exception 'Personal inquiry not found or inaccessible.';
+  end if;
+
+  select message.*
+  into v_message
+  from public.personal_inquiry_messages message
+  where message.inquiry_id = p_inquiry_id
+    and message.sender_id = v_actor_id
+    and message.sender_role = case when v_is_global_admin then 'global_admin' else 'user' end
+    and message.message = v_message_text
+    and message.created_at > clock_timestamp() - interval '30 seconds'
+  order by message.created_at desc, message.id desc
+  limit 1;
+
+  if v_message.id is not null then
+    return v_message;
+  end if;
+
+  insert into public.personal_inquiry_messages (
+    inquiry_id, sender_id, sender_role, message
+  )
+  values (
+    p_inquiry_id,
+    v_actor_id,
+    case when v_is_global_admin then 'global_admin' else 'user' end,
+    v_message_text
+  )
+  returning * into v_message;
+
+  if v_is_global_admin then
+    update public.personal_inquiries
+    set
+      admin_response = v_message_text,
+      handled_by = v_actor_id,
+      updated_at = clock_timestamp()
+    where id = p_inquiry_id;
+
+    insert into public.personal_notifications (
+      target_user_id, category, title, content, created_by
+    )
+    values (
+      v_inquiry.user_id,
+      'inquiry',
+      '문의 답변이 등록되었습니다.',
+      v_inquiry.title || E'\n\n' || v_message_text || E'\n\n개인 문의 내역에서 확인하세요.',
+      v_actor_id
+    );
+  else
+    update public.personal_inquiries
+    set status = 'open', handled_at = null, updated_at = clock_timestamp()
+    where id = p_inquiry_id;
+  end if;
+
+  return v_message;
+end;
+$$;
+
+revoke all on function public.create_personal_inquiry(text, text, text)
+  from public, anon;
+revoke all on function public.add_personal_inquiry_message(uuid, text)
+  from public, anon;
+grant execute on function public.create_personal_inquiry(text, text, text)
+  to authenticated;
+grant execute on function public.add_personal_inquiry_message(uuid, text)
+  to authenticated;
+
+notify pgrst, 'reload schema';
+
+-- =========================================================
+-- END sql/setup/196_personal_inquiry_retry_idempotency.sql
+-- =========================================================
+
+-- =========================================================
+-- BEGIN sql/setup/199_restore_campus_notice_reads.sql
+-- =========================================================
+
+-- Restore the per-user notice read table if it was removed after the foundation migration.
+
+create table if not exists public.campus_notice_reads (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  notice_id uuid not null references public.campus_requests(id) on delete cascade,
+  read_at timestamptz not null default now(),
+  primary key (user_id, notice_id)
+);
+
+create index if not exists idx_campus_notice_reads_notice_id
+  on public.campus_notice_reads(notice_id);
+
+alter table public.campus_notice_reads enable row level security;
+
+drop policy if exists "Users can view own campus notice reads"
+  on public.campus_notice_reads;
+drop policy if exists "Users can create own campus notice reads"
+  on public.campus_notice_reads;
+drop policy if exists "Users can delete own campus notice reads"
+  on public.campus_notice_reads;
+
+create policy "Users can view own campus notice reads"
+on public.campus_notice_reads
+for select
+to authenticated
+using (user_id = auth.uid());
+
+create policy "Users can create own campus notice reads"
+on public.campus_notice_reads
+for insert
+to authenticated
+with check (
+  user_id = auth.uid()
+  and exists (
+    select 1
+    from public.campus_requests
+    where campus_requests.id = campus_notice_reads.notice_id
+      and campus_requests.is_global_notice = true
+  )
+);
+
+create policy "Users can delete own campus notice reads"
+on public.campus_notice_reads
+for delete
+to authenticated
+using (user_id = auth.uid());
+
+revoke all on table public.campus_notice_reads from anon;
+grant select, insert, delete on table public.campus_notice_reads to authenticated;
+grant all on table public.campus_notice_reads to service_role;
+
+notify pgrst, 'reload schema';
+
+-- =========================================================
+-- END sql/setup/199_restore_campus_notice_reads.sql
+-- =========================================================

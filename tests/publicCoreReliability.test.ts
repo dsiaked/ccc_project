@@ -24,11 +24,12 @@ test('personal notification loads expose authentication and permission failures'
   );
 });
 
-test('home deadline banner stays hidden until a deadline or retryable error exists', () => {
+test('home deadline banner reserves loading space and hides when no deadline exists', () => {
   assert.match(
     homeDeadlineBanner,
-    /if \(loading \|\| \(!deadlineAt && !loadError\)\) return null/
+    /if \(loading\) \{[\s\S]*styles\.loadingBanner/
   );
+  assert.match(homeDeadlineBanner, /if \(!deadlineAt && !loadError\) return null/);
   assert.match(homeDeadlineBanner, /마감 정보를 확인하지 못했습니다/);
   assert.match(homeDeadlineBanner, /다시 시도/);
   assert.doesNotMatch(

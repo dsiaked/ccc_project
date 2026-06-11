@@ -735,13 +735,17 @@
 @media (max-width: 560px) {
   .header,
   .header.collapsed {
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: auto minmax(0, 1fr) auto;
     grid-template-areas:
-      "logo actions"
-      "switcher switcher"
-      "search search"
-      "nav nav";
-    padding: max(8px, env(safe-area-inset-top)) 10px 8px;
+      "logo search actions"
+      "nav nav nav";
+    gap: 5px;
+    padding: max(6px, env(safe-area-inset-top)) 10px 6px;
+  }
+
+  .header + *,
+  .header.collapsed + * {
+    padding-top: 16px !important;
   }
 
   .compactRoleHeader,
@@ -784,6 +788,11 @@
   .header.collapsed .functionSearch {
     grid-area: search;
     width: 100%;
+    height: 36px;
+  }
+
+  .headerActions {
+    justify-content: flex-end;
   }
 
   .searchResults,
@@ -813,18 +822,31 @@
 
   .logo {
     width: fit-content;
+    min-height: 36px;
     padding: 0;
   }
 
+  .logoMark {
+    width: 36px;
+    height: 28px;
+  }
+
   .homeButton {
-    width: 44px;
-    min-height: 44px;
+    width: 40px;
+    min-height: 40px;
     padding: 0;
     justify-content: center;
   }
 
+  .nav,
+  .header.collapsed .nav {
+    gap: 4px;
+    padding-bottom: 0;
+  }
+
   .navGroupItems button {
-    min-height: 44px;
+    min-height: 40px;
+    padding: 0 9px;
     font-size: 13px;
   }
 

@@ -125,6 +125,97 @@ const mapInquiry = (
   messages: row.messages?.map(mapMessage) ?? messages,
 });
 
+const isMissingPersonalInquiryPageRpc = (error: {
+  code?: string;
+  message?: string;
+}) =>
+  error.code === 'PGRST202' ||
+  error.code === '42883' ||
+  Boolean(
+    error.message?.includes('get_personal_inquiries_page_as_global_admin') ||
+      error.message?.includes('schema cache') ||
+      error.message?.includes('Could not find the function')
+  );
+
+const getLegacyPersonalInquiryMessages = (
+  row: InquiryRow
+): PersonalInquiryMessage[] => {
+  const messages: PersonalInquiryMessage[] = [
+    {
+      id: `initial-${row.id}`,
+      inquiryId: row.id,
+      senderId: row.user_id,
+      senderRole: 'user',
+      message: row.content,
+      createdAt: row.created_at,
+    },
+  ];
+
+  if (row.admin_response?.trim()) {
+    messages.push({
+      id: `response-${row.id}`,
+      inquiryId: row.id,
+      senderId: row.handled_by ?? row.user_id,
+      senderRole: 'global_admin',
+      message: row.admin_response,
+      createdAt: row.handled_at ?? row.updated_at,
+    });
+  }
+
+  return messages;
+};
+
+const matchesLegacyPersonalInquirySearch = (
+  row: InquiryRow,
+  normalizedSearch: string
+) =>
+  normalizedSearch === '' ||
+  [
+    row.user_name,
+    row.user_email,
+    row.user_phone,
+    row.title,
+    row.content,
+    row.admin_response,
+  ].some((value) => value?.toLocaleLowerCase().includes(normalizedSearch));
+
+async function getLegacyCompatiblePersonalInquiryPage(params: {
+  page: number;
+  pageSize: number;
+  status: PersonalInquiryStatus | 'all';
+  search: string;
+}): Promise<PersonalInquiryPageResult> {
+  const { data, error } = await supabase.rpc(
+    'get_personal_inquiries_as_global_admin'
+  );
+  if (error) throw error;
+
+  const rows = (data ?? []) as InquiryRow[];
+  const normalizedSearch = params.search.trim().toLocaleLowerCase();
+  const filteredRows = rows.filter(
+    (row) =>
+      (params.status === 'all' || row.status === params.status) &&
+      matchesLegacyPersonalInquirySearch(row, normalizedSearch)
+  );
+  const start = (Math.max(1, params.page) - 1) * params.pageSize;
+  const countByStatus = (status: PersonalInquiryStatus) =>
+    rows.filter((row) => row.status === status).length;
+
+  return {
+    items: filteredRows
+      .slice(start, start + params.pageSize)
+      .map((row) => mapInquiry(row, getLegacyPersonalInquiryMessages(row))),
+    total: filteredRows.length,
+    summary: {
+      total: rows.length,
+      open: countByStatus('open'),
+      inProgress: countByStatus('in_progress'),
+      resolved: countByStatus('resolved'),
+      onHold: countByStatus('on_hold'),
+    },
+  };
+}
+
 export async function getMyPersonalInquiries() {
   const [inquiryResult, messageResult] = await Promise.all([
     supabase.rpc('get_my_personal_inquiries'),
@@ -189,7 +280,12 @@ export async function getPersonalInquiriesPageAsGlobalAdmin(params: {
       p_search: params.search,
     }
   );
-  if (error) throw error;
+  if (error) {
+    if (isMissingPersonalInquiryPageRpc(error)) {
+      return getLegacyCompatiblePersonalInquiryPage(params);
+    }
+    throw error;
+  }
   const result = data as {
     items?: InquiryRow[];
     total?: number;

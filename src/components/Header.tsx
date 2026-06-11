@@ -8,10 +8,15 @@ import {
 } from '../lib/adminService';
 import { supabase } from '../lib/supabase';
 import { getMyPersonalNotifications } from '../lib/personalNotificationService';
+import { preloadPublicRoute } from '../routes/publicRoutes';
 import styles from './Header.module.css';
 import LogoutModal from './LogoutModal';
 
-const Sidebar = lazy(() => import('./Sidebar'));
+const loadSidebar = () => import('./Sidebar');
+const Sidebar = lazy(loadSidebar);
+const preloadSidebar = () => {
+  void loadSidebar();
+};
 
 const SIDEBAR_WIDTH = 320;
 const SWIPE_EDGE_WIDTH = 32;
@@ -141,6 +146,11 @@ const Header = () => {
         return;
       }
 
+      const unreadNotificationPromise = refreshUnreadNotificationCount().catch(
+        (error) => {
+          console.error('Failed to refresh unread notifications:', error);
+        }
+      );
       const roles = await getAdminRoles(session.user.id);
       if (!isMounted) return;
 
@@ -151,7 +161,7 @@ const Header = () => {
           null
       );
 
-      await refreshUnreadNotificationCount();
+      await unreadNotificationPromise;
     };
 
     const checkLogin = async () => {
@@ -216,6 +226,21 @@ const Header = () => {
     navigate('/');
   };
 
+  const handleNotificationClick = () => {
+    const noticeSection = document.getElementById('notices');
+
+    if (location.pathname === '/' && noticeSection) {
+      const behavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        ? 'auto'
+        : 'smooth';
+      noticeSection.scrollIntoView({ behavior, block: 'start' });
+      noticeSection.focus({ preventScroll: true });
+      return;
+    }
+
+    navigate('/#notices');
+  };
+
   return (
     <>
       <header className={styles.header}>
@@ -234,7 +259,7 @@ const Header = () => {
               type="button"
               className={styles.notificationButton}
               aria-label={`개인 알림 ${unreadNotificationCount}건`}
-              onClick={() => navigate('/#notices')}
+              onClick={handleNotificationClick}
             >
               <Bell size={20} color="#1e40af" />
               {unreadNotificationCount > 0 && <strong>{unreadNotificationCount}</strong>}
@@ -244,6 +269,12 @@ const Header = () => {
             type="button"
             className={styles.loginButton}
             aria-label={isLoggedIn ? '로그아웃' : '로그인'}
+            onMouseEnter={() => {
+              if (!isLoggedIn) preloadPublicRoute('/login');
+            }}
+            onFocus={() => {
+              if (!isLoggedIn) preloadPublicRoute('/login');
+            }}
             onClick={() => {
               if (isLoggedIn) setIsLogoutModalOpen(true);
               else navigate('/login');
@@ -258,6 +289,8 @@ const Header = () => {
             aria-controls="main-sidebar"
             aria-label={isSidebarOpen ? '메뉴 닫기' : '메뉴 열기'}
             aria-expanded={isSidebarOpen}
+            onMouseEnter={preloadSidebar}
+            onFocus={preloadSidebar}
             onClick={toggleSidebar}
           >
             <Menu size={24} color="#1e40af" />

@@ -202,8 +202,8 @@ const HomeAnnouncementManager = () => {
       <section className={styles.composer}>
         <div className={styles.composerHeader}>
           <div>
-            <h2>홈 화면 공지</h2>
-            <p>일반 사용자 홈 화면에 노출할 안내를 작성하고 확인합니다.</p>
+            <h2>전체 사용자 공지</h2>
+            <p>모든 사용자의 홈 화면에 노출할 공지를 작성하고 관리합니다.</p>
           </div>
           <div className={styles.headerActions}>
             <span>등록된 공지 {announcements.length}건</span>
@@ -213,7 +213,7 @@ const HomeAnnouncementManager = () => {
               onClick={() => setIsComposerOpen((current) => !current)}
             >
               <Megaphone size={16} />
-              {isComposerOpen ? '작성 닫기' : '홈 화면 공지 작성'}
+              {isComposerOpen ? '작성 닫기' : '전체 사용자 공지 작성'}
             </button>
           </div>
         </div>
@@ -256,7 +256,7 @@ const HomeAnnouncementManager = () => {
 
       <div className={styles.listHeader}>
         <div>
-          <h2>홈 화면 공지 목록</h2>
+          <h2>전체 사용자 공지 목록</h2>
           <p>최근 등록된 공지부터 표시됩니다.</p>
         </div>
         <button
@@ -274,7 +274,7 @@ const HomeAnnouncementManager = () => {
         {loading ? (
           <div className={styles.empty}>불러오는 중...</div>
         ) : announcements.length === 0 ? (
-          <div className={styles.empty}>등록된 홈 화면 공지가 없습니다.</div>
+          <div className={styles.empty}>등록된 전체 사용자 공지가 없습니다.</div>
         ) : (
           announcements.map((announcement) => (
             <article key={announcement.id} className={styles.card}>

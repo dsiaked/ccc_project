@@ -330,14 +330,20 @@ const AdminAllocationWorkspacePage = () => {
     [deferredWorkspace]
   );
   const deferredAllPassengerSearch = useDeferredValue(allPassengerSearch);
+  const deferredBusById = useMemo(
+    () =>
+      new Map(
+        deferredWorkspace?.buses.map((bus) => [bus.id, bus]) ?? []
+      ),
+    [deferredWorkspace?.buses]
+  );
   const allPassengerSearchIndex = useMemo(() => {
     if (!deferredWorkspace) return [];
-    const busById = new Map(
-      deferredWorkspace.buses.map((bus) => [bus.id, bus])
-    );
 
     return deferredWorkspace.passengers.map((passenger) => {
-      const bus = passenger.busId ? busById.get(passenger.busId) : undefined;
+      const bus = passenger.busId
+        ? deferredBusById.get(passenger.busId)
+        : undefined;
       return {
         passenger,
         searchText: [
@@ -360,7 +366,7 @@ const AdminAllocationWorkspacePage = () => {
           .toLocaleLowerCase('ko'),
       };
     });
-  }, [deferredWorkspace]);
+  }, [deferredBusById, deferredWorkspace]);
   const passengerQuickFilterCounts = useMemo(() => {
     if (!deferredWorkspace) {
       return {
@@ -373,9 +379,6 @@ const AdminAllocationWorkspacePage = () => {
         'seat-missing': 0,
       };
     }
-    const busById = new Map(
-      deferredWorkspace.buses.map((bus) => [bus.id, bus])
-    );
     return {
       all: deferredWorkspace.passengers.length,
       unassigned: deferredWorkspace.passengers.filter(
@@ -392,14 +395,16 @@ const AdminAllocationWorkspacePage = () => {
       ).length,
       'first-choice-missed': deferredWorkspace.passengers.filter((passenger) => {
         if (isRemainingSeatPassenger(passenger)) return false;
-        const bus = passenger.busId ? busById.get(passenger.busId) : undefined;
+        const bus = passenger.busId
+          ? deferredBusById.get(passenger.busId)
+          : undefined;
         return Boolean(bus && bus.destination !== passenger.preferences[0]);
       }).length,
       'seat-missing': deferredWorkspace.passengers.filter(
         (passenger) => passenger.busId && passenger.seatNumber === null
       ).length,
     };
-  }, [deferredWorkspace, issueTargets.passengerIds]);
+  }, [deferredBusById, deferredWorkspace, issueTargets.passengerIds]);
   const normalizedAllPassengerSearch = allPassengerSearch
     .trim()
     .toLocaleLowerCase('ko');
@@ -410,9 +415,9 @@ const AdminAllocationWorkspacePage = () => {
     () =>
       allPassengerSearchIndex
         .filter(({ passenger, searchText }) => {
-          const bus = deferredWorkspace?.buses.find(
-            (item) => item.id === passenger.busId
-          );
+          const bus = passenger.busId
+            ? deferredBusById.get(passenger.busId)
+            : undefined;
           if (passengerQuickFilter === 'unassigned' && passenger.busId) return false;
           if (
             passengerQuickFilter === 'errors' &&
@@ -447,7 +452,7 @@ const AdminAllocationWorkspacePage = () => {
       issueTargets.passengerIds,
       normalizedDeferredAllPassengerSearch,
       passengerQuickFilter,
-      deferredWorkspace?.buses,
+      deferredBusById,
     ]
   );
 

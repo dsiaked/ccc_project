@@ -117,7 +117,7 @@
 .noResults { grid-column: 1 / -1; }
 .noResults strong { color: #334155; }
 .noResults span { font-size: 13px; }
-.passenger { display: grid; align-content: start; min-width: 0; overflow: hidden; border: 1px solid #cbd5e1; border-radius: 8px; background: white; text-align: center; transition: border-color .15s ease, box-shadow .15s ease; }
+.passenger { display: grid; align-content: start; min-width: 0; overflow: hidden; border: 1px solid #cbd5e1; border-radius: 8px; background: white; text-align: center; transition: border-color .15s ease, box-shadow .15s ease; content-visibility: auto; contain-intrinsic-size: 190px; }
 .passenger:hover { box-shadow: 0 4px 12px rgba(15, 23, 42, .08); }
 .status_unchecked { border-color: #fb923c; background: #fffaf5; box-shadow: inset 0 5px 0 #f97316; }.status_boarded { border-color: #4ade80; background: #f7fff9; box-shadow: inset 0 5px 0 #22c55e; }.status_no_show { border-color: #f87171; background: #fff8f8; box-shadow: inset 0 5px 0 #ef4444; }
 .status_unchecked:hover { box-shadow: inset 0 5px 0 #f97316, 0 4px 12px rgba(15, 23, 42, .08); }.status_boarded:hover { box-shadow: inset 0 5px 0 #22c55e, 0 4px 12px rgba(15, 23, 42, .08); }.status_no_show:hover { box-shadow: inset 0 5px 0 #ef4444, 0 4px 12px rgba(15, 23, 42, .08); }

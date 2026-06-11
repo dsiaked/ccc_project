@@ -39,12 +39,23 @@ export async function getReservation(): Promise<ReturnBusReservation | null> {
       throw new Error('Authentication failed');
     }
 
+    return getReservationForUser(session.user.id);
+  } catch (error) {
+    console.error('Failed to get reservation:', error);
+    throw error;
+  }
+}
+
+export async function getReservationForUser(
+  userId: string
+): Promise<ReturnBusReservation | null> {
+  try {
     const { data, error } = await supabase
       .from('reservations')
       .select(
         'id, name, phone, district, team, campus, affiliation_type, coordinator_name, coordinator_phone, station_preferences, data, status, confirmed_ticket, boarding_confirmed_at, created_at, updated_at'
       )
-      .eq('user_id', session.user.id)
+      .eq('user_id', userId)
       .maybeSingle();
 
     if (error && error.code !== 'PGRST116') {
