@@ -116,6 +116,8 @@ const HeroSection = () => {
                 path: '/reservation',
               };
   const StatusIcon = content.icon;
+  const showApplicationGuide =
+    !isLoading && !loadError && !reservation && !canBookRemainingSeat;
 
   return (
     <>
@@ -166,6 +168,13 @@ const HeroSection = () => {
             </div>
           </div>
 
+          {showApplicationGuide && (
+            <aside className={styles.applicationGuide} aria-label="버스 신청 진행 안내">
+              <strong>신청 진행 순서</strong>
+              <p>버스 신청 → 배차 확정 → 결제 안내 → 탑승권 확인</p>
+              <span>버스 요금과 결제 방법은 배차 확정 후 안내됩니다.</span>
+            </aside>
+          )}
         </div>
       </section>
 
