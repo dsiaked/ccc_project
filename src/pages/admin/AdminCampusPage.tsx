@@ -882,6 +882,22 @@ const CampusAdminPage = () => {
     }
   };
 
+  const handleQuickPaymentToggle = (
+    reservation: ReservationWithPayment,
+    isCompleted: boolean
+  ) => {
+    if (
+      isCompleted &&
+      !window.confirm(
+        `${reservation.name}님의 입금 확인을 취소하고 미입금으로 되돌릴까요?`
+      )
+    ) {
+      return;
+    }
+
+    void handleDirectPaymentCheck(reservation, !isCompleted);
+  };
+
   const handleBulkPaymentCheck = (checked: boolean) => {
     if (verifying) return;
 
@@ -1511,7 +1527,7 @@ const CampusAdminPage = () => {
                       isCompleted ? styles.quickPaymentButtonCompleted : ''
                     } ${isRefunded ? styles.quickPaymentButtonRefunded : ''}`}
                     onClick={() =>
-                      void handleDirectPaymentCheck(reservation, !isCompleted)
+                      handleQuickPaymentToggle(reservation, isCompleted)
                     }
                     disabled={
                       verifying || isRefunded || isPaymentCheckLocked

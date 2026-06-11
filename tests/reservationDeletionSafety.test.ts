@@ -7,10 +7,10 @@ const page = readFileSync('src/pages/ReservationPage.tsx', 'utf8');
 test('reservation deletion uses a scoped safety modal', () => {
   assert.match(page, /setIsDeleteConfirmModalOpen\(true\)/);
   assert.match(page, /role="dialog"/);
-  assert.match(page, /踰꾩뒪 ?좎껌 ?곴뎄 ??젣/);
-  assert.match(page, /?좎껌???뺣낫? ?щ쭩 ?됱꽑吏, ?곌껐??寃곗젣 湲곕줉???쒓굅?섍퀬 ?ν썑[\s\S]*諛곗감 ??곸뿉???쒖쇅?⑸땲??/);
-  assert.match(page, /??젣???좎껌? 蹂듦뎄?????놁뒿?덈떎/);
-  assert.match(page, /?좎껌 쨌 寃곗젣 湲곕줉 ??젣, 諛곗감 ????쒖쇅/);
+  assert.match(page, /버스 신청 영구 삭제/);
+  assert.match(page, /신청자 정보와 희망 행선지, 연결된 결제 기록이 제거되고 향후[\s\S]*배차 대상에서 제외됩니다/);
+  assert.match(page, /삭제한 신청은 복구할 수 없습니다/);
+  assert.match(page, /신청 · 결제 기록 삭제, 배차 대상 제외/);
   assert.match(page, /className=\{styles\.deleteConfirmCancel\}[\s\S]*autoFocus/);
   assert.doesNotMatch(page, /window\.confirm/);
 });
@@ -21,7 +21,7 @@ test('reservation deletion blocks duplicate execution and keeps failures visible
     page,
     /reservationDeletionInFlightRef\.current = true[\s\S]*await deleteReservation\(\)[\s\S]*reservationDeletionInFlightRef\.current = false/
   );
-  assert.match(page, /setReservationDeleteError\([\s\S]*?좎껌 ??젣???ㅽ뙣?덉뒿?덈떎/);
+  assert.match(page, /setReservationDeleteError\([\s\S]*신청 삭제에 실패했습니다/);
   assert.match(page, /className=\{styles\.deleteConfirmError\} role="alert"/);
   assert.match(page, /onClick=\{\(\) => void confirmCancelReservation\(\)\}/);
 });

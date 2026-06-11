@@ -140,6 +140,12 @@ test('campus applicant list stays compact with search, filters, and pagination',
 test('name-only quick payment buttons toggle confirmed payments', () => {
   assert.match(campusPage, /aria-label="빠른 입금 확인"/);
   assert.match(campusPage, /초록색 이름을 다시\s*누르면 미입금으로 되돌립니다\./);
+  assert.match(campusPage, /const handleQuickPaymentToggle =/);
+  assert.match(
+    campusPage,
+    /입금 확인을 취소하고 미입금으로 되돌릴까요\?/
+  );
+  assert.match(campusPage, /handleQuickPaymentToggle\(reservation, isCompleted\)/);
   assert.match(campusPage, /handleDirectPaymentCheck\(reservation, !isCompleted\)/);
   assert.match(campusPage, /verifying \|\| isRefunded \|\| isPaymentCheckLocked/);
   assert.doesNotMatch(

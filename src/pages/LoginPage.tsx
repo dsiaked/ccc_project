@@ -51,9 +51,7 @@ const LoginPage = () => {
   const [loadingMethod, setLoadingMethod] = useState<'email' | 'kakao' | null>(
     null
   );
-  const [error, setError] = useState<string | null>(
-    cccSummerLoginUrl ? null : 'CCC Summer 로그인 설정을 확인하지 못했습니다.'
-  );
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!cccSummerLoginUrl) return;
