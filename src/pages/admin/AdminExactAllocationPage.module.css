@@ -788,7 +788,9 @@ button:disabled {
 
 .manualDraftModal {
   width: min(520px, 100%);
-  overflow: hidden;
+  max-height: calc(100vh - 40px);
+  max-height: calc(100dvh - 40px);
+  overflow-y: auto;
   border: 1px solid #d0d5dd;
   border-radius: 14px;
   background: #fff;

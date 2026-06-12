@@ -15,6 +15,16 @@
   color: #9f1239;
 }
 
+.openingBanner {
+  border-bottom-color: #fde68a;
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.openingBanner .content strong {
+  color: #78350f;
+}
+
 .iconBox {
   display: inline-flex;
   align-items: center;

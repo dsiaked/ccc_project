@@ -29,8 +29,11 @@ test('home deadline banner reserves loading space and hides when no deadline exi
     homeDeadlineBanner,
     /if \(loading\) \{[\s\S]*styles\.loadingBanner/
   );
-  assert.match(homeDeadlineBanner, /if \(!deadlineAt && !loadError\) return null/);
-  assert.match(homeDeadlineBanner, /마감 정보를 확인하지 못했습니다/);
+  assert.match(
+    homeDeadlineBanner,
+    /if \(!opensAt && !deadlineAt && !loadError\) return null/
+  );
+  assert.match(homeDeadlineBanner, /신청 기간 정보를 확인하지 못했습니다/);
   assert.match(homeDeadlineBanner, /다시 시도/);
   assert.doesNotMatch(
     homeDeadlineBanner,

@@ -2,7 +2,10 @@ import { useEffect, useState } from 'react';
 import { AlertCircle, ArrowRight, CheckCircle2, Clock3, Ticket } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { getReservationDeadline } from '../lib/reservationDeadlineService';
+import {
+  formatReservationDeadline,
+  getReservationDeadline,
+} from '../lib/reservationDeadlineService';
 import { getReservationForUser } from '../lib/reservationService';
 import { preloadPublicRoute } from '../routes/publicRoutes';
 import type { ReturnBusReservation } from '../types/reservation';
@@ -14,7 +17,9 @@ const HeroSection = () => {
   const navigate = useNavigate();
   const [reservation, setReservation] = useState<ReturnBusReservation | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [opensAt, setOpensAt] = useState<string | null>(null);
   const [isDeadlineClosed, setIsDeadlineClosed] = useState(false);
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [loadAttempt, setLoadAttempt] = useState(0);
@@ -44,7 +49,9 @@ const HeroSection = () => {
         if (isMounted) {
           setIsLoggedIn(Boolean(session));
           setReservation(savedReservation);
+          setOpensAt(deadline.opensAt);
           setIsDeadlineClosed(deadline.isClosed);
+          setNowMs(Date.now());
         }
       } catch (error) {
         console.error('홈 신청 정보 로드 실패:', error);
@@ -60,7 +67,18 @@ const HeroSection = () => {
     };
   }, [loadAttempt]);
 
+  useEffect(() => {
+    if (!opensAt) return;
+
+    const timerId = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(timerId);
+  }, [opensAt]);
+
   const isConfirmed = reservation?.status === 'confirmed';
+  const isBeforeOpening = Boolean(
+    opensAt && new Date(opensAt).getTime() > nowMs
+  );
+  const isNewApplicationBeforeOpening = isBeforeOpening && !reservation;
   const canBookRemainingSeat = isDeadlineClosed && !reservation;
   const content = isLoading
     ? {
@@ -98,6 +116,15 @@ const HeroSection = () => {
               icon: Clock3,
               path: '/ticket',
             }
+          : isNewApplicationBeforeOpening
+            ? {
+                label: '버스 신청 시작 전',
+                title: '아직 신청 기간이 시작되지 않았어요',
+                description: `${formatReservationDeadline(opensAt)}부터 버스 신청을 시작할 수 있습니다.`,
+                buttonLabel: '신청 시작 전',
+                icon: Clock3,
+                path: '/reservation',
+              }
           : canBookRemainingSeat
             ? {
                 label: '일반 신청 마감',
@@ -117,7 +144,11 @@ const HeroSection = () => {
               };
   const StatusIcon = content.icon;
   const showApplicationGuide =
-    !isLoading && !loadError && !reservation && !canBookRemainingSeat;
+    !isLoading &&
+    !loadError &&
+    !reservation &&
+    !canBookRemainingSeat &&
+    !isNewApplicationBeforeOpening;
 
   return (
     <>
@@ -146,7 +177,7 @@ const HeroSection = () => {
                 <button
                   type="button"
                   className={styles.ctaButton}
-                  disabled={isLoading}
+                  disabled={isLoading || isNewApplicationBeforeOpening}
                   onMouseEnter={() => preloadPublicRoute(content.path)}
                   onFocus={() => preloadPublicRoute(content.path)}
                   onClick={() => {
@@ -154,6 +185,7 @@ const HeroSection = () => {
                       setLoadAttempt((attempt) => attempt + 1);
                       return;
                     }
+                    if (isNewApplicationBeforeOpening) return;
                     if (!isLoggedIn) {
                       setLoginRequiredPath(content.path);
                       return;

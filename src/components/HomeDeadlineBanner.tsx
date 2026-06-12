@@ -28,6 +28,7 @@ const getRemainingText = (deadlineAt: string, nowMs: number) => {
 };
 
 const HomeDeadlineBanner = () => {
+  const [opensAt, setOpensAt] = useState<string | null>(null);
   const [deadlineAt, setDeadlineAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -42,7 +43,10 @@ const HomeDeadlineBanner = () => {
       setLoadError(false);
       try {
         const setting = await getReservationDeadline();
-        if (isMounted) setDeadlineAt(setting.deadlineAt);
+        if (isMounted) {
+          setOpensAt(setting.opensAt);
+          setDeadlineAt(setting.deadlineAt);
+        }
       } catch (error) {
         console.error('신청 마감 정보 로드 실패:', error);
         if (isMounted) setLoadError(true);
@@ -59,16 +63,24 @@ const HomeDeadlineBanner = () => {
   }, [loadAttempt]);
 
   useEffect(() => {
-    if (!deadlineAt) return;
+    if (!opensAt && !deadlineAt) return;
 
     const timerId = window.setInterval(() => setNowMs(Date.now()), SECOND_MS);
     return () => window.clearInterval(timerId);
-  }, [deadlineAt]);
+  }, [opensAt, deadlineAt]);
 
+  const isBeforeOpening = Boolean(
+    opensAt && new Date(opensAt).getTime() > nowMs
+  );
   const isClosed = Boolean(deadlineAt && new Date(deadlineAt).getTime() <= nowMs);
   const remainingText = useMemo(
-    () => (deadlineAt ? getRemainingText(deadlineAt, nowMs) : ''),
-    [deadlineAt, nowMs]
+    () =>
+      isBeforeOpening && opensAt
+        ? getRemainingText(opensAt, nowMs)
+        : deadlineAt
+          ? getRemainingText(deadlineAt, nowMs)
+          : '',
+    [deadlineAt, isBeforeOpening, nowMs, opensAt]
   );
 
   if (loading) {
@@ -88,19 +100,31 @@ const HomeDeadlineBanner = () => {
     );
   }
 
-  if (!deadlineAt && !loadError) return null;
+  if (!opensAt && !deadlineAt && !loadError) return null;
 
   return (
     <section
-      className={`${styles.banner} ${isClosed ? styles.closedBanner : ''}`}
-      aria-label="버스 신청 마감 안내"
+      className={`${styles.banner} ${
+        isBeforeOpening
+          ? styles.openingBanner
+          : isClosed
+            ? styles.closedBanner
+            : ''
+      }`}
+      aria-label={isBeforeOpening ? '버스 신청 시작 안내' : '버스 신청 마감 안내'}
     >
       <div className={styles.iconBox}>
         <Clock3 size={18} />
       </div>
       <div className={styles.content}>
-        <span>신청 마감</span>
-        <strong>{loadError ? '마감 정보를 확인하지 못했습니다.' : remainingText}</strong>
+        <span>{isBeforeOpening ? '신청 시작 전' : '신청 마감'}</span>
+        <strong>
+          {loadError
+            ? '신청 기간 정보를 확인하지 못했습니다.'
+            : isBeforeOpening
+              ? `신청 시작까지 ${remainingText}`
+              : remainingText}
+        </strong>
         {loadError && (
           <button
             type="button"
@@ -110,7 +134,11 @@ const HomeDeadlineBanner = () => {
             다시 시도
           </button>
         )}
-        {deadlineAt && <p>신청 마감 일시: {formatReservationDeadline(deadlineAt)}</p>}
+        {isBeforeOpening && opensAt ? (
+          <p>신청 시작 일시: {formatReservationDeadline(opensAt)}</p>
+        ) : (
+          deadlineAt && <p>신청 마감 일시: {formatReservationDeadline(deadlineAt)}</p>
+        )}
       </div>
     </section>
   );

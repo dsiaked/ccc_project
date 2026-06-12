@@ -210,7 +210,7 @@
 .noteSaveRow button:disabled { opacity: .45; cursor: default; }
 .movePassengerButton { width: calc(100% - 36px); margin: 0 18px 14px; }
 .exceptionBackdrop { position: fixed; z-index: 1200; inset: 0; display: grid; place-items: center; padding: 18px; background: rgba(15, 23, 42, .58); }
-.exceptionModal { width: min(620px, 100%); max-height: min(760px, 94vh); overflow: auto; border-radius: 16px; background: white; box-shadow: 0 24px 70px rgba(15, 23, 42, .28); }
+.exceptionModal { width: min(620px, 100%); max-height: min(760px, 94vh); max-height: min(760px, 94dvh); overflow: auto; border-radius: 16px; background: white; box-shadow: 0 24px 70px rgba(15, 23, 42, .28); }
 .exceptionModal header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 18px 20px; border-bottom: 1px solid #e5e7eb; }
 .exceptionModal header span { color: #7c3aed; font-size: 11px; font-weight: 900; }.exceptionModal header h2 { margin: 3px 0 0; color: #172554; font-size: 21px; }
 .exceptionModal header button { display: grid; place-content: center; width: 36px; height: 36px; border: 0; border-radius: 999px; background: #f1f5f9; color: #475569; cursor: pointer; }

@@ -64,7 +64,7 @@
 .rowActions { display: flex; gap: 7px; }
 
 .backdrop { position: fixed; inset: 0; z-index: 1200; display: grid; place-items: center; padding: 20px; background: rgba(15,23,42,.48); }
-.modal { width: min(780px,100%); max-height: calc(100vh - 40px); display: flex; flex-direction: column; overflow: hidden; border: 1px solid #dfe3e8; border-radius: 14px; background: #fff; box-shadow: 0 24px 60px rgba(15,23,42,.24); }
+.modal { width: min(780px,100%); max-height: calc(100vh - 40px); max-height: calc(100dvh - 40px); display: flex; flex-direction: column; overflow: hidden; border: 1px solid #dfe3e8; border-radius: 14px; background: #fff; box-shadow: 0 24px 60px rgba(15,23,42,.24); }
 .modalHeader { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 20px; border-bottom: 1px solid #eaecf0; }
 .modalHeader > div { display: flex; align-items: center; gap: 12px; }
 .modalIcon { width: 40px; height: 40px; }
@@ -104,5 +104,5 @@
   .headerIntro { flex-direction: column; }
   .header h1 { font-size: 25px; }
   .backdrop { padding: 8px; }
-  .modal { max-height: calc(100vh - 16px); }
+  .modal { max-height: calc(100vh - 16px); max-height: calc(100dvh - 16px); }
 }

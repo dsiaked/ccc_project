@@ -461,6 +461,10 @@ for (const [setupFile, migrationFile] of [
     '20260610230028_164_extend_allocation_confirmation_timeout.sql',
   ],
   [
+    '204_extend_allocation_cancellation_timeout.sql',
+    '20260613000001_204_extend_allocation_cancellation_timeout.sql',
+  ],
+  [
     '158_allow_allocation_confirmation_cancel_before_deadline.sql',
     '20260610230020_158_allow_allocation_confirmation_cancel_before_deadline.sql',
   ],
@@ -784,6 +788,22 @@ test('allocation confirmation allows long-running server processing', () => {
   assert.match(
     migration,
     /save_confirmed_allocation_workspace_v3[\s\S]*set statement_timeout = '5min'/i
+  );
+});
+
+test('allocation cancellation allows long-running server processing', () => {
+  const migration = readFileSync(
+    `${migrationDirectory}/20260613000001_204_extend_allocation_cancellation_timeout.sql`,
+    'utf8'
+  );
+
+  assert.match(
+    migration,
+    /cancel_confirmed_allocation_workspace\([\s\S]*set statement_timeout = '5min'/i
+  );
+  assert.match(
+    migration,
+    /cancel_confirmed_allocation_workspace_v2\([\s\S]*set statement_timeout = '5min'/i
   );
 });
 
