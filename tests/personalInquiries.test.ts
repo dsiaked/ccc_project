@@ -19,6 +19,15 @@ const realtimeRlsSql = readFileSync(
   'sql/setup/191_personal_inquiry_realtime_rls.sql',
   'utf8'
 );
+const deleteInquirySetupSql = readFileSync(
+  'sql/setup/201_global_admin_delete_inquiries.sql',
+  'utf8'
+);
+const deleteInquiryMigrationSql = readFileSync(
+  'supabase/migrations/20260612000006_201_global_admin_delete_inquiries.sql',
+  'utf8'
+);
+const adminService = readFileSync('src/lib/adminService.ts', 'utf8');
 const service = readFileSync('src/lib/personalInquiryService.ts', 'utf8');
 const userPage = readFileSync('src/pages/PersonalInquiryPage.tsx', 'utf8');
 const adminPage = readFileSync(
@@ -48,6 +57,13 @@ test('personal inquiry workflow enhancement matches its migration', () => {
   assert.equal(
     enhancementMigrationSql.replaceAll('\r\n', '\n'),
     enhancementSetupSql.replaceAll('\r\n', '\n')
+  );
+});
+
+test('global admin inquiry deletion setup matches its migration', () => {
+  assert.equal(
+    deleteInquiryMigrationSql.replaceAll('\r\n', '\n'),
+    deleteInquirySetupSql.replaceAll('\r\n', '\n')
   );
 });
 
@@ -118,6 +134,27 @@ test('global administrators use one inbox for campus and personal inquiries', ()
   assert.match(unifiedAdminPage, /sourceLabel: '개인 문의'/);
   assert.match(unifiedAdminPage, /admin-unified-inquiries/);
   assert.match(unifiedAdminPage, /loadPersonalStatusItems/);
+});
+
+test('global administrators can permanently delete inquiries from the unified inbox', () => {
+  assert.match(
+    deleteInquirySetupSql,
+    /delete_campus_request_as_global_admin[\s\S]*not public\.is_global_admin\(\)/i
+  );
+  assert.match(
+    deleteInquirySetupSql,
+    /delete from public\.campus_requests[\s\S]*is_global_notice = false/i
+  );
+  assert.match(
+    deleteInquirySetupSql,
+    /delete_personal_inquiry_as_global_admin[\s\S]*delete from public\.personal_inquiries/i
+  );
+  assert.match(adminService, /deleteCampusRequestAsGlobalAdmin/);
+  assert.match(service, /deletePersonalInquiryAsGlobalAdmin/);
+  assert.match(unifiedAdminPage, /deleteCampusRequestAsGlobalAdmin/);
+  assert.match(unifiedAdminPage, /deletePersonalInquiryAsGlobalAdmin/);
+  assert.match(unifiedAdminPage, /window\.confirm/);
+  assert.match(unifiedAdminPage, /문의 삭제/);
 });
 
 test('unified inquiry read receipts do not block the inbox from rendering', () => {

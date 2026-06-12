@@ -1607,6 +1607,20 @@ export async function deleteCampusRequestMessage(messageId: string) {
   }
 }
 
+export async function deleteCampusRequestAsGlobalAdmin(requestId: string) {
+  const { error } = await supabase.rpc(
+    'delete_campus_request_as_global_admin',
+    {
+      p_request_id: requestId,
+    }
+  );
+
+  if (error) {
+    console.error('캠퍼스 문의 삭제 실패:', error);
+    throw new Error(error.message);
+  }
+}
+
 export async function updateCampusRequestStatus(params: {
   requestId: string;
   status: CampusRequestStatus;

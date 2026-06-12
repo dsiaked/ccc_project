@@ -63,7 +63,7 @@ const CccSummerHandoffPage = () => {
 
         setProfile(result.profile);
         if (!result.requiresCampusSelection) {
-          navigate('/reservation', { replace: true });
+          navigate('/', { replace: true });
           return;
         }
 
@@ -140,7 +140,7 @@ const CccSummerHandoffPage = () => {
     setError('');
     try {
       await selectCccSummerCampus(campusId);
-      navigate('/reservation', { replace: true });
+      navigate('/', { replace: true });
     } catch (selectionError) {
       setError(
         selectionError instanceof Error

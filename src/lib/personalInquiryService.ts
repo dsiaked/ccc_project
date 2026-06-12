@@ -325,6 +325,17 @@ export async function respondToPersonalInquiry(params: {
   return mapInquiry(data as InquiryRow);
 }
 
+export async function deletePersonalInquiryAsGlobalAdmin(inquiryId: string) {
+  const { error } = await supabase.rpc(
+    'delete_personal_inquiry_as_global_admin',
+    {
+      p_inquiry_id: inquiryId,
+    }
+  );
+  if (error) throw error;
+  window.dispatchEvent(new CustomEvent(personalInquiryChangedEventName));
+}
+
 export async function markPersonalInquiryRead(inquiryId: string) {
   const { error } = await supabase.rpc('mark_personal_inquiry_read', {
     p_inquiry_id: inquiryId,

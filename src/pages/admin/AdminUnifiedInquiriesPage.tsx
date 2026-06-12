@@ -7,11 +7,13 @@ import {
   RefreshCw,
   Save,
   Search,
+  Trash2,
 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import { useAdminAuth } from '../../components/AdminAuthProvider';
 import {
+  deleteCampusRequestAsGlobalAdmin,
   getCampusRequestsPage,
   getCampusRequestSummary,
   markCampusRequestRead,
@@ -20,6 +22,7 @@ import {
   type CampusRequest,
 } from '../../lib/adminService';
 import {
+  deletePersonalInquiryAsGlobalAdmin,
   getPersonalInquiriesPageAsGlobalAdmin,
   markPersonalInquiryRead,
   respondToPersonalInquiry,
@@ -416,6 +419,36 @@ const AdminUnifiedInquiriesPage = () => {
     }
   };
 
+  const handleDelete = async (inquiry: UnifiedInquiry) => {
+    const sourceLabel =
+      inquiry.source === 'personal' ? '개인 문의' : '캠퍼스 문의';
+    const ok = window.confirm(
+      `"${inquiry.title}" ${sourceLabel}를 삭제할까요?\n삭제한 문의와 대화 내용은 복구할 수 없습니다.`
+    );
+    if (!ok) return;
+
+    setProcessingKey(inquiry.key);
+    setError('');
+    try {
+      if (inquiry.source === 'personal') {
+        await deletePersonalInquiryAsGlobalAdmin(inquiry.id);
+      } else {
+        await deleteCampusRequestAsGlobalAdmin(inquiry.id);
+      }
+
+      if (items.length === 1 && page > 1) {
+        setPage((current) => current - 1);
+      } else {
+        await loadInquiries();
+      }
+    } catch (deleteError) {
+      console.error('통합 문의 삭제 실패:', deleteError);
+      setError('문의를 삭제하지 못했습니다. 다시 시도해주세요.');
+    } finally {
+      setProcessingKey(null);
+    }
+  };
+
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const sourceLabel = useMemo(
     () =>
@@ -601,6 +634,15 @@ const AdminUnifiedInquiriesPage = () => {
                   >
                     <Save size={16} />
                     {processingKey === inquiry.key ? '저장 중...' : '답변 및 상태 저장'}
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.deleteButton}
+                    disabled={processingKey === inquiry.key}
+                    onClick={() => void handleDelete(inquiry)}
+                  >
+                    <Trash2 size={16} />
+                    문의 삭제
                   </button>
                 </div>
               </article>

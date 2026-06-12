@@ -327,6 +327,16 @@
   cursor: wait;
 }
 
+.responsePanel .deleteButton {
+  border-color: #fda29b;
+  background: #ffffff;
+  color: #b42318;
+}
+
+.responsePanel .deleteButton:hover:not(:disabled) {
+  background: #fff1f2;
+}
+
 .error,
 .empty {
   padding: 18px;

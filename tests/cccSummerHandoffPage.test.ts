@@ -40,10 +40,10 @@ test('CCC Summer callback exchanges the one-time code and removes it from the UR
   assert.match(service, /supabase\.auth\.setSession/);
 });
 
-test('CCC Summer callback supports manual campus mapping before reservation', () => {
+test('CCC Summer callback supports manual campus mapping before returning home', () => {
   assert.match(page, /getDistrictOptions/);
   assert.match(page, /getTeamOptions/);
   assert.match(page, /getCampusOptions/);
   assert.match(page, /selectCccSummerCampus\(campusId\)/);
-  assert.match(page, /navigate\('\/reservation'/);
+  assert.match(page, /navigate\('\/'/);
 });
