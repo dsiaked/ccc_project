@@ -26,6 +26,18 @@ test('public navigation preloads lazy routes from user intent', () => {
   assert.match(sidebar, /data-route-path="\/reservation"/);
 });
 
+test('stale deployment chunks trigger a one-time recovery reload', () => {
+  const main = readSource('src/main.tsx');
+  const recovery = readSource('src/utils/chunkLoadRecovery.ts');
+
+  assert.match(main, /installChunkLoadRecovery\(\)/);
+  assert.match(recovery, /vite:preloadError/);
+  assert.match(recovery, /sessionStorage\.getItem\(reloadAttemptKey\)/);
+  assert.match(recovery, /sessionStorage\.removeItem\(reloadAttemptKey\)/);
+  assert.match(recovery, /window\.location\.reload\(\)/);
+  assert.match(recovery, /event\.preventDefault\(\)/);
+});
+
 test('home loading and hero image avoid unnecessary layout and transfer cost', () => {
   const deadline = readSource('src/components/HomeDeadlineBanner.tsx');
   const hero = readSource('src/components/HeroSection.tsx');
