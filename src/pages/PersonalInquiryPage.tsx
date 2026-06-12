@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { CheckCircle2, MessageCircle, Send } from 'lucide-react';
+import { CheckCircle2, MessageCircle, Send, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 import Footer from '../components/Footer';
@@ -7,6 +7,7 @@ import Header from '../components/Header';
 import {
   addPersonalInquiryMessage,
   createPersonalInquiry,
+  deleteMyPersonalInquiry,
   getMyPersonalInquiries,
   type PersonalInquiry,
   type PersonalInquiryCategory,
@@ -48,6 +49,7 @@ const PersonalInquiryPage = () => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [replyingId, setReplyingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -143,6 +145,32 @@ const PersonalInquiryPage = () => {
     }
   };
 
+  const handleDelete = async (inquiry: PersonalInquiry) => {
+    const ok = window.confirm(
+      `"${inquiry.title}" 문의를 삭제할까요?\n삭제한 문의와 대화 내용은 복구할 수 없습니다.`
+    );
+    if (!ok) return;
+
+    setDeletingId(inquiry.id);
+    setError('');
+    setSuccess('');
+    try {
+      await deleteMyPersonalInquiry(inquiry.id);
+      setReplyDrafts((current) => {
+        const next = { ...current };
+        delete next[inquiry.id];
+        return next;
+      });
+      setSuccess('문의가 삭제되었습니다.');
+      await loadInquiries();
+    } catch (deleteError) {
+      console.error('개인 문의 삭제 실패:', deleteError);
+      setError('문의를 삭제하지 못했습니다. 다시 시도해주세요.');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   return (
     <div className={styles.page}>
       <Header />
@@ -193,6 +221,15 @@ const PersonalInquiryPage = () => {
                     <textarea value={replyDrafts[inquiry.id] ?? ''} maxLength={2000} onChange={(event) => setReplyDrafts((current) => ({ ...current, [inquiry.id]: event.target.value }))} placeholder="추가 질문이나 확인할 내용을 남겨주세요." />
                     <button type="button" disabled={replyingId === inquiry.id || !replyDrafts[inquiry.id]?.trim()} onClick={() => void handleReply(inquiry.id)}><Send size={15} />추가 질문</button>
                   </div>
+                  <button
+                    type="button"
+                    className={styles.deleteButton}
+                    disabled={deletingId === inquiry.id}
+                    onClick={() => void handleDelete(inquiry)}
+                  >
+                    <Trash2 size={15} />
+                    {deletingId === inquiry.id ? '삭제 중...' : '문의 삭제'}
+                  </button>
                 </article>
               ))}
             </div>

@@ -15,6 +15,14 @@ export const isReservationDeadlineClosed = (
   return normalized ? Date.parse(normalized) <= nowMs : false;
 };
 
+export const isReservationBeforeOpening = (
+  opensAt: unknown,
+  nowMs = Date.now()
+) => {
+  const normalized = normalizeReservationDeadline(opensAt);
+  return normalized ? Date.parse(normalized) > nowMs : false;
+};
+
 export const formatReservationDeadlineValue = (deadlineAt: unknown) => {
   const normalized = normalizeReservationDeadline(deadlineAt);
   if (!normalized) return '미설정';

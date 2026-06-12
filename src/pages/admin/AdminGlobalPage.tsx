@@ -198,7 +198,9 @@ const AdminGlobalPage = () => {
   const [unresolvedRequestCount, setUnresolvedRequestCount] = useState(0);
   const [reservationDeadline, setReservationDeadline] =
     useState<ReservationDeadlineSetting>({
+      opensAt: null,
       deadlineAt: null,
+      isBeforeOpening: false,
       isClosed: false,
     });
   const [nowMs, setNowMs] = useState(() => Date.now());

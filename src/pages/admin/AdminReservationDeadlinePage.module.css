@@ -227,6 +227,12 @@
   cursor: not-allowed;
 }
 
+.field small {
+  color: #667085;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .actionBackdrop {
   position: fixed;
   inset: 0;

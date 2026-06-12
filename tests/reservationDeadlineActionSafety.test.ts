@@ -22,7 +22,7 @@ test('reservation deadline modal blocks duplicates and keeps failures visible', 
   assert.match(page, /const deadlineActionInFlightRef = useRef\(false\)/);
   assert.match(
     page,
-    /deadlineActionInFlightRef\.current = true[\s\S]*updateReservationDeadline\(nextDeadline\)[\s\S]*deadlineActionInFlightRef\.current = false/
+    /deadlineActionInFlightRef\.current = true[\s\S]*updateReservationDeadline\([\s\S]*nextDeadline,[\s\S]*nextOpensAt[\s\S]*\)[\s\S]*deadlineActionInFlightRef\.current = false/
   );
   assert.match(page, /setDialogError\(/);
   assert.match(page, /className=\{styles\.actionDialogError\} role="alert"/);

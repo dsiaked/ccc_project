@@ -33,7 +33,9 @@ const TicketPage = () => {
   const [reservation, setReservation] = useState<ReturnBusReservation | null>(null);
   const [reservationDeadline, setReservationDeadline] =
     useState<ReservationDeadlineSetting>({
+      opensAt: null,
       deadlineAt: null,
+      isBeforeOpening: false,
       isClosed: false,
     });
   const [loading, setLoading] = useState(true);

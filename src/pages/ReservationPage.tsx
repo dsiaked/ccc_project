@@ -108,7 +108,9 @@ const ReservationPage = () => {
   } | null>(null);
   const [reservationDeadline, setReservationDeadline] =
     useState<ReservationDeadlineSetting>({
+      opensAt: null,
       deadlineAt: null,
+      isBeforeOpening: false,
       isClosed: false,
     });
   const [contactInfo, setContactInfo] = useState<ContactInfo>({
@@ -178,7 +180,10 @@ const [isStationLoading, setIsStationLoading] = useState(true);
   const savedReservation = dbReservation;
   const isEditMode = Boolean(savedReservation);
   const isConfirmed = savedReservation?.status === 'confirmed';
-  const isReservationLocked = isConfirmed || reservationDeadline.isClosed;
+  const isReservationLocked =
+    isConfirmed ||
+    reservationDeadline.isBeforeOpening ||
+    reservationDeadline.isClosed;
 
  const [hasSearchedPlace, setHasSearchedPlace] = useState(false); 
 interface PlaceCandidate {
@@ -1172,6 +1177,16 @@ const handleConfirmCandidateStations = () => {
       return;
     }
 
+    if (reservationDeadline.isBeforeOpening) {
+      setFormStatus({
+        type: 'error',
+        message: `신청 시작 전에는 신청 정보를 저장할 수 없습니다. 신청 시작 일시: ${formatReservationDeadline(
+          reservationDeadline.opensAt
+        )}`,
+      });
+      return;
+    }
+
     if (reservationDeadline.isClosed) {
       setFormStatus({
         type: 'error',
@@ -1426,6 +1441,15 @@ const handleConfirmCandidateStations = () => {
                     잔여 좌석 확인하기
                   </button>
                 )}
+              </div>
+            )}
+
+            {reservationDeadline.isBeforeOpening && !isConfirmed && (
+              <div className={styles.closedNoticeBox}>
+                <strong>아직 신청 기간이 시작되지 않았습니다.</strong>
+                <span>
+                  신청 시작 일시: {formatReservationDeadline(reservationDeadline.opensAt)}
+                </span>
               </div>
             )}
 
@@ -2069,7 +2093,8 @@ const handleConfirmCandidateStations = () => {
                     >
                       탑승권 확인하기
                     </button>
-                  ) : reservationDeadline.isClosed ? null : currentStep <
+                  ) : reservationDeadline.isClosed ||
+                    reservationDeadline.isBeforeOpening ? null : currentStep <
                     reservationSteps.length - 1 ? (
                     <button
                       type="button"

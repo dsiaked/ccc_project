@@ -27,6 +27,14 @@ const deleteInquiryMigrationSql = readFileSync(
   'supabase/migrations/20260612000006_201_global_admin_delete_inquiries.sql',
   'utf8'
 );
+const userDeleteInquirySetupSql = readFileSync(
+  'sql/setup/202_user_delete_personal_inquiries.sql',
+  'utf8'
+);
+const userDeleteInquiryMigrationSql = readFileSync(
+  'supabase/migrations/20260612000007_202_user_delete_personal_inquiries.sql',
+  'utf8'
+);
 const adminService = readFileSync('src/lib/adminService.ts', 'utf8');
 const service = readFileSync('src/lib/personalInquiryService.ts', 'utf8');
 const userPage = readFileSync('src/pages/PersonalInquiryPage.tsx', 'utf8');
@@ -67,6 +75,13 @@ test('global admin inquiry deletion setup matches its migration', () => {
   );
 });
 
+test('user personal inquiry deletion setup matches its migration', () => {
+  assert.equal(
+    userDeleteInquiryMigrationSql.replaceAll('\r\n', '\n'),
+    userDeleteInquirySetupSql.replaceAll('\r\n', '\n')
+  );
+});
+
 test('personal inquiries are private and use authenticated RPCs', () => {
   assert.match(setupSql, /alter table public\.personal_inquiries enable row level security/i);
   assert.match(setupSql, /revoke all on table public\.personal_inquiries from public, anon, authenticated/i);
@@ -86,6 +101,21 @@ test('personal users can open inquiries and view answers', () => {
   assert.match(userPage, /관리자 답변/);
   assert.match(publicRoutes, /path: '\/inquiries'/);
   assert.match(sidebar, /handleProtectedMenuClick\('\/inquiries'\)/);
+});
+
+test('personal users can permanently delete only their own inquiries', () => {
+  assert.match(
+    userDeleteInquirySetupSql,
+    /delete from public\.personal_inquiries[\s\S]*user_id = v_user_id/i
+  );
+  assert.match(
+    userDeleteInquirySetupSql,
+    /grant execute on function public\.delete_my_personal_inquiry\(uuid\)[\s\S]*to authenticated/i
+  );
+  assert.match(service, /deleteMyPersonalInquiry/);
+  assert.match(userPage, /deleteMyPersonalInquiry/);
+  assert.match(userPage, /window\.confirm/);
+  assert.match(userPage, /문의 삭제/);
 });
 
 test('global administrators can process personal inquiries', () => {

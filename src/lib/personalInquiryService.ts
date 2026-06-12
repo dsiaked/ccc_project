@@ -265,6 +265,14 @@ export async function addPersonalInquiryMessage(params: {
   return mapMessage(data as MessageRow);
 }
 
+export async function deleteMyPersonalInquiry(inquiryId: string) {
+  const { error } = await supabase.rpc('delete_my_personal_inquiry', {
+    p_inquiry_id: inquiryId,
+  });
+  if (error) throw error;
+  window.dispatchEvent(new CustomEvent(personalInquiryChangedEventName));
+}
+
 export async function getPersonalInquiriesPageAsGlobalAdmin(params: {
   page: number;
   pageSize: number;

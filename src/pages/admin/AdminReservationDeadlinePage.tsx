@@ -63,6 +63,8 @@ const parseDateTimeLocal = (value: string) => {
 const AdminReservationDeadlinePage = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
+  const [opensAt, setOpensAt] = useState<string | null>(null);
+  const [opensInput, setOpensInput] = useState('');
   const [deadlineAt, setDeadlineAt] = useState<string | null>(null);
   const [deadlineInput, setDeadlineInput] = useState('');
   const [confirmedAllocationExists, setConfirmedAllocationExists] =
@@ -91,6 +93,8 @@ const AdminReservationDeadlinePage = () => {
 
         if (!isMounted) return;
 
+        setOpensAt(setting.opensAt);
+        setOpensInput(formatDateTimeLocal(setting.opensAt));
         setDeadlineAt(setting.deadlineAt);
         setDeadlineInput(formatDateTimeLocal(setting.deadlineAt));
         setConfirmedAllocationExists(hasConfirmed);
@@ -118,12 +122,28 @@ const AdminReservationDeadlinePage = () => {
   }, []);
 
   const isClosed = Boolean(deadlineAt && new Date(deadlineAt).getTime() <= nowMs);
+  const isBeforeOpening = Boolean(
+    opensAt && new Date(opensAt).getTime() > nowMs
+  );
 
   const handleSaveDeadline = async () => {
+    const opensIso = parseDateTimeLocal(opensInput);
     const deadlineIso = parseDateTimeLocal(deadlineInput);
 
+    if (opensInput && !opensIso) {
+      alert('신청 시작 일시를 올바른 날짜와 시간으로 입력해주세요.');
+      return;
+    }
     if (deadlineInput && !deadlineIso) {
       alert('신청 마감 일시를 올바른 날짜와 시간으로 입력해주세요.');
+      return;
+    }
+    if (
+      opensIso &&
+      deadlineIso &&
+      new Date(opensIso).getTime() >= new Date(deadlineIso).getTime()
+    ) {
+      setMessage('신청 시작 일시는 신청 마감 일시보다 빨라야 합니다.');
       return;
     }
 
@@ -175,8 +195,15 @@ const AdminReservationDeadlinePage = () => {
     setMessage('');
 
     try {
-      const savedDeadline = await updateReservationDeadline(nextDeadline);
+      const nextOpensAt =
+        action.mode === 'immediate' ? null : parseDateTimeLocal(opensInput);
+      const savedDeadline = await updateReservationDeadline(
+        nextDeadline,
+        nextOpensAt
+      );
 
+      setOpensAt(savedDeadline.opensAt);
+      setOpensInput(formatDateTimeLocal(savedDeadline.opensAt));
       setDeadlineAt(savedDeadline.deadlineAt);
       setDeadlineInput(formatDateTimeLocal(savedDeadline.deadlineAt));
       setNowMs(Date.now());
@@ -245,17 +272,20 @@ const AdminReservationDeadlinePage = () => {
 
           <div
             className={`${styles.statusBadge} ${
-              isClosed ? styles.statusClosed : styles.statusOpen
+              isClosed || isBeforeOpening
+                ? styles.statusClosed
+                : styles.statusOpen
             }`}
           >
             <CalendarClock size={18} />
-            {isClosed ? '마감됨' : '신청 가능'}
+            {isClosed ? '마감됨' : isBeforeOpening ? '시작 전 잠금' : '신청 가능'}
           </div>
         </div>
 
         <section className={styles.guidePanel}>
           <h2>사용 방법</h2>
           <ol>
+            <li>신청 시작 일시를 설정하면 해당 시각 전까지 신청이 잠깁니다.</li>
             <li>마감할 날짜와 시간을 선택합니다.</li>
             <li>저장하면 그 시각 이후부터 사용자 신청 저장이 막힙니다.</li>
             <li>기한을 비우고 저장하면 다시 신청 가능한 상태가 됩니다.</li>
@@ -276,6 +306,18 @@ const AdminReservationDeadlinePage = () => {
           )}
           <div className={styles.formGrid}>
             <label className={styles.field}>
+              <span>신청 시작 일시</span>
+              <input
+                type="datetime-local"
+                value={opensInput}
+                onChange={(event) => setOpensInput(event.target.value)}
+              />
+              <small>
+                설정한 시각 전에는 사용자의 신규 신청, 수정, 삭제가 잠깁니다.
+              </small>
+            </label>
+
+            <label className={styles.field}>
               <span>신청 마감 일시</span>
               <input
                 type="datetime-local"
@@ -283,7 +325,18 @@ const AdminReservationDeadlinePage = () => {
                 onChange={(event) => setDeadlineInput(event.target.value)}
               />
             </label>
+          </div>
 
+          <div className={styles.formGrid}>
+            <div className={styles.currentStatus}>
+              <span>현재 적용된 신청 시작 일시</span>
+              <strong>{formatReservationDeadline(opensAt)}</strong>
+              <p>
+                {opensAt && new Date(opensAt).getTime() > nowMs
+                  ? '현재 신청 시작 전 잠금 상태입니다.'
+                  : '현재 사용자가 신청할 수 있는 시작 조건입니다.'}
+              </p>
+            </div>
             <div className={styles.currentStatus}>
               <span>현재 적용된 기한</span>
               <strong>{formatReservationDeadline(deadlineAt)}</strong>
@@ -306,6 +359,15 @@ const AdminReservationDeadlinePage = () => {
             >
               <Zap size={17} />
               {isClosed ? '이미 마감됨' : '즉시 마감'}
+            </button>
+
+            <button
+              type="button"
+              className={styles.secondaryButton}
+              onClick={() => setOpensInput('')}
+              disabled={saving}
+            >
+              시작 잠금 해제
             </button>
 
             <button
