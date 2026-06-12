@@ -119,6 +119,98 @@ test('administrator invitation page can issue and copy multiple codes', () => {
   assert.match(page, /handleCopyCode/);
 });
 
+test('all campus administrator invitation codes can be issued and copied with campus names', () => {
+  const migration = readFileSync(
+    'supabase/migrations/20260612000005_200_bulk_all_campus_admin_invitation_codes.sql',
+    'utf8'
+  );
+  const setup = readFileSync(
+    'sql/setup/200_bulk_all_campus_admin_invitation_codes.sql',
+    'utf8'
+  );
+  const service = readFileSync('src/lib/invitationCodeService.ts', 'utf8');
+  const page = readFileSync(
+    'src/pages/admin/AdminInvitationCodesPage.tsx',
+    'utf8'
+  );
+
+  assert.match(
+    migration,
+    /create or replace function public\.create_all_campus_admin_invitation_codes/i
+  );
+  assert.match(migration, /not exists[\s\S]*role\.role = 'campus_admin'/i);
+  assert.match(migration, /not exists[\s\S]*invitation\.role = 'campus_admin'/i);
+  assert.match(
+    migration,
+    /public\.create_admin_invitation_code\(\s*'campus_admin',\s*v_campus\.campus_id/i
+  );
+  assert.match(
+    migration,
+    /v_created \|\| jsonb_build_object\('campusId', v_campus\.campus_id\)/i
+  );
+  assert.equal(setup.replaceAll('\r\n', '\n'), migration.replaceAll('\r\n', '\n'));
+  assert.match(service, /createAllCampusAdminInvitationCodes/);
+  assert.match(page, /모든 캠퍼스 일괄 발급/);
+  assert.match(page, /캠퍼스명과 코드 전체 복사/);
+  assert.match(page, /return `\$\{campusName\}\\t\$\{invitation\.code\}`/);
+});
+
+test('all campus administrator invitation issuance skips concurrent conflicts and supports an empty result', () => {
+  const migration = readFileSync(
+    'supabase/migrations/20260612000005_200_bulk_all_campus_admin_invitation_codes.sql',
+    'utf8'
+  );
+
+  assert.match(migration, /v_invitations jsonb := '\[\]'::jsonb/i);
+  assert.match(
+    migration,
+    /pg_advisory_xact_lock[\s\S]*if exists[\s\S]*\) then\s+continue;/i
+  );
+  assert.match(migration, /return v_invitations;/i);
+});
+
+test('all campus administrator invitation issuance rejects insufficient permission and explains a missing RPC', () => {
+  const migration = readFileSync(
+    'supabase/migrations/20260612000005_200_bulk_all_campus_admin_invitation_codes.sql',
+    'utf8'
+  );
+  const service = readFileSync('src/lib/invitationCodeService.ts', 'utf8');
+
+  assert.match(migration, /if not public\.is_global_admin\(\)/i);
+  assert.match(
+    migration,
+    /revoke all on function public\.create_all_campus_admin_invitation_codes\(\)\s+from public, anon/i
+  );
+  assert.match(service, /error\.code === 'PGRST202'/);
+  assert.match(service, /모든 캠퍼스 권한 등록 코드 일괄 발급 기능/);
+});
+
+test('administrator invitation issuance rejects same-tick duplicate submissions', () => {
+  const page = readFileSync(
+    'src/pages/admin/AdminInvitationCodesPage.tsx',
+    'utf8'
+  );
+
+  assert.match(page, /if \(submitting \|\| createInFlightRef\.current\) return/);
+  assert.match(
+    page,
+    /createInFlightRef\.current = true[\s\S]*createAllCampusAdminInvitationCodes\(\)[\s\S]*createInFlightRef\.current = false/
+  );
+});
+
+test('created invitation code rows can shrink without overflowing narrow mobile screens', () => {
+  const styles = readFileSync(
+    'src/pages/admin/AdminInvitationCodesPage.module.css',
+    'utf8'
+  );
+
+  assert.match(
+    styles,
+    /\.createdCode\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s+auto/
+  );
+  assert.match(styles, /\.createdCode\s*>\s*div\s*\{[^}]*min-width:\s*0/);
+});
+
 test('plaintext invitation code storage patch matches its setup SQL', () => {
   const migration = readFileSync(
     'supabase/migrations/20260610230009_148_store_invitation_code_plaintext.sql',

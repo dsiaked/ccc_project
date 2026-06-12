@@ -37,6 +37,7 @@ export interface CreatedInvitationCode {
   id: string;
   code: string;
   expiresAt: string;
+  campusId?: string | null;
 }
 
 export interface InvitationCleanupResult {
@@ -115,6 +116,23 @@ export async function createAdminInvitationCodes(
     if (error.code === 'PGRST202') {
       throw new Error(
         '여러 권한 등록 코드 발급 기능의 데이터베이스 업데이트가 아직 적용되지 않았습니다.'
+      );
+    }
+    throw error;
+  }
+
+  return data as unknown as CreatedInvitationCode[];
+}
+
+export async function createAllCampusAdminInvitationCodes() {
+  const { data, error } = await supabase.rpc(
+    'create_all_campus_admin_invitation_codes'
+  );
+
+  if (error) {
+    if (error.code === 'PGRST202') {
+      throw new Error(
+        '모든 캠퍼스 권한 등록 코드 일괄 발급 기능의 데이터베이스 업데이트가 아직 적용되지 않았습니다.'
       );
     }
     throw error;

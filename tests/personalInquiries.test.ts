@@ -130,3 +130,8 @@ test('unified inquiry read receipts do not block the inbox from rendering', () =
     /await Promise\.allSettled\([\s\S]*?markPersonalInquiryRead[\s\S]*?markCampusRequestRead/
   );
 });
+
+test('unified inquiry inbox tolerates missing or invalid legacy dates', () => {
+  assert.match(unifiedAdminPage, /if \(!value\) return '-'/);
+  assert.match(unifiedAdminPage, /Number\.isFinite\(date\.getTime\(\)\)/);
+});

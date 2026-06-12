@@ -73,11 +73,19 @@ const campusCategoryLabels = {
   etc: '기타',
 } as const;
 
-const formatDateTime = (value: string) =>
-  new Intl.DateTimeFormat('ko-KR', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(new Date(value));
+const dateTimeFormatter = new Intl.DateTimeFormat('ko-KR', {
+  dateStyle: 'medium',
+  timeStyle: 'short',
+});
+
+const formatDateTime = (value: string | null | undefined) => {
+  if (!value) return '-';
+
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return '-';
+
+  return dateTimeFormatter.format(date);
+};
 
 const toPersonalStatus = (status: StatusFilter): PersonalInquiryStatus =>
   status === 'resolved' ? 'resolved' : 'in_progress';

@@ -16,6 +16,7 @@ import { getCampusScopesForAdmin, type AdminCampusScope } from '../../lib/adminS
 import {
   cancelAdminInvitationCode,
   cleanupAdminInvitationCodes,
+  createAllCampusAdminInvitationCodes,
   createAdminInvitationCodes,
   getAdminInvitationCodes,
   type AdminInvitationCode,
@@ -37,6 +38,8 @@ const roleLabels: Record<InvitationRole, string> = {
   campus_admin: '캠퍼스 회계 순장님',
   boarding_manager: '탑승 관리 간사님',
 };
+
+const ALL_CAMPUSES_VALUE = 'all';
 
 const formatDateTime = (value: string) =>
   new Intl.DateTimeFormat('ko-KR', {
@@ -71,6 +74,7 @@ const AdminInvitationCodesPage = () => {
   const [actionId, setActionId] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const createInFlightRef = useRef(false);
   const invitationActionInFlightRef = useRef(false);
   const [pendingAction, setPendingAction] = useState<
     | { mode: 'cancel'; invitation: AdminInvitationCode }
@@ -118,29 +122,39 @@ const AdminInvitationCodesPage = () => {
   }, []);
 
   const handleCreate = async () => {
+    if (submitting || createInFlightRef.current) return;
+
     if (role === 'campus_admin' && !campusId) {
       setError('캠퍼스 회계 순장님 권한 등록 코드를 발급할 캠퍼스를 선택해주세요.');
       return;
     }
 
+    createInFlightRef.current = true;
     setSubmitting(true);
     setError('');
     setMessage('');
 
     try {
-      const created = await createAdminInvitationCodes(
-        role,
-        role === 'campus_admin' ? campusId : null,
-        role === 'boarding_manager' ? issueCount : 1
-      );
+      const isAllCampuses =
+        role === 'campus_admin' && campusId === ALL_CAMPUSES_VALUE;
+      const created = isAllCampuses
+        ? await createAllCampusAdminInvitationCodes()
+        : await createAdminInvitationCodes(
+            role,
+            role === 'campus_admin' ? campusId : null,
+            role === 'boarding_manager' ? issueCount : 1
+          );
       setCreatedInvitations(created);
-      setMessage(
-        `권한 등록 코드 ${created.length.toLocaleString()}개를 발급했습니다. 발급 내역에서도 원문을 확인하고 복사할 수 있습니다.`
-      );
+      setMessage(created.length === 0
+        ? '모든 캠퍼스에 이미 회계 순장님 또는 사용 가능한 권한 등록 코드가 있습니다.'
+        : isAllCampuses
+          ? `기존 회계 순장님과 활성 코드가 있는 캠퍼스를 제외하고 권한 등록 코드 ${created.length.toLocaleString()}개를 발급했습니다.`
+          : `권한 등록 코드 ${created.length.toLocaleString()}개를 발급했습니다. 발급 내역에서도 원문을 확인하고 복사할 수 있습니다.`);
       await loadData();
     } catch (createError) {
       setError(getErrorMessage(createError, '권한 등록 코드를 발급하지 못했습니다.'));
     } finally {
+      createInFlightRef.current = false;
       setSubmitting(false);
     }
   };
@@ -150,7 +164,14 @@ const AdminInvitationCodesPage = () => {
 
     try {
       await navigator.clipboard.writeText(
-        createdInvitations.map((invitation) => invitation.code).join('\n')
+        createdInvitations
+          .map((invitation) => {
+            if (!invitation.campusId) return invitation.code;
+            const campusName =
+              campusNames.get(invitation.campusId) ?? invitation.campusId;
+            return `${campusName}\t${invitation.code}`;
+          })
+          .join('\n')
       );
       setMessage(`권한 등록 코드 ${createdInvitations.length.toLocaleString()}개를 복사했습니다.`);
     } catch {
@@ -318,7 +339,14 @@ const AdminInvitationCodesPage = () => {
             <div className={styles.createdCodes}>
               {createdInvitations.map((invitation) => (
                 <div key={invitation.id} className={styles.createdCode}>
-                  <code>{invitation.code}</code>
+                  <div>
+                    {invitation.campusId && (
+                      <span>
+                        {campusNames.get(invitation.campusId) ?? '캠퍼스 정보 없음'}
+                      </span>
+                    )}
+                    <code>{invitation.code}</code>
+                  </div>
                   <button
                     type="button"
                     onClick={() => void handleCopyCode(invitation.code)}
@@ -332,7 +360,9 @@ const AdminInvitationCodesPage = () => {
             </div>
             <button type="button" onClick={() => void handleCopy()}>
               <Clipboard size={16} />
-              전체 복사
+              {createdInvitations.some((invitation) => invitation.campusId)
+                ? '캠퍼스명과 코드 전체 복사'
+                : '전체 복사'}
             </button>
           </section>
         )}
@@ -362,6 +392,9 @@ const AdminInvitationCodesPage = () => {
               담당 캠퍼스
               <select value={campusId} onChange={(event) => setCampusId(event.target.value)}>
                 <option value="">캠퍼스를 선택하세요</option>
+                <option value={ALL_CAMPUSES_VALUE}>
+                  모든 캠퍼스 일괄 발급 (기존 권한·코드 제외)
+                </option>
                 {campuses.map((campus) => (
                   <option key={campus.campusId} value={campus.campusId}>
                     {campusNames.get(campus.campusId)}
@@ -376,7 +409,13 @@ const AdminInvitationCodesPage = () => {
               type="number"
               min={1}
               max={50}
-              value={role === 'boarding_manager' ? issueCount : 1}
+              value={
+                role === 'boarding_manager'
+                  ? issueCount
+                  : campusId === ALL_CAMPUSES_VALUE
+                    ? campuses.length
+                    : 1
+              }
               disabled={role !== 'boarding_manager'}
               onChange={(event) => {
                 const nextCount = Math.trunc(Number(event.target.value));
@@ -388,6 +427,8 @@ const AdminInvitationCodesPage = () => {
             <Plus size={17} />
             {submitting
               ? '발급하는 중...'
+              : role === 'campus_admin' && campusId === ALL_CAMPUSES_VALUE
+                ? '모든 캠퍼스 코드 일괄 발급'
               : role === 'boarding_manager' && issueCount > 1
                 ? `권한 등록 코드 ${issueCount.toLocaleString()}개 발급`
                 : '권한 등록 코드 발급'}

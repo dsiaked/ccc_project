@@ -20,6 +20,7 @@ const pageLoaders: Record<string, PageLoader> = {
   '/invitation-codes': () => import('../pages/InvitationCodePage'),
   '/profile': () => import('../pages/ProfilePage'),
   '/inquiries': () => import('../pages/PersonalInquiryPage'),
+  '/architecture': () => import('../pages/ArchitecturePage'),
 };
 
 const lazyPage = (path: string) => lazy(pageLoaders[path]);
@@ -42,6 +43,7 @@ const ResetPasswordPage = lazyPage('/reset-password');
 const InvitationCodePage = lazyPage('/invitation-codes');
 const ProfilePage = lazyPage('/profile');
 const PersonalInquiryPage = lazyPage('/inquiries');
+const ArchitecturePage = lazyPage('/architecture');
 
 export const publicRoutes = [
   { path: '/', element: <HomePage /> },
@@ -60,5 +62,6 @@ export const publicRoutes = [
   { path: '/invitation-codes', element: <InvitationCodePage /> },
   { path: '/profile', element: <ProfilePage /> },
   { path: '/inquiries', element: <PersonalInquiryPage /> },
+  { path: '/architecture', element: <ArchitecturePage /> },
   { path: '*', element: <Navigate to="/" replace /> },
 ];

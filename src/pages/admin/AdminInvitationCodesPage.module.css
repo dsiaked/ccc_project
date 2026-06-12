@@ -16,7 +16,10 @@
 .createdCard span { font-size: 12px; }
 .createdCard code { padding: 9px 11px; border-radius: 7px; background: #fff; color: #14532d; font-size: 15px; font-weight: 900; }
 .createdCodes { max-height: 240px; overflow: auto; }
-.createdCode { display: grid !important; grid-template-columns: minmax(220px, 1fr) auto; align-items: center; gap: 6px !important; }
+.createdCode { display: grid !important; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px !important; }
+.createdCode > div { min-width: 0; }
+.createdCode span { overflow: hidden; color: #166534; font-size: 11px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+.createdCode code { display: block; margin-top: 3px; }
 .createdCode button { min-height: 36px; }
 .createdCard button { background: #16a34a; color: #fff; }
 .issueCard, .listCard { margin-top: 14px; border: 1px solid #e2e8f0; border-radius: 13px; background: #fff; }

@@ -18,6 +18,7 @@ outputs/windows-installer/
 .codex-push-worktree/
 .codex-remote-attachments/
 .codex/
+.playwright-cli/
 __pycache__/
 .pytest_cache/
 *.py[cod]
