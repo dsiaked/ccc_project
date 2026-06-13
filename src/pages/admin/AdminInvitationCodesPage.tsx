@@ -189,6 +189,39 @@ const AdminInvitationCodesPage = () => {
     }
   };
 
+  const handleCopyActive = async () => {
+    const activeInvitations = invitations.filter(
+      (inv) => inv.status === 'active' && inv.code
+    );
+
+    if (activeInvitations.length === 0) {
+      setError('복사할 수 있는 활성 권한 등록 코드가 없습니다.');
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(
+        activeInvitations
+          .map((invitation) => {
+            const roleLabel = roleLabels[invitation.role];
+            if (invitation.role === 'campus_admin' && invitation.campusId) {
+              const campusName =
+                campusNames.get(invitation.campusId) ?? invitation.campusId;
+              return `${campusName}\t${invitation.code}`;
+            }
+            return `${roleLabel}\t${invitation.code}`;
+          })
+          .join('\n')
+      );
+      setError('');
+      setMessage(
+        `사용 가능한 권한 등록 코드 ${activeInvitations.length.toLocaleString()}개를 복사했습니다.`
+      );
+    } catch {
+      setError('클립보드에 복사하지 못했습니다.');
+    }
+  };
+
   const handleCancel = async (invitation: AdminInvitationCode) => {
     setActionDialogError('');
     setPendingAction({ mode: 'cancel', invitation });
@@ -445,6 +478,15 @@ const AdminInvitationCodesPage = () => {
               <strong>{invitations.length.toLocaleString()}개</strong>
               <button
                 type="button"
+                onClick={() => void handleCopyActive()}
+                disabled={!invitations.some((inv) => inv.status === 'active' && inv.code)}
+                title="사용 가능한 모든 권한 등록 코드를 복사합니다."
+              >
+                <Clipboard size={16} />
+                사용 가능 코드 복사
+              </button>
+              <button
+                type="button"
                 onClick={() => void handleCleanup()}
                 disabled={Boolean(actionId)}
               >
@@ -469,14 +511,47 @@ const AdminInvitationCodesPage = () => {
                     {invitation.campusId && (
                       <span>{campusNames.get(invitation.campusId) ?? '캠퍼스 정보 없음'}</span>
                     )}
+                    {invitation.status === 'used' && (
+                      <span className={styles.usedBy}>
+                        사용자:{' '}
+                        {invitation.usedByUser ? (
+                          <>
+                            <strong>{invitation.usedByUser.name || '이름 없음'}</strong>{' '}
+                            <span>({invitation.usedByUser.email || '이메일 없음'})</span>
+                            {invitation.usedByUser.phone && (
+                              <span className={styles.usedByMeta}>
+                                 • {invitation.usedByUser.phone}
+                              </span>
+                            )}
+                            <span className={styles.usedByMeta}>
+                               • {[
+                                 invitation.usedByUser.district,
+                                 invitation.usedByUser.team,
+                                 invitation.usedByUser.campus,
+                               ].filter(Boolean).join(' / ') || '소속 미등록'}
+                            </span>
+                          </>
+                        ) : invitation.usedBy ? (
+                          `ID: ${invitation.usedBy}`
+                        ) : (
+                          '정보 없음'
+                        )}
+                      </span>
+                    )}
                   </div>
                   <div className={styles.meta}>
                     <span className={styles[invitation.status]}>
                       {statusLabels[invitation.status]}
                     </span>
-                    <time dateTime={invitation.expiresAt}>
-                      만료 {formatDateTime(invitation.expiresAt)}
-                    </time>
+                    {invitation.status === 'used' && invitation.usedAt ? (
+                      <time dateTime={invitation.usedAt}>
+                        사용 {formatDateTime(invitation.usedAt)}
+                      </time>
+                    ) : (
+                      <time dateTime={invitation.expiresAt}>
+                        만료 {formatDateTime(invitation.expiresAt)}
+                      </time>
+                    )}
                   </div>
                   <div className={styles.rowActions}>
                     <button

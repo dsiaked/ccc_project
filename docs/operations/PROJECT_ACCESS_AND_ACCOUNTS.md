@@ -10,7 +10,7 @@
 | --- | --- | --- |
 | 프론트엔드 로컬 실행 | Supabase 프로젝트 조회 권한, 일반 테스트 사용자 | `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, 선택적으로 `VITE_KAKAO_JAVASCRIPT_KEY` |
 | 관리자 화면 사용 | Supabase Auth 사용자와 해당 `admin_roles` 역할 | `global_admin`, `campus_admin`, 또는 `boarding_manager` |
-| DB 최초 구축/변경 | Supabase Dashboard SQL Editor에서 스키마를 변경할 수 있는 프로젝트 관리자 | `sql/setup/combined_supabase_setup.sql` 실행 |
+| DB 최초 구축/변경 | Supabase CLI와 연결 프로젝트를 관리할 수 있는 프로젝트 관리자 | `supabase/migrations` 적용 |
 | Edge Function 배포 | 대상 Supabase 프로젝트에 Function 배포 및 Secret 설정 권한, Supabase CLI 로그인 | 함수별 Secret, `supabase functions deploy ...` |
 | 로컬 최적화 워커 | 운영 담당자 전용 PC, Supabase 관리자급 비밀키 접근 권한 | `VITE_SUPABASE_URL` 또는 `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` |
 | 시뮬레이션 | 운영과 분리된 Supabase 테스트 프로젝트 관리자 | 테스트 프로젝트의 `SUPABASE_SERVICE_ROLE_KEY` |

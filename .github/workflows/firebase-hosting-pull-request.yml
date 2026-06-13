@@ -28,6 +28,7 @@ jobs:
         run: |
           npm ci
           npm run lint
+          npm run db:migrations:verify
           npm run test:unit
           python -m pip install -r optimizer/requirements-dev.txt
           cd optimizer

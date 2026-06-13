@@ -121,6 +121,16 @@ const AdminReservationDeadlinePage = () => {
     };
   }, []);
 
+  useEffect(() => {
+    if (!opensAt && !deadlineAt) return;
+
+    const timerId = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 1000);
+
+    return () => window.clearInterval(timerId);
+  }, [opensAt, deadlineAt]);
+
   const isClosed = Boolean(deadlineAt && new Date(deadlineAt).getTime() <= nowMs);
   const isBeforeOpening = Boolean(
     opensAt && new Date(opensAt).getTime() > nowMs
@@ -195,8 +205,7 @@ const AdminReservationDeadlinePage = () => {
     setMessage('');
 
     try {
-      const nextOpensAt =
-        action.mode === 'immediate' ? null : parseDateTimeLocal(opensInput);
+      const nextOpensAt = parseDateTimeLocal(opensInput);
       const savedDeadline = await updateReservationDeadline(
         nextDeadline,
         nextOpensAt

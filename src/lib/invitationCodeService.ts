@@ -31,6 +31,14 @@ export interface AdminInvitationCode {
   usedBy: string | null;
   cancelledAt: string | null;
   status: InvitationStatus;
+  usedByUser?: {
+    name: string | null;
+    email: string | null;
+    phone: string | null;
+    district: string | null;
+    team: string | null;
+    campus: string | null;
+  } | null;
 }
 
 export interface CreatedInvitationCode {
@@ -177,7 +185,7 @@ export async function getAdminInvitationCodes(): Promise<AdminInvitationCode[]> 
 
   const now = Date.now();
 
-  return (data ?? []).map((item) => ({
+  const invitations: AdminInvitationCode[] = (data ?? []).map((item) => ({
     id: item.id,
     code: item.code,
     codeHint: item.code_hint,
@@ -196,4 +204,40 @@ export async function getAdminInvitationCodes(): Promise<AdminInvitationCode[]> 
           ? 'expired'
           : 'active',
   }));
+
+  const usedByIds = invitations
+    .map((item) => item.usedBy)
+    .filter((id): id is string => id !== null);
+
+  if (usedByIds.length > 0) {
+    try {
+      const { data: profiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, name, email, phone, district, team, campus')
+        .in('id', usedByIds);
+
+      if (!profilesError && profiles) {
+        const profileMap = new Map(profiles.map((p) => [p.id, p]));
+        for (const item of invitations) {
+          if (item.usedBy) {
+            const profile = profileMap.get(item.usedBy);
+            if (profile) {
+              item.usedByUser = {
+                name: profile.name ?? null,
+                email: profile.email ?? null,
+                phone: profile.phone ?? null,
+                district: profile.district ?? null,
+                team: profile.team ?? null,
+                campus: profile.campus ?? null,
+              };
+            }
+          }
+        }
+      }
+    } catch (profileLoadError) {
+      console.error('Failed to load profiles for invitation codes:', profileLoadError);
+    }
+  }
+
+  return invitations;
 }

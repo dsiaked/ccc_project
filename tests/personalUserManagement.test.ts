@@ -39,6 +39,22 @@ const notificationAuditMigrationSql = readFileSync(
   'supabase/migrations/20260610230023_159_personal_notification_audit_reasons.sql',
   'utf8'
 );
+const adminReservationSetupSql = readFileSync(
+  'sql/setup/205_admin_save_personal_reservation.sql',
+  'utf8'
+);
+const adminReservationMigrationSql = readFileSync(
+  'supabase/migrations/20260613000002_205_admin_save_personal_reservation.sql',
+  'utf8'
+);
+const externalReservationSetupSql = readFileSync(
+  'sql/setup/206_allow_external_organization_update.sql',
+  'utf8'
+);
+const externalReservationMigrationSql = readFileSync(
+  'supabase/migrations/20260613000003_206_allow_external_organization_update.sql',
+  'utf8'
+);
 
 test('personal user management setup SQL matches its migration', () => {
   assert.equal(migrationSql.replaceAll('\r\n', '\n'), setupSql.replaceAll('\r\n', '\n'));
@@ -111,4 +127,37 @@ test('personal notification audit logs preserve the administrator reason', () =>
   assert.match(notificationAuditSetupSql, /coalesce\(nullif\(btrim\(p_reason\), ''\), btrim\(p_title\)\)/);
   assert.match(adminPage, /sendPersonalNotification\(\{[\s\S]*reason,/);
   assert.match(adminPage, /bulkSendPersonalNotifications\(\{[\s\S]*reason,/);
+});
+
+test('admin reservation save SQL stays aligned across setup and migrations', () => {
+  assert.equal(
+    adminReservationMigrationSql.replaceAll('\r\n', '\n'),
+    adminReservationSetupSql.replaceAll('\r\n', '\n')
+  );
+  assert.equal(
+    externalReservationMigrationSql.replaceAll('\r\n', '\n'),
+    externalReservationSetupSql.replaceAll('\r\n', '\n')
+  );
+});
+
+test('admin reservation save supports explicit external affiliation', () => {
+  assert.match(
+    adminReservationSetupSql,
+    /case when p_data ->> 'affiliationType' = 'external' then 'external' else 'seoul' end/
+  );
+  assert.match(
+    adminReservationSetupSql,
+    /case when v_affiliation_type = 'external' then '' else trim\(p_team\) end/
+  );
+  assert.match(externalReservationSetupSql, /coordinatorName/);
+  assert.match(externalReservationSetupSql, /coordinatorPhone/);
+});
+
+test('personal user page exposes retryable station loading and copyable account fields', () => {
+  assert.match(adminPage, /Promise\.allSettled/);
+  assert.match(adminPage, /stationLoadError/);
+  assert.match(adminPage, /allocationLoadError/);
+  assert.match(adminPage, /navigator\.clipboard\.writeText/);
+  assert.match(adminPage, /readOnly/);
+  assert.match(adminPage, /handleCopyAccountField/);
 });

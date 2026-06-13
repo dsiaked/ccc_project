@@ -55,16 +55,25 @@ If either Supabase variable is missing, the app now shows an in-app setup screen
 - `outputs/`, `.tmp/`, `dist/`: generated artifacts; not source-controlled
 
 See `docs/README.md` for documentation ownership and maintenance guidance.
+Database migration operations are documented in
+`docs/operations/DATABASE_MIGRATIONS.md`.
 
 ## Supabase Setup
 
-For a fresh Supabase project, run `sql/setup/combined_supabase_setup.sql` once.
+`supabase/migrations` is the only deployable database schema source. Apply
+pending migrations with the Supabase CLI. Do not edit migrations that have
+already been applied to a shared environment.
 
-This combined script already includes the Seoul organization and station seed data, so do not rerun these older seed files unless you are patching an older database:
+`sql/setup` and `sql/setup/combined_supabase_setup.sql` are legacy compatibility
+files and must not be used for new deployments.
 
-- `sql/setup/80_seed_seoul_organization.sql`
-- `sql/setup/82_seed_stations_template.sql`
-- `sql/setup/83_add_dong_team_campuses.sql`
+Generate an inspection-only bundle of the migration chain with:
+
+```bash
+npm run db:migrations:bundle
+```
+
+See `supabase/baseline/README.md` before squashing migration history.
 
 ## Deployment Compatibility
 

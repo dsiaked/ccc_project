@@ -42,6 +42,7 @@ export interface PersonalTicketItem {
   rawData: Partial<ReturnBusReservation> | null;
   hasReservation: boolean;
   adminRoles: PersonalTicketAdminRole[];
+  isStaff: boolean;
 }
 
 export interface PersonalTicketSummary {
@@ -101,6 +102,7 @@ type PersonalTicketRpcItem = {
   raw_data: Partial<ReturnBusReservation> | null;
   has_reservation: boolean;
   admin_roles: PersonalTicketAdminRole[] | null;
+  is_staff: boolean | null;
 };
 
 type PersonalTicketRpcResponse = {
@@ -153,6 +155,7 @@ const mapItem = (row: PersonalTicketRpcItem): PersonalTicketItem => ({
   rawData: row.raw_data,
   hasReservation: row.has_reservation,
   adminRoles: row.admin_roles ?? [],
+  isStaff: row.is_staff ?? false,
 });
 
 const mapSummary = (

@@ -3,7 +3,7 @@
  *
  * 사전 준비:
  *   1. 운영 프로젝트와 분리된 Supabase 테스트 프로젝트를 사용합니다.
- *   2. 테스트 프로젝트에서 sql/setup/combined_supabase_setup.sql을 실행합니다.
+ *   2. 테스트 프로젝트에 supabase/migrations를 적용합니다.
  *   3. .env에 SUPABASE_SERVICE_ROLE_KEY를 추가합니다.
  *   4. PowerShell에서는 npm 대신 npm.cmd를 사용합니다.
  *

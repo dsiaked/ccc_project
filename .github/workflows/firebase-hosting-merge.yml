@@ -40,6 +40,7 @@ jobs:
           test -n "$VITE_CCC_SUMMER_CLIENT_ID"
           npm ci
           npm run lint
+          npm run db:migrations:verify
           npm run test:unit
           python -m pip install -r optimizer/requirements-dev.txt
           cd optimizer

@@ -95,14 +95,15 @@ Deno.serve(async (request) => {
   let metadata: Record<string, string | null>;
 
   if (organizationMode === 'external') {
-    if (
-      !district ||
-      !campusName ||
-      !coordinatorName ||
-      !/^010-\d{4}-\d{4}$/.test(coordinatorPhone)
-    ) {
+    if (!district || !campusName) {
       return json(
-        { error: '서울 외 지구의 지구명, 캠퍼스명, 담당 간사 정보가 필요합니다.' },
+        { error: '서울 외 지구의 지구명과 캠퍼스명이 필요합니다.' },
+        400,
+      );
+    }
+    if (coordinatorPhone && !/^010-\d{4}-\d{4}$/.test(coordinatorPhone)) {
+      return json(
+        { error: '담당 간사 연락처는 010-1234-5678 형식이어야 합니다.' },
         400,
       );
     }
@@ -118,8 +119,8 @@ Deno.serve(async (request) => {
       campus_id: null,
       campus: campusName,
       affiliation_type: 'external',
-      coordinator_name: coordinatorName,
-      coordinator_phone: coordinatorPhone,
+      coordinator_name: coordinatorName || null,
+      coordinator_phone: coordinatorPhone || null,
     };
   } else {
     if (!districtId || !teamId || !campusId) {

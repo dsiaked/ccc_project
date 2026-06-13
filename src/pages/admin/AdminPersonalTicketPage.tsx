@@ -38,6 +38,7 @@ import {
   deleteUserAccountForAdmin,
   getCampusesByTeam,
   getDistrictsForAdmin,
+  getLatestConfirmedBusAllocation,
   getTeamsByDistrict,
   registerCampusAdmin,
   updatePersonalTicketAsAdmin,
@@ -48,7 +49,6 @@ import {
   getPersonalTicketPage,
   type PersonalTicketAdminRole,
   type PersonalTicketItem,
-  type PersonalTicketSummary,
 } from '../../lib/admin/personalTicketService';
 import {
   bulkSendPersonalNotifications,
@@ -63,6 +63,8 @@ import {
   updatePersonalUserInfo,
   updatePersonalUserOrganization,
   updatePersonalUserPayment,
+  savePersonalReservationAsAdmin,
+  updatePersonalUserStaffStatus,
   type PersonalUserManagementDetail,
   type PersonalUserPaymentStatus,
 } from '../../lib/admin/personalUserManagementService';
@@ -71,6 +73,8 @@ import type {
   ReturnBusReservation,
   StationPreference,
 } from '../../types/reservation';
+import { getStationOptions } from '../../lib/stationService';
+import type { StationOption } from '../../types/station';
 
 import styles from './AdminPersonalTicketPage.module.css';
 
@@ -87,11 +91,33 @@ type AdminRoleFilter =
   | 'global_admin';
 type DetailTab =
   | 'overview'
-  | 'application'
+  | 'reservation'
+  | 'payment'
   | 'ticket'
   | 'permissions'
   | 'notifications'
   | 'history';
+
+interface AllocationBus {
+  id: string;
+  label: string;
+  capacity: number;
+  price?: number;
+  destination: string;
+  departureTime: string;
+  boardingPlace: string;
+}
+
+interface AllocationData {
+  buses?: AllocationBus[];
+  passengers?: Array<{ reservationId: string; busId: string | null }>;
+}
+
+interface AllocationRow {
+  id: string;
+  allocation_name: string;
+  allocation_data: AllocationData | null;
+}
 
 type ReservationItem = PersonalTicketItem;
 type AdminRoleRow = PersonalTicketAdminRole;
@@ -151,15 +177,7 @@ const adminRoleOptions: Array<{ value: AdminRoleFilter; label: string }> = [
   { value: 'boarding_manager', label: '탑승 관리자' },
   { value: 'global_admin', label: '전체 관리자' },
 ];
-const emptySummary: PersonalTicketSummary = {
-  total: 0,
-  applied: 0,
-  confirmed: 0,
-  pending: 0,
-  paid: 0,
-  cancelled: 0,
-  notApplied: 0,
-};
+
 const emptyManagementDetail: PersonalUserManagementDetail = {
   paymentId: null,
   paymentStatus: null,
@@ -230,7 +248,7 @@ const AdminPersonalTicketPage = () => {
   const [reservations, setReservations] = useState<ReservationItem[]>([]);
   const [totalReservations, setTotalReservations] = useState(0);
   const [filteredTotal, setFilteredTotal] = useState(0);
-  const [summary, setSummary] = useState<PersonalTicketSummary>(emptySummary);
+
   const [districtOptions, setDistrictOptions] = useState<Array<{ name: string }>>(
     []
   );
@@ -245,7 +263,20 @@ const AdminPersonalTicketPage = () => {
   const [notificationContent, setNotificationContent] = useState('');
   const [infoName, setInfoName] = useState('');
   const [infoPhone, setInfoPhone] = useState('');
+  const [infoIsStaff, setInfoIsStaff] = useState(false);
   const [activeDetailTab, setActiveDetailTab] = useState<DetailTab>('overview');
+  const [loadingReservationResources, setLoadingReservationResources] =
+    useState(true);
+  const [stations, setStations] = useState<StationOption[]>([]);
+  const [stationLoadError, setStationLoadError] = useState('');
+  const [allocationLoadError, setAllocationLoadError] = useState('');
+  const [confirmedAllocation, setConfirmedAllocation] = useState<AllocationRow | null>(null);
+  const allocationBuses = (confirmedAllocation?.allocation_data as any)?.buses as any[] | undefined;
+  const [firstStationId, setFirstStationId] = useState('');
+  const [secondStationId, setSecondStationId] = useState('');
+  const [copiedAccountField, setCopiedAccountField] = useState<
+    'email' | null
+  >(null);
   const [attentionOnly, setAttentionOnly] = useState(false);
   const [historyFilter, setHistoryFilter] = useState('all');
   const [selectedReservationIds, setSelectedReservationIds] = useState<string[]>([]);
@@ -289,11 +320,17 @@ const AdminPersonalTicketPage = () => {
   const [roleTeamName, setRoleTeamName] = useState('');
   const [roleCampusId, setRoleCampusId] = useState('');
   const [roleCampusName, setRoleCampusName] = useState('');
+  const [orgMode, setOrgMode] = useState<'registered' | 'external'>('registered');
+  const [externalDistrict, setExternalDistrict] = useState('');
+  const [externalCampus, setExternalCampus] = useState('');
+  const [coordinatorName, setCoordinatorName] = useState('');
+  const [coordinatorPhone, setCoordinatorPhone] = useState('');
   const deferredSearchKeyword = useDeferredValue(searchKeyword);
   const loadRequestId = useRef(0);
   const selectedReservationIdRef = useRef<string | null>(null);
   const roleDistrictsLoadedRef = useRef(false);
   const reasonResolver = useRef<((reason: string | null) => void) | null>(null);
+  const copiedAccountFieldTimeoutRef = useRef<number | null>(null);
 
   const loadReservations = useCallback(async () => {
     const requestId = ++loadRequestId.current;
@@ -327,7 +364,6 @@ const AdminPersonalTicketPage = () => {
       setReservations(result.items);
       setTotalReservations(result.total);
       setFilteredTotal(result.filteredTotal);
-      setSummary(result.summary);
       setDistrictOptions(result.districts);
       setCampusOptions(result.campuses);
       if (districts) {
@@ -371,6 +407,55 @@ const AdminPersonalTicketPage = () => {
     void loadReservations();
   }, [loadReservations]);
 
+  const loadReservationResources = useCallback(async () => {
+    setLoadingReservationResources(true);
+    setStationLoadError('');
+    setAllocationLoadError('');
+
+    const [stationResult, allocationResult] = await Promise.allSettled([
+      getStationOptions(),
+      getLatestConfirmedBusAllocation(),
+    ]);
+
+    if (stationResult.status === 'fulfilled') {
+      setStations(stationResult.value);
+    } else {
+      console.error('Failed to load station options:', stationResult.reason);
+      setStations([]);
+      setStationLoadError(
+        '행선지 목록을 불러오지 못했습니다. 네트워크 상태를 확인한 뒤 다시 시도해주세요.'
+      );
+    }
+
+    if (allocationResult.status === 'fulfilled') {
+      setConfirmedAllocation(allocationResult.value);
+    } else {
+      console.error(
+        'Failed to load latest confirmed allocation:',
+        allocationResult.reason
+      );
+      setConfirmedAllocation(null);
+      setAllocationLoadError(
+        '최신 확정 배차 정보를 불러오지 못해 호차 자동 입력은 잠시 사용할 수 없습니다.'
+      );
+    }
+
+    setLoadingReservationResources(false);
+  }, []);
+
+  useEffect(() => {
+    void loadReservationResources();
+  }, [loadReservationResources]);
+
+  useEffect(
+    () => () => {
+      if (copiedAccountFieldTimeoutRef.current !== null) {
+        window.clearTimeout(copiedAccountFieldTimeoutRef.current);
+      }
+    },
+    []
+  );
+
   const selectedReservation = useMemo(
     () =>
       reservations.find(
@@ -378,6 +463,180 @@ const AdminPersonalTicketPage = () => {
       ) ?? null,
     [reservations, selectedReservationId]
   );
+
+  const hasPendingInfoChanges = useMemo(() => {
+    if (!selectedReservation) return false;
+    const nameChanged = infoName.trim() !== selectedReservation.name;
+    const phoneChanged = infoPhone.trim() !== selectedReservation.phone;
+    const staffChanged = infoIsStaff !== !!selectedReservation.isStaff;
+    
+    if (orgMode === 'registered') {
+      const orgChanged =
+        roleCampusName !== (selectedReservation.campus || '') ||
+        selectedReservation.rawData?.affiliationType !== 'seoul';
+      return nameChanged || phoneChanged || orgChanged || staffChanged;
+    } else {
+      const dbDistrict = selectedReservation.district || '';
+      const dbCampus = selectedReservation.campus || '';
+      const dbCoordName = selectedReservation.rawData?.coordinatorName || '';
+      const dbCoordPhone = selectedReservation.rawData?.coordinatorPhone || '';
+      
+      const cleanedCoordPhone = coordinatorPhone.replace(/[^0-9]/g, '');
+      const cleanedDbCoordPhone = dbCoordPhone.replace(/[^0-9]/g, '');
+      
+      const orgChanged =
+        externalDistrict.trim() !== dbDistrict ||
+        externalCampus.trim() !== dbCampus ||
+        coordinatorName.trim() !== dbCoordName ||
+        cleanedCoordPhone !== cleanedDbCoordPhone ||
+        selectedReservation.rawData?.affiliationType !== 'external';
+      return nameChanged || phoneChanged || orgChanged || staffChanged;
+    }
+  }, [
+    selectedReservation,
+    infoName,
+    infoPhone,
+    infoIsStaff,
+    orgMode,
+    roleCampusName,
+    externalDistrict,
+    externalCampus,
+    coordinatorName,
+    coordinatorPhone,
+  ]);
+
+  const isReservationStationSelectionReady =
+    !loadingReservationResources && !stationLoadError && stations.length > 0;
+
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (selectedReservation) {
+      const firstPref = selectedReservation.stationPreferences.find(
+        (pref) => pref.rank === 1
+      );
+      const secondPref = selectedReservation.stationPreferences.find(
+        (pref) => pref.rank === 2
+      );
+      setFirstStationId(firstPref?.station?.id || '');
+      setSecondStationId(secondPref?.station?.id || '');
+    } else {
+      setFirstStationId('');
+      setSecondStationId('');
+    }
+  }, [selectedReservation]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  useEffect(() => {
+    const initializeOrgScope = async () => {
+      setInfoIsStaff(selectedReservation?.isStaff ?? false);
+      setInfoName(selectedReservation?.name ?? '');
+      setInfoPhone(selectedReservation?.phone ?? '');
+      if (!selectedReservation) {
+        setOrgMode('registered');
+        setExternalDistrict('');
+        setExternalCampus('');
+        setCoordinatorName('');
+        setCoordinatorPhone('');
+        setRoleDistrictId('');
+        setRoleDistrictName('');
+        setRoleTeamId('');
+        setRoleTeamName('');
+        setRoleCampusId('');
+        setRoleCampusName('');
+        setRoleTeams([]);
+        setRoleCampuses([]);
+        return;
+      }
+
+      const isExternal = selectedReservation.rawData?.affiliationType === 'external';
+      if (isExternal) {
+        setOrgMode('external');
+        setExternalDistrict(selectedReservation.district || '');
+        setExternalCampus(selectedReservation.campus || '');
+        setCoordinatorName(selectedReservation.rawData?.coordinatorName || '');
+        setCoordinatorPhone(selectedReservation.rawData?.coordinatorPhone || '');
+        setRoleDistrictId('');
+        setRoleDistrictName('');
+        setRoleTeamId('');
+        setRoleTeamName('');
+        setRoleCampusId('');
+        setRoleCampusName('');
+        setRoleTeams([]);
+        setRoleCampuses([]);
+        return;
+      }
+
+      setOrgMode('registered');
+      setExternalDistrict('');
+      setExternalCampus('');
+      setCoordinatorName('');
+      setCoordinatorPhone('');
+
+      if (roleDistricts.length === 0) {
+        setRoleDistrictId('');
+        setRoleDistrictName('');
+        setRoleTeamId('');
+        setRoleTeamName('');
+        setRoleCampusId('');
+        setRoleCampusName('');
+        setRoleTeams([]);
+        setRoleCampuses([]);
+        return;
+      }
+
+      const district = roleDistricts.find(
+        (item) => item.name === selectedReservation.district
+      );
+      if (!district) {
+        setRoleDistrictId('');
+        setRoleDistrictName('');
+        setRoleTeamId('');
+        setRoleTeamName('');
+        setRoleCampusId('');
+        setRoleCampusName('');
+        setRoleTeams([]);
+        setRoleCampuses([]);
+        return;
+      }
+
+      setRoleDistrictId(district.id);
+      setRoleDistrictName(district.name);
+
+      try {
+        const teams = await getTeamsByDistrict(district.id);
+        setRoleTeams(teams);
+        const team = teams.find((item) => item.name === selectedReservation.team);
+        if (!team) {
+          setRoleTeamId('');
+          setRoleTeamName('');
+          setRoleCampusId('');
+          setRoleCampusName('');
+          setRoleCampuses([]);
+          return;
+        }
+
+        setRoleTeamId(team.id);
+        setRoleTeamName(team.name);
+
+        const campuses = await getCampusesByTeam(team.id);
+        setRoleCampuses(campuses);
+        const campus = campuses.find(
+          (item) => item.name === selectedReservation.campus
+        );
+        if (campus) {
+          setRoleCampusId(campus.id);
+          setRoleCampusName(campus.name);
+        } else {
+          setRoleCampusId('');
+          setRoleCampusName('');
+        }
+      } catch (error) {
+        console.error('Failed to auto-populate user organization ids:', error);
+      }
+    };
+
+    void initializeOrgScope();
+  }, [selectedReservation, roleDistricts]);
 
   const selectedAdminRoles = useMemo(() => {
     if (!selectedReservation) return [];
@@ -505,6 +764,7 @@ const AdminPersonalTicketPage = () => {
     setNotificationContent('');
     setInfoName(reservation.name);
     setInfoPhone(reservation.phone);
+    setInfoIsStaff(reservation.isStaff);
     setRoleDistrictId('');
     setRoleDistrictName('');
     setRoleTeamId('');
@@ -862,48 +1122,117 @@ const AdminPersonalTicketPage = () => {
       return;
     }
 
-    const reason = await requestOperationReason('기본 정보 수정');
-    if (!reason) return;
+    const nameChanged = name !== selectedReservation.name;
+    const phoneChanged = phone !== selectedReservation.phone;
+    const staffChanged = infoIsStaff !== !!selectedReservation.isStaff;
 
-    setSavingOperation(true);
-    try {
-      await updatePersonalUserInfo({
-        targetUserId: selectedReservation.userId,
-        reservationId: selectedReservation.dbId,
-        name,
-        phone,
-        reason,
-      });
-      await Promise.all([loadReservations(), loadManagementDetail()]);
-      alert('사용자 기본 정보를 수정했습니다.');
-    } catch (error) {
-      console.error('Failed to update personal user info:', error);
-      alert(`기본 정보 수정 중 오류가 발생했습니다: ${getErrorMessage(error)}`);
-    } finally {
-      setSavingOperation(false);
+    let orgChanged = false;
+    let affiliationType: 'seoul' | 'external' = 'seoul';
+    let campusId: string | null = null;
+    let district: string | null = null;
+    let campus: string | null = null;
+    let coordinatorNameVal: string | null = null;
+    let coordinatorPhoneVal: string | null = null;
+
+    if (orgMode === 'registered') {
+      affiliationType = 'seoul';
+      orgChanged =
+        roleCampusName !== (selectedReservation.campus || '') ||
+        selectedReservation.rawData?.affiliationType !== 'seoul';
+
+      if (orgChanged) {
+        if (!roleDistrictId || !roleTeamId || !roleCampusId) {
+          alert('지구, 팀, 캠퍼스를 모두 정확히 선택해주세요.');
+          return;
+        }
+        campusId = roleCampusId;
+      }
+    } else {
+      affiliationType = 'external';
+      const dbDistrict = selectedReservation.district || '';
+      const dbCampus = selectedReservation.campus || '';
+      const dbCoordName = selectedReservation.rawData?.coordinatorName || '';
+      const dbCoordPhone = selectedReservation.rawData?.coordinatorPhone || '';
+      
+      const cleanedCoordPhone = coordinatorPhone.replace(/[^0-9]/g, '');
+      const cleanedDbCoordPhone = dbCoordPhone.replace(/[^0-9]/g, '');
+
+      orgChanged =
+        externalDistrict.trim() !== dbDistrict ||
+        externalCampus.trim() !== dbCampus ||
+        coordinatorName.trim() !== dbCoordName ||
+        cleanedCoordPhone !== cleanedDbCoordPhone ||
+        selectedReservation.rawData?.affiliationType !== 'external';
+
+      if (orgChanged) {
+        const districtTrim = externalDistrict.trim();
+        const campusTrim = externalCampus.trim();
+        if (!districtTrim || !campusTrim) {
+          alert('지구 명과 캠퍼스 명을 모두 입력해주세요.');
+          return;
+        }
+        if (districtTrim === '서울지구') {
+          alert('서울지구 소속은 직접 입력 대신 일반 등록 지구/팀/캠퍼스 옵션을 선택해 주세요.');
+          return;
+        }
+        if (cleanedCoordPhone && !/^\d{9,11}$/.test(cleanedCoordPhone)) {
+          alert('담당 간사 연락처 형식이 올바르지 않습니다.');
+          return;
+        }
+
+        district = districtTrim;
+        campus = campusTrim;
+        coordinatorNameVal = coordinatorName.trim() || null;
+        coordinatorPhoneVal = cleanedCoordPhone || null;
+      }
     }
-  };
 
-  const handleUpdateOrganization = async () => {
-    if (!selectedReservation || !roleCampusId) return;
-    const reason = await requestOperationReason(
-      '소속 변경',
-      `${roleCampusName} 캠퍼스로 프로필과 신청 정보의 소속을 함께 변경합니다.`
-    );
+    if (!nameChanged && !phoneChanged && !orgChanged && !staffChanged) return;
+
+    const changes = [];
+    if (nameChanged || phoneChanged) changes.push('기본 정보');
+    if (orgChanged) changes.push('소속 정보');
+    if (staffChanged) changes.push('스태프 권한');
+    const label = `${changes.join(' 및 ')} 수정`;
+    const reason = await requestOperationReason(label);
     if (!reason) return;
 
     setSavingOperation(true);
     try {
-      await updatePersonalUserOrganization({
-        targetUserId: selectedReservation.userId,
-        reservationId: selectedReservation.dbId,
-        campusId: roleCampusId,
-        reason,
-      });
+      if (nameChanged || phoneChanged) {
+        await updatePersonalUserInfo({
+          targetUserId: selectedReservation.userId,
+          reservationId: selectedReservation.dbId,
+          name,
+          phone,
+          reason,
+        });
+      }
+      if (orgChanged) {
+        await updatePersonalUserOrganization({
+          targetUserId: selectedReservation.userId,
+          reservationId: selectedReservation.dbId,
+          affiliationType,
+          campusId,
+          district,
+          campus,
+          coordinatorName: coordinatorNameVal,
+          coordinatorPhone: coordinatorPhoneVal,
+          reason,
+        });
+      }
+      if (staffChanged) {
+        await updatePersonalUserStaffStatus({
+          targetUserId: selectedReservation.userId,
+          isStaff: infoIsStaff,
+          reason,
+        });
+      }
       await Promise.all([loadReservations(), loadManagementDetail()]);
-      alert('사용자 소속을 변경했습니다.');
+      alert('사용자 정보 및 권한을 수정했습니다.');
     } catch (error) {
-      alert(`소속 변경 중 오류가 발생했습니다: ${getErrorMessage(error)}`);
+      console.error('Failed to update personal user info/org:', error);
+      alert(`정보 수정 중 오류가 발생했습니다: ${getErrorMessage(error)}`);
     } finally {
       setSavingOperation(false);
     }
@@ -1110,6 +1439,130 @@ const AdminPersonalTicketPage = () => {
     }
   };
 
+  const handleSavePersonalReservation = async () => {
+    if (!selectedReservation) return;
+
+    if (loadingReservationResources) {
+      alert('행선지 목록을 불러오는 중입니다. 잠시 후 다시 시도해주세요.');
+      return;
+    }
+
+    if (stationLoadError) {
+      alert('행선지 목록을 먼저 다시 불러와 주세요.');
+      return;
+    }
+
+    if (stations.length === 0) {
+      alert('현재 선택 가능한 행선지가 없어 신청 정보를 저장할 수 없습니다.');
+      return;
+    }
+
+    if (!selectedReservation.name || !selectedReservation.phone) {
+      alert('사용자의 이름과 전화번호 정보가 올바르지 않습니다. [요약·정보] 탭에서 이름과 전화번호를 먼저 등록해 주세요.');
+      return;
+    }
+
+    const isExternal = selectedReservation.rawData?.affiliationType === 'external';
+    if (isExternal) {
+      if (!selectedReservation.district || !selectedReservation.campus) {
+        alert('사용자의 소속(지구, 캠퍼스)이 설정되어 있지 않습니다. [요약·정보] 탭에서 소속 정보를 먼저 등록해 주세요.');
+        return;
+      }
+    } else {
+      if (!selectedReservation.district || !selectedReservation.team || !selectedReservation.campus) {
+        alert('사용자의 소속(지구, 팀, 캠퍼스)이 설정되어 있지 않습니다. [요약·정보] 탭에서 소속 정보를 먼저 등록해 주세요.');
+        return;
+      }
+    }
+
+    if (!firstStationId || !secondStationId) {
+      alert('1지망과 2지망 행선지를 모두 선택해주세요.');
+      return;
+    }
+
+    if (firstStationId === secondStationId) {
+      alert('1지망과 2지망 행선지는 서로 다르게 선택해야 합니다.');
+      return;
+    }
+
+    const actionLabel = selectedReservation.hasReservation
+      ? '신청 정보 수정'
+      : '신청 정보 등록';
+
+    const reason = await requestOperationReason(
+      actionLabel,
+      '사용자의 행선지 신청 정보가 관리자 권한으로 변경 또는 생성됩니다.'
+    );
+    if (!reason) return;
+
+    const firstStation = stations.find((s) => s.id === firstStationId);
+    const secondStation = stations.find((s) => s.id === secondStationId);
+    if (!firstStation || !secondStation) return;
+
+    const stationPreferences: StationPreference[] = [
+      { rank: 1, station: firstStation },
+      { rank: 2, station: secondStation },
+    ];
+
+    setSaving(true);
+    try {
+      await savePersonalReservationAsAdmin({
+        targetUserId: selectedReservation.userId,
+        name: selectedReservation.name,
+        phone: selectedReservation.phone,
+        district: selectedReservation.district,
+        team: isExternal ? '' : selectedReservation.team,
+        campus: selectedReservation.campus,
+        stationPreferences,
+        data: selectedReservation.rawData || {},
+        reason,
+      });
+
+      alert(
+        selectedReservation.hasReservation
+          ? '신청 정보를 수정했습니다.'
+          : '신청 정보를 등록했습니다.'
+      );
+      await loadReservations();
+      await loadManagementDetail();
+    } catch (error) {
+      console.error('신청 정보 저장 실패:', error);
+      alert(
+        `신청 정보 저장 중 오류가 발생했습니다: ${getErrorMessage(error)}`
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCopyAccountField = useCallback(
+    async (field: 'email', value: string) => {
+      const normalizedValue = value.trim();
+      if (!normalizedValue) return;
+
+      try {
+        if (!navigator.clipboard?.writeText) {
+          throw new Error('Clipboard API is unavailable.');
+        }
+
+        await navigator.clipboard.writeText(normalizedValue);
+        setCopiedAccountField(field);
+
+        if (copiedAccountFieldTimeoutRef.current !== null) {
+          window.clearTimeout(copiedAccountFieldTimeoutRef.current);
+        }
+
+        copiedAccountFieldTimeoutRef.current = window.setTimeout(() => {
+          setCopiedAccountField(null);
+        }, 2000);
+      } catch (error) {
+        console.error('Failed to copy account field:', error);
+        window.prompt('아래 내용을 복사해주세요.', normalizedValue);
+      }
+    },
+    []
+  );
+
   const handleDeleteSelectedUser = async () => {
     if (!selectedReservation) return;
 
@@ -1199,14 +1652,7 @@ const AdminPersonalTicketPage = () => {
           </div>
 
           <div className={styles.headerActions}>
-            <button
-              type="button"
-              className={styles.boardingManagerButton}
-              onClick={() => navigate('/admin/access/boarding-managers')}
-            >
-              <ShieldCheck size={16} />
-              탑승 관리 간사님 권한 관리
-            </button>
+
             <button
               type="button"
               className={styles.addUserButton}
@@ -1226,26 +1672,7 @@ const AdminPersonalTicketPage = () => {
           </div>
         </section>
 
-        <section className={styles.summaryGrid}>
-          <div className={styles.summaryCard}>
-            <div>
-              <span>확정인원</span>
-              <strong>{summary.confirmed.toLocaleString()}</strong>
-            </div>
-            <div>
-              <span>신청 인원</span>
-              <strong>{summary.applied.toLocaleString()}</strong>
-            </div>
-            <div>
-              <span>입금 완료 인원</span>
-              <strong>{summary.paid.toLocaleString()}</strong>
-            </div>
-            <div>
-              <span>전체 인원</span>
-              <strong>{summary.total.toLocaleString()}</strong>
-            </div>
-          </div>
-        </section>
+
 
         <section className={styles.toolbar}>
           <div className={styles.toolbarPrimary}>
@@ -1636,6 +2063,9 @@ const AdminPersonalTicketPage = () => {
                           />
                           <strong>{reservation.name}</strong>
                           <span>{reservation.phone || '-'}</span>
+                          {reservation.isStaff && (
+                            <span className={`${styles.adminBadge} ${styles.adminStaff}`}>스태프</span>
+                          )}
                           {isExternal && (
                             <span className={styles.adminBadge}>서울 외 지구 참가자</span>
                           )}
@@ -1776,7 +2206,14 @@ const AdminPersonalTicketPage = () => {
               <>
                 <div className={styles.editorHeader}>
                   <div>
-                    <h2>{selectedReservation.name}</h2>
+                    <h2>
+                      {selectedReservation.name}
+                      {selectedReservation.isStaff && (
+                        <span className={`${styles.adminBadge} ${styles.adminStaff}`} style={{ marginLeft: 8, fontSize: '11px', verticalAlign: 'middle' }}>
+                          스태프
+                        </span>
+                      )}
+                    </h2>
                     <p>
                       {selectedReservation.rawData?.affiliationType === 'external'
                         ? `${selectedReservation.district} / ${selectedReservation.campus}`
@@ -1801,7 +2238,8 @@ const AdminPersonalTicketPage = () => {
                 <nav className={styles.detailTabs} aria-label="사용자 상세 관리">
                   {([
                     ['overview', '요약·정보'],
-                    ['application', '신청·입금'],
+                    ['reservation', '신청'],
+                    ['payment', '입금'],
                     ['ticket', '버스표'],
                     ['permissions', '권한'],
                     ['notifications', '알림'],
@@ -1822,9 +2260,9 @@ const AdminPersonalTicketPage = () => {
                   <div className={styles.operationPanelHeader}>
                     <UserPlus size={18} />
                     <div>
-                      <strong>기본 정보 수정</strong>
+                      <strong>기본 정보 및 소속 수정</strong>
                       <span>
-                        이름과 전화번호 변경은 신청 정보에도 함께 반영됩니다.
+                        이름, 전화번호 및 소속(지구/팀/캠퍼스) 변경 사항을 한 번에 저장합니다.
                       </span>
                     </div>
                   </div>
@@ -1844,27 +2282,179 @@ const AdminPersonalTicketPage = () => {
                       />
                     </label>
                   </div>
-                  <div className={styles.scopeSummary}>
-                    소속: {selectedReservation.district || '-'} /{' '}
-                    {selectedReservation.team || '-'} /{' '}
-                    {selectedReservation.campus || '-'}
+                  <div style={{ marginTop: '12px' }}>
+                    <label className={`${styles.checkboxOption} ${infoIsStaff ? styles.checkboxOptionActive : ''}`}>
+                      <input
+                        type="checkbox"
+                        checked={infoIsStaff}
+                        onChange={(event) => setInfoIsStaff(event.target.checked)}
+                        disabled={savingOperation}
+                      />
+                      <span>CCC Summer 스태프 지정</span>
+                    </label>
+                  </div>
+
+                  <div className={styles.operationPanelHeader} style={{ marginTop: '16px', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
+                    <div>
+                      <strong>로그인 계정 정보</strong>
+                      <span>
+                        로그인 계정 ID만 조회할 수 있습니다. 비밀번호는 저장하거나 표시하지 않습니다.
+                      </span>
+                    </div>
+                  </div>
+                  <div className={styles.basicInfoGrid} style={{ marginBottom: '16px' }}>
+                    <div className={styles.accountField}>
+                      <label htmlFor="personal-user-account-email">
+                        <span>계정 ID (이메일)</span>
+                      </label>
+                      <div className={styles.accountFieldControl}>
+                        <input
+                          id="personal-user-account-email"
+                          value={selectedReservation.email || ''}
+                          readOnly
+                          className={styles.readOnlyInput}
+                        />
+                        <button
+                          type="button"
+                          className={styles.copyButton}
+                          onClick={() =>
+                            void handleCopyAccountField(
+                              'email',
+                              selectedReservation.email || ''
+                            )
+                          }
+                          disabled={!selectedReservation.email}
+                        >
+                          {copiedAccountField === 'email' ? '복사됨' : '복사'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  <div className={styles.orgScopeGrid}>
+                    <label>
+                      <span>지구</span>
+                      <select
+                        value={orgMode === 'external' ? 'external' : roleDistrictId}
+                        onChange={(event) => {
+                          const val = event.target.value;
+                          if (val === 'external') {
+                            setOrgMode('external');
+                            setRoleDistrictId('');
+                            setRoleDistrictName('');
+                            setRoleTeamId('');
+                            setRoleTeamName('');
+                            setRoleCampusId('');
+                            setRoleCampusName('');
+                            setRoleTeams([]);
+                            setRoleCampuses([]);
+                          } else {
+                            setOrgMode('registered');
+                            void handleRoleDistrictChange(val);
+                          }
+                        }}
+                        disabled={savingOperation}
+                      >
+                        <option value="">지구 선택</option>
+                        {roleDistricts.map((district) => (
+                          <option key={district.id} value={district.id}>
+                            {district.name}
+                          </option>
+                        ))}
+                        <option value="external">서울 외 지구 (직접 입력)</option>
+                      </select>
+                    </label>
+
+                    {orgMode === 'registered' ? (
+                      <>
+                        <label>
+                          <span>팀</span>
+                          <select
+                            value={roleTeamId}
+                            onChange={(event) =>
+                              void handleRoleTeamChange(event.target.value)
+                            }
+                            disabled={savingOperation || !roleDistrictId}
+                          >
+                            <option value="">팀 선택</option>
+                            {roleTeams.map((team) => (
+                              <option key={team.id} value={team.id}>
+                                {team.name}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label>
+                          <span>캠퍼스</span>
+                          <select
+                            value={roleCampusId}
+                            onChange={(event) =>
+                              handleRoleCampusChange(event.target.value)
+                            }
+                            disabled={savingOperation || !roleTeamId}
+                          >
+                            <option value="">캠퍼스 선택</option>
+                            {roleCampuses.map((campus) => (
+                              <option key={campus.id} value={campus.id}>
+                                {campus.name}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      </>
+                    ) : (
+                      <>
+                        <label>
+                          <span>지구 명 (직접 입력)</span>
+                          <input
+                            type="text"
+                            value={externalDistrict}
+                            onChange={(event) => setExternalDistrict(event.target.value)}
+                            placeholder="예: 경기지구, 인천지구"
+                            disabled={savingOperation}
+                          />
+                        </label>
+                        <label>
+                          <span>캠퍼스 명 (직접 입력)</span>
+                          <input
+                            type="text"
+                            value={externalCampus}
+                            onChange={(event) => setExternalCampus(event.target.value)}
+                            placeholder="예: 아주대, 인하대"
+                            disabled={savingOperation}
+                          />
+                        </label>
+                        <label>
+                          <span>담당 간사 이름 (선택)</span>
+                          <input
+                            type="text"
+                            value={coordinatorName}
+                            onChange={(event) => setCoordinatorName(event.target.value)}
+                            placeholder="예: 홍길동 간사"
+                            disabled={savingOperation}
+                          />
+                        </label>
+                        <label>
+                          <span>담당 간사 연락처 (선택)</span>
+                          <input
+                            type="text"
+                            value={coordinatorPhone}
+                            onChange={(event) => setCoordinatorPhone(event.target.value)}
+                            placeholder="예: 010-1234-5678"
+                            disabled={savingOperation}
+                          />
+                        </label>
+                      </>
+                    )}
                   </div>
                   <button
                     type="button"
                     className={styles.secondaryButton}
-                    disabled={
-                      savingOperation ||
-                      (infoName === selectedReservation.name &&
-                        infoPhone === selectedReservation.phone)
-                    }
+                    disabled={savingOperation || !hasPendingInfoChanges}
                     onClick={() => void handleSavePersonalUserInfo()}
                   >
                     <Save size={15} />
-                    기본 정보 저장
+                    저장하기
                   </button>
-                  <p className={styles.riskNotice}>
-                    소속 변경은 권한 탭에서 지구·팀·캠퍼스를 선택한 뒤 실행할 수 있습니다.
-                  </p>
                 </section>
 
                 <section className={styles.operationOverview} hidden={activeDetailTab !== 'overview'}>
@@ -1919,15 +2509,141 @@ const AdminPersonalTicketPage = () => {
                   </p>
                 </section>
 
-                {selectedReservation.hasReservation && (
-                  <section className={styles.operationPanel} hidden={activeDetailTab !== 'application'}>
-                    <div className={styles.operationPanelHeader}>
-                      <CreditCard size={18} />
-                      <div>
-                        <strong>입금·환불 처리</strong>
-                        <span>현재 상태를 변경하면 작업 사유가 기록됩니다.</span>
+                <section className={styles.operationPanel} hidden={activeDetailTab !== 'reservation'}>
+                  <div className={styles.operationPanelHeader}>
+                    <Ticket size={18} />
+                    <div>
+                      <strong>개인 신청 관리</strong>
+                      <span>신청 행선지 정보를 설정하거나 신청 상태를 관리합니다.</span>
+                    </div>
+                  </div>
+
+                  {loadingReservationResources && (
+                    <div className={styles.inlineNotice} role="status" aria-live="polite">
+                      <strong>행선지 목록을 불러오는 중입니다.</strong>
+                      <p>신청 정보를 수정하기 전에 최신 행선지와 배차 정보를 확인하고 있습니다.</p>
+                    </div>
+                  )}
+
+                  {stationLoadError && (
+                    <div className={styles.inlineNoticeError} role="alert">
+                      <strong>행선지 목록을 불러오지 못했습니다.</strong>
+                      <p>{stationLoadError}</p>
+                      <div className={styles.inlineNoticeActions}>
+                        <button
+                          type="button"
+                          className={styles.secondaryButton}
+                          onClick={() => void loadReservationResources()}
+                          disabled={loadingReservationResources}
+                        >
+                          <RefreshCw size={15} />
+                          다시 시도
+                        </button>
                       </div>
                     </div>
+                  )}
+
+                  {!loadingReservationResources &&
+                    !stationLoadError &&
+                    stations.length === 0 && (
+                      <div className={styles.inlineNotice} role="alert">
+                        <strong>선택 가능한 행선지가 없습니다.</strong>
+                        <p>현재 활성화된 역 옵션이 없어 신청 정보를 저장할 수 없습니다.</p>
+                        <div className={styles.inlineNoticeActions}>
+                          <button
+                            type="button"
+                            className={styles.secondaryButton}
+                            onClick={() => void loadReservationResources()}
+                            disabled={loadingReservationResources}
+                          >
+                            <RefreshCw size={15} />
+                            새로고침
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                  {allocationLoadError && !loadingReservationResources && (
+                    <p className={styles.riskNotice}>{allocationLoadError}</p>
+                  )}
+
+                  <div className={styles.formGrid}>
+                    <div className={styles.field}>
+                      <label>1지망 행선지</label>
+                      <select
+                        value={firstStationId}
+                        onChange={(e) => setFirstStationId(e.target.value)}
+                        disabled={saving || !isReservationStationSelectionReady}
+                      >
+                        <option value="">1지망 선택</option>
+                        {stations.map((station) => (
+                          <option key={station.id} value={station.id}>
+                            [{station.line}] {station.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className={styles.field}>
+                      <label>2지망 행선지</label>
+                      <select
+                        value={secondStationId}
+                        onChange={(e) => setSecondStationId(e.target.value)}
+                        disabled={saving || !isReservationStationSelectionReady}
+                      >
+                        <option value="">2지망 선택</option>
+                        {stations.map((station) => (
+                          <option key={station.id} value={station.id}>
+                            [{station.line}] {station.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className={styles.operationActions} style={{ marginTop: '8px' }}>
+                    <button
+                      type="button"
+                      className={styles.primaryButton}
+                      onClick={handleSavePersonalReservation}
+                      disabled={
+                        saving ||
+                        !isReservationStationSelectionReady ||
+                        !firstStationId ||
+                        !secondStationId
+                      }
+                    >
+                      <Save size={15} />
+                      {selectedReservation.hasReservation ? '신청 정보 수정' : '신청 정보 등록'}
+                    </button>
+
+                    {selectedReservation.hasReservation && (
+                      <button
+                        type="button"
+                        className={
+                          selectedReservation.status === 'cancelled'
+                            ? styles.secondaryButton
+                            : styles.dangerButton
+                        }
+                        onClick={handleToggleReservationCancelled}
+                        disabled={saving}
+                      >
+                        <Trash2 size={15} />
+                        {selectedReservation.status === 'cancelled' ? '취소 해제' : '신청 취소'}
+                      </button>
+                    )}
+                  </div>
+                </section>
+
+                <section className={styles.operationPanel} hidden={activeDetailTab !== 'payment'}>
+                  <div className={styles.operationPanelHeader}>
+                    <CreditCard size={18} />
+                    <div>
+                      <strong>입금·환불 처리</strong>
+                      <span>현재 상태를 변경하면 작업 사유가 기록됩니다.</span>
+                    </div>
+                  </div>
+                  {selectedReservation.hasReservation ? (
                     <div className={styles.operationActions}>
                       <button
                         type="button"
@@ -1972,8 +2688,16 @@ const AdminPersonalTicketPage = () => {
                         환불 완료
                       </button>
                     </div>
-                  </section>
-                )}
+                  ) : (
+                    <div className={styles.notAppliedNotice}>
+                      <strong>버스 신청 내역이 없습니다.</strong>
+                      <p>
+                        이 인원은 아직 버스 신청을 하지 않아 입금/환불 관련 정보가 존재하지 않습니다.
+                        신청 탭에서 신청 등록을 먼저 완료해주세요.
+                      </p>
+                    </div>
+                  )}
+                </section>
 
                 <section className={styles.rolePanel} hidden={activeDetailTab !== 'permissions'}>
                   <button
@@ -2111,14 +2835,6 @@ const AdminPersonalTicketPage = () => {
                           <ShieldCheck size={16} />
                           선택한 캠퍼스 회계 순장님 등록
                         </button>
-                        <button
-                          type="button"
-                          className={styles.secondaryButton}
-                          onClick={() => void handleUpdateOrganization()}
-                          disabled={savingOperation || !roleCampusId}
-                        >
-                          선택 캠퍼스로 소속 변경
-                        </button>
                       </div>
                     </>
                   )}
@@ -2173,13 +2889,38 @@ const AdminPersonalTicketPage = () => {
                 <div className={styles.formGrid}>
                   <div className={styles.field}>
                     <label>호차</label>
-                    <input
-                      value={draft.busNumber}
-                      onChange={(event) =>
-                        updateDraft('busNumber', event.target.value)
-                      }
-                      placeholder="예: 00역 - 1호차"
-                    />
+                    {allocationBuses && allocationBuses.length > 0 ? (
+                      <select
+                        value={draft.busNumber}
+                        onChange={(event) => {
+                          const val = event.target.value;
+                          updateDraft('busNumber', val);
+                          const selectedBus = allocationBuses.find(
+                            (b) => b.label === val
+                          );
+                          if (selectedBus) {
+                            updateDraft('departureTime', selectedBus.departureTime || '');
+                            updateDraft('boardingPlace', selectedBus.boardingPlace || '');
+                            updateDraft('dropoffStation', selectedBus.destination || '');
+                          }
+                        }}
+                      >
+                        <option value="">호차 선택</option>
+                        {allocationBuses.map((bus) => (
+                          <option key={bus.id} value={bus.label}>
+                            {bus.label}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        value={draft.busNumber}
+                        onChange={(event) =>
+                          updateDraft('busNumber', event.target.value)
+                        }
+                        placeholder="예: 00역 - 1호차"
+                      />
+                    )}
                   </div>
 
                   <div className={styles.field}>

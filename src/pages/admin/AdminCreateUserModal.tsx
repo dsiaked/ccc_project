@@ -80,15 +80,15 @@ const AdminCreateUserModal = ({
       setError('지구, 팀, 캠퍼스를 모두 선택해주세요.');
       return;
     }
-    if (
-      organizationMode === 'external' &&
-      (!externalDistrict.trim() ||
-        !externalCampus.trim() ||
-        !coordinatorName.trim() ||
-        !/^010-\d{4}-\d{4}$/.test(coordinatorPhone))
-    ) {
-      setError('서울 외 지구의 지구명, 캠퍼스명, 담당 간사 정보를 입력해주세요.');
-      return;
+    if (organizationMode === 'external') {
+      if (!externalDistrict.trim() || !externalCampus.trim()) {
+        setError('서울 외 지구의 지구명과 캠퍼스명을 입력해주세요.');
+        return;
+      }
+      if (coordinatorPhone.trim() && !/^010-\d{4}-\d{4}$/.test(coordinatorPhone.trim())) {
+        setError('담당 간사 연락처는 010-1234-5678 형식으로 입력해주세요.');
+        return;
+      }
     }
 
     setSaving(true);
@@ -291,17 +291,16 @@ const AdminCreateUserModal = ({
                     />
                   </label>
                   <label>
-                    <span>담당 간사 이름</span>
+                    <span>담당 간사 이름 (선택)</span>
                     <input
                       value={coordinatorName}
                       onChange={(event) =>
                         setCoordinatorName(event.target.value)
                       }
-                      required
                     />
                   </label>
                   <label>
-                    <span>담당 간사 연락처</span>
+                    <span>담당 간사 연락처 (선택)</span>
                     <input
                       value={coordinatorPhone}
                       onChange={(event) =>
@@ -312,7 +311,6 @@ const AdminCreateUserModal = ({
                       placeholder="010-1234-5678"
                       inputMode="numeric"
                       maxLength={13}
-                      required
                     />
                   </label>
                 </>

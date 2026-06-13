@@ -142,13 +142,13 @@ const HeroSection = () => {
                 icon: Ticket,
                 path: '/reservation',
               };
-  const StatusIcon = content.icon;
   const showApplicationGuide =
     !isLoading &&
     !loadError &&
     !reservation &&
     !canBookRemainingSeat &&
     !isNewApplicationBeforeOpening;
+  const StatusIcon = content.icon;
 
   return (
     <>

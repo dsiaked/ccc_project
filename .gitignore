@@ -41,3 +41,4 @@ __pycache__/
 
 # Supabase CLI local project link metadata
 supabase/.temp/
+supabase/baseline/current_migration_chain.sql

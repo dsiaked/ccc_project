@@ -970,6 +970,8 @@ const handleConfirmCandidateStations = () => {
 
       if (!phone.trim()) {
         errors.phone = '연락처를 입력해주세요.';
+      } else if (!/^010-\d{4}-\d{4}$/.test(phone.trim())) {
+        errors.phone = '연락처를 010-1234-5678 형식으로 입력해주세요.';
       }
       if (!selectedDistrict) {
         errors.district = '지구를 선택해주세요.';
@@ -1544,9 +1546,11 @@ const handleConfirmCandidateStations = () => {
                     placeholder="010-1234-5678"
                     value={phone}
                     onChange={(e) => {
-                      setPhone(e.target.value);
+                      setPhone(formatPhoneNumber(e.target.value));
                       clearValidationFeedback('phone');
                     }}
+                    inputMode="numeric"
+                    maxLength={13}
                     disabled={isReservationLocked}
                     aria-invalid={Boolean(formErrors.phone)}
                     aria-describedby={

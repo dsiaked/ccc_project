@@ -1,4 +1,5 @@
 import { supabase } from '../supabase';
+import type { StationPreference } from '../../types/reservation';
 
 export type PersonalUserPaymentStatus =
   | 'pending'
@@ -128,13 +129,23 @@ export const updatePersonalReservationStatus = async (params: {
 export const updatePersonalUserOrganization = async (params: {
   targetUserId: string;
   reservationId: string | null;
-  campusId: string;
+  affiliationType: 'seoul' | 'external';
+  campusId: string | null;
+  district: string | null;
+  campus: string | null;
+  coordinatorName: string | null;
+  coordinatorPhone: string | null;
   reason: string;
 }) => {
-  const { error } = await supabase.rpc('update_personal_user_organization', {
+  const { error } = await supabase.rpc('update_personal_user_organization_v2', {
     p_target_user_id: params.targetUserId,
     p_reservation_id: params.reservationId,
+    p_affiliation_type: params.affiliationType,
     p_campus_id: params.campusId,
+    p_district: params.district,
+    p_campus: params.campus,
+    p_coordinator_name: params.coordinatorName,
+    p_coordinator_phone: params.coordinatorPhone,
     p_reason: params.reason,
   });
   if (error) throw error;
@@ -259,3 +270,44 @@ export const updatePersonalUserInfo = async (params: {
 
   if (error) throw error;
 };
+
+export const savePersonalReservationAsAdmin = async (params: {
+  targetUserId: string;
+  name: string;
+  phone: string;
+  district: string;
+  team: string;
+  campus: string;
+  stationPreferences: StationPreference[];
+  data: unknown;
+  reason: string;
+}) => {
+  const { error } = await supabase.rpc('save_user_reservation_as_admin', {
+    p_target_user_id: params.targetUserId,
+    p_name: params.name,
+    p_phone: params.phone,
+    p_district: params.district,
+    p_team: params.team,
+    p_campus: params.campus,
+    p_station_preferences: params.stationPreferences,
+    p_data: params.data,
+    p_reason: params.reason,
+  });
+
+  if (error) throw error;
+};
+
+export const updatePersonalUserStaffStatus = async (params: {
+  targetUserId: string;
+  isStaff: boolean;
+  reason: string;
+}) => {
+  const { error } = await supabase.rpc('update_personal_user_staff_status', {
+    p_target_user_id: params.targetUserId,
+    p_is_staff: params.isStaff,
+    p_reason: params.reason,
+  });
+
+  if (error) throw error;
+};
+

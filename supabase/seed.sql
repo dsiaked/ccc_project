@@ -1,0 +1,2 @@
+-- Keep repeatable reference and local-development data here.
+-- Production schema changes belong in supabase/migrations.
