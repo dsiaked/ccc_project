@@ -1302,69 +1302,95 @@ const handleConfirmCandidateStations = () => {
     const errorMessage = formErrors[fieldName];
 
     return (
-      
       <div className={styles.stationSelectCard}>
         <div className={styles.stationSelectHeader}>
           <span>{rank}지망</span>
-          <strong>{selectedStation?.name || '행선지 미선택'}</strong>
         </div>
 
-        <div className={styles.searchBox}>
-          <Search size={18} color="#667085" />
-          <input
-            type="text"
-            data-validation-field={fieldName}
-            className={styles.searchInput}
-            placeholder={`예: ${rank === 1 ? '청량리역' : '건대입구역'}`}
-            value={value}
-            disabled={isReservationLocked}
-            aria-invalid={Boolean(errorMessage)}
-            aria-describedby={
-              errorMessage ? `station-${rank}-error` : undefined
-            }
-            onChange={(e) => {
-              onChange(e.target.value);
-              clearValidationFeedback(fieldName);
-              clearValidationFeedback('stationPreference');
-
-              if (rank === 1) setFirstStation(null);
-              if (rank === 2) setSecondStation(null);
-            }}
-          />
-        </div>
-
-        {errorMessage && (
-          <p id={`station-${rank}-error`} className={styles.fieldError}>
-            {errorMessage}
-          </p>
-        )}
-
-        {value && !selectedStation && !isReservationLocked && (
-          <div className={styles.searchResultBox}>
-            {results.length > 0 ? (
-              results.map((station) => (
+        {selectedStation ? (
+          <div className={styles.selectedStationCard}>
+            <div className={styles.selectedStationInfo}>
+              <div className={styles.selectedStationNameSection}>
+                <span className={styles.selectedStationName}>
+                  🚇 {selectedStation.name}
+                </span>
+                <span className={styles.selectedStationLine}>
+                  {selectedStation.line || '노선 정보 없음'}
+                </span>
+              </div>
+              
+              {!isReservationLocked && (
                 <button
-                  key={station.id}
                   type="button"
-                  className={styles.searchResultItem}
-                  onClick={() => handleStationSelect(rank, station)}
+                  className={styles.stationChangeButton}
+                  onClick={() => {
+                    onChange('');
+                    if (rank === 1) setFirstStation(null);
+                    if (rank === 2) setSecondStation(null);
+                  }}
                 >
-                  <span>{station.name}</span>
-<small>{station.line || '노선 정보 없음'}</small>                
-</button>
-              ))
-            ) : (
-              <p className={styles.emptyResult}>검색 결과가 없습니다.</p>
+                  변경
+                </button>
+              )}
+            </div>
+            {selectedStation.address && (
+              <p className={styles.selectedStationAddress}>
+                {selectedStation.address}
+              </p>
             )}
           </div>
-        )}
+        ) : (
+          <>
+            <div className={styles.searchBox}>
+              <Search size={18} color="#667085" />
+              <input
+                type="text"
+                data-validation-field={fieldName}
+                className={styles.searchInput}
+                placeholder={`예: ${rank === 1 ? '청량리역' : '건대입구역'}`}
+                value={value}
+                disabled={isReservationLocked}
+                aria-invalid={Boolean(errorMessage)}
+                aria-describedby={
+                  errorMessage ? `station-${rank}-error` : undefined
+                }
+                onChange={(e) => {
+                  onChange(e.target.value);
+                  clearValidationFeedback(fieldName);
+                  clearValidationFeedback('stationPreference');
 
-        {selectedStation && (
-          <div className={styles.stationSelectedBox}>
-            <strong>{selectedStation.name}</strong>
-<p>{selectedStation.line || '노선 정보 없음'}</p>
-{selectedStation.address && <p>{selectedStation.address}</p>}          
-</div>
+                  if (rank === 1) setFirstStation(null);
+                  if (rank === 2) setSecondStation(null);
+                }}
+              />
+            </div>
+
+            {errorMessage && (
+              <p id={`station-${rank}-error`} className={styles.fieldError}>
+                {errorMessage}
+              </p>
+            )}
+
+            {value && !isReservationLocked && (
+              <div className={styles.searchResultBox}>
+                {results.length > 0 ? (
+                  results.map((station) => (
+                    <button
+                      key={station.id}
+                      type="button"
+                      className={styles.searchResultItem}
+                      onClick={() => handleStationSelect(rank, station)}
+                    >
+                      <span>{station.name}</span>
+                      <small>{station.line || '노선 정보 없음'}</small>
+                    </button>
+                  ))
+                ) : (
+                  <p className={styles.emptyResult}>검색 결과가 없습니다.</p>
+                )}
+              </div>
+            )}
+          </>
         )}
       </div>
     );
@@ -2175,7 +2201,7 @@ const handleConfirmCandidateStations = () => {
       <p className={styles.deleteConfirmEyebrow}>버스 신청 영구 삭제</p>
       <h2 id="reservation-delete-title">신청 정보를 삭제할까요?</h2>
       <p id="reservation-delete-description">
-        삭제하면 신청자 정보와 희망 행선지, 연결된 결제 기록이 제거되고 향후
+        삭제하면 신청자 정보와 희망 행선지, 연결된 입금 기록이 제거되고 향후
         배차 대상에서 제외됩니다. 삭제한 신청은 복구할 수 없습니다.
       </p>
       <dl className={styles.deleteConfirmSummary}>
@@ -2200,13 +2226,13 @@ const handleConfirmCandidateStations = () => {
         </div>
         <div>
           <dt>처리 결과</dt>
-          <dd>신청 · 결제 기록 삭제, 배차 대상 제외</dd>
+          <dd>신청 · 입금 기록 삭제, 배차 대상 제외</dd>
         </div>
       </dl>
       <div className={styles.deleteRefundWarning}>
         <AlertTriangle size={18} aria-hidden="true" />
         <span>
-          결제 기록 삭제는 실제 환불 처리를 의미하지 않습니다. 이미 입금했다면
+          입금 기록 삭제는 실제 환불 처리를 의미하지 않습니다. 이미 입금했다면
           관리자에게 환불 여부를 확인해주세요.
         </span>
       </div>

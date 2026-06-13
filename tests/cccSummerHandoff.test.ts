@@ -19,12 +19,19 @@ const envExample = readFileSync('.env.example', 'utf8');
 test('CCC Summer handoff uses the registered Seoul return bus client', () => {
   assert.match(envExample, /VITE_CCC_SUMMER_CLIENT_ID=bus-seoul-return/);
   assert.match(envExample, /CCC_SUMMER_CLIENT_ID=bus-seoul-return/);
+  assert.match(
+    envExample,
+    /CCC_SUMMER_BASE_URLS=https:\/\/ccc-summer\.vercel\.app,https:\/\/sc2026\.kccc\.org/
+  );
   assert.doesNotMatch(envExample, /ccc-seoulbus/);
 });
 
 test('CCC Summer handoff exchanges codes only on the server', () => {
   assert.match(edgeFunction, /\/api\/handoff\/exchange/);
   assert.match(edgeFunction, /CCC_SUMMER_CLIENT_ID/);
+  assert.match(edgeFunction, /CCC_SUMMER_BASE_URLS/);
+  assert.match(edgeFunction, /CCC_SUMMER_BASE_URL/);
+  assert.match(edgeFunction, /for \(const cccSummerBase of cccSummerBases\)/);
   assert.match(edgeFunction, /CCC_SUMMER_REDIRECT_URIS/);
   assert.match(edgeFunction, /serviceClient\.auth\.admin\.createUser/);
   assert.match(edgeFunction, /loginClient\.auth\.signInWithPassword/);

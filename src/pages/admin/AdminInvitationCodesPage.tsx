@@ -68,7 +68,6 @@ const AdminInvitationCodesPage = () => {
   const [role, setRole] = useState<InvitationRole>('campus_admin');
   const [campusId, setCampusId] = useState('');
   const [createdInvitations, setCreatedInvitations] = useState<CreatedInvitationCode[]>([]);
-  const [issueCount, setIssueCount] = useState(1);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [actionId, setActionId] = useState('');
@@ -142,7 +141,7 @@ const AdminInvitationCodesPage = () => {
         : await createAdminInvitationCodes(
             role,
             role === 'campus_admin' ? campusId : null,
-            role === 'boarding_manager' ? issueCount : 1
+            1
           );
       setCreatedInvitations(created);
       setMessage(created.length === 0
@@ -412,7 +411,6 @@ const AdminInvitationCodesPage = () => {
               onChange={(event) => {
                 const nextRole = event.target.value as InvitationRole;
                 setRole(nextRole);
-                setIssueCount(1);
                 setCreatedInvitations([]);
               }}
             >
@@ -444,16 +442,12 @@ const AdminInvitationCodesPage = () => {
               max={50}
               value={
                 role === 'boarding_manager'
-                  ? issueCount
+                  ? 1
                   : campusId === ALL_CAMPUSES_VALUE
                     ? campuses.length
                     : 1
               }
-              disabled={role !== 'boarding_manager'}
-              onChange={(event) => {
-                const nextCount = Math.trunc(Number(event.target.value));
-                setIssueCount(Math.min(50, Math.max(1, nextCount || 1)));
-              }}
+              disabled={true}
             />
           </label>
           <button type="button" onClick={() => void handleCreate()} disabled={submitting}>
@@ -462,8 +456,6 @@ const AdminInvitationCodesPage = () => {
               ? '발급하는 중...'
               : role === 'campus_admin' && campusId === ALL_CAMPUSES_VALUE
                 ? '모든 캠퍼스 코드 일괄 발급'
-              : role === 'boarding_manager' && issueCount > 1
-                ? `권한 등록 코드 ${issueCount.toLocaleString()}개 발급`
                 : '권한 등록 코드 발급'}
           </button>
         </section>

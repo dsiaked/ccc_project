@@ -3,13 +3,12 @@ import {
   ChevronLeft,
   ChevronRight,
   MessageCircle,
-  Megaphone,
   RefreshCw,
   Save,
   Search,
   Trash2,
 } from 'lucide-react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 
 import { useAdminAuth } from '../../components/AdminAuthProvider';
 import {
@@ -209,7 +208,6 @@ const loadPersonalItems = async (
 };
 
 const AdminUnifiedInquiriesPage = () => {
-  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { adminRole } = useAdminAuth();
   const requestedSource = searchParams.get('source');
@@ -470,15 +468,6 @@ const AdminUnifiedInquiriesPage = () => {
             <h1>문의함</h1>
             <span>개인 사용자와 캠퍼스 관리자의 문의를 한곳에서 처리합니다.</span>
           </div>
-          <button
-            type="button"
-            onClick={() =>
-              navigate('/admin/communications/notices?tab=notices')
-            }
-          >
-            <Megaphone size={16} />
-            공지 관리
-          </button>
         </header>
 
         <section className={styles.summary}>
@@ -580,22 +569,33 @@ const AdminUnifiedInquiriesPage = () => {
                     </time>
                   </div>
                   <div className={styles.conversation}>
-                    {inquiry.messages.map((message) => (
-                      <div
-                        key={message.id}
-                        className={
-                          message.isAdmin
-                            ? styles.adminMessage
-                            : styles.requesterMessage
-                        }
-                      >
-                        <strong>{message.senderLabel}</strong>
-                        <p>{message.message}</p>
-                        <time dateTime={message.createdAt}>
-                          {formatDateTime(message.createdAt)}
-                        </time>
-                      </div>
-                    ))}
+                    {inquiry.messages.map((message) => {
+                      const isAdmin = message.isAdmin;
+                      return (
+                        <div
+                          key={message.id}
+                          className={
+                            isAdmin
+                              ? styles.adminMessageWrapper
+                              : styles.requesterMessageWrapper
+                          }
+                        >
+                          <div
+                            className={
+                              isAdmin ? styles.adminBubble : styles.requesterBubble
+                            }
+                          >
+                            <strong className={styles.bubbleSender}>
+                              {message.senderLabel}
+                            </strong>
+                            <p className={styles.bubbleText}>{message.message}</p>
+                            <time className={styles.messageTime} dateTime={message.createdAt}>
+                              {formatDateTime(message.createdAt)}
+                            </time>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
                 <div className={styles.responsePanel}>

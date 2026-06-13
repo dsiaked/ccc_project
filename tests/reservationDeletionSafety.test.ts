@@ -8,10 +8,10 @@ test('reservation deletion uses a scoped safety modal', () => {
   assert.match(page, /setIsDeleteConfirmModalOpen\(true\)/);
   assert.match(page, /role="dialog"/);
   assert.match(page, /버스 신청 영구 삭제/);
-  assert.match(page, /신청자 정보와 희망 행선지, 연결된 결제 기록이 제거되고 향후[\s\S]*배차 대상에서 제외됩니다/);
+  assert.match(page, /신청자 정보와 희망 행선지, 연결된 입금 기록이 제거되고 향후[\s\S]*배차 대상에서 제외됩니다/);
   assert.match(page, /삭제한 신청은 복구할 수 없습니다/);
-  assert.match(page, /결제 기록 삭제는 실제 환불 처리를 의미하지 않습니다/);
-  assert.match(page, /신청 · 결제 기록 삭제, 배차 대상 제외/);
+  assert.match(page, /입금 기록 삭제는 실제 환불 처리를 의미하지 않습니다/);
+  assert.match(page, /신청 · 입금 기록 삭제, 배차 대상 제외/);
   assert.match(page, /className=\{styles\.deleteConfirmCancel\}[\s\S]*autoFocus/);
   assert.doesNotMatch(page, /window\.confirm/);
 });

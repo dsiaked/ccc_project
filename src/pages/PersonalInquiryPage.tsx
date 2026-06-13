@@ -200,36 +200,77 @@ const PersonalInquiryPage = () => {
         </form>
 
         <section className={styles.history}>
-          <div className={styles.sectionHeader}><h2>내 문의 내역</h2><button type="button" onClick={() => void loadInquiries()}>새로고침</button></div>
-          {loading ? <div className={styles.empty}>문의 내역을 불러오는 중...</div> : inquiries.length === 0 ? <div className={styles.empty}>아직 등록한 문의가 없습니다.</div> : (
+          <div className={styles.sectionHeader}>
+            <h2>내 문의 내역</h2>
+            <button type="button" onClick={() => void loadInquiries()}>새로고침</button>
+          </div>
+          {loading ? (
+            <div className={styles.empty}>문의 내역을 불러오는 중...</div>
+          ) : inquiries.length === 0 ? (
+            <div className={styles.empty}>아직 등록한 문의가 없습니다.</div>
+          ) : (
             <div className={styles.list}>
               {inquiries.map((inquiry) => (
                 <article className={styles.inquiry} key={inquiry.id}>
-                  <div className={styles.badges}><span>{categoryLabels[inquiry.category]}</span><strong className={styles[`status_${inquiry.status}`]}>{statusLabels[inquiry.status]}</strong></div>
+                  <div className={styles.inquiryHeader}>
+                    <div className={styles.badges}>
+                      <span>{categoryLabels[inquiry.category]}</span>
+                      <strong className={styles[`status_${inquiry.status}`]}>{statusLabels[inquiry.status]}</strong>
+                    </div>
+                    <button
+                      type="button"
+                      className={styles.deleteButton}
+                      disabled={deletingId === inquiry.id}
+                      onClick={() => void handleDelete(inquiry)}
+                      title="문의 삭제"
+                      aria-label="문의 삭제"
+                    >
+                      <Trash2 size={16} />
+                      {deletingId === inquiry.id && <span className={styles.deletingText}>삭제 중</span>}
+                    </button>
+                  </div>
                   <h3>{inquiry.title}</h3>
-                  <time dateTime={inquiry.createdAt}>{formatDateTime(inquiry.createdAt)}</time>
+                  <time className={styles.inquiryTime} dateTime={inquiry.createdAt}>{formatDateTime(inquiry.createdAt)}</time>
+                  
                   <div className={styles.conversation}>
-                    {inquiry.messages.map((message) => (
-                      <div key={message.id} className={message.senderRole === 'global_admin' ? styles.adminMessage : styles.userMessage}>
-                        <strong>{message.senderRole === 'global_admin' ? '관리자 답변' : '내 문의'}</strong>
-                        <p>{message.message}</p>
-                        <time dateTime={message.createdAt}>{formatDateTime(message.createdAt)}</time>
-                      </div>
-                    ))}
+                    {inquiry.messages.map((message) => {
+                      const isAdmin = message.senderRole === 'global_admin';
+                      return (
+                        <div key={message.id} className={isAdmin ? styles.adminMessageWrapper : styles.userMessageWrapper}>
+                          <div className={isAdmin ? styles.adminBubble : styles.userBubble}>
+                            <strong className={styles.bubbleSender}>
+                              {isAdmin ? '관리자 답변' : '내 문의'}
+                            </strong>
+                            <p className={styles.bubbleText}>{message.message}</p>
+                            <time className={styles.messageTime} dateTime={message.createdAt}>
+                              {formatDateTime(message.createdAt)}
+                            </time>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
+                  
                   <div className={styles.replyBox}>
-                    <textarea value={replyDrafts[inquiry.id] ?? ''} maxLength={2000} onChange={(event) => setReplyDrafts((current) => ({ ...current, [inquiry.id]: event.target.value }))} placeholder="추가 질문이나 확인할 내용을 남겨주세요." />
-                    <button type="button" disabled={replyingId === inquiry.id || !replyDrafts[inquiry.id]?.trim()} onClick={() => void handleReply(inquiry.id)}><Send size={15} />추가 질문</button>
+                    <div className={styles.replyInputWrapper}>
+                      <textarea
+                        value={replyDrafts[inquiry.id] ?? ''}
+                        maxLength={2000}
+                        onChange={(event) => setReplyDrafts((current) => ({ ...current, [inquiry.id]: event.target.value }))}
+                        placeholder="추가 질문이나 확인할 내용을 남겨주세요."
+                      />
+                      <button
+                        type="button"
+                        className={styles.replySendButton}
+                        disabled={replyingId === inquiry.id || !replyDrafts[inquiry.id]?.trim()}
+                        onClick={() => void handleReply(inquiry.id)}
+                        title="추가 질문 등록"
+                        aria-label="추가 질문 등록"
+                      >
+                        <Send size={15} />
+                      </button>
+                    </div>
                   </div>
-                  <button
-                    type="button"
-                    className={styles.deleteButton}
-                    disabled={deletingId === inquiry.id}
-                    onClick={() => void handleDelete(inquiry)}
-                  >
-                    <Trash2 size={15} />
-                    {deletingId === inquiry.id ? '삭제 중...' : '문의 삭제'}
-                  </button>
                 </article>
               ))}
             </div>
@@ -242,3 +283,4 @@ const PersonalInquiryPage = () => {
 };
 
 export default PersonalInquiryPage;
+

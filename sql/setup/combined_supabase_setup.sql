@@ -25231,9 +25231,9 @@ begin
       select jsonb_agg(
         to_jsonb(paged) || jsonb_build_object(
           'messages', coalesce((
-            select jsonb_agg(to_jsonb(message) order by message.created_at, message.id)
-            from public.personal_inquiry_messages message
-            where message.inquiry_id = paged.id
+            select jsonb_agg(to_jsonb(msg) order by msg.created_at, msg.id)
+            from public.personal_inquiry_messages msg
+            where msg.inquiry_id = paged.id
           ), '[]'::jsonb)
         )
       ) from paged

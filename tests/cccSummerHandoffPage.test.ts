@@ -22,7 +22,8 @@ test('login and signup entry ask whether the visitor has a CCC account', () => {
   assert.match(authEntryPage, /window\.location\.assign\(cccSummerLoginUrl\)/);
   assert.match(loginUrl, /VITE_CCC_SUMMER_BASE_URL/);
   assert.match(loginUrl, /VITE_CCC_SUMMER_CLIENT_ID/);
-  assert.match(loginUrl, /\/api\/handoff\/go/);
+  assert.match(loginUrl, /\/handoff\/consent/);
+  assert.doesNotMatch(loginUrl, /\/api\/handoff\/go/);
   assert.doesNotMatch(loginUrl, /\/api\/handoff\/authorize/);
   assert.match(loginUrl, /client_id/);
   assert.match(loginUrl, /redirect_uri/);

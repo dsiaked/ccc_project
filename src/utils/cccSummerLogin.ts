@@ -9,7 +9,7 @@ export const getCccSummerLoginUrl = (
 
   if (!baseUrl || !clientId) return null;
 
-  const url = new URL(`${trimTrailingSlashes(baseUrl)}/api/handoff/go`);
+  const url = new URL(`${trimTrailingSlashes(baseUrl)}/handoff/consent`);
   url.searchParams.set('client_id', clientId);
   url.searchParams.set('redirect_uri', redirectUri);
   return url.toString();

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import Header from '../components/Header';
 import HomeDeadlineBanner from '../components/HomeDeadlineBanner';
@@ -7,9 +7,25 @@ import HomeNoticeSection from '../components/HomeNoticeSection';
 import ProcessSection from '../components/ProcessSection';
 import Footer from '../components/Footer';
 import styles from '../App.module.css';
+import { supabase } from '../lib/supabase';
 
 const HomePage = () => {
   const location = useLocation();
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setIsLoggedIn(Boolean(session));
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsLoggedIn(Boolean(session));
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
 
   useEffect(() => {
     if (!location.hash) return;
@@ -28,8 +44,17 @@ const HomePage = () => {
       <Header />
       <main className={styles.mainContent}>
         <HeroSection />
-        <ProcessSection />
-        <HomeNoticeSection />
+        {isLoggedIn ? (
+          <>
+            <HomeNoticeSection />
+            <ProcessSection />
+          </>
+        ) : (
+          <>
+            <ProcessSection />
+            <HomeNoticeSection />
+          </>
+        )}
       </main>
       <Footer />
     </div>

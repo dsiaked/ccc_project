@@ -36,7 +36,7 @@ const COLLAPSED_NOTICE_COUNT = 3;
 type NoticeItem =
   | { kind: 'announcement'; item: HomeAnnouncement }
   | { kind: 'campus'; item: CampusRequest }
-  | { kind: 'personal'; item: PersonalNotification };
+  | { kind: 'personal'; item: PersonalNotification & { groupedIds?: string[]; unreadCount?: number } };
 
 const HomeNoticeSection = () => {
   const navigate = useNavigate();
@@ -152,7 +152,7 @@ const HomeNoticeSection = () => {
       .channel('home-notices')
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'personal_notifications' },
+        { event: '*', schema: 'public', table: 'personal_notifications' },
         () =>
           void refreshPersonalNotifications().catch((error) =>
             console.error('Failed to refresh personal notifications:', error)
@@ -174,6 +174,42 @@ const HomeNoticeSection = () => {
     };
   }, [loadAttempt]);
 
+  const groupedPersonalNotifications = useMemo<(PersonalNotification & { groupedIds?: string[]; unreadCount?: number })[]>(() => {
+    const inquiryGroups: Record<string, PersonalNotification[]> = {};
+    const nonInquiryNotifications: PersonalNotification[] = [];
+
+    for (const notification of personalNotifications) {
+      if (notification.category === 'inquiry') {
+        const title = notification.content.split('\n\n')[0] || '';
+        if (!inquiryGroups[title]) {
+          inquiryGroups[title] = [];
+        }
+        inquiryGroups[title].push(notification);
+      } else {
+        nonInquiryNotifications.push(notification);
+      }
+    }
+
+    const processedNotifications: (PersonalNotification & { groupedIds?: string[]; unreadCount?: number })[] = [];
+
+    for (const group of Object.values(inquiryGroups)) {
+      group.sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+      const latest = group[0];
+      const unreadCount = group.filter((n) => !n.readAt).length;
+
+      processedNotifications.push({
+        ...latest,
+        groupedIds: group.map((n) => n.id),
+        unreadCount,
+      });
+    }
+
+    return [...processedNotifications, ...nonInquiryNotifications];
+  }, [personalNotifications]);
+
   const notices = useMemo<NoticeItem[]>(
     () =>
       [
@@ -183,7 +219,7 @@ const HomeNoticeSection = () => {
         ...campusNotices.map(
           (item): NoticeItem => ({ kind: 'campus', item })
         ),
-        ...personalNotifications.map(
+        ...groupedPersonalNotifications.map(
           (item): NoticeItem => ({ kind: 'personal', item })
         ),
       ].sort(
@@ -191,23 +227,24 @@ const HomeNoticeSection = () => {
           new Date(b.item.createdAt).getTime() -
           new Date(a.item.createdAt).getTime()
       ),
-    [announcements, campusNotices, personalNotifications]
+    [announcements, campusNotices, groupedPersonalNotifications]
   );
   const visibleNotices = isExpanded
     ? notices
     : notices.slice(0, COLLAPSED_NOTICE_COUNT);
   const hasMoreNotices = notices.length > COLLAPSED_NOTICE_COUNT;
 
-  const markPersonalNoticeRead = async (notification: PersonalNotification) => {
-    if (notification.readAt) return;
+  const markPersonalNoticeRead = async (notification: PersonalNotification & { groupedIds?: string[] }) => {
+    if (notification.readAt && (!notification.groupedIds || notification.groupedIds.length === 0)) return;
 
     setReadError(false);
     try {
-      await markPersonalNotificationRead(notification.id);
+      const idsToMark = notification.groupedIds || [notification.id];
+      await Promise.all(idsToMark.map(id => markPersonalNotificationRead(id)));
       const readAt = new Date().toISOString();
       setPersonalNotifications((current) =>
         current.map((item) =>
-          item.id === notification.id ? { ...item, readAt } : item
+          idsToMark.includes(item.id) ? { ...item, readAt } : item
         )
       );
       window.dispatchEvent(new CustomEvent('personal-notification-read'));
@@ -281,7 +318,7 @@ const HomeNoticeSection = () => {
                 isPersonal &&
                 (item as PersonalNotification).category === 'inquiry';
               const isUnread =
-                (isPersonal && !(item as PersonalNotification).readAt) ||
+                (isPersonal && ((item as any).unreadCount ?? 0) > 0) ||
                 (isCampus && unreadCampusNoticeIds.has(item.id));
               const isActionable = opensInquiry || (isCampus && isUnread);
               const tagLabel = isPersonal
@@ -294,7 +331,7 @@ const HomeNoticeSection = () => {
                 if (
                   opensInquiry
                 ) {
-                  void markPersonalNoticeRead(item as PersonalNotification);
+                  void markPersonalNoticeRead(item as any);
                   navigate('/inquiries');
                 } else if (isCampus) {
                   void markCampusNoticeRead(item as CampusRequest);
@@ -339,8 +376,29 @@ const HomeNoticeSection = () => {
                     </div>
                   </div>
                   <div className={styles.noticeContent}>
-                    <h3>{item.title}</h3>
-                    <p>{item.content}</p>
+                    <h3>
+                      {isPersonal && ((item as any).unreadCount ?? 0) > 1
+                        ? `${item.title} (${(item as any).unreadCount})`
+                        : item.title}
+                    </h3>
+                    {opensInquiry ? (() => {
+                      const parts = item.content.split('\n\n');
+                      if (parts.length >= 3) {
+                        const [category, reply, footerText] = parts;
+                        return (
+                          <div className={styles.inquiryNotificationContent}>
+                            <span className={styles.inquiryCategory}>문의 분야: {category}</span>
+                            <div className={styles.inquiryReplyBox}>
+                              <p className={styles.inquiryReplyText}>{reply}</p>
+                            </div>
+                            <span className={styles.inquiryFooter}>{footerText}</span>
+                          </div>
+                        );
+                      }
+                      return <p>{item.content}</p>;
+                    })() : (
+                      <p>{item.content}</p>
+                    )}
                   </div>
                   {opensInquiry && (
                     <ChevronRight

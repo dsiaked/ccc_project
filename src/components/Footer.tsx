@@ -34,7 +34,7 @@ const Footer = () => {
     <footer className={styles.footer}>
       <div className={styles.container}>
         <div className={styles.section}>
-          <h3 className={styles.title}>CCC 여름수련회 귀가 버스</h3>
+          <h3 className={styles.title}>서울행 버스 신청</h3>
           <p className={styles.text}>
             수련회를 마친 참가자들의
             <br />

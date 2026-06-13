@@ -22,6 +22,12 @@ const asInteger = (value: unknown) => {
   return Number.isSafeInteger(number) ? number : null;
 };
 
+const commaSeparatedValues = (value: string) =>
+  value
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+
 const normalizePhone = (value: unknown) => {
   const digits = asText(value).replace(/\D/g, '').slice(0, 11);
   if (digits.length !== 11) return '';
@@ -95,22 +101,23 @@ Deno.serve(async (request) => {
   const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-  const cccSummerBase = Deno.env.get('CCC_SUMMER_BASE_URL') ?? '';
+  const cccSummerBases = commaSeparatedValues(
+    Deno.env.get('CCC_SUMMER_BASE_URLS') ??
+      Deno.env.get('CCC_SUMMER_BASE_URL') ??
+      '',
+  );
   const clientId = Deno.env.get('CCC_SUMMER_CLIENT_ID') ?? '';
-  const redirectUris = (
+  const redirectUris = commaSeparatedValues(
     Deno.env.get('CCC_SUMMER_REDIRECT_URIS') ??
       Deno.env.get('CCC_SUMMER_REDIRECT_URI') ??
-      ''
-  )
-    .split(',')
-    .map((value) => value.trim())
-    .filter(Boolean);
+      '',
+  );
 
   if (
     !supabaseUrl ||
     !anonKey ||
     !serviceRoleKey ||
-    !cccSummerBase ||
+    cccSummerBases.length === 0 ||
     !clientId ||
     redirectUris.length === 0
   ) {
@@ -238,28 +245,43 @@ Deno.serve(async (request) => {
     return json({ error: 'missing_or_invalid_params' }, 400);
   }
 
-  const exchangeResponse = await fetch(
-    `${cccSummerBase.replace(/\/+$/, '')}/api/handoff/exchange`,
-    {
-      method: 'POST',
-      signal: AbortSignal.timeout(CCC_SUMMER_REQUEST_TIMEOUT_MS),
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        code,
-        client_id: clientId,
-        redirect_uri: redirectUri,
-      }),
-    },
-  );
-  const exchangeBody = await exchangeResponse.json().catch(() => ({})) as {
+  const exchangeRequestBody = JSON.stringify({
+    code,
+    client_id: clientId,
+    redirect_uri: redirectUri,
+  });
+  let exchangeResponse: Response | null = null;
+  let exchangeBody: {
     error?: string;
     subject_id?: string;
     payload?: Record<string, unknown>;
-  };
-  if (!exchangeResponse.ok || exchangeBody.error) {
+  } = {};
+
+  for (const cccSummerBase of cccSummerBases) {
+    try {
+      exchangeResponse = await fetch(
+        `${cccSummerBase.replace(/\/+$/, '')}/api/handoff/exchange`,
+        {
+          method: 'POST',
+          signal: AbortSignal.timeout(CCC_SUMMER_REQUEST_TIMEOUT_MS),
+          headers: { 'Content-Type': 'application/json' },
+          body: exchangeRequestBody,
+        },
+      );
+      exchangeBody = await exchangeResponse.json().catch(() => ({}));
+      if (exchangeResponse.ok && !exchangeBody.error) break;
+    } catch {
+      exchangeResponse = null;
+      exchangeBody = {};
+    }
+  }
+
+  if (!exchangeResponse?.ok || exchangeBody.error) {
     return json(
       { error: exchangeBody.error || 'ccc_summer_exchange_failed' },
-      exchangeResponse.status >= 400 ? exchangeResponse.status : 400,
+      exchangeResponse && exchangeResponse.status >= 400
+        ? exchangeResponse.status
+        : 400,
     );
   }
 

@@ -268,7 +268,7 @@ const ConfirmedTicketPage = ({
             <Bus size={40} color="#ffffff" />
           </div>
           <h1 className={styles.title}>확정 버스표</h1>
-          <p className={styles.subtitle}>2026 CCC 여름수련회 귀가 버스</p>
+          <p className={styles.subtitle}>2026 서울행 버스 신청</p>
         </div>
 
         {/* 메인 버스표 카드 */}

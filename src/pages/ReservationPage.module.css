@@ -546,8 +546,8 @@
 
 .stationSelectGrid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  grid-template-columns: 1fr;
+  gap: 16px;
 }
 
 .stationSelectCard {
@@ -889,6 +889,11 @@
     max-width: 680px;
     padding-inline: 20px;
   }
+
+  .stationSelectGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+  }
 }
 
 .loginRequiredContainer {
@@ -1022,8 +1027,7 @@
     grid-template-columns: 1fr;
   }
 
-  .preferenceSummaryGrid,
-  .stationSelectGrid {
+  .preferenceSummaryGrid {
     grid-template-columns: 1fr;
   }
 
@@ -1779,4 +1783,73 @@
   .deleteConfirmSummary dd {
     text-align: left;
   }
+}
+
+/* 선택 완료 시 보여줄 아름다운 카드 디자인 */
+.selectedStationCard {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  border: 1.5px solid #2563eb;
+  border-radius: 16px;
+  background: #f8fafc; /* 연한 블루-그레이 톤 */
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.05);
+}
+
+.selectedStationInfo {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.selectedStationNameSection {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.selectedStationName {
+  font-size: 16px;
+  font-weight: 800;
+  color: #1e293b;
+}
+
+.selectedStationLine {
+  font-size: 12px;
+  font-weight: 600;
+  color: #2563eb;
+  background: #eff6ff;
+  padding: 2px 6px;
+  border-radius: 6px;
+  display: inline-block;
+  width: fit-content;
+}
+
+.selectedStationAddress {
+  font-size: 13px;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.stationChangeButton {
+  flex-shrink: 0;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 6px 12px;
+  background: #ffffff;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.stationChangeButton:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+  color: #1e293b;
 }

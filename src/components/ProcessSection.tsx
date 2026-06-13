@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronDown, ClipboardCheck, CreditCard, MapPin, TicketCheck } from 'lucide-react';
+import { ChevronDown, ClipboardCheck, MapPin, TicketCheck } from 'lucide-react';
 import styles from './ProcessSection.module.css';
 
 const steps = [
@@ -7,11 +7,6 @@ const steps = [
     title: '버스 신청',
     description: '이름, 소속, 연락처와 희망 행선지 1·2지망을 입력합니다.',
     icon: ClipboardCheck,
-  },
-  {
-    title: '입금 확인',
-    description: '캠퍼스 회계 담당자가 신청자별 입금 상태를 확인합니다.',
-    icon: CreditCard,
   },
   {
     title: '배차 확정',

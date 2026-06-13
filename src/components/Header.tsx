@@ -250,7 +250,7 @@ const Header = () => {
           onClick={() => navigate(homePath)}
           aria-label="홈으로 이동"
         >
-          CCC 여름수련회 귀가 버스
+          서울행 버스 신청
         </button>
 
         <div className={styles.rightGroup}>

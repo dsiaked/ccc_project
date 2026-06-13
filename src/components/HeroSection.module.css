@@ -192,3 +192,120 @@
     width: 100%;
   }
 }
+
+/* Progress Timeline Section on Home Page */
+.progressSection {
+  margin-top: 18px;
+  padding: 20px;
+  border: 1px solid #e4e7ec;
+  border-radius: 22px;
+  background: #ffffff;
+  box-shadow: 0 10px 30px -10px rgba(16, 24, 40, 0.06);
+}
+
+.progressHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.progressHeader div {
+  display: grid;
+  gap: 3px;
+}
+
+.progressHeader span {
+  color: #667085;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.progressHeader h3 {
+  margin: 0;
+  color: #101828;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.progressHeader svg {
+  flex-shrink: 0;
+  color: #2563eb;
+}
+
+.progressList {
+  display: grid;
+  gap: 0;
+  margin: 18px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.progressItem {
+  position: relative;
+  display: grid;
+  grid-template-columns: 24px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  color: #667085;
+}
+
+.progressItem:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  top: 29px;
+  bottom: -13px;
+  left: 11px;
+  width: 2px;
+  background: #e4e7ec;
+}
+
+.progressMarker {
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 2px solid #d0d5dd;
+  border-radius: 50%;
+  background: #ffffff;
+}
+
+.progressItem strong {
+  color: inherit;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.progressItem small {
+  color: inherit;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.progressDone {
+  color: #027a48;
+}
+
+.progressDone .progressMarker {
+  border-color: #12b76a;
+  background: #ecfdf3;
+}
+
+.progressDone:not(:last-child)::after {
+  background: #6ce9a6;
+}
+
+.progressCurrent {
+  color: #175cd3;
+}
+
+.progressCurrent .progressMarker {
+  border: 6px solid #2563eb;
+}
+
+.progressUpcoming {
+  color: #98a2b3;
+}
+

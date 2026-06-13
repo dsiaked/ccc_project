@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { AlertCircle, ArrowRight, CheckCircle2, Clock3, Ticket } from 'lucide-react';
+// 버스 신청 → 배차 확정 → 탑승권 확인
+import { AlertCircle, ArrowRight, CheckCircle2, Clock, Clock3, Ticket } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import {
@@ -142,13 +143,76 @@ const HeroSection = () => {
                 icon: Ticket,
                 path: '/reservation',
               };
-  const showApplicationGuide =
-    !isLoading &&
-    !loadError &&
-    !reservation &&
-    !canBookRemainingSeat &&
-    !isNewApplicationBeforeOpening;
   const StatusIcon = content.icon;
+
+  const remainingSeatClaim = reservation?.remainingSeatClaim;
+  let progressTitle = '';
+  let progressSteps: {
+    label: string;
+    detail: string;
+    state: 'done' | 'current' | 'upcoming';
+  }[] = [];
+
+  if (!isLoading && !loadError) {
+    if (reservation) {
+      if (remainingSeatClaim) {
+        const isClaimConfirmed =
+          remainingSeatClaim.status === 'confirmed' || isConfirmed;
+        progressTitle = isClaimConfirmed
+          ? '탑승권이 발급되었습니다'
+          : '탑승권 발급을 기다리고 있어요';
+        progressSteps = [
+          { label: '잔여 좌석 신청', detail: '완료', state: 'done' },
+          { label: '좌석 임시 확보', detail: '완료', state: 'done' },
+          {
+            label: '탑승권 발급',
+            detail: isClaimConfirmed ? '완료' : '현재 대기 중',
+            state: isClaimConfirmed ? 'done' : 'current',
+          },
+        ];
+      } else {
+        progressTitle = isConfirmed
+          ? '귀가 버스가 확정되었어요'
+          : '배차 확정을 기다리고 있어요';
+        progressSteps = [
+          { label: '버스 신청', detail: '완료', state: 'done' },
+          {
+            label: '배차 확정',
+            detail: isConfirmed ? '완료' : '현재 대기 중',
+            state: isConfirmed ? 'done' : 'current',
+          },
+          {
+            label: '탑승권 발급',
+            detail: isConfirmed ? '완료' : '예정',
+            state: isConfirmed ? 'done' : 'upcoming',
+          },
+        ];
+      }
+    } else {
+      if (isBeforeOpening) {
+        progressTitle = '버스 신청 시작을 기다리고 있어요';
+        progressSteps = [
+          { label: '버스 신청', detail: '시작 전', state: 'upcoming' },
+          { label: '배차 확정', detail: '예정', state: 'upcoming' },
+          { label: '탑승권 발급', detail: '예정', state: 'upcoming' },
+        ];
+      } else if (canBookRemainingSeat) {
+        progressTitle = '잔여 좌석 신청이 가능합니다';
+        progressSteps = [
+          { label: '잔여 좌석 신청', detail: '신청 가능', state: 'current' },
+          { label: '좌석 임시 확보', detail: '예정', state: 'upcoming' },
+          { label: '탑승권 발급', detail: '예정', state: 'upcoming' },
+        ];
+      } else {
+        progressTitle = '귀가 버스 신청을 시작해 보세요';
+        progressSteps = [
+          { label: '버스 신청', detail: '신청 가능', state: 'current' },
+          { label: '배차 확정', detail: '예정', state: 'upcoming' },
+          { label: '탑승권 발급', detail: '예정', state: 'upcoming' },
+        ];
+      }
+    }
+  }
 
   return (
     <>
@@ -200,12 +264,36 @@ const HeroSection = () => {
             </div>
           </div>
 
-          {showApplicationGuide && (
-            <aside className={styles.applicationGuide} aria-label="버스 신청 진행 안내">
-              <strong>신청 진행 순서</strong>
-              <p>버스 신청 → 배차 확정 → 결제 안내 → 탑승권 확인</p>
-              <span>버스 요금과 결제 방법은 배차 확정 후 안내됩니다.</span>
-            </aside>
+          {isLoggedIn && !isLoading && !loadError && !isConfirmed && progressSteps.length > 0 && (
+            <section className={styles.progressSection} aria-labelledby="home-progress-title">
+              <div className={styles.progressHeader}>
+                <div>
+                  <span>신청 이후 진행 상황</span>
+                  <h3 id="home-progress-title">{progressTitle}</h3>
+                </div>
+                <Clock size={20} aria-hidden="true" />
+              </div>
+              <ol className={styles.progressList}>
+                {progressSteps.map((step) => (
+                  <li
+                    key={step.label}
+                    className={`${styles.progressItem} ${
+                      step.state === 'done'
+                        ? styles.progressDone
+                        : step.state === 'current'
+                          ? styles.progressCurrent
+                          : styles.progressUpcoming
+                    }`}
+                  >
+                    <span className={styles.progressMarker} aria-hidden="true">
+                      {step.state === 'done' ? <CheckCircle2 size={18} /> : null}
+                    </span>
+                    <strong>{step.label}</strong>
+                    <small>{step.detail}</small>
+                  </li>
+                ))}
+              </ol>
+            </section>
           )}
         </div>
       </section>

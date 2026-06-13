@@ -51,7 +51,7 @@ test('personal unpaid rows can be marked paid from the consolidated review', () 
     reviewPage,
     /const needsRemainingSeatConfirmation =[\s\S]*person\.remainingSeatStatus !== 'confirmed'[\s\S]*person\.reservationStatus === 'confirmed'[\s\S]*person\.confirmedTicket[\s\S]*if \(needsRemainingSeatConfirmation\(person\)\)[\s\S]*confirmRemainingSeatPayment/
   );
-  assert.match(reviewPage, /잔여 좌석 결제 확정/);
+  assert.match(reviewPage, /잔여 좌석 입금 확정/);
   assert.match(reviewPage, /실제 계좌 입금 내역을 확인한 뒤 처리해주세요/);
   assert.match(reviewPage, /const personConfirmationInFlightRef = useRef\(false\)/);
   assert.doesNotMatch(

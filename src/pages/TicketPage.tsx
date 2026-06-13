@@ -200,7 +200,7 @@ const TicketPage = () => {
             <div className={styles.ticketHeader}>
               <div>
                 <p className={styles.badge}>버스 신청</p>
-                <h2 className={styles.ticketTitle}>2026 CCC 여름수련회 귀가 버스</h2>
+                <h2 className={styles.ticketTitle}>2026 서울행 버스 신청</h2>
               </div>
 
               <Bus size={38} color="#2563eb" />

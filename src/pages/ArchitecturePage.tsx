@@ -41,13 +41,13 @@ const frontendFolders = [
 const backendItems = [
   ['Auth', '로그인 세션과 사용자 신원을 관리합니다.'],
   ['RLS', '사용자·캠퍼스·관리자 역할에 따라 조회 범위를 제한합니다.'],
-  ['RPC', '예약 저장, 결제 확정, 배차 확정처럼 중요한 변경을 트랜잭션으로 처리합니다.'],
+  ['RPC', '예약 저장, 입금 확정, 배차 확정처럼 중요한 변경을 트랜잭션으로 처리합니다.'],
   ['Edge Functions', '서비스 역할 키 또는 외부 API가 필요한 작업만 실행합니다.'],
 ] as const;
 
 const dataGroups = [
   ['사용자·조직', 'profiles, admin_roles, districts, teams, campuses'],
-  ['예약·결제', 'reservations, payments, campus_transfers'],
+  ['예약·입금', 'reservations, payments, campus_transfers'],
   ['배차·탑승', 'bus_options, bus_allocations, allocation_optimization_jobs, boarding_*'],
   ['소통·운영', 'campus_requests, personal_inquiries, home_announcements, audit logs'],
 ] as const;
@@ -195,7 +195,7 @@ const ArchitecturePage = () => (
               <span>Service Layer</span>
               <h3>업무 단위 Supabase 호출</h3>
               <p>
-                예약, 결제, 문의, 배차 서비스가 Supabase 테이블과 RPC 호출 세부사항을
+                예약, 입금, 문의, 배차 서비스가 Supabase 테이블과 RPC 호출 세부사항을
                 캡슐화합니다.
               </p>
             </article>

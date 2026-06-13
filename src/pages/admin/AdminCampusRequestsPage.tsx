@@ -189,6 +189,8 @@ const AdminCampusRequestsPage = () => {
     requestedTab === 'notices' || requestedTab === 'home'
       ? 'notices'
       : 'requests';
+  const requestedSubTab = searchParams.get('subTab');
+  const noticeSubTab = requestedSubTab === 'campus' ? 'campus' : 'user';
   const [isNoticeFormOpen, setIsNoticeFormOpen] = useState(false);
   const [campusTargets, setCampusTargets] = useState<CampusTransferStat[]>([]);
   const [noticeAudienceMode, setNoticeAudienceMode] =
@@ -265,6 +267,40 @@ const AdminCampusRequestsPage = () => {
     setSearchKeyword('');
     setPage(1);
   };
+
+  const handleNoticeSubTabChange = (subTab: 'user' | 'campus') => {
+    if (subTab === noticeSubTab || !confirmDiscardDrafts()) return;
+    setSearchParams({ tab: 'notices', subTab });
+    setSearchKeyword('');
+    setPage(1);
+  };
+
+  const renderNoticeSubTabNav = () => (
+    <div className={styles.subTabNav} role="tablist" aria-label="공지 유형 선택">
+      <button
+        type="button"
+        role="tab"
+        className={`${styles.subTabButton} ${
+          noticeSubTab === 'user' ? styles.subTabActive : ''
+        }`}
+        onClick={() => handleNoticeSubTabChange('user')}
+        aria-selected={noticeSubTab === 'user'}
+      >
+        전체 사용자 공지 (홈 화면 노출)
+      </button>
+      <button
+        type="button"
+        role="tab"
+        className={`${styles.subTabButton} ${
+          noticeSubTab === 'campus' ? styles.subTabActive : ''
+        }`}
+        onClick={() => handleNoticeSubTabChange('campus')}
+        aria-selected={noticeSubTab === 'campus'}
+      >
+        캠퍼스 운영 공지 (회계 순장 대상)
+      </button>
+    </div>
+  );
 
   const toggleRequestExpanded = (requestId: string) => {
     setExpandedRequestIds((prev) => {
@@ -1159,6 +1195,9 @@ const AdminCampusRequestsPage = () => {
         {isGlobalAdmin && (
           renderGlobalSectionNav()
         )}
+        {isGlobalAdmin && globalAdminTab === 'notices' && (
+          renderNoticeSubTabNav()
+        )}
         {renderPageFeedback()}
 
         {isGlobalAdmin && globalAdminTab === 'requests' && (
@@ -1180,11 +1219,11 @@ const AdminCampusRequestsPage = () => {
           </section>
         )}
 
-        {isGlobalAdmin && globalAdminTab === 'notices' && (
+        {isGlobalAdmin && globalAdminTab === 'notices' && noticeSubTab === 'user' && (
           <HomeAnnouncementManager />
         )}
 
-        {isGlobalAdmin && globalAdminTab === 'notices' && (
+        {isGlobalAdmin && globalAdminTab === 'notices' && noticeSubTab === 'campus' && (
           <section className={`${styles.writePanel} ${styles.noticeWritePanel}`}>
             <div className={styles.noticeComposerHeader}>
               <div className={styles.sectionHeader}>
@@ -1378,13 +1417,14 @@ const AdminCampusRequestsPage = () => {
         )}
 
         {isGlobalAdmin ? (
-          <section
-            className={`${styles.filterPanel} ${
-              globalAdminTab === 'notices' ? styles.noticeFilterPanel : ''
-            } ${
-              hasActiveFilters ? styles.filterPanelActive : ''
-            }`}
-          >
+          (globalAdminTab === 'notices' && noticeSubTab === 'user') ? null : (
+            <section
+              className={`${styles.filterPanel} ${
+                globalAdminTab === 'notices' ? styles.noticeFilterPanel : ''
+              } ${
+                hasActiveFilters ? styles.filterPanelActive : ''
+              }`}
+            >
             <div className={styles.filterTitle}>
               <span>
                 <SlidersHorizontal size={17} />
@@ -1503,6 +1543,7 @@ const AdminCampusRequestsPage = () => {
               )}
             </div>
           </section>
+          )
         ) : (
           <div className={styles.listActions}>
             <button
@@ -1525,7 +1566,7 @@ const AdminCampusRequestsPage = () => {
           </div>
         )}
 
-        {isGlobalAdmin && (
+        {isGlobalAdmin && (globalAdminTab !== 'notices' || noticeSubTab === 'campus') && (
           <div className={styles.requestListHeader}>
             <div>
               <h2>{globalAdminTab === 'requests' ? '문의 목록' : '공지 목록'}</h2>
@@ -1536,7 +1577,9 @@ const AdminCampusRequestsPage = () => {
           </div>
         )}
 
-        <section className={styles.requestList}>
+        {(globalAdminTab !== 'notices' || noticeSubTab === 'campus') && (
+          <>
+            <section className={styles.requestList}>
           {visibleRequests.length === 0 ? (
             <div className={styles.emptyBox}>
               <Search size={24} />
@@ -1984,6 +2027,8 @@ const AdminCampusRequestsPage = () => {
               </button>
             </div>
           </nav>
+        )}
+          </>
         )}
       </main>
     </div>

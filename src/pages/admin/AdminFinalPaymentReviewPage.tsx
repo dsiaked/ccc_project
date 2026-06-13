@@ -1247,7 +1247,7 @@ const AdminFinalPaymentReviewPage = () => {
             </h2>
             <p id="person-confirm-description">
               {needsRemainingSeatConfirmation(pendingPersonConfirmation)
-                ? '잔여 좌석 결제를 확정하고 해당 신청의 결제·좌석 상태를 함께 완료 처리합니다.'
+                ? '잔여 좌석 입금을 확정하고 해당 신청의 입금·좌석 상태를 함께 완료 처리합니다.'
                 : '개인 입금 상태를 입금 완료로 변경합니다. 실제 계좌 입금 내역을 확인한 뒤 처리해주세요.'}
             </p>
             <dl className={styles.confirmSummary}>
@@ -1270,7 +1270,7 @@ const AdminFinalPaymentReviewPage = () => {
                 <dt>처리 유형</dt>
                 <dd>
                   {needsRemainingSeatConfirmation(pendingPersonConfirmation)
-                    ? '잔여 좌석 결제 확정'
+                    ? '잔여 좌석 입금 확정'
                     : '개인 입금 완료'}
                 </dd>
               </div>
