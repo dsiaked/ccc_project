@@ -74,6 +74,7 @@ import {
 } from './allocationWorkspaceViewModel';
 
 import styles from './AdminAllocationWorkspacePage.module.css';
+import DestinationQueueWorkspaceEditor from './DestinationQueueWorkspaceEditor';
 
 type EditorTab = 'buses' | 'passengers';
 type ConfirmationAction = 'confirm' | 'cancel';
@@ -175,7 +176,11 @@ const AdminAllocationWorkspacePage = () => {
           workspace: lockResult.row.allocation_data,
           changed: false,
         };
-        if (!lockResult.readOnly) {
+        if (
+          !lockResult.readOnly &&
+          lockResult.row.allocation_data.allocationStrategy !==
+            'destination_queue'
+        ) {
           try {
             refreshed = await refreshDraftWorkspacePassengers(
               lockResult.row.allocation_data
@@ -1112,6 +1117,24 @@ const AdminAllocationWorkspacePage = () => {
           ) : (
             '배차 초안을 불러오는 중입니다.'
           )}
+        </main>
+      </div>
+    );
+  }
+
+  if (workspace.allocationStrategy === 'destination_queue') {
+    return (
+      <div className={styles.page}>
+        <AdminHeader />
+        <main className={styles.main}>
+          <DestinationQueueWorkspaceEditor
+            row={row}
+            workspace={workspace}
+            setRow={setRow}
+            setWorkspace={setWorkspace}
+            dirty={dirty}
+            setDirty={setDirty}
+          />
         </main>
       </div>
     );

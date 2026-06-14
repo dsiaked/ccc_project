@@ -377,17 +377,24 @@ const HomeNoticeSection = () => {
                   </div>
                   <div className={styles.noticeContent}>
                     <h3>
-                      {isPersonal && ((item as any).unreadCount ?? 0) > 1
-                        ? `${item.title} (${(item as any).unreadCount})`
-                        : item.title}
+                      {opensInquiry
+                        ? (() => {
+                            const category = item.content.split('\n\n')[0] || '문의';
+                            const unreadSuffix = ((item as any).unreadCount ?? 0) > 1
+                              ? ` (${(item as any).unreadCount})`
+                              : '';
+                            return `[문의 답변] ${category}${unreadSuffix}`;
+                          })()
+                        : isPersonal && ((item as any).unreadCount ?? 0) > 1
+                          ? `${item.title} (${(item as any).unreadCount})`
+                          : item.title}
                     </h3>
                     {opensInquiry ? (() => {
                       const parts = item.content.split('\n\n');
                       if (parts.length >= 3) {
-                        const [category, reply, footerText] = parts;
+                        const [_, reply, footerText] = parts;
                         return (
                           <div className={styles.inquiryNotificationContent}>
-                            <span className={styles.inquiryCategory}>문의 분야: {category}</span>
                             <div className={styles.inquiryReplyBox}>
                               <p className={styles.inquiryReplyText}>{reply}</p>
                             </div>

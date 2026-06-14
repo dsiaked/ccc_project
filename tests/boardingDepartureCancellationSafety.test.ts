@@ -8,7 +8,7 @@ const service = readFileSync(
   'utf8'
 );
 const migration = readFileSync(
-  'supabase/migrations/20260611000011_181_require_boarding_departure_cancel_reason.sql',
+  'sql/setup/181_require_boarding_departure_cancel_reason.sql',
   'utf8'
 );
 

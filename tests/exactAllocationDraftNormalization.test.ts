@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const migration = readFileSync(
-  'supabase/migrations/20260610220001_139_fix_allocation_draft_reservation_normalization.sql',
+  'sql/setup/139_fix_allocation_draft_reservation_normalization.sql',
   'utf8'
 );
 

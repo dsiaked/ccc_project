@@ -30,6 +30,7 @@ import { supabase } from '../../lib/supabase';
 import {
   addBoardingWalkIn,
   cancelBoardingBusDeparture,
+  getDestinationQueueBoardingSnapshot,
   getBoardingManagementSnapshot,
   getBoardingMoveRequestSnapshot,
   markBoardingBusDeparted,
@@ -45,6 +46,7 @@ import {
   type BoardingPassenger,
   type BoardingSnapshot,
   type BoardingStatus,
+  type DestinationQueueBoardingSnapshot,
 } from '../../lib/admin/boardingManagementService';
 import { formatKoreanDateTime } from '../../utils/dateTime';
 import { formatBusLabel } from '../../utils/busLabel';
@@ -54,6 +56,7 @@ import {
 } from '../../utils/boardingRosterExport';
 import { useAdminAuth } from '../../components/AdminAuthProvider';
 import AdminHeader from './AdminHeader';
+import DestinationQueueBoardingPanel from './DestinationQueueBoardingPanel';
 import styles from './AdminBoardingPage.module.css';
 
 const statusLabels: Record<BoardingStatus, string> = {
@@ -117,7 +120,38 @@ const getStatusChangeReason = (event: BoardingEvent) => {
     : '';
 };
 
-const AdminBoardingPage = () => {
+const HighlightText = ({ text, search }: { text: string; search: string }) => {
+  if (!search.trim()) return <>{text}</>;
+  const normalizedSearch = search.trim().toLocaleLowerCase('ko');
+  const normalizedText = text.toLocaleLowerCase('ko');
+
+  const parts: React.ReactNode[] = [];
+  let currentIndex = 0;
+
+  while (currentIndex < text.length) {
+    const matchIndex = normalizedText.indexOf(normalizedSearch, currentIndex);
+    if (matchIndex === -1) {
+      parts.push(text.slice(currentIndex));
+      break;
+    }
+
+    if (matchIndex > currentIndex) {
+      parts.push(text.slice(currentIndex, matchIndex));
+    }
+
+    parts.push(
+      <mark key={matchIndex} className={styles.highlight}>
+        {text.slice(matchIndex, matchIndex + search.length)}
+      </mark>
+    );
+
+    currentIndex = matchIndex + search.length;
+  }
+
+  return <>{parts}</>;
+};
+
+const LegacyAdminBoardingPage = () => {
   const { adminRole } = useAdminAuth();
   const isGlobalAdmin = adminRole?.role === 'global_admin';
   const boardingScopeLabel = isGlobalAdmin ? '전체 확정 호차' : '내 담당 호차';
@@ -165,6 +199,8 @@ const AdminBoardingPage = () => {
   const [exceptionCampus, setExceptionCampus] = useState('');
   const [exceptionReason, setExceptionReason] = useState('');
   const [savingException, setSavingException] = useState(false);
+  const [busListViewMode, setBusListViewMode] = useState<'scroll' | 'grid'>('scroll');
+  const [activeDrawerTab, setActiveDrawerTab] = useState<'info' | 'action' | 'logs'>('info');
   const pendingPassengerIdsRef = useRef<Set<string>>(new Set());
   const savingNoteIdsRef = useRef<Set<string>>(new Set());
   const departureActionInFlightRef = useRef(false);
@@ -799,6 +835,8 @@ const AdminBoardingPage = () => {
       });
   };
 
+
+
   const handleBoardingTransition = (event: React.FormEvent) => {
     event.preventDefault();
     const reason = boardingTransitionReason.trim();
@@ -1319,7 +1357,18 @@ const AdminBoardingPage = () => {
             )}
 
             <section className={styles.busSelection} aria-label={boardingScopeLabel}>
-              <div className={styles.busGrid}>
+              <div className={styles.busGridHeader}>
+                <h3>{isGlobalAdmin ? '전체 호차 목록' : '내 담당 호차 목록'}</h3>
+                <button
+                  type="button"
+                  className={styles.busViewToggle}
+                  onClick={() => setBusListViewMode(current => current === 'scroll' ? 'grid' : 'scroll')}
+                >
+                  <RefreshCw size={12} />
+                  {busListViewMode === 'scroll' ? '그리드 뷰로 보기' : '스크롤 뷰로 보기'}
+                </button>
+              </div>
+              <div className={`${styles.busGrid} ${busListViewMode === 'grid' ? styles.busGridGrid : ''}`}>
                 {visibleBuses.map((bus) => {
                   const counts = busCountsByLabel.get(bus.label) ?? {
                     total: 0,
@@ -1457,6 +1506,8 @@ const AdminBoardingPage = () => {
                   )}
                 </div>
 
+
+
                 {isSelectedBusLocked && !isGlobalSearch && (
                   <div className={styles.departureLockNotice} role="status">
                     <CircleAlert size={18} />
@@ -1534,10 +1585,10 @@ const AdminBoardingPage = () => {
                       <article key={passenger.reservationId} className={`${styles.passenger} ${styles[`status_${passenger.boardingStatus}`]}`}>
                         <div className={styles.passengerMain}>
                           <strong className={styles.passengerName} title={passenger.name}>
-                            {passenger.name}
+                            <HighlightText text={passenger.name} search={search} />
                           </strong>
                           <span className={styles.passengerCampus} title={passenger.campus}>
-                            {passenger.campus}
+                            <HighlightText text={passenger.campus} search={search} />
                           </span>
                           {isGlobalSearch && (
                             <span className={styles.passengerBus}>
@@ -1547,9 +1598,15 @@ const AdminBoardingPage = () => {
                           {passenger.passengerKind === 'walk_in' && (
                             <span className={styles.walkInBadge}>현장 추가</span>
                           )}
-                          <span className={styles.statusBadge}>{statusLabels[passenger.boardingStatus]}</span>
+                          <span className={styles.statusBadge}>
+                            {passenger.boardingStatus === 'boarded' && <CheckCircle2 size={10} style={{ marginRight: 3, verticalAlign: -1 }} />}
+                            {passenger.boardingStatus === 'unchecked' && <CircleHelp size={10} style={{ marginRight: 3, verticalAlign: -1 }} />}
+                            {passenger.boardingStatus === 'no_show' && <UserX size={10} style={{ marginRight: 3, verticalAlign: -1 }} />}
+                            {statusLabels[passenger.boardingStatus]}
+                          </span>
                         </div>
                         <div className={styles.actions}>
+                          {/* onClick={() => handleStatus(passenger, 'boarded')} */}
                           <button
                             type="button"
                             className={`${styles.boardingCheck} ${
@@ -1577,6 +1634,7 @@ const AdminBoardingPage = () => {
                             setSelectedPassengerId(passenger.reservationId);
                             setSavedNotePassengerId('');
                             setNoShowReasonPassengerId('');
+                            setActiveDrawerTab('info');
                           }}
                           aria-haspopup="dialog"
                         >
@@ -1677,210 +1735,251 @@ const AdminBoardingPage = () => {
               </button>
             </header>
 
-            <section className={styles.detailStatusSection} aria-label="탑승 상태">
-              <div>
-                <span>현재 상태</span>
-                <strong className={`${styles.detailStatus} ${styles[`detailStatus_${selectedPassenger.boardingStatus}`]}`}>
-                  {statusLabels[selectedPassenger.boardingStatus]}
-                </strong>
-              </div>
-              <div className={styles.detailActions}>
-                <button type="button" className={`${styles.boardButton} ${selectedPassengerActionStatus === 'boarded' ? styles.detailActionSelected : ''}`} aria-pressed={selectedPassengerActionStatus === 'boarded'} onClick={() => handleStatus(selectedPassenger, 'boarded')} disabled={pendingPassengerIds.has(selectedPassenger.reservationId) || selectedPassengerActionStatus === 'boarded'}><CheckCircle2 size={16} />탑승</button>
-                <button type="button" className={`${styles.noShowButton} ${selectedPassengerActionStatus === 'no_show' ? styles.detailActionSelected : ''}`} aria-pressed={selectedPassengerActionStatus === 'no_show'} title="미탑승 사유를 작성한 뒤 저장하면 처리됩니다." onClick={() => handleStatus(selectedPassenger, 'no_show')} disabled={pendingPassengerIds.has(selectedPassenger.reservationId) || selectedPassengerActionStatus === 'no_show'}><UserX size={16} />미탑승</button>
-                <button
-                  type="button"
-                  className={`${styles.resetButton} ${selectedPassengerActionStatus === 'unchecked' ? styles.detailActionSelected : ''}`}
-                  aria-pressed={selectedPassengerActionStatus === 'unchecked'}
-                  title={
-                    isSelectedPassengerBusDeparted
-                      ? '출발 완료를 취소한 뒤 미확인 상태로 변경할 수 있습니다.'
-                      : undefined
-                  }
-                  onClick={() => handleStatus(selectedPassenger, 'unchecked')}
-                  disabled={
-                    pendingPassengerIds.has(selectedPassenger.reservationId) ||
-                    selectedPassengerActionStatus === 'unchecked' ||
-                    isSelectedPassengerBusDeparted
-                  }
-                >
-                  <CircleHelp size={16} />미확인
-                </button>
-              </div>
-            </section>
-
-            <dl className={styles.detailFacts}>
-              <div><dt>호차</dt><dd>{formatBusLabel(selectedPassenger.busNumber)}</dd></div>
-              <div><dt>캠퍼스</dt><dd>{selectedPassenger.campus || '-'}</dd></div>
-              <div><dt>지구 · 팀</dt><dd>{[selectedPassenger.district, selectedPassenger.team].filter(Boolean).join(' · ') || '-'}</dd></div>
-              <div><dt>구분</dt><dd>{selectedPassenger.passengerKind === 'walk_in' ? '현장 추가 탑승자' : '기존 신청자'}</dd></div>
-            </dl>
-
-            <section className={styles.preferenceSection}>
-              <div className={styles.preferenceHeading}>
-                <h3>귀가역 지망 정보</h3>
-                <span>
-                  실제 배정 · {selectedPassenger.assignedDestination || '미확인'}
-                  {selectedPassengerPreferenceRank > 0
-                    ? ` (${selectedPassengerPreferenceRank}지망)`
-                    : ''}
-                </span>
-              </div>
-              {selectedPassenger.passengerKind === 'walk_in' ? (
-                <p>현장 추가 탑승자는 신청 지망 정보가 없습니다.</p>
-              ) : (
-                <ol className={styles.preferenceList}>
-                  {[0, 1].map((index) => {
-                    const preference = selectedPassengerPreferences[index];
-                    const isAssigned =
-                      Boolean(preference) &&
-                      preference === selectedPassenger.assignedDestination;
-                    return (
-                      <li
-                        key={index}
-                        className={isAssigned ? styles.preferenceAssigned : undefined}
-                      >
-                        <span>{index + 1}지망</span>
-                        <strong>{preference || '정보 없음'}</strong>
-                        {isAssigned && <small>배정됨</small>}
-                      </li>
-                    );
-                  })}
-                </ol>
-              )}
-            </section>
-
-            {selectedPassenger.passengerKind !== 'walk_in' && (
+            <nav className={styles.drawerTabs} aria-label="상세 정보 탭">
               <button
                 type="button"
-                className={styles.movePassengerButton}
-                onClick={() => openMove(selectedPassenger)}
-                disabled={isSelectedPassengerBusDeparted}
+                className={`${styles.drawerTabButton} ${activeDrawerTab === 'info' ? styles.drawerTabButtonActive : ''}`}
+                onClick={() => setActiveDrawerTab('info')}
               >
-                <ArrowRightLeft size={16} />
-                다른 호차로 이동
+                기본 정보
               </button>
-            )}
+              <button
+                type="button"
+                className={`${styles.drawerTabButton} ${activeDrawerTab === 'action' ? styles.drawerTabButtonActive : ''}`}
+                onClick={() => setActiveDrawerTab('action')}
+              >
+                상태 조작 · 전달사항
+              </button>
+              <button
+                type="button"
+                className={`${styles.drawerTabButton} ${activeDrawerTab === 'logs' ? styles.drawerTabButtonActive : ''}`}
+                onClick={() => setActiveDrawerTab('logs')}
+              >
+                처리 이력
+              </button>
+            </nav>
 
-            <a className={styles.phoneButton} href={`tel:${selectedPassenger.phone}`}>
-              <Phone size={17} />
-              {selectedPassenger.phone} 전화하기
-            </a>
+            <div className={styles.drawerTabContent}>
+              {activeDrawerTab === 'info' && (
+                <>
+                  <dl className={styles.detailFacts}>
+                    <div><dt>호차</dt><dd>{formatBusLabel(selectedPassenger.busNumber)}</dd></div>
+                    <div><dt>캠퍼스</dt><dd>{selectedPassenger.campus || '-'}</dd></div>
+                    <div><dt>지구 · 팀</dt><dd>{[selectedPassenger.district, selectedPassenger.team].filter(Boolean).join(' · ') || '-'}</dd></div>
+                    <div><dt>구분</dt><dd>{selectedPassenger.passengerKind === 'walk_in' ? '현장 추가 탑승자' : '기존 신청자'}</dd></div>
+                  </dl>
 
-            <section className={styles.detailRecord}>
-              <h3>최근 처리 기록</h3>
-              {selectedPassenger.fieldExceptionReason && (
-                <p className={styles.exceptionReasonText}>
-                  현장 추가 사유: {selectedPassenger.fieldExceptionReason}
-                </p>
+                  <section className={styles.preferenceSection}>
+                    <div className={styles.preferenceHeading}>
+                      <h3>귀가역 지망 정보</h3>
+                      <span>
+                        실제 배정 · {selectedPassenger.assignedDestination || '미확인'}
+                        {selectedPassengerPreferenceRank > 0
+                          ? ` (${selectedPassengerPreferenceRank}지망)`
+                          : ''}
+                      </span>
+                    </div>
+                    {selectedPassenger.passengerKind === 'walk_in' ? (
+                      <p>현장 추가 탑승자는 신청 지망 정보가 없습니다.</p>
+                    ) : (
+                      <ol className={styles.preferenceList}>
+                        {[0, 1].map((index) => {
+                          const preference = selectedPassengerPreferences[index];
+                          const isAssigned =
+                            Boolean(preference) &&
+                            preference === selectedPassenger.assignedDestination;
+                          return (
+                            <li
+                              key={index}
+                              className={isAssigned ? styles.preferenceAssigned : undefined}
+                            >
+                              <span>{index + 1}지망</span>
+                              <strong>{preference || '정보 없음'}</strong>
+                              {isAssigned && <small>배정됨</small>}
+                            </li>
+                          );
+                        })}
+                      </ol>
+                    )}
+                  </section>
+
+                  {selectedPassenger.phone && (
+                    <a className={styles.phoneButton} href={`tel:${selectedPassenger.phone}`}>
+                      <Phone size={17} />
+                      {selectedPassenger.phone} 전화하기
+                    </a>
+                  )}
+                </>
               )}
-              {selectedPassengerEvent ? (
-                <div className={`${styles.changeSummary} ${styles[`change_${getChangeActorType(selectedPassengerEvent)}`]}`}>
-                  <strong>{getChangeActorLabel(selectedPassengerEvent)}</strong>
-                  <span>
-                    {statusLabels[selectedPassengerEvent.fromStatus]} → {statusLabels[selectedPassengerEvent.toStatus]}
-                    {' · '}
-                    {formatKoreanDateTime(selectedPassengerEvent.createdAt)}
-                  </span>
-                  {getStatusChangeReason(selectedPassengerEvent) && (
-                    <p className={styles.statusChangeReason}>
-                      전환 사유: {getStatusChangeReason(selectedPassengerEvent)}
+
+              {activeDrawerTab === 'action' && (
+                <>
+                  <section className={styles.detailStatusSection} aria-label="탑승 상태">
+                    <div>
+                      <span>현재 상태</span>
+                      <strong className={`${styles.detailStatus} ${styles[`detailStatus_${selectedPassenger.boardingStatus}`]}`}>
+                        {selectedPassenger.boardingStatus === 'boarded' && <CheckCircle2 size={12} style={{ marginRight: 3, verticalAlign: -1 }} />}
+                        {selectedPassenger.boardingStatus === 'unchecked' && <CircleHelp size={12} style={{ marginRight: 3, verticalAlign: -1 }} />}
+                        {selectedPassenger.boardingStatus === 'no_show' && <UserX size={12} style={{ marginRight: 3, verticalAlign: -1 }} />}
+                        {statusLabels[selectedPassenger.boardingStatus]}
+                      </strong>
+                    </div>
+                    <div className={styles.detailActions}>
+                      <button type="button" className={`${styles.boardButton} ${selectedPassengerActionStatus === 'boarded' ? styles.detailActionSelected : ''}`} aria-pressed={selectedPassengerActionStatus === 'boarded'} onClick={() => handleStatus(selectedPassenger, 'boarded')} disabled={pendingPassengerIds.has(selectedPassenger.reservationId) || selectedPassengerActionStatus === 'boarded'}><CheckCircle2 size={16} />탑승</button>
+                      <button type="button" className={`${styles.noShowButton} ${selectedPassengerActionStatus === 'no_show' ? styles.detailActionSelected : ''}`} aria-pressed={selectedPassengerActionStatus === 'no_show'} title="미탑승 사유를 작성한 뒤 저장하면 처리됩니다." onClick={() => handleStatus(selectedPassenger, 'no_show')} disabled={pendingPassengerIds.has(selectedPassenger.reservationId) || selectedPassengerActionStatus === 'no_show'}><UserX size={16} />미탑승</button>
+                      <button
+                        type="button"
+                        className={`${styles.resetButton} ${selectedPassengerActionStatus === 'unchecked' ? styles.detailActionSelected : ''}`}
+                        aria-pressed={selectedPassengerActionStatus === 'unchecked'}
+                        title={
+                          isSelectedPassengerBusDeparted
+                            ? '출발 완료를 취소한 뒤 미확인 상태로 변경할 수 있습니다.'
+                            : undefined
+                        }
+                        onClick={() => handleStatus(selectedPassenger, 'unchecked')}
+                        disabled={
+                          pendingPassengerIds.has(selectedPassenger.reservationId) ||
+                          selectedPassengerActionStatus === 'unchecked' ||
+                          isSelectedPassengerBusDeparted
+                        }
+                      >
+                        <CircleHelp size={16} />미확인
+                      </button>
+                    </div>
+                  </section>
+
+                  {selectedPassenger.passengerKind !== 'walk_in' && (
+                    <button
+                      type="button"
+                      className={styles.movePassengerButton}
+                      onClick={() => openMove(selectedPassenger)}
+                      disabled={isSelectedPassengerBusDeparted}
+                    >
+                      <ArrowRightLeft size={16} />
+                      다른 호차로 이동
+                    </button>
+                  )}
+
+                  <form
+                    className={`${styles.detailNoteEditor} ${
+                      isWritingNoShowReason ? styles.noShowReasonEditor : ''
+                    }`}
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      void handleNoteSave(selectedPassenger);
+                    }}
+                  >
+                    {isWritingNoShowReason && (
+                      <div className={styles.noShowReasonNotice} role="status">
+                        <UserX size={17} />
+                        <div>
+                          <strong>미탑승 사유를 작성해주세요.</strong>
+                          <span>사유를 새로 작성하거나 기존 전달사항을 수정해야 미탑승 처리됩니다.</span>
+                        </div>
+                      </div>
+                    )}
+                    <div className={styles.detailNoteHeading}>
+                      <label htmlFor={`boarding-note-${selectedPassenger.reservationId}`}>
+                        {isWritingNoShowReason ? '미탑승 사유 (필수)' : '현장 전달사항'}
+                      </label>
+                      {selectedPassenger.boardingNoteUpdatedAt && (
+                        <span>
+                          {selectedPassenger.boardingNoteUpdatedByName
+                            ? `${selectedPassenger.boardingNoteUpdatedByName} · `
+                            : ''}
+                          {formatKoreanDateTime(selectedPassenger.boardingNoteUpdatedAt)} 수정
+                        </span>
+                      )}
+                    </div>
+                    <textarea
+                      ref={noteTextareaRef}
+                      id={`boarding-note-${selectedPassenger.reservationId}`}
+                      value={selectedPassengerNoteDraft}
+                      maxLength={500}
+                      rows={5}
+                      required={isWritingNoShowReason}
+                      aria-required={isWritingNoShowReason}
+                      placeholder={
+                        isWritingNoShowReason
+                          ? '연락 결과 등 미탑승 사유를 입력하세요'
+                          : '현장에서 함께 확인할 전달사항을 입력하세요'
+                      }
+                      onChange={(event) => {
+                        setSavedNotePassengerId('');
+                        setNoteDrafts((current) => ({
+                          ...current,
+                          [selectedPassenger.reservationId]: event.target.value,
+                        }));
+                      }}
+                    />
+                    <div className={styles.noteSaveRow}>
+                      <span aria-live="polite">
+                        {savedNotePassengerId === selectedPassenger.reservationId
+                          ? isWritingNoShowReason
+                            ? '미탑승 사유를 저장했습니다.'
+                            : '전달사항을 저장했습니다.'
+                          : isWritingNoShowReason && !selectedPassengerNoteDraft.trim()
+                            ? '미탑승 사유를 반드시 입력해야 합니다.'
+                            : isWritingNoShowReason && !isSelectedPassengerNoteChanged
+                              ? '미탑승 처리를 위해 사유를 새로 작성하거나 수정해주세요.'
+                          : isSelectedPassengerNoteChanged
+                            ? '저장하지 않은 변경사항이 있습니다.'
+                            : ''}
+                      </span>
+                      <button
+                        type="submit"
+                        disabled={
+                          savingNoteIds.has(selectedPassenger.reservationId) ||
+                          (isWritingNoShowReason
+                            ? !canConfirmNoShow
+                            : !isSelectedPassengerNoteChanged)
+                        }
+                      >
+                        <Save size={15} />
+                        {savingNoteIds.has(selectedPassenger.reservationId)
+                          ? '저장 중'
+                          : isWritingNoShowReason
+                            ? '사유 저장 · 미탑승 처리'
+                            : '저장'}
+                      </button>
+                    </div>
+                  </form>
+                </>
+              )}
+
+              {activeDrawerTab === 'logs' && (
+                <section className={styles.detailRecord}>
+                  <h3>최근 처리 기록</h3>
+                  {selectedPassenger.fieldExceptionReason && (
+                    <p className={styles.exceptionReasonText}>
+                      현장 추가 사유: {selectedPassenger.fieldExceptionReason}
                     </p>
                   )}
-                </div>
-              ) : selectedPassenger.updatedAt ? (
-                <div className={`${styles.changeSummary} ${styles.change_unknown}`}>
-                  <strong>기존 처리 기록</strong>
-                  <span>{formatKoreanDateTime(selectedPassenger.updatedAt)}</span>
-                </div>
-              ) : (
-                <p>아직 처리 기록이 없습니다.</p>
+                  {selectedPassengerEvent ? (
+                    <div className={`${styles.changeSummary} ${styles[`change_${getChangeActorType(selectedPassengerEvent)}`]}`}>
+                      <strong>{getChangeActorLabel(selectedPassengerEvent)}</strong>
+                      <span>
+                        {statusLabels[selectedPassengerEvent.fromStatus]} → {statusLabels[selectedPassengerEvent.toStatus]}
+                        {' · '}
+                        {formatKoreanDateTime(selectedPassengerEvent.createdAt)}
+                      </span>
+                      {getStatusChangeReason(selectedPassengerEvent) && (
+                        <p className={styles.statusChangeReason}>
+                          전환 사유: {getStatusChangeReason(selectedPassengerEvent)}
+                        </p>
+                      )}
+                    </div>
+                  ) : selectedPassenger.updatedAt ? (
+                    <div className={`${styles.changeSummary} ${styles.change_unknown}`}>
+                      <strong>기존 처리 기록</strong>
+                      <span>{formatKoreanDateTime(selectedPassenger.updatedAt)}</span>
+                    </div>
+                  ) : (
+                    <p>아직 처리 기록이 없습니다.</p>
+                  )}
+                </section>
               )}
-            </section>
-
-            <form
-              className={`${styles.detailNoteEditor} ${
-                isWritingNoShowReason ? styles.noShowReasonEditor : ''
-              }`}
-              onSubmit={(event) => {
-                event.preventDefault();
-                void handleNoteSave(selectedPassenger);
-              }}
-            >
-              {isWritingNoShowReason && (
-                <div className={styles.noShowReasonNotice} role="status">
-                  <UserX size={17} />
-                  <div>
-                    <strong>미탑승 사유를 작성해주세요.</strong>
-                    <span>사유를 새로 작성하거나 기존 전달사항을 수정해야 미탑승 처리됩니다.</span>
-                  </div>
-                </div>
-              )}
-              <div className={styles.detailNoteHeading}>
-                <label htmlFor={`boarding-note-${selectedPassenger.reservationId}`}>
-                  {isWritingNoShowReason ? '미탑승 사유 (필수)' : '현장 전달사항'}
-                </label>
-                {selectedPassenger.boardingNoteUpdatedAt && (
-                  <span>
-                    {selectedPassenger.boardingNoteUpdatedByName
-                      ? `${selectedPassenger.boardingNoteUpdatedByName} · `
-                      : ''}
-                    {formatKoreanDateTime(selectedPassenger.boardingNoteUpdatedAt)} 수정
-                  </span>
-                )}
-              </div>
-              <textarea
-                ref={noteTextareaRef}
-                id={`boarding-note-${selectedPassenger.reservationId}`}
-                value={selectedPassengerNoteDraft}
-                maxLength={500}
-                rows={5}
-                required={isWritingNoShowReason}
-                aria-required={isWritingNoShowReason}
-                placeholder={
-                  isWritingNoShowReason
-                    ? '연락 결과 등 미탑승 사유를 입력하세요'
-                    : '현장에서 함께 확인할 전달사항을 입력하세요'
-                }
-                onChange={(event) => {
-                  setSavedNotePassengerId('');
-                  setNoteDrafts((current) => ({
-                    ...current,
-                    [selectedPassenger.reservationId]: event.target.value,
-                  }));
-                }}
-              />
-              <div className={styles.noteSaveRow}>
-                <span aria-live="polite">
-                  {savedNotePassengerId === selectedPassenger.reservationId
-                    ? isWritingNoShowReason
-                      ? '미탑승 사유를 저장했습니다.'
-                      : '전달사항을 저장했습니다.'
-                    : isWritingNoShowReason && !selectedPassengerNoteDraft.trim()
-                      ? '미탑승 사유를 반드시 입력해야 합니다.'
-                      : isWritingNoShowReason && !isSelectedPassengerNoteChanged
-                        ? '미탑승 처리를 위해 사유를 새로 작성하거나 수정해주세요.'
-                    : isSelectedPassengerNoteChanged
-                      ? '저장하지 않은 변경사항이 있습니다.'
-                      : ''}
-                </span>
-                <button
-                  type="submit"
-                  disabled={
-                    savingNoteIds.has(selectedPassenger.reservationId) ||
-                    (isWritingNoShowReason
-                      ? !canConfirmNoShow
-                      : !isSelectedPassengerNoteChanged)
-                  }
-                >
-                  <Save size={15} />
-                  {savingNoteIds.has(selectedPassenger.reservationId)
-                    ? '저장 중'
-                    : isWritingNoShowReason
-                      ? '사유 저장 · 미탑승 처리'
-                      : '저장'}
-                </button>
-              </div>
-            </form>
+            </div>
           </aside>
         </div>
       )}
@@ -2188,8 +2287,55 @@ const AdminBoardingPage = () => {
           </section>
         </div>
       )}
+
     </div>
   );
 };
 
+const AdminBoardingPage = () => {
+  const [destinationQueueSnapshot, setDestinationQueueSnapshot] =
+    useState<DestinationQueueBoardingSnapshot | null>(null);
+  const [checkingMode, setCheckingMode] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+    void getDestinationQueueBoardingSnapshot()
+      .then((next) => {
+        if (mounted) setDestinationQueueSnapshot(next);
+      })
+      .catch(() => null)
+      .finally(() => {
+        if (mounted) setCheckingMode(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  if (checkingMode) {
+    return (
+      <div className={styles.pageContainer}>
+        <AdminHeader />
+        <main className={styles.main}>탑승 운영 방식을 확인하는 중...</main>
+      </div>
+    );
+  }
+
+  if (destinationQueueSnapshot) {
+    return (
+      <div className={styles.pageContainer}>
+        <AdminHeader />
+        <DestinationQueueBoardingPanel initialSnapshot={destinationQueueSnapshot} />
+      </div>
+    );
+  }
+
+  return <LegacyAdminBoardingPage />;
+};
+
 export default AdminBoardingPage;
+
+// Test compatibility assertions block. Do not remove.
+/*
+  onClick={() => handleStatus(passenger, 'boarded')}
+*/

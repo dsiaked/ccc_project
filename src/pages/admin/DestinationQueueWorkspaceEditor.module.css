@@ -1,0 +1,68 @@
+.editor { display: grid; gap: 16px; }
+.hero, .commonBoarding, .workspace aside, .roster, .metrics { border: 1px solid #e4e7ec; border-radius: 14px; background: #fff; }
+.hero { padding: 22px; display: flex; align-items: center; justify-content: space-between; gap: 18px; }
+.hero span { color: #155eef; font-size: 12px; font-weight: 900; }
+.hero h1 { margin: 4px 0; font-size: 26px; }
+.hero p { margin: 0; color: #667085; }
+.actions { display: flex; gap: 8px; }
+.actions button { border: 1px solid #d0d5dd; border-radius: 9px; background: #fff; padding: 10px 12px; display: flex; align-items: center; gap: 6px; font-weight: 800; cursor: pointer; }
+.actions .primary { border-color: #155eef; background: #155eef; color: #fff; }
+.actions .cancelButton { border-color: #fda29b; color: #b42318; background: #fff5f4; }
+.actions button:disabled { opacity: .45; cursor: not-allowed; }
+.success, .error { border-radius: 10px; padding: 12px 14px; font-weight: 700; }
+.success { background: #ecfdf3; color: #067647; }
+.error { background: #fee4e2; color: #b42318; }
+.confirmedNotice { display: flex; gap: 10px; align-items: center; border: 1px solid #abefc6; border-radius: 12px; background: #ecfdf3; padding: 13px 15px; color: #067647; }
+.confirmedNotice div { display: grid; gap: 2px; }
+.confirmedNotice span { color: #475467; font-size: 12px; }
+.metrics { display: grid; grid-template-columns: repeat(4, 1fr); overflow: hidden; }
+.metrics article { padding: 14px; display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; align-items: center; }
+.metrics article + article { border-left: 1px solid #e4e7ec; }
+.metrics svg { color: #667085; }
+.metrics span { grid-column: 2; color: #667085; font-size: 11px; }
+.commonBoarding { padding: 16px; display: grid; grid-template-columns: 1fr 240px 1fr; align-items: end; gap: 12px; }
+.commonBoarding div { display: grid; gap: 3px; }
+.commonBoarding div span { color: #667085; font-size: 12px; }
+.commonBoarding label { display: grid; gap: 5px; color: #344054; font-size: 12px; font-weight: 800; }
+.commonBoarding input, .rosterHeader input, .roster select { border: 1px solid #d0d5dd; border-radius: 8px; padding: 9px; background: #fff; }
+.workspace { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 16px; align-items: start; }
+.workspace aside { padding: 14px; display: grid; gap: 7px; }
+.workspace aside h2 { margin: 2px 4px 8px; font-size: 17px; }
+.workspace aside button { border: 1px solid #e4e7ec; border-radius: 10px; background: #fff; padding: 11px; display: grid; gap: 4px; text-align: left; cursor: pointer; }
+.workspace aside button span, .workspace aside button small { color: #667085; }
+.workspace aside .selected { border-color: #84adff; background: #eff4ff; box-shadow: inset 3px 0 #155eef; }
+.roster { min-width: 0; padding: 16px; }
+.rosterHeader { display: flex; align-items: end; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.rosterHeader h2 { margin: 0 0 3px; font-size: 18px; }
+.rosterHeader span { color: #667085; font-size: 12px; }
+.rosterControls { display: flex; align-items: center; gap: 8px; }
+.assignmentFilters { display: flex; padding: 3px; border: 1px solid #d0d5dd; border-radius: 9px; background: #f9fafb; }
+.assignmentFilters button { border: 0; border-radius: 6px; background: transparent; padding: 7px 10px; color: #667085; font-size: 12px; font-weight: 800; cursor: pointer; }
+.assignmentFilters .activeFilter { background: #fff; color: #b54708; box-shadow: 0 1px 3px rgba(16, 24, 40, .12); }
+.tableWrap { overflow: auto; max-height: 620px; }
+.tableWrap table { min-width: 780px; width: 100%; border-collapse: collapse; }
+.tableWrap th, .tableWrap td { border-bottom: 1px solid #eaecf0; padding: 10px; text-align: left; white-space: nowrap; }
+.tableWrap td:first-child { display: grid; gap: 2px; }
+.tableWrap td small { color: #667085; }
+.secondChoiceRow { background: #fffaeb; }
+.secondChoiceRow td:first-child { box-shadow: inset 3px 0 #f79009; }
+.passengerName { display: flex; align-items: center; gap: 6px; }
+.secondChoiceBadge { border-radius: 999px; background: #fedf89; padding: 3px 6px; color: #93370d; font-size: 10px; font-weight: 900; }
+.secondChoiceCell { color: #b54708; font-weight: 900; }
+.dialogBackdrop { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 20px; background: rgba(16, 24, 40, .58); }
+.dialog { position: relative; width: min(460px, 100%); border-radius: 16px; background: #fff; padding: 26px; box-shadow: 0 24px 48px rgba(16, 24, 40, .2); }
+.dialog h2 { margin: 12px 0 8px; font-size: 21px; }
+.dialog p { margin: 0; color: #667085; line-height: 1.6; }
+.dialogIcon { color: #d92d20; }
+.dialogClose { position: absolute; top: 14px; right: 14px; border: 0; background: transparent; color: #667085; cursor: pointer; }
+.dialogActions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 22px; }
+.dialogActions button { border: 1px solid #d0d5dd; border-radius: 9px; background: #fff; padding: 10px 13px; font-weight: 800; cursor: pointer; }
+.dialogActions .danger { display: flex; align-items: center; gap: 6px; border-color: #d92d20; background: #d92d20; color: #fff; }
+.dialogActions button:disabled { opacity: .5; cursor: not-allowed; }
+@media (max-width: 900px) {
+  .hero, .rosterHeader { align-items: stretch; flex-direction: column; }
+  .rosterControls { align-items: stretch; flex-direction: column; }
+  .assignmentFilters button { flex: 1; }
+  .metrics { grid-template-columns: repeat(2, 1fr); }
+  .commonBoarding, .workspace { grid-template-columns: 1fr; }
+}

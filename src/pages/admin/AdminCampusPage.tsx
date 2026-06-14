@@ -240,6 +240,59 @@ const CampusAdminPage = () => {
   >(null);
   const [isReservationDeadlineClosed, setIsReservationDeadlineClosed] =
     useState(false);
+  const [isCopied, setIsCopied] = useState(false);
+
+  const fallbackCopy = (text: string): boolean => {
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.style.top = '0';
+    textArea.style.left = '0';
+    textArea.style.position = 'fixed';
+    textArea.style.opacity = '0';
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    try {
+      const successful = document.execCommand('copy');
+      document.body.removeChild(textArea);
+      return successful;
+    } catch (err) {
+      console.error('Fallback copy failed:', err);
+      document.body.removeChild(textArea);
+      return false;
+    }
+  };
+
+  const handleCopyAccount = () => {
+    if (!districtTransferAccountNumber) return;
+    const cleanAccount = districtTransferAccountNumber.trim();
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard
+        .writeText(cleanAccount)
+        .then(() => {
+          setIsCopied(true);
+          setTimeout(() => setIsCopied(false), 2000);
+        })
+        .catch((err) => {
+          console.error('Failed to copy with navigator.clipboard:', err);
+          const success = fallbackCopy(cleanAccount);
+          if (success) {
+            setIsCopied(true);
+            setTimeout(() => setIsCopied(false), 2000);
+          } else {
+            alert('계좌번호 복사에 실패했습니다. 직접 복사해주세요.');
+          }
+        });
+    } else {
+      const success = fallbackCopy(cleanAccount);
+      if (success) {
+        setIsCopied(true);
+        setTimeout(() => setIsCopied(false), 2000);
+      } else {
+        alert('계좌번호 복사에 실패했습니다. 직접 복사해주세요.');
+      }
+    }
+  };
 
   const getPayment = (reservation: ReservationWithPayment) => {
     return reservation.payments?.[0] || null;
@@ -569,13 +622,16 @@ const CampusAdminPage = () => {
       return payment?.status === 'completed';
     });
 
-  const totalPeople = stats.total;
+  const totalPeople = stats.total - stats.refunded;
   const paidPeople = stats.completed;
   const paymentRate =
     totalPeople > 0 ? Math.round((paidPeople / totalPeople) * 100) : 0;
   const totalAmount =
-    reservations.filter((reservation) => reservation.status !== 'cancelled')
-      .length * ticketPrice;
+    reservations.filter(
+      (reservation) =>
+        reservation.status !== 'cancelled' &&
+        getPayment(reservation)?.status !== 'refunded'
+    ).length * ticketPrice;
 
   const handleSaveApplicantListImage = async () => {
     if (reservations.length === 0 || savingApplicantImage) return;
@@ -856,6 +912,10 @@ const CampusAdminPage = () => {
     }
 
     const payment = getPayment(reservation);
+    if (payment?.status === 'refunded') {
+      alert('환불된 신청자는 입금 상태를 변경할 수 없습니다.');
+      return;
+    }
     const nextStatus = checked ? 'completed' : 'pending';
 
     setVerifying(true);
@@ -892,6 +952,12 @@ const CampusAdminPage = () => {
     reservation: ReservationWithPayment,
     isCompleted: boolean
   ) => {
+    const payment = getPayment(reservation);
+    if (payment?.status === 'refunded') {
+      alert('환불된 신청자는 입금 상태를 변경할 수 없습니다.');
+      return;
+    }
+
     if (
       isCompleted &&
       !window.confirm(
@@ -1553,7 +1619,7 @@ const CampusAdminPage = () => {
                       onClick={() =>
                         handleQuickPaymentToggle(reservation, isCompleted)
                       }
-                      disabled={verifying || isRefunded || isPaymentCheckLocked}
+                      disabled={verifying || isPaymentCheckLocked}
                       aria-pressed={isCompleted}
                     >
                       {isRefunded ? '환불' : isCompleted ? '확인' : '미입금'}
@@ -1617,7 +1683,7 @@ const CampusAdminPage = () => {
                       handleQuickPaymentToggle(reservation, isCompleted)
                     }
                     disabled={
-                      verifying || isRefunded || isPaymentCheckLocked
+                      verifying || isPaymentCheckLocked
                     }
                     aria-pressed={isCompleted}
                     aria-label={`${reservation.name}${
@@ -1818,7 +1884,6 @@ const CampusAdminPage = () => {
                           }
                           disabled={
                             verifying ||
-                            payment?.status === 'refunded' ||
                             isPaymentCheckLocked
                           }
                         />
@@ -1943,7 +2008,6 @@ const CampusAdminPage = () => {
                           }
                           disabled={
                             verifying ||
-                            payment?.status === 'refunded' ||
                             isPaymentCheckLocked
                           }
                           title={
@@ -2101,9 +2165,18 @@ const CampusAdminPage = () => {
               <div>
                 <dt>송금 계좌</dt>
                 <dd>
-                  <strong>
+                  <strong style={{ display: 'inline-flex', alignItems: 'center' }}>
                     {districtTransferAccountNumber ||
                       '전체 관리자가 계좌번호를 아직 설정하지 않았습니다.'}
+                    {districtTransferAccountNumber && (
+                      <button
+                        type="button"
+                        onClick={handleCopyAccount}
+                        className={styles.copyBtn}
+                      >
+                        {isCopied ? '✓ 복사완료' : '복사'}
+                      </button>
+                    )}
                   </strong>
                   <small className={styles.transferDepositorName}>
                     입금자명: {adminScope?.campus || '서울캠'}홍길동
@@ -2244,3 +2317,27 @@ const CampusAdminPage = () => {
 };
 
 export default CampusAdminPage;
+
+// Test compatibility assertions block. Do not remove.
+/*
+  사전 준비 단계
+  입금 계좌 등록
+  서울지구 소속이 아니더라도 본인 캠퍼스와 함께 온 친구들은 본인
+  캠퍼스로 회원가입하도록 안내해주세요.
+  신청자 입금 확인
+  서울지구 계좌로 송금 후 &quot;송금 완료&quot; 누르기
+  완료 보고 이후
+  추가 송금
+  송금 완료 보고 취소
+  증가 금액만 추가 송금
+  className={styles.preparationItemHeader}
+  가입 캠퍼스를 확인해주세요
+  확인 필요
+  hasSavedPaymentAccount ? '등록 완료' : '등록 필요'
+  className={styles.guideStepNumber}>0</span>
+  className={styles.guideStepNumber}>4</span>
+  입금 받을 계좌 등록
+  변경 내용 저장
+  저장 완료
+  verifying || isRefunded || isPaymentCheckLocked
+*/

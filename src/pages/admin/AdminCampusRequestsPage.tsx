@@ -17,6 +17,7 @@ import {
   SlidersHorizontal,
   Trash2,
   X,
+  Loader2,
 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
@@ -27,7 +28,7 @@ import {
   createGlobalCampusNotice,
   createCampusRequestMessage,
   deleteCampusRequestMessage,
-  getCampusRequestSummary,
+
   getCampusRequestAuditLogs,
   getCampusRequestsPage,
   getCampusTransferStats,
@@ -42,7 +43,7 @@ import {
   type CampusRequestAuditLog,
   type CampusRequestStatus,
   type CampusRequestType,
-  type CampusRequestSummary,
+
   type CampusNoticeTarget,
   type CampusTransferStat,
 } from '../../lib/adminService';
@@ -102,15 +103,7 @@ type PageFeedback = { tone: 'success' | 'error'; message: string };
 const getCampusTargetKey = (target: CampusNoticeTarget) =>
   `${target.district}\u0000${target.team}\u0000${target.campus}`;
 
-const emptySummary: CampusRequestSummary = {
-  total: 0,
-  notices: 0,
-  unresolved: 0,
-  open: 0,
-  inProgress: 0,
-  resolved: 0,
-  onHold: 0,
-};
+
 
 const getErrorMessage = (error: unknown) => {
   if (error instanceof Error) return error.message;
@@ -184,11 +177,7 @@ const AdminCampusRequestsPage = () => {
   const [contentInput, setContentInput] = useState('');
   const [noticeTitleInput, setNoticeTitleInput] = useState('');
   const [noticeContentInput, setNoticeContentInput] = useState('');
-  const requestedTab = searchParams.get('tab');
-  const globalAdminTab: GlobalAdminTab =
-    requestedTab === 'notices' || requestedTab === 'home'
-      ? 'notices'
-      : 'requests';
+  const globalAdminTab: GlobalAdminTab = 'notices';
   const requestedSubTab = searchParams.get('subTab');
   const noticeSubTab = requestedSubTab === 'campus' ? 'campus' : 'user';
   const [isNoticeFormOpen, setIsNoticeFormOpen] = useState(false);
@@ -228,7 +217,7 @@ const AdminCampusRequestsPage = () => {
   );
   const [page, setPage] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
-  const [summary, setSummary] = useState<CampusRequestSummary>(emptySummary);
+
   const [debouncedSearchKeyword, setDebouncedSearchKeyword] = useState('');
   const [unreadRequestIds, setUnreadRequestIds] = useState<Set<string>>(
     () => new Set()
@@ -255,22 +244,9 @@ const AdminCampusRequestsPage = () => {
     !hasUnsavedBoardDrafts ||
     window.confirm('작성 중인 내용이 있습니다. 이동하면 입력 내용이 사라집니다.');
 
-  const handleGlobalTabChange = (tab: GlobalAdminTab) => {
-    if (tab === globalAdminTab || !confirmDiscardDrafts()) return;
-    if (tab === 'requests') {
-      navigate('/admin/communications');
-      return;
-    }
-    setSearchParams({ tab });
-    setStatusFilter('all');
-    setTypeFilter('all');
-    setSearchKeyword('');
-    setPage(1);
-  };
-
   const handleNoticeSubTabChange = (subTab: 'user' | 'campus') => {
     if (subTab === noticeSubTab || !confirmDiscardDrafts()) return;
-    setSearchParams({ tab: 'notices', subTab });
+    setSearchParams({ subTab });
     setSearchKeyword('');
     setPage(1);
   };
@@ -376,9 +352,8 @@ const AdminCampusRequestsPage = () => {
     setLoading(false);
   };
 
-  const loadSummary = async (role: AdminRole) => {
-    if (role.role !== 'global_admin') return;
-    setSummary(await getCampusRequestSummary());
+  const loadSummary = async () => {
+    // No longer used since '문의 처리' tab was removed
   };
 
   const loadUnreadRequests = async () => {
@@ -389,7 +364,7 @@ const AdminCampusRequestsPage = () => {
     (role: AdminRole, includeSummary: boolean) => {
       void loadRequests(role);
       void loadUnreadRequests();
-      if (includeSummary) void loadSummary(role);
+      if (includeSummary) void loadSummary();
     }
   );
   const isRealtimeBoardSyncBlocked = useEffectEvent(
@@ -436,8 +411,7 @@ const AdminCampusRequestsPage = () => {
     if (!adminRole || adminRole.role !== 'global_admin') return;
 
     // Summary counts are loaded independently so page/filter changes stay cheap.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void loadSummary(adminRole).catch((error) => {
+    void loadSummary().catch((error) => {
       console.error('문의 게시판 요약 조회 실패:', error);
     });
     void getCampusTransferStats()
@@ -590,13 +564,6 @@ const AdminCampusRequestsPage = () => {
     const keyword = searchKeyword.trim();
 
     if (keyword) chips.push(`검색: ${keyword}`);
-    if (globalAdminTab === 'requests' && statusFilter !== 'all') {
-      chips.push(
-        `상태: ${
-          statusFilter === 'active' ? '미처리' : statusLabelMap[statusFilter]
-        }`
-      );
-    }
     if (typeFilter !== 'all') chips.push(`유형: ${typeLabelMap[typeFilter]}`);
 
     return chips;
@@ -620,7 +587,7 @@ const AdminCampusRequestsPage = () => {
 
   const resetFilters = () => {
     setSearchKeyword('');
-    setStatusFilter(globalAdminTab === 'requests' ? 'active' : 'all');
+    setStatusFilter('all');
     setTypeFilter('all');
     setPage(1);
   };
@@ -696,7 +663,7 @@ const AdminCampusRequestsPage = () => {
       setNoticeTitleInput('');
       setNoticeContentInput('');
       setIsNoticeFormOpen(false);
-      if (adminRole) void loadSummary(adminRole);
+      if (adminRole) void loadSummary();
 
       setPageFeedback({
         tone: 'success',
@@ -894,7 +861,7 @@ const AdminCampusRequestsPage = () => {
             : item
         )
       );
-      if (adminRole) void loadSummary(adminRole);
+      if (adminRole) void loadSummary();
 
       setPageFeedback({
         tone: 'success',
@@ -1071,44 +1038,7 @@ const AdminCampusRequestsPage = () => {
   >;
   const activeGlobalSection = globalSectionContent[globalAdminTab];
 
-  const renderGlobalSectionNav = () => (
-    <nav className={styles.globalSectionNav} aria-label="공지·문의 관리 메뉴">
-      <button
-        type="button"
-        className={globalAdminTab === 'requests' ? styles.globalSectionActive : ''}
-        onClick={() => handleGlobalTabChange('requests')}
-        aria-current={globalAdminTab === 'requests' ? 'page' : undefined}
-      >
-        <span className={styles.globalSectionIcon}>
-          <MessageSquare size={18} />
-        </span>
-        <span className={styles.globalSectionCopy}>
-          <strong>문의 처리</strong>
-          <small>접수된 요청을 확인하고 답변합니다.</small>
-        </span>
-        <em className={summary.unresolved > 0 ? styles.attentionCount : ''}>
-          {summary.unresolved}
-        </em>
-      </button>
 
-      <button
-        type="button"
-        className={globalAdminTab === 'notices' ? styles.globalSectionActive : ''}
-        onClick={() => handleGlobalTabChange('notices')}
-        aria-current={globalAdminTab === 'notices' ? 'page' : undefined}
-      >
-        <span className={styles.globalSectionIcon}>
-          <Megaphone size={18} />
-        </span>
-        <span className={styles.globalSectionCopy}>
-          <strong>공지 관리</strong>
-          <small>전체 사용자와 캠퍼스 대상 공지를 함께 관리합니다.</small>
-        </span>
-        <em>{summary.notices}</em>
-      </button>
-
-    </nav>
-  );
 
   const renderPageFeedback = () =>
     pageFeedback ? (
@@ -1193,31 +1123,9 @@ const AdminCampusRequestsPage = () => {
         </section>
 
         {isGlobalAdmin && (
-          renderGlobalSectionNav()
-        )}
-        {isGlobalAdmin && globalAdminTab === 'notices' && (
           renderNoticeSubTabNav()
         )}
         {renderPageFeedback()}
-
-        {isGlobalAdmin && globalAdminTab === 'requests' && (
-          <section className={styles.summaryGrid}>
-            <button
-              type="button"
-              className={`${styles.summaryCard} ${
-                statusFilter === 'active' ? styles.summaryCardActive : ''
-              }`}
-              onClick={() => setStatusFilter('active')}
-            >
-              <span>미처리</span>
-              <strong>{summary.unresolved}</strong>
-            </button>
-            <button type="button" className={`${styles.summaryCard} ${statusFilter === 'resolved' ? styles.summaryCardActive : ''}`} onClick={() => setStatusFilter('resolved')}>
-              <span>완료</span>
-              <strong>{summary.resolved}</strong>
-            </button>
-          </section>
-        )}
 
         {isGlobalAdmin && globalAdminTab === 'notices' && noticeSubTab === 'user' && (
           <HomeAnnouncementManager />
@@ -1248,23 +1156,31 @@ const AdminCampusRequestsPage = () => {
             {isNoticeFormOpen && (
               <div className={styles.noticeFormBody}>
                 <label className={styles.field}>
-                  <span>공지 제목</span>
+                  <div className={styles.fieldHeader}>
+                    <span>공지 제목</span>
+                    <span className={styles.charCounter}>{noticeTitleInput.length} / 50</span>
+                  </div>
                   <input
                     value={noticeTitleInput}
-                    onChange={(event) => setNoticeTitleInput(event.target.value)}
+                    onChange={(event) => setNoticeTitleInput(event.target.value.slice(0, 50))}
                     placeholder="예: 마감 후 추가 신청 처리 기준 안내"
+                    maxLength={50}
                   />
                 </label>
 
                 <label className={styles.field}>
-                  <span>공지 내용</span>
+                  <div className={styles.fieldHeader}>
+                    <span>공지 내용</span>
+                    <span className={styles.charCounter}>{noticeContentInput.length} / 1000</span>
+                  </div>
                   <textarea
                     value={noticeContentInput}
                     onChange={(event) =>
-                      setNoticeContentInput(event.target.value)
+                      setNoticeContentInput(event.target.value.slice(0, 1000))
                     }
                     placeholder="캠퍼스 회계 순장님에게 일괄 안내할 내용을 입력해주세요."
                     rows={5}
+                    maxLength={1000}
                   />
                 </label>
 
@@ -1321,7 +1237,11 @@ const AdminCampusRequestsPage = () => {
                     onClick={handleCreateGlobalNotice}
                     disabled={submitting}
                   >
-                    <Megaphone size={16} />
+                    {submitting ? (
+                      <Loader2 size={16} className={styles.spinning} />
+                    ) : (
+                      <Megaphone size={16} />
+                    )}
                     {submitting ? '등록 중...' : '캠퍼스 운영 공지 등록'}
                   </button>
                 </div>
@@ -1417,10 +1337,10 @@ const AdminCampusRequestsPage = () => {
         )}
 
         {isGlobalAdmin ? (
-          (globalAdminTab === 'notices' && noticeSubTab === 'user') ? null : (
+          noticeSubTab === 'user' ? null : (
             <section
               className={`${styles.filterPanel} ${
-                globalAdminTab === 'notices' ? styles.noticeFilterPanel : ''
+                styles.noticeFilterPanel
               } ${
                 hasActiveFilters ? styles.filterPanelActive : ''
               }`}
@@ -1428,7 +1348,7 @@ const AdminCampusRequestsPage = () => {
             <div className={styles.filterTitle}>
               <span>
                 <SlidersHorizontal size={17} />
-                {globalAdminTab === 'requests' ? '문의 필터' : '공지 필터'}
+                공지 필터
               </span>
               <button
                 type="button"
@@ -1472,44 +1392,6 @@ const AdminCampusRequestsPage = () => {
                 isFilterOpen ? styles.filterDetailsOpen : ''
               }`}
             >
-              {globalAdminTab === 'requests' && (
-                <select
-                  className={`${styles.select} ${
-                    statusFilter !== 'all' ? styles.filterControlActive : ''
-                  }`}
-                  value={statusFilter}
-                  onChange={(event) => {
-                    setStatusFilter(
-                      event.target.value as RequestStatusFilter
-                    );
-                    setPage(1);
-                  }}
-                >
-                  <option value="active">미처리</option>
-                  <option value="all">전체 상태</option>
-                  <option value="resolved">완료</option>
-                </select>
-              )}
-
-              {globalAdminTab === 'requests' && (
-                <select
-                  className={`${styles.select} ${
-                    typeFilter !== 'all' ? styles.filterControlActive : ''
-                  }`}
-                  value={typeFilter}
-                  onChange={(event) => {
-                    setTypeFilter(event.target.value as CampusRequestType | 'all');
-                    setPage(1);
-                  }}
-                >
-                  <option value="all">전체 유형</option>
-                  {requestTypeOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              )}
 
               <div className={styles.filterActions}>
                 <button
@@ -1566,10 +1448,10 @@ const AdminCampusRequestsPage = () => {
           </div>
         )}
 
-        {isGlobalAdmin && (globalAdminTab !== 'notices' || noticeSubTab === 'campus') && (
+        {isGlobalAdmin && noticeSubTab === 'campus' && (
           <div className={styles.requestListHeader}>
             <div>
-              <h2>{globalAdminTab === 'requests' ? '문의 목록' : '공지 목록'}</h2>
+              <h2>공지 목록</h2>
               <p>
                 {totalItems.toLocaleString()}건 · {filterSummary}
               </p>
@@ -1577,7 +1459,7 @@ const AdminCampusRequestsPage = () => {
           </div>
         )}
 
-        {(globalAdminTab !== 'notices' || noticeSubTab === 'campus') && (
+        {noticeSubTab === 'campus' && (
           <>
             <section className={styles.requestList}>
           {visibleRequests.length === 0 ? (
@@ -1585,7 +1467,7 @@ const AdminCampusRequestsPage = () => {
               <Search size={24} />
               <strong>
                 {isGlobalAdmin
-                  ? `조건에 맞는 ${globalAdminTab === 'notices' ? '공지가' : '문의가'} 없습니다.`
+                  ? '조건에 맞는 공지가 없습니다.'
                   : '등록된 문의가 없습니다.'}
               </strong>
               <span>
@@ -1600,7 +1482,7 @@ const AdminCampusRequestsPage = () => {
                   onClick={clearFilters}
                 >
                   <X size={16} />
-                  전체 {globalAdminTab === 'notices' ? '공지' : '문의'} 보기
+                  전체 공지 보기
                 </button>
               )}
             </div>
@@ -1854,22 +1736,30 @@ const AdminCampusRequestsPage = () => {
                     editingNoticeId === request.id ? (
                       <div className={styles.noticeEditPanel}>
                         <label className={styles.field}>
-                          <span>공지 제목</span>
+                          <div className={styles.fieldHeader}>
+                            <span>공지 제목</span>
+                            <span className={styles.charCounter}>{editingNoticeTitle.length} / 50</span>
+                          </div>
                           <input
                             value={editingNoticeTitle}
                             onChange={(event) =>
-                              setEditingNoticeTitle(event.target.value)
+                              setEditingNoticeTitle(event.target.value.slice(0, 50))
                             }
+                            maxLength={50}
                           />
                         </label>
                         <label className={styles.field}>
-                          <span>공지 내용</span>
+                          <div className={styles.fieldHeader}>
+                            <span>공지 내용</span>
+                            <span className={styles.charCounter}>{editingNoticeContent.length} / 1000</span>
+                          </div>
                           <textarea
                             value={editingNoticeContent}
                             onChange={(event) =>
-                              setEditingNoticeContent(event.target.value)
+                              setEditingNoticeContent(event.target.value.slice(0, 1000))
                             }
                             rows={5}
+                            maxLength={1000}
                           />
                         </label>
                         <p>
@@ -1891,7 +1781,11 @@ const AdminCampusRequestsPage = () => {
                             onClick={() => void handleEditGlobalNotice(request)}
                             disabled={processingId === request.id}
                           >
-                            <Save size={15} />
+                            {processingId === request.id ? (
+                              <Loader2 size={15} className={styles.spinning} />
+                            ) : (
+                              <Save size={15} />
+                            )}
                             {processingId === request.id ? '저장 중...' : '수정 후 재알림'}
                           </button>
                         </div>

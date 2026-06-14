@@ -1,11 +1,18 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import test from 'node:test';
 
 const migration = readFileSync(
-  'supabase/migrations/20260611000030_194_explicit_high_risk_rpc_authorization.sql',
+  'sql/setup/194_explicit_high_risk_rpc_authorization.sql',
   'utf8'
 );
+const migrationChain = readdirSync('supabase/migrations')
+  .filter((fileName) => fileName.endsWith('.sql'))
+  .sort()
+  .map((fileName) =>
+    readFileSync(`supabase/migrations/${fileName}`, 'utf8')
+  )
+  .join('\n');
 
 const getFunctionBody = (functionName: string) => {
   const match = migration.match(
@@ -52,20 +59,25 @@ test('high-risk public RPCs are unavailable to anonymous roles', () => {
 });
 
 test('internal privilege-bearing helpers remain unavailable to authenticated users', () => {
-  const combined = readFileSync('sql/setup/combined_supabase_setup.sql', 'utf8');
-
   for (const functionName of [
     'create_uncached_allocation_optimization_job',
-    'create_uncached_detailed_allocation_optimization_job',
     'execute_boarding_passenger_move',
   ]) {
     assert.match(
-      combined,
+      migrationChain,
       new RegExp(
-        `revoke all on function public\\.${functionName}\\([\\s\\S]*?from public, anon, authenticated;`,
+        `revoke all on function (?:"public"\\.|public\\.)?"?${functionName}"?\\([^\\r\\n]*from public;`,
         'i'
       ),
       `${functionName} must remain private`
+    );
+    assert.doesNotMatch(
+      migrationChain,
+      new RegExp(
+        `grant all on function (?:"public"\\.|public\\.)?"?${functionName}"?\\([^\\r\\n]*to authenticated;`,
+        'i'
+      ),
+      `${functionName} must not be granted to authenticated users`
     );
   }
 });

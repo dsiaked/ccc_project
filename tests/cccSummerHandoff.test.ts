@@ -11,7 +11,7 @@ const setupSql = readFileSync(
   'utf8'
 );
 const migrationSql = readFileSync(
-  'supabase/migrations/20260610230026_162_ccc_summer_campus_mapping.sql',
+  'sql/setup/162_ccc_summer_campus_mapping.sql',
   'utf8'
 );
 const envExample = readFileSync('.env.example', 'utf8');

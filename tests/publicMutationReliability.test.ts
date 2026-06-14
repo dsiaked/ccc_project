@@ -20,6 +20,6 @@ test('public reservation mutations reject same-tick duplicate requests', () => {
   );
   assert.match(
     confirmedTicketPage,
-    /const boardingConfirmationInFlightRef = useRef\(false\)[\s\S]*const handleConfirmBoarding = async \(\) => \{[\s\S]*boardingConfirmationInFlightRef\.current[\s\S]*boardingConfirmationInFlightRef\.current = true;[\s\S]*submitBoardingCheckInCode\(boardingCode\)[\s\S]*finally \{\s*boardingConfirmationInFlightRef\.current = false;/
+    /const boardingConfirmationInFlightRef = useRef\(false\)[\s\S]*const handleConfirmBoarding = async \(\) => \{[\s\S]*boardingConfirmationInFlightRef\.current[\s\S]*boardingConfirmationInFlightRef\.current = true;[\s\S]*submitBoardingCheckInCode\([\s\S]*?boardingCode[\s\S]*finally \{\s*boardingConfirmationInFlightRef\.current = false;/
   );
 });

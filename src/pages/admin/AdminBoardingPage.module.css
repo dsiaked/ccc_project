@@ -514,22 +514,86 @@
   .moveRequestActions { justify-content: flex-start; }
   .exceptionModal form { grid-template-columns: 1fr; padding: 16px; }
   .exceptionModal form > label, .exceptionReason, .exceptionModal form > p, .exceptionModal footer { grid-column: 1; }
-  .passengerList { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
-  .passengerName { font-size: 12px; }
-  .actions button, .boardingCheck { min-height: 36px; font-size: 9px; }
+  .passengerList { grid-template-columns: 1fr; gap: 8px; }
+  .passenger {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "main actions"
+      "detail detail";
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    background: white;
+    text-align: left;
+    min-height: unset;
+  }
+  .passengerMain {
+    grid-area: main;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
+    justify-content: flex-start;
+    padding: 0;
+    text-align: left;
+  }
+  .passengerName {
+    font-size: 14px;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .passengerCampus {
+    font-size: 11px;
+    color: #475569;
+  }
+  .statusBadge { min-width: unset; padding: 3px 6px; font-size: 9px; }
+  .actions {
+    grid-area: actions;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+  }
+  .actions button, .boardingCheck {
+    min-height: 32px;
+    padding: 0 10px;
+    font-size: 11px;
+    border-radius: 6px;
+  }
+  .detailButton {
+    grid-area: detail;
+    width: 100%;
+    min-height: 28px;
+    padding: 6px 0 0;
+    margin-top: 4px;
+    border: 0;
+    border-top: 1px solid #f1f5f9;
+    border-radius: 0;
+    background: transparent;
+    font-size: 10px;
+    text-align: left;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
   .hero {
-    gap: 14px;
-    border-radius: 12px;
+    gap: 10px;
+    padding: 14px 16px;
+    border-radius: 10px;
   }
 
   .hero h1 {
-    margin: 4px 0;
-    font-size: 24px;
+    margin: 2px 0;
+    font-size: 20px;
   }
 
   .hero p {
-    font-size: 13px;
-    line-height: 1.5;
+    font-size: 12px;
+    line-height: 1.4;
   }
 
   .fieldExceptionActions span {
@@ -544,19 +608,26 @@
     font-size: 18px;
   }
 
-  .busCounts span,
-  .statusBadge {
-    padding: 6px 8px;
+  .busCounts span {
     font-size: 12px;
   }
 
   .filters {
     top: 102px;
+    padding: 8px 12px;
+    gap: 6px;
   }
 
   .filters input,
   .filters select {
-    font-size: 14px;
+    height: 38px;
+    font-size: 13px;
+  }
+
+  .statusFilters button {
+    min-height: 32px;
+    font-size: 11px;
+    padding: 0 8px;
   }
 
   .detailBackdrop {
@@ -566,16 +637,35 @@
   .detailPanel {
     width: 100%;
     height: min(88vh, 760px);
-    border-radius: 18px 18px 0 0;
+    border-radius: 14px 14px 0 0;
     box-shadow: 0 -12px 30px rgba(15, 23, 42, .18);
   }
 
   .detailHeader {
-    padding: 16px 14px 14px;
+    padding: 12px 14px;
   }
 
   .detailHeader h2 {
-    font-size: 22px;
+    font-size: 19px;
+  }
+
+  .detailHeader p {
+    font-size: 12px;
+  }
+
+  .detailHeader button {
+    width: 36px;
+    height: 36px;
+  }
+
+  .drawerTabs {
+    margin: 10px 10px 0;
+  }
+
+  .drawerTabButton {
+    min-height: 36px;
+    font-size: 12px;
+    padding: 6px;
   }
 
   .detailStatusSection,
@@ -584,16 +674,44 @@
   .phoneButton,
   .detailRecord,
   .detailNoteEditor {
-    margin-right: 10px;
-    margin-left: 10px;
+    margin: 10px;
+    padding: 12px;
+  }
+
+  .detailStatusSection {
+    gap: 10px;
   }
 
   .detailActions {
-    gap: 5px;
+    gap: 4px;
   }
 
   .detailActions button {
+    min-height: 36px;
     font-size: 11px;
+  }
+
+  .preferenceSection p {
+    font-size: 12px;
+  }
+
+  .preferenceList li {
+    padding: 8px;
+  }
+
+  .preferenceList strong {
+    font-size: 12px;
+  }
+
+  .phoneButton {
+    min-height: 40px;
+    font-size: 12px;
+  }
+
+  .detailNoteEditor textarea {
+    min-height: 90px;
+    padding: 8px;
+    font-size: 13px;
   }
 
   .detailNoteHeading,
@@ -623,3 +741,218 @@
     padding: 38px 16px;
   }
 }
+
+/* --- UI/UX 개선 추가 스타일 --- */
+.highlight {
+  background-color: #fef08a; /* 밝은 노란색 하이라이트 */
+  color: #1e293b;
+  padding: 0 2px;
+  border-radius: 2px;
+}
+
+/* 모바일 호차 그리드 모드 */
+.busGridGrid {
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)) !important;
+  display: grid !important;
+  overflow-x: visible !important;
+  scroll-snap-type: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  gap: 10px !important;
+}
+
+@media (max-width: 560px) {
+  .busGridGrid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)) !important;
+    gap: 8px !important;
+  }
+}
+
+.busGridGrid .busCard {
+  flex: unset !important;
+  min-height: unset !important;
+  padding: 12px !important;
+  border-radius: 10px !important;
+}
+
+@media (max-width: 560px) {
+  .busGridGrid .busCard {
+    padding: 8px 10px !important;
+    border-radius: 8px !important;
+  }
+}
+
+.busGridGrid .busCard > div:first-child {
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  gap: 4px !important;
+}
+
+.busGridGrid .busCardStatus {
+  justify-content: flex-start !important;
+  gap: 2px !important;
+}
+
+.busGridGrid .busCard strong {
+  font-size: 16px !important;
+}
+
+@media (max-width: 560px) {
+  .busGridGrid .busCard strong {
+    font-size: 14px !important;
+  }
+}
+
+.busGridGrid .busCard p {
+  margin: 4px 0 8px !important;
+  font-size: 12px !important;
+}
+
+@media (max-width: 560px) {
+  .busGridGrid .busCard p {
+    margin: 2px 0 6px !important;
+    font-size: 11px !important;
+  }
+}
+
+.busGridGrid .selectedBadge,
+.busGridGrid .departedBadge,
+.busGridGrid .departedUncheckedBadge {
+  padding: 2px 5px !important;
+  font-size: 10px !important;
+}
+
+@media (max-width: 560px) {
+  .busGridGrid .selectedBadge,
+  .busGridGrid .departedBadge,
+  .busGridGrid .departedUncheckedBadge {
+    padding: 1px 4px !important;
+    font-size: 9px !important;
+  }
+}
+
+.busGridGrid .busProgressHeader {
+  margin-bottom: 4px !important;
+  font-size: 11px !important;
+}
+
+@media (max-width: 560px) {
+  .busGridGrid .busProgressHeader {
+    margin-bottom: 2px !important;
+    font-size: 10px !important;
+  }
+}
+
+.busGridGrid .busProgressHeader strong {
+  font-size: 11px !important;
+}
+
+@media (max-width: 560px) {
+  .busGridGrid .busProgressHeader strong {
+    font-size: 10px !important;
+  }
+}
+
+.busGridGrid .busProgress {
+  height: 5px !important;
+}
+
+.busGridGrid .busCounts {
+  margin-top: 8px !important;
+  gap: 3px 6px !important;
+}
+
+@media (max-width: 560px) {
+  .busGridGrid .busCounts {
+    margin-top: 6px !important;
+    gap: 2px 4px !important;
+  }
+}
+
+.busGridGrid .busCounts span {
+  font-size: 10px !important;
+}
+
+@media (max-width: 560px) {
+  .busGridGrid .busCounts span {
+    font-size: 9px !important;
+  }
+}
+
+.busGridGrid .busCounts span::before {
+  width: 5px !important;
+  height: 5px !important;
+  margin-right: 3px !important;
+  vertical-align: 0.5px !important;
+}
+
+@media (max-width: 560px) {
+  .busGridGrid .busCounts span::before {
+    width: 4px !important;
+    height: 4px !important;
+    margin-right: 2px !important;
+    vertical-align: 0.5px !important;
+  }
+}
+.busGridHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.busGridHeader h3 {
+  margin: 0;
+  color: #172554;
+  font-size: 16px;
+}
+.busViewToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: white;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.busViewToggle:hover {
+  background: #f8fafc;
+}
+
+/* 상세 드로어 탭 */
+.drawerTabs {
+  display: flex;
+  border-bottom: 1px solid #e2e8f0;
+  margin: 14px 18px 0;
+}
+.drawerTabButton {
+  flex: 1;
+  min-height: 40px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  padding: 8px;
+  text-align: center;
+  outline: none;
+}
+.drawerTabButtonActive {
+  border-bottom-color: #2563eb;
+  color: #2563eb;
+}
+.drawerTabContent {
+  animation: fadeIn 0.15s ease-in-out;
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+

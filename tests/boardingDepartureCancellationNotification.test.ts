@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const migration = readFileSync(
-  'supabase/migrations/20260611000018_184_notify_boarding_managers_on_departure_cancel.sql',
+  'sql/setup/184_notify_boarding_managers_on_departure_cancel.sql',
   'utf8'
 );
 const notifications = readFileSync(

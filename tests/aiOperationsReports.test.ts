@@ -3,15 +3,15 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const migration = readFileSync(
-  'supabase/migrations/20260610230017_156_ai_operations_reports.sql',
+  'sql/setup/156_ai_operations_reports.sql',
   'utf8'
 );
 const simulationAttributionMigration = readFileSync(
-  'supabase/migrations/20260610230031_167_attribute_simulation_user_activity.sql',
+  'sql/setup/167_attribute_simulation_user_activity.sql',
   'utf8'
 );
 const simulationAttributionBackfill = readFileSync(
-  'supabase/migrations/20260610230034_170_backfill_simulation_user_activity.sql',
+  'sql/setup/170_backfill_simulation_user_activity.sql',
   'utf8'
 );
 const edgeFunction = readFileSync(
@@ -30,11 +30,11 @@ const activityLogsPage = readFileSync(
   'utf8'
 );
 const selectionMigration = readFileSync(
-  'supabase/migrations/20260610230030_166_ai_report_log_selection.sql',
+  'sql/setup/166_ai_report_log_selection.sql',
   'utf8'
 );
 const globalAdminActivityMigration = readFileSync(
-  'supabase/migrations/20260611000005_175_skip_global_admin_activity_logs.sql',
+  'sql/setup/175_skip_global_admin_activity_logs.sql',
   'utf8'
 );
 

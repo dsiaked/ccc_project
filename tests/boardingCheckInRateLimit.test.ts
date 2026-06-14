@@ -7,7 +7,7 @@ const setupSql = readFileSync(
   'utf8',
 );
 const migrationSql = readFileSync(
-  'supabase/migrations/20260610230007_146_rate_limit_boarding_check_in_codes.sql',
+  'sql/setup/146_rate_limit_boarding_check_in_codes.sql',
   'utf8',
 );
 const reservationService = readFileSync('src/lib/reservationService.ts', 'utf8');
@@ -29,7 +29,7 @@ test('boarding check-in locks each reservation after five failures', () => {
 
 test('boarding check-in service handles structured rate-limit responses', () => {
   assert.match(reservationService, /if \(typeof data === 'string'\) return data;/);
-  assert.match(reservationService, /if \(!result\.success\)/);
+  assert.match(reservationService, /if \(result\.success === false\)/);
   assert.match(reservationService, /throw new Error\(result\.message/);
   assert.match(reservationService, /return result\.confirmedAt;/);
 });

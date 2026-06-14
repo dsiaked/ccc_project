@@ -36,3 +36,9 @@ npm run db:baseline:verify
 
 The command works only inside `.tmp` and does not modify the repository's
 original migration files.
+
+## Current Baseline
+
+The repository history is squashed through `20260613000001` (migration 204).
+The linked production migration table and repository history match from this
+baseline onward.

@@ -312,7 +312,7 @@ export const createDraftFromExactAllocationJob = async (
 export const getAllocationWorkspaceForExactJob = async (jobId: string) => {
   const { data, error } = await supabase
     .from('bus_allocations')
-    .select('id, allocation_name, allocation_data')
+    .select('*')
     .eq('allocation_data->>sourceOptimizationJobId', jobId)
     .in('allocation_data->>status', ['draft', 'confirmed'])
     .order('created_at', { ascending: false })
@@ -320,8 +320,5 @@ export const getAllocationWorkspaceForExactJob = async (jobId: string) => {
     .maybeSingle();
 
   if (error) throw error;
-  return data as Pick<
-    AllocationWorkspaceRow,
-    'id' | 'allocation_name' | 'allocation_data'
-  > | null;
+  return data as AllocationWorkspaceRow | null;
 };

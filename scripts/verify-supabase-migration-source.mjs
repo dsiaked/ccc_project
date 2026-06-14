@@ -1,10 +1,16 @@
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 
 const migrationDirectory = 'supabase/migrations';
 const migrationFilePattern = /^(\d{14})_[a-z0-9_]+\.sql$/;
 const files = readdirSync(migrationDirectory)
   .filter((fileName) => fileName.endsWith('.sql'))
   .sort();
+
+if (existsSync('sql/setup/combined_supabase_setup.sql')) {
+  throw new Error(
+    'Legacy combined setup must not be recreated; use supabase/migrations.'
+  );
+}
 
 const versions = new Set();
 for (const file of files) {

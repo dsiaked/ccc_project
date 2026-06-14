@@ -7,7 +7,7 @@ const setupSql = readFileSync(
   'utf8',
 );
 const migrationSql = readFileSync(
-  'supabase/migrations/20260611000006_176_allocation_optimization_retention.sql',
+  'sql/setup/176_allocation_optimization_retention.sql',
   'utf8',
 );
 

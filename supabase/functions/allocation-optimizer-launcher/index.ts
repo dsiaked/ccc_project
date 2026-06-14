@@ -242,6 +242,10 @@ Deno.serve(async (request) => {
                     name: 'WORKER_ID',
                     value: workerId,
                   },
+                  {
+                    name: 'SUPABASE_URL',
+                    value: supabaseUrl,
+                  },
                 ],
               },
             ],

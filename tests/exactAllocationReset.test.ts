@@ -4,7 +4,7 @@ import test from 'node:test';
 
 test('allocation reset serializes job creation and explicitly clears dependencies', () => {
   const migration = readFileSync(
-    'supabase/migrations/20260610170001_134_safe_reset_allocation_optimization_jobs.sql',
+    'sql/setup/134_safe_reset_allocation_optimization_jobs.sql',
     'utf8'
   );
 
@@ -26,7 +26,7 @@ test('allocation reset serializes job creation and explicitly clears dependencie
 
 test('latest allocation reset relies on cascade cleanup and exposes unexpected database errors', () => {
   const migration = readFileSync(
-    'supabase/migrations/20260610230025_161_diagnose_allocation_optimization_reset.sql',
+    'sql/setup/161_diagnose_allocation_optimization_reset.sql',
     'utf8'
   );
 
@@ -40,7 +40,7 @@ test('latest allocation reset relies on cascade cleanup and exposes unexpected d
 
 test('guarded allocation reset uses an explicit full-history predicate', () => {
   const migration = readFileSync(
-    'supabase/migrations/20260610230027_163_fix_guarded_allocation_optimization_reset.sql',
+    'sql/setup/163_fix_guarded_allocation_optimization_reset.sql',
     'utf8'
   );
 

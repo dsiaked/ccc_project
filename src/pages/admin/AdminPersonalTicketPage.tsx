@@ -298,6 +298,14 @@ const AdminPersonalTicketPage = () => {
   const [searchKeyword, setSearchKeyword] = useState(
     () => searchParams.get('search') || ''
   );
+  const [localSearch, setLocalSearch] = useState(searchKeyword);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setSearchKeyword(localSearch);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [localSearch]);
   const [statusFilters, setStatusFilters] = useState<ReservationStatusFilter[]>(
     []
   );
@@ -729,6 +737,7 @@ const AdminPersonalTicketPage = () => {
   const advancedFilterCount = statusFilters.length + adminRoleFilters.length;
 
   const resetFilters = () => {
+    setLocalSearch('');
     setSearchKeyword('');
     setTicketFilter('all');
     setStatusFilters([]);
@@ -1674,291 +1683,331 @@ const AdminPersonalTicketPage = () => {
 
 
 
-        <section className={styles.toolbar}>
-          <div className={styles.toolbarPrimary}>
-            <div className={styles.searchBox}>
-              <Search size={18} />
-              <input
-                value={searchKeyword}
-                onChange={(event) => {
-                  setSearchKeyword(event.target.value);
-                  setPage(1);
-                }}
-                placeholder="이름, 연락처, 캠퍼스, 호차 검색"
-              />
-            </div>
-
-            <select
-              className={ticketFilter !== 'all' ? styles.activeFilter : undefined}
-              value={ticketFilter}
-              aria-label="버스표 확정 여부"
-              onChange={(event) => {
-                setTicketFilter(event.target.value as TicketStatusFilter);
-                setPage(1);
-              }}
-            >
-              <option value="all">버스표 확정 여부 · 전체</option>
-              <option value="pending">버스표 미확정</option>
-              <option value="confirmed">버스표 확정 완료</option>
-              <option value="not_applied">버스 미신청</option>
-            </select>
-
-            <select
-              className={districtFilter !== 'all' ? styles.activeFilter : undefined}
-              value={districtFilter}
-              aria-label="지구"
-              onChange={(event) => selectDistrict(event.target.value)}
-            >
-              <option value="all">지구 · 전체</option>
-              <option value="outside_seoul">서울 외 지구 · 전체</option>
-              {districts.map((district) => (
-                <option key={district} value={district}>
-                  {district}
-                </option>
-              ))}
-            </select>
-
-            <select
-              className={campusFilter !== 'all' ? styles.activeFilter : undefined}
-              value={campusFilter}
-              aria-label="캠퍼스"
-              onChange={(event) => selectCampus(event.target.value)}
-            >
-              <option value="all">캠퍼스 · 전체</option>
-              {campuses.map((campus) => (
-                <option key={campus} value={campus}>
-                  {campus}
-                </option>
-              ))}
-            </select>
-
-            <button
-              type="button"
-              className={`${styles.filterToggle} ${
-                advancedFilterCount > 0 ? styles.filterToggleActive : ''
-              }`}
-              onClick={() => setIsAdvancedFiltersOpen((previous) => !previous)}
-              aria-expanded={isAdvancedFiltersOpen}
-              aria-controls="personal-ticket-advanced-filters"
-            >
-              <SlidersHorizontal size={16} />
-              상세 필터
-              {advancedFilterCount > 0 && (
-                <span>{advancedFilterCount}</span>
-              )}
-              {isAdvancedFiltersOpen ? (
-                <ChevronUp size={15} />
-              ) : (
-                <ChevronDown size={15} />
-              )}
-            </button>
-            <button
-              type="button"
-              className={`${styles.filterToggle} ${
-                attentionOnly ? styles.filterToggleActive : ''
-              }`}
-              onClick={() => setAttentionOnly((current) => !current)}
-            >
-              <AlertTriangle size={15} />
-              조치 필요
-            </button>
-          </div>
-
-          {isAdvancedFiltersOpen && (
-            <div
-              id="personal-ticket-advanced-filters"
-              className={styles.advancedFilters}
-            >
-              <fieldset className={styles.filterGroup}>
-                <legend>신청 상태</legend>
-                <div className={styles.checkboxOptions}>
-                  <label
-                    className={`${styles.checkboxOption} ${
-                      statusFilters.length === 0
-                        ? styles.checkboxOptionActive
-                        : ''
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={statusFilters.length === 0}
-                      onChange={() => {
-                        setStatusFilters([]);
-                        setPage(1);
-                      }}
-                    />
-                    <span>전체</span>
-                  </label>
-                  {reservationStatusOptions.map((option) => {
-                    const checked = statusFilters.includes(option.value);
-
-                    return (
-                      <label
-                        key={option.value}
-                        className={`${styles.checkboxOption} ${
-                          checked ? styles.checkboxOptionActive : ''
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => {
-                            setStatusFilters((current) =>
-                              toggleFilterValue(current, option.value)
-                            );
-                            setPage(1);
-                          }}
-                        />
-                        <span>{option.label}</span>
-                      </label>
-                    );
-                  })}
-                </div>
-              </fieldset>
-
-              <fieldset className={styles.filterGroup}>
-                <legend>관리자 권한</legend>
-                <div className={styles.checkboxOptions}>
-                  <label
-                    className={`${styles.checkboxOption} ${
-                      adminRoleFilters.length === 0
-                        ? styles.checkboxOptionActive
-                        : ''
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={adminRoleFilters.length === 0}
-                      onChange={() => {
-                        setAdminRoleFilters([]);
-                        setPage(1);
-                      }}
-                    />
-                    <span>전체</span>
-                  </label>
-                  {adminRoleOptions.map((option) => {
-                    const checked = adminRoleFilters.includes(option.value);
-
-                    return (
-                      <label
-                        key={option.value}
-                        className={`${styles.checkboxOption} ${
-                          checked ? styles.checkboxOptionActive : ''
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => {
-                            setAdminRoleFilters((current) =>
-                              toggleFilterValue(current, option.value)
-                            );
-                            setPage(1);
-                          }}
-                        />
-                        <span>{option.label}</span>
-                      </label>
-                    );
-                  })}
-                </div>
-              </fieldset>
-            </div>
-          )}
-
-          {hasActiveFilters && (
-            <div className={styles.filterChips} aria-label="적용된 필터">
-              {searchKeyword.trim() && (
-                <button type="button" onClick={() => {
-                  setSearchKeyword('');
-                  setPage(1);
-                }}>
-                  검색: {searchKeyword.trim()} <X size={13} />
-                </button>
-              )}
-              {ticketFilter !== 'all' && (
-                <button type="button" onClick={() => {
-                  setTicketFilter('all');
-                  setPage(1);
-                }}>
-                  버스표: {ticketFilter === 'confirmed' ? '확정 완료' : ticketFilter === 'pending' ? '미확정' : '미신청'} <X size={13} />
-                </button>
-              )}
-              {statusFilters.map((status) => (
-                <button
-                  key={status}
-                  type="button"
-                  onClick={() => {
-                    setStatusFilters((current) =>
-                      current.filter((value) => value !== status)
-                    );
-                    setPage(1);
-                  }}
-                >
-                  신청:{' '}
-                  {reservationStatusOptions.find(
-                    (option) => option.value === status
-                  )?.label || status}{' '}
-                  <X size={13} />
-                </button>
-              ))}
-              {adminRoleFilters.map((role) => (
-                <button
-                  key={role}
-                  type="button"
-                  onClick={() => {
-                    setAdminRoleFilters((current) =>
-                      current.filter((value) => value !== role)
-                    );
-                    setPage(1);
-                  }}
-                >
-                  권한:{' '}
-                  {adminRoleOptions.find((option) => option.value === role)
-                    ?.label || role}{' '}
-                  <X size={13} />
-                </button>
-              ))}
-              {campusFilter !== 'all' && (
-                <button type="button" onClick={() => selectCampus('all')}>
-                  캠퍼스: {campusFilter} <X size={13} />
-                </button>
-              )}
-              {districtFilter !== 'all' && (
-                <button type="button" onClick={() => selectDistrict('all')}>
-                  지구:{' '}
-                  {districtFilter === 'outside_seoul'
-                    ? '서울 외 지구'
-                    : districtFilter}{' '}
-                  <X size={13} />
-                </button>
-              )}
-            </div>
-          )}
-
-          <div className={styles.filterSummary}>
-            <span>
-              {loading ? (
-                '필터 적용 중...'
-              ) : (
-                <>
-                  전체 {totalReservations.toLocaleString()}명 중{' '}
-                  <strong>{filteredTotal.toLocaleString()}명</strong>
-                </>
-              )}
-            </span>
-            <button
-              type="button"
-              onClick={resetFilters}
-              disabled={!hasActiveFilters}
-            >
-              <RotateCcw size={14} />
-              필터 초기화
-            </button>
-          </div>
-        </section>
-
         <div className={styles.layout}>
           <section className={styles.tablePanel}>
+            <section className={styles.toolbar}>
+              <div className={styles.toolbarPrimary}>
+                {/* 1. 신청자 (24%) */}
+                <div className={styles.filterCell}>
+                  <div className={styles.searchBox}>
+                    <Search size={18} />
+                    <input
+                      value={localSearch}
+                      onChange={(event) => {
+                        setLocalSearch(event.target.value);
+                        setPage(1);
+                      }}
+                      placeholder="이름, 연락처, 캠퍼스 검색"
+                    />
+                  </div>
+                </div>
+
+                {/* 2. 소속 (17%) */}
+                <div className={styles.filterCell}>
+                  <div className={styles.affiliationGroup}>
+                    <select
+                      className={districtFilter !== 'all' ? styles.activeFilter : undefined}
+                      value={districtFilter}
+                      aria-label="지구"
+                      onChange={(event) => selectDistrict(event.target.value)}
+                    >
+                      <option value="all">지구 · 전체</option>
+                      <option value="outside_seoul">서울 외 지구 · 전체</option>
+                      {districts.map((district) => (
+                        <option key={district} value={district}>
+                          {district}
+                        </option>
+                      ))}
+                    </select>
+
+                    <select
+                      className={campusFilter !== 'all' ? styles.activeFilter : undefined}
+                      value={campusFilter}
+                      aria-label="캠퍼스"
+                      onChange={(event) => selectCampus(event.target.value)}
+                    >
+                      <option value="all">캠퍼스 · 전체</option>
+                      {campuses.map((campus) => (
+                        <option key={campus} value={campus}>
+                          {campus}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* 3. 희망 행선지 (20%) */}
+                <div className={styles.filterCell}>
+                  <button
+                    type="button"
+                    className={`${styles.filterToggle} ${
+                      advancedFilterCount > 0 ? styles.filterToggleActive : ''
+                    }`}
+                    onClick={() => setIsAdvancedFiltersOpen((previous) => !previous)}
+                    aria-expanded={isAdvancedFiltersOpen}
+                    aria-controls="personal-ticket-advanced-filters"
+                  >
+                    <SlidersHorizontal size={16} />
+                    상세 필터
+                    {advancedFilterCount > 0 && (
+                      <span>{advancedFilterCount}</span>
+                    )}
+                    {isAdvancedFiltersOpen ? (
+                      <ChevronUp size={15} />
+                    ) : (
+                      <ChevronDown size={15} />
+                    )}
+                  </button>
+                </div>
+
+                {/* 4. 신청 여부 (13%) */}
+                <div className={styles.filterCell}>
+                  <select
+                    className={statusFilters.length > 0 ? styles.activeFilter : undefined}
+                    value={statusFilters[0] || 'all'}
+                    onChange={(event) => {
+                      const val = event.target.value;
+                      setStatusFilters(val === 'all' ? [] : [val as ReservationStatusFilter]);
+                      setPage(1);
+                    }}
+                    aria-label="신청 상태"
+                  >
+                    <option value="all">신청 여부 · 전체</option>
+                    {reservationStatusOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 5. 입금 상태 (13%) */}
+                <div className={styles.filterCell}>
+                  <button
+                    type="button"
+                    className={`${styles.filterToggle} ${
+                      attentionOnly ? styles.filterToggleActive : ''
+                    }`}
+                    onClick={() => setAttentionOnly((current) => !current)}
+                    aria-label="조치 필요 필터"
+                  >
+                    <AlertTriangle size={15} />
+                    조치 필요
+                  </button>
+                </div>
+
+                {/* 6. 버스표 확정 여부 (13%) */}
+                <div className={styles.filterCell}>
+                  <select
+                    className={ticketFilter !== 'all' ? styles.activeFilter : undefined}
+                    value={ticketFilter}
+                    aria-label="버스표 확정 여부"
+                    onChange={(event) => {
+                      setTicketFilter(event.target.value as TicketStatusFilter);
+                      setPage(1);
+                    }}
+                  >
+                    <option value="all">버스표 · 전체</option>
+                    <option value="pending">미확정</option>
+                    <option value="confirmed">확정 완료</option>
+                    <option value="not_applied">미신청</option>
+                  </select>
+                </div>
+              </div>
+
+              {isAdvancedFiltersOpen && (
+                <div
+                  id="personal-ticket-advanced-filters"
+                  className={styles.advancedFilters}
+                >
+                  <fieldset className={styles.filterGroup}>
+                    <legend>신청 상태</legend>
+                    <div className={styles.checkboxOptions}>
+                      <label
+                        className={`${styles.checkboxOption} ${
+                          statusFilters.length === 0
+                            ? styles.checkboxOptionActive
+                            : ''
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={statusFilters.length === 0}
+                          onChange={() => {
+                            setStatusFilters([]);
+                            setPage(1);
+                          }}
+                        />
+                        <span>전체</span>
+                      </label>
+                      {reservationStatusOptions.map((option) => {
+                        const checked = statusFilters.includes(option.value);
+
+                        return (
+                          <label
+                            key={option.value}
+                            className={`${styles.checkboxOption} ${
+                              checked ? styles.checkboxOptionActive : ''
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => {
+                                setStatusFilters((current) =>
+                                  toggleFilterValue(current, option.value)
+                                );
+                                setPage(1);
+                              }}
+                            />
+                            <span>{option.label}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </fieldset>
+
+                  <fieldset className={styles.filterGroup}>
+                    <legend>관리자 권한</legend>
+                    <div className={styles.checkboxOptions}>
+                      <label
+                        className={`${styles.checkboxOption} ${
+                          adminRoleFilters.length === 0
+                            ? styles.checkboxOptionActive
+                            : ''
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={adminRoleFilters.length === 0}
+                          onChange={() => {
+                            setAdminRoleFilters([]);
+                            setPage(1);
+                          }}
+                        />
+                        <span>전체</span>
+                      </label>
+                      {adminRoleOptions.map((option) => {
+                        const checked = adminRoleFilters.includes(option.value);
+
+                        return (
+                          <label
+                            key={option.value}
+                            className={`${styles.checkboxOption} ${
+                              checked ? styles.checkboxOptionActive : ''
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => {
+                                setAdminRoleFilters((current) =>
+                                  toggleFilterValue(current, option.value)
+                                );
+                                setPage(1);
+                              }}
+                            />
+                            <span>{option.label}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </fieldset>
+                </div>
+              )}
+
+              {hasActiveFilters && (
+                <div className={styles.filterChips} aria-label="적용된 필터">
+                  {searchKeyword.trim() && (
+                    <button type="button" onClick={() => {
+                      setLocalSearch('');
+                      setSearchKeyword('');
+                      setPage(1);
+                    }}>
+                      검색: {searchKeyword.trim()} <X size={13} />
+                    </button>
+                  )}
+                  {ticketFilter !== 'all' && (
+                    <button type="button" onClick={() => {
+                      setTicketFilter('all');
+                      setPage(1);
+                    }}>
+                      버스표: {ticketFilter === 'confirmed' ? '확정 완료' : ticketFilter === 'pending' ? '미확정' : '미신청'} <X size={13} />
+                    </button>
+                  )}
+                  {statusFilters.map((status) => (
+                    <button
+                      key={status}
+                      type="button"
+                      onClick={() => {
+                        setStatusFilters((current) =>
+                          current.filter((value) => value !== status)
+                        );
+                        setPage(1);
+                      }}
+                    >
+                      신청:{' '}
+                      {reservationStatusOptions.find(
+                        (option) => option.value === status
+                      )?.label || status}{' '}
+                      <X size={13} />
+                    </button>
+                  ))}
+                  {adminRoleFilters.map((role) => (
+                    <button
+                      key={role}
+                      type="button"
+                      onClick={() => {
+                        setAdminRoleFilters((current) =>
+                          current.filter((value) => value !== role)
+                        );
+                        setPage(1);
+                      }}
+                    >
+                      권한:{' '}
+                      {adminRoleOptions.find((option) => option.value === role)
+                        ?.label || role}{' '}
+                      <X size={13} />
+                    </button>
+                  ))}
+                  {campusFilter !== 'all' && (
+                    <button type="button" onClick={() => selectCampus('all')}>
+                      캠퍼스: {campusFilter} <X size={13} />
+                    </button>
+                  )}
+                  {districtFilter !== 'all' && (
+                    <button type="button" onClick={() => selectDistrict('all')}>
+                      지구:{' '}
+                      {districtFilter === 'outside_seoul'
+                        ? '서울 외 지구'
+                        : districtFilter}{' '}
+                      <X size={13} />
+                    </button>
+                  )}
+                </div>
+              )}
+
+              <div className={styles.filterSummary}>
+                <span>
+                  {loading ? (
+                    '필터 적용 중...'
+                  ) : (
+                    <>
+                      전체 {totalReservations.toLocaleString()}명 중{' '}
+                      <strong>{filteredTotal.toLocaleString()}명</strong>
+                    </>
+                  )}
+                </span>
+                <button
+                  type="button"
+                  onClick={resetFilters}
+                  disabled={!hasActiveFilters}
+                >
+                  <RotateCcw size={14} />
+                  필터 초기화
+                </button>
+              </div>
+            </section>
             {selectedReservationIds.length > 0 && (
               <div className={styles.bulkBar}>
                 <strong>{selectedReservationIds.length}명 선택</strong>

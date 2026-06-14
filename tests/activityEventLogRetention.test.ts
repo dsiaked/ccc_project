@@ -7,7 +7,7 @@ const setupSql = readFileSync(
   'utf8',
 );
 const migrationSql = readFileSync(
-  'supabase/migrations/20260611000008_178_activity_event_log_retention.sql',
+  'sql/setup/178_activity_event_log_retention.sql',
   'utf8',
 );
 

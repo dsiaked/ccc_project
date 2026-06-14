@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const migration = readFileSync(
-  'supabase/migrations/20260611000012_182_lock_deadline_while_allocation_confirmed.sql',
+  'sql/setup/182_lock_deadline_while_allocation_confirmed.sql',
   'utf8'
 );
 const service = readFileSync('src/lib/reservationDeadlineService.ts', 'utf8');

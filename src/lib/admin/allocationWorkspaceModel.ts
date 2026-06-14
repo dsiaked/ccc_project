@@ -1,4 +1,5 @@
 import { describeAllocationWorkspaceChanges } from './allocationWorkspaceHistory.js';
+import type { AllocationStrategy } from './destinationQueueAllocation.js';
 
 export interface AllocationWorkspaceBus {
   id: string;
@@ -24,6 +25,7 @@ export interface AllocationWorkspacePassenger {
   remainingSeatStatus?: 'pending_payment' | 'confirmed';
   busId: string | null;
   seatNumber: number | null;
+  assignedDestination?: string;
 }
 
 export interface AllocationWorkspaceSnapshot {
@@ -51,6 +53,11 @@ export interface AllocationWorkspaceVersion extends AllocationWorkspaceSnapshot 
 export interface AllocationWorkspaceData extends AllocationWorkspaceSnapshot {
   schemaVersion: 1 | 2;
   status: 'draft' | 'confirmed' | 'archived';
+  allocationStrategy?: AllocationStrategy;
+  commonBoarding?: {
+    departureTime: string;
+    boardingPlace: string;
+  };
   sourceAllocation: Record<string, unknown>;
   manualBusTemplate?: Pick<
     AllocationWorkspaceBus,

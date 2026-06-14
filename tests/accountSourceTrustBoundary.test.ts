@@ -7,7 +7,7 @@ const setupSql = readFileSync(
   'utf8',
 );
 const migrationSql = readFileSync(
-  'supabase/migrations/20260610230008_147_secure_admin_created_account_source.sql',
+  'sql/setup/147_secure_admin_created_account_source.sql',
   'utf8',
 );
 const adminUserManager = readFileSync(

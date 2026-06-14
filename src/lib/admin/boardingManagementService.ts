@@ -105,6 +105,7 @@ export interface BoardingManagerUser {
   campus: string | null;
   isBoardingManager: boolean;
   assignedBusIds: string[];
+  isStaff: boolean;
 }
 
 export interface BoardingManagerAssignmentBus {
@@ -353,9 +354,10 @@ export const rotateBoardingCheckInCode = async (busId: string) => {
   return String(data ?? '');
 };
 
-export const getBoardingManagerUsers = async (search: string) => {
+export const getBoardingManagerUsers = async (search: string, isStaffOnly = false) => {
   const { data, error } = await supabase.rpc('get_boarding_manager_users', {
     p_search: search,
+    p_is_staff_only: isStaffOnly,
   });
   if (error) throw new Error(error.message);
 
@@ -369,6 +371,7 @@ export const getBoardingManagerUsers = async (search: string) => {
     campus: string | null;
     is_boarding_manager: boolean;
     assigned_bus_ids: string[] | null;
+    is_staff: boolean;
   }>).map((row) => ({
     userId: row.user_id,
     name: row.name,
@@ -379,6 +382,7 @@ export const getBoardingManagerUsers = async (search: string) => {
     campus: row.campus,
     isBoardingManager: row.is_boarding_manager,
     assignedBusIds: row.assigned_bus_ids ?? [],
+    isStaff: row.is_staff ?? false,
   }));
 };
 
@@ -443,4 +447,141 @@ export const cancelBoardingManager = async (userId: string) => {
     p_user_id: userId,
   });
   if (error) throw new Error(error.message);
+};
+
+export interface DestinationQueueBoardingBus {
+  id: string;
+  allocation_id: string;
+  destination: string;
+  sequence_number: number;
+  label: string;
+  capacity: number;
+  status: 'open' | 'full' | 'departed';
+  check_in_code?: string | null;
+  opened_at: string;
+  opened_by?: string | null;
+  closed_at?: string | null;
+  departed_at?: string | null;
+  departed_by?: string | null;
+}
+
+export interface DestinationQueueBoardingPassenger {
+  reservationId: string;
+  passengerKind?: 'reservation' | 'walk_in';
+  name: string;
+  phone: string;
+  district: string;
+  team: string;
+  campus: string;
+  assignedDestination: string;
+  busId?: string | null;
+  busNumber?: string | null;
+  boardingStatus: BoardingStatus;
+  boardingConfirmedAt?: string | null;
+  boardingNote?: string | null;
+  boardingNoteUpdatedAt?: string | null;
+  boardingNoteUpdatedByName?: string | null;
+  updatedAt?: string | null;
+  updatedByName?: string | null;
+  stationPreferences?: string[];
+}
+
+export interface DestinationQueueBoardingSnapshot {
+  allocationId: string;
+  allocationName: string;
+  commonBoarding: {
+    departureTime: string;
+    boardingPlace: string;
+  };
+  destinations: Array<{
+    destination: string;
+    total: number;
+    boarded: number;
+    unchecked: number;
+    noShow: number;
+    expectedBuses: number;
+  }>;
+  buses: DestinationQueueBoardingBus[];
+  passengers: DestinationQueueBoardingPassenger[];
+  events: BoardingEvent[];
+  departures: DestinationQueueDepartureSnapshot[];
+}
+
+export interface DestinationQueueDepartureSnapshotPassenger {
+  reservationId: string;
+  name: string;
+  phone: string;
+  district: string;
+  team: string;
+  campus: string;
+  boardingConfirmedAt?: string | null;
+}
+
+export interface DestinationQueueDepartureSnapshot {
+  busId: string;
+  destination: string;
+  sequenceNumber: number;
+  label: string;
+  boardedCount: number;
+  passengers: DestinationQueueDepartureSnapshotPassenger[];
+  departedAt: string;
+  departedBy?: string | null;
+  departedByName: string;
+}
+
+const isMissingDestinationQueueDepartureSnapshotRpc = (error: {
+  code?: string;
+  message?: string;
+}) =>
+  error.code === 'PGRST202' ||
+  error.code === '42883' ||
+  error.message?.includes('Could not find the function');
+
+export const getDestinationQueueBoardingSnapshot = async () => {
+  const [snapshotResult, departuresResult] = await Promise.all([
+    supabase.rpc('get_destination_queue_boarding_snapshot'),
+    supabase.rpc('get_destination_queue_departure_snapshots'),
+  ]);
+  if (snapshotResult.error) throw new Error(snapshotResult.error.message);
+  if (
+    departuresResult.error &&
+    !isMissingDestinationQueueDepartureSnapshotRpc(departuresResult.error)
+  ) {
+    throw new Error(departuresResult.error.message);
+  }
+  if (!snapshotResult.data) return null;
+  return {
+    ...(snapshotResult.data as Omit<DestinationQueueBoardingSnapshot, 'departures'>),
+    departures: (departuresResult.data ?? []) as DestinationQueueDepartureSnapshot[],
+  };
+};
+
+export const startDestinationQueueBus = async (destination: string) => {
+  const { data, error } = await supabase.rpc('start_destination_queue_bus', {
+    p_destination: destination,
+  });
+  if (error) throw new Error(error.message);
+  return data as DestinationQueueBoardingBus;
+};
+
+export const setDestinationQueuePassengerStatus = async (
+  reservationId: string,
+  status: 'boarded' | 'no_show',
+  reason = ''
+) => {
+  const { data, error } = await supabase.rpc('set_destination_queue_passenger_status', {
+    p_reservation_id: reservationId,
+    p_status: status,
+    p_reason: reason,
+  });
+  if (error) throw new Error(error.message);
+  return data;
+};
+
+export const departDestinationQueueBus = async (busId: string) => {
+  const { data, error } = await supabase.rpc('depart_destination_queue_bus', {
+    p_bus_id: busId,
+  });
+  if (error) throw new Error(error.message);
+  return data as DestinationQueueBoardingBus;
 };

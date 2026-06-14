@@ -4,7 +4,7 @@ import test from 'node:test';
 
 test('allocation deadline triggers use functions matching each table row shape', () => {
   const migration = readFileSync(
-    'supabase/migrations/20260610180001_135_split_allocation_deadline_triggers.sql',
+    'sql/setup/135_split_allocation_deadline_triggers.sql',
     'utf8'
   );
   const optimizationJobFunction =
@@ -30,7 +30,7 @@ test('allocation deadline triggers use functions matching each table row shape',
 
 test('allocation planning assertion is a normal void function', () => {
   const migration = readFileSync(
-    'supabase/migrations/20260610180001_135_split_allocation_deadline_triggers.sql',
+    'sql/setup/135_split_allocation_deadline_triggers.sql',
     'utf8'
   );
   const assertionBody =
@@ -44,7 +44,7 @@ test('allocation planning assertion is a normal void function', () => {
 
 test('confirmed allocation cancellation remains available before the deadline', () => {
   const migration = readFileSync(
-    'supabase/migrations/20260610230020_158_allow_allocation_confirmation_cancel_before_deadline.sql',
+    'sql/setup/158_allow_allocation_confirmation_cancel_before_deadline.sql',
     'utf8'
   );
   const triggerFunction =

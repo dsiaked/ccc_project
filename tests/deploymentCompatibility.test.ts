@@ -10,7 +10,7 @@ const setupSql = readFileSync(
   'utf8'
 );
 const migrationSql = readFileSync(
-  'supabase/migrations/20260611000021_186_public_contact_info.sql',
+  'sql/setup/186_public_contact_info.sql',
   'utf8'
 );
 const checker = readFileSync('scripts/check-supabase-deployment.mjs', 'utf8');

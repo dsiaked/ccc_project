@@ -123,7 +123,6 @@ export const navItems: AdminNavItem[] = [
     icon: MessageSquare,
     matchPaths: [
       '/admin/communications/personal',
-      '/admin/communications/notices',
     ],
     activeTab: 'requests',
     stageGroup: 'application',
@@ -132,12 +131,8 @@ export const navItems: AdminNavItem[] = [
   },
   {
     label: '공지 관리',
-    path: '/admin/communications/notices?tab=notices',
+    path: '/admin/communications/notices',
     icon: Megaphone,
-    matchPaths: [
-      '/admin/communications/notices',
-    ],
-    activeTab: 'notices',
     stageGroup: 'application',
     targetGroup: 'campus',
     allowedRoles: ['global_admin'],

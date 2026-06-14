@@ -136,52 +136,107 @@
 
 
 .toolbar {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 10px;
-  padding: 12px;
-  margin-bottom: 12px;
-  border: 1px solid #dfe3e8;
-  border-radius: 8px;
+  padding: 14px 8px;
+  border-bottom: 1px solid #dfe3e8;
   background: #ffffff;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
 }
 
 .toolbarPrimary {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) repeat(3, minmax(150px, 190px)) auto;
-  gap: 10px;
+  grid-template-columns: 24% 17% 20% 13% 13% 13%;
+  gap: 0;
+  align-items: center;
+}
+
+.filterCell {
+  padding: 0 4px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  width: 100%;
 }
 
 .searchBox {
   display: flex;
   align-items: center;
-  gap: 8px;
-  height: 42px;
-  padding: 0 12px;
-  border: 1px solid #ccd3dc;
+  gap: 6px;
+  height: 36px;
+  padding: 0 8px;
+  border: 1px solid #cbd5e1;
   border-radius: 8px;
-  color: #667085;
+  color: #64748b;
+  background: #f8fafc;
+  width: 100%;
+  box-sizing: border-box;
+  transition: all 0.2s ease-in-out;
 }
 
-.searchBox input,
-.toolbar select,
-.field input,
-.field select,
-.field textarea {
-  width: 100%;
-  border: 1px solid #ccd3dc;
-  border-radius: 8px;
+.searchBox:focus-within {
+  border-color: #3b82f6;
   background: #ffffff;
-  color: #101828;
-  font-size: 14px;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
 }
 
 .searchBox input {
   min-width: 0;
   border: 0;
   outline: none;
+  background: transparent;
+  font-size: 12px;
+  color: #0f172a;
 }
 
-.toolbar select,
+.field input,
+.field select,
+.field textarea {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #101828;
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+.toolbar select {
+  height: 36px;
+  padding: 0 24px 0 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 12px;
+  min-width: 0;
+  transition: all 0.2s ease;
+  width: 100%;
+}
+
+.toolbar select:hover {
+  border-color: #94a3b8;
+  background-color: #f8fafc;
+}
+
+.toolbar select:focus {
+  border-color: #3b82f6;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
 .field input,
 .field select {
   height: 42px;
@@ -192,23 +247,30 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
-  min-height: 42px;
-  padding: 0 12px;
-  border: 1px solid #ccd3dc;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 8px;
+  border: 1px solid #cbd5e1;
   border-radius: 8px;
   background: #ffffff;
-  color: #344054;
+  color: #334155;
   font-family: inherit;
-  font-size: 13px;
-  font-weight: 900;
+  font-size: 12px;
+  font-weight: 700;
   cursor: pointer;
   white-space: nowrap;
+  transition: all 0.2s ease;
+  width: 100%;
+  box-sizing: border-box;
 }
 
-.filterToggle:hover,
+.filterToggle:hover {
+  border-color: #94a3b8;
+  background: #f8fafc;
+}
+
 .filterToggleActive {
-  border-color: #93c5fd;
+  border-color: #3b82f6;
   background: #eff6ff;
   color: #1d4ed8;
 }
@@ -217,44 +279,62 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 20px;
-  height: 20px;
-  padding: 0 6px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
   border-radius: 999px;
   background: #2563eb;
   color: #ffffff;
-  font-size: 11px;
+  font-size: 10px;
+}
+
+.affiliationGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
+.affiliationGroup select {
+  height: 32px !important;
+  padding: 0 20px 0 8px !important;
+  font-size: 11px !important;
+  background-position: right 6px center !important;
+  background-size: 10px !important;
+  min-width: 0 !important;
+  border-radius: 6px !important;
 }
 
 .advancedFilters {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-  padding: 12px;
-  border: 1px solid #dbeafe;
-  border-radius: 8px;
-  background: #f8fbff;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
 }
 
 .filterGroup {
   min-width: 0;
-  padding: 10px;
-  border: 1px solid #dbeafe;
+  padding: 12px;
+  border: 1px solid #e2e8f0;
   border-radius: 8px;
   background: #ffffff;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.02);
 }
 
 .filterGroup legend {
-  padding: 0 5px;
-  color: #475467;
-  font-size: 11px;
-  font-weight: 900;
+  padding: 0 6px;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .checkboxOptions {
   display: flex;
   flex-wrap: wrap;
-  gap: 7px;
+  gap: 8px;
 }
 
 .checkboxOption {
@@ -262,19 +342,24 @@
   align-items: center;
   gap: 6px;
   min-height: 34px;
-  padding: 0 10px;
-  border: 1px solid #d0d5dd;
-  border-radius: 7px;
+  padding: 0 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
   background: #ffffff;
-  color: #475467;
-  font-size: 12px;
-  font-weight: 800;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
+  transition: all 0.2s ease;
 }
 
-.checkboxOption:hover,
+.checkboxOption:hover {
+  border-color: #94a3b8;
+  background: #f8fafc;
+}
+
 .checkboxOptionActive {
-  border-color: #93c5fd;
+  border-color: #3b82f6;
   background: #eff6ff;
   color: #1d4ed8;
 }
@@ -284,6 +369,7 @@
   height: 15px;
   margin: 0;
   accent-color: #2563eb;
+  cursor: pointer;
 }
 
 .checkboxOption span {
@@ -293,7 +379,7 @@
 .filterChips {
   display: flex;
   flex-wrap: wrap;
-  gap: 7px;
+  gap: 8px;
 }
 
 .filterChips button {
@@ -301,19 +387,20 @@
   align-items: center;
   gap: 5px;
   min-height: 30px;
-  padding: 0 9px;
+  padding: 0 10px;
   border: 1px solid #bfdbfe;
   border-radius: 999px;
   background: #eff6ff;
   color: #1d4ed8;
   font-family: inherit;
-  font-size: 11px;
-  font-weight: 900;
+  font-size: 12px;
+  font-weight: 700;
   cursor: pointer;
+  transition: all 0.2s ease;
 }
 
 .filterChips button:hover {
-  border-color: #60a5fa;
+  border-color: #3b82f6;
   background: #dbeafe;
 }
 
@@ -649,29 +736,42 @@
 }
 
 .detailTabs {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 5px;
-  margin-bottom: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 18px;
+  padding: 4px;
+  background: #f1f5f9;
+  border-radius: 10px;
 }
 
 .detailTabs button {
-  min-height: 34px;
-  padding: 0 5px;
-  border: 1px solid #d0d5dd;
-  border-radius: 7px;
-  background: #ffffff;
-  color: #667085;
+  flex: 1;
+  min-width: calc(25% - 6px);
+  min-height: 36px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #475569;
   font-family: inherit;
-  font-size: 11px;
-  font-weight: 900;
+  font-size: 12px;
+  font-weight: 700;
   cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  white-space: nowrap;
+}
+
+.detailTabs button:hover {
+  background: rgba(255, 255, 255, 0.5);
+  color: #0f172a;
 }
 
 .detailTabs .detailTabActive {
-  border-color: #2563eb;
-  background: #eff6ff;
-  color: #1d4ed8;
+  background: #ffffff;
+  color: #2563eb;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+  font-weight: 800;
 }
 
 .bulkBar {
@@ -717,15 +817,35 @@
 .operationPanel > select,
 .notificationComposer select {
   width: 100%;
-  height: 38px;
-  padding: 0 9px;
-  border: 1px solid #ccd3dc;
-  border-radius: 7px;
+  height: 40px;
+  padding: 0 32px 0 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
   background: #ffffff;
-  color: #344054;
+  color: #0f172a;
   font-family: inherit;
-  font-size: 12px;
-  font-weight: 800;
+  font-size: 13px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 14px;
+}
+
+.operationPanel > select:hover,
+.notificationComposer select:hover {
+  border-color: #94a3b8;
+  background-color: #f8fafc;
+}
+
+.operationPanel > select:focus,
+.notificationComposer select:focus {
+  border-color: #3b82f6;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
 }
 
 .operationOverview {
@@ -767,30 +887,46 @@
 }
 
 .statusFlow {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 7px;
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 6px 0;
 }
 
 .statusFlow div {
-  display: grid;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   gap: 4px;
-  padding: 9px;
-  border: 1px solid #fde68a;
-  border-radius: 7px;
+  padding: 12px 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
   background: #ffffff;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.02);
+  transition: all 0.2s ease;
+  text-align: center;
+}
+
+.statusFlow div:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  border-color: #94a3b8;
 }
 
 .statusFlow span {
-  color: #92400e;
-  font-size: 10px;
-  font-weight: 900;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
 }
 
 .statusFlow strong {
-  color: #101828;
-  font-size: 12px;
-  font-weight: 900;
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 800;
 }
 
 .riskNotice,
@@ -832,16 +968,61 @@
   font-weight: 800;
 }
 
-.basicInfoGrid input,
+.basicInfoGrid input {
+  width: 100%;
+  min-width: 0;
+  height: 38px;
+  padding: 0 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  box-sizing: border-box;
+  font-family: inherit;
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.basicInfoGrid input:hover {
+  border-color: #94a3b8;
+}
+
+.basicInfoGrid input:focus {
+  border-color: #3b82f6;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
 .basicInfoGrid select {
   width: 100%;
   min-width: 0;
   height: 38px;
-  padding: 0 9px;
-  border: 1px solid #ccd3dc;
-  border-radius: 7px;
+  padding: 0 32px 0 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
   box-sizing: border-box;
   font-family: inherit;
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 14px;
+}
+
+.basicInfoGrid select:hover {
+  border-color: #94a3b8;
+  background-color: #f8fafc;
+}
+
+.basicInfoGrid select:focus {
+  border-color: #3b82f6;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
 }
 
 .accountField {

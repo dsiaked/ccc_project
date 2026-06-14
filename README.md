@@ -64,8 +64,8 @@ Database migration operations are documented in
 pending migrations with the Supabase CLI. Do not edit migrations that have
 already been applied to a shared environment.
 
-`sql/setup` and `sql/setup/combined_supabase_setup.sql` are legacy compatibility
-files and must not be used for new deployments.
+`sql/setup` contains temporary historical test fixtures only. The obsolete
+combined setup file has been removed and must not be recreated.
 
 Generate an inspection-only bundle of the migration chain with:
 

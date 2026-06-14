@@ -1,12 +1,13 @@
 # Simulation Runner
 
 `scripts/simulation.mjs` controls the repeatable rehearsal flow. Database
-schema, RLS, triggers, and production RPC functions remain in `sql/setup`.
+schema, RLS, triggers, and production RPC functions are managed by
+`supabase/migrations`.
 
 ## Prerequisites
 
 1. Use a separated Supabase test project.
-2. Run `../setup/combined_supabase_setup.sql`.
+2. Run `supabase db reset` from the repository root.
 3. Add the test project's service-role key to `.env`:
 
    ```text

@@ -13,7 +13,7 @@ test('multiple invitation codes can be pasted with common separators', () => {
 
 test('invitation code migration hashes codes and keeps plaintext for administrator copy actions', () => {
   const migration = readFileSync(
-    'supabase/migrations/20260610210001_138_admin_invitation_codes.sql',
+    'sql/setup/138_admin_invitation_codes.sql',
     'utf8'
   );
 
@@ -25,7 +25,7 @@ test('invitation code migration hashes codes and keeps plaintext for administrat
 
 test('signup trigger redeems all invitation codes atomically', () => {
   const migration = readFileSync(
-    'supabase/migrations/20260610210001_138_admin_invitation_codes.sql',
+    'sql/setup/138_admin_invitation_codes.sql',
     'utf8'
   );
 
@@ -43,7 +43,7 @@ test('setup SQL and migration define the same invitation code feature', () => {
       '\n'
     ),
     readFileSync(
-      'supabase/migrations/20260610210001_138_admin_invitation_codes.sql',
+      'sql/setup/138_admin_invitation_codes.sql',
       'utf8'
     ).replaceAll('\r\n', '\n')
   );
@@ -51,7 +51,7 @@ test('setup SQL and migration define the same invitation code feature', () => {
 
 test('invitation code creation is global-admin-only and campus issuance is serialized', () => {
   const migration = readFileSync(
-    'supabase/migrations/20260610210001_138_admin_invitation_codes.sql',
+    'sql/setup/138_admin_invitation_codes.sql',
     'utf8'
   );
 
@@ -63,7 +63,7 @@ test('invitation code creation is global-admin-only and campus issuance is seria
 
 test('invitation code pgcrypto calls can resolve from the Supabase extensions schema', () => {
   const migration = readFileSync(
-    'supabase/migrations/20260610230006_145_fix_invitation_code_pgcrypto_search_path.sql',
+    'sql/setup/145_fix_invitation_code_pgcrypto_search_path.sql',
     'utf8'
   );
 
@@ -88,7 +88,7 @@ test('invitation code pgcrypto calls can resolve from the Supabase extensions sc
 
 test('bulk invitation creation is atomic, bounded, and keeps campus invitations singular', () => {
   const migration = readFileSync(
-    'supabase/migrations/20260610225001_142_bulk_admin_invitation_codes.sql',
+    'sql/setup/142_bulk_admin_invitation_codes.sql',
     'utf8'
   );
 
@@ -121,7 +121,7 @@ test('administrator invitation page can issue and copy multiple codes', () => {
 
 test('all campus administrator invitation codes can be issued and copied with campus names', () => {
   const migration = readFileSync(
-    'supabase/migrations/20260612000005_200_bulk_all_campus_admin_invitation_codes.sql',
+    'sql/setup/200_bulk_all_campus_admin_invitation_codes.sql',
     'utf8'
   );
   const setup = readFileSync(
@@ -157,7 +157,7 @@ test('all campus administrator invitation codes can be issued and copied with ca
 
 test('all campus administrator invitation issuance skips concurrent conflicts and supports an empty result', () => {
   const migration = readFileSync(
-    'supabase/migrations/20260612000005_200_bulk_all_campus_admin_invitation_codes.sql',
+    'sql/setup/200_bulk_all_campus_admin_invitation_codes.sql',
     'utf8'
   );
 
@@ -171,7 +171,7 @@ test('all campus administrator invitation issuance skips concurrent conflicts an
 
 test('all campus administrator invitation issuance rejects insufficient permission and explains a missing RPC', () => {
   const migration = readFileSync(
-    'supabase/migrations/20260612000005_200_bulk_all_campus_admin_invitation_codes.sql',
+    'sql/setup/200_bulk_all_campus_admin_invitation_codes.sql',
     'utf8'
   );
   const service = readFileSync('src/lib/invitationCodeService.ts', 'utf8');
@@ -213,7 +213,7 @@ test('created invitation code rows can shrink without overflowing narrow mobile 
 
 test('plaintext invitation code storage patch matches its setup SQL', () => {
   const migration = readFileSync(
-    'supabase/migrations/20260610230009_148_store_invitation_code_plaintext.sql',
+    'sql/setup/148_store_invitation_code_plaintext.sql',
     'utf8'
   );
 
@@ -230,7 +230,7 @@ test('plaintext invitation code storage patch matches its setup SQL', () => {
 
 test('invitation cleanup removes stale code rows while keeping audit history for one year', () => {
   const migration = readFileSync(
-    'supabase/migrations/20260610210001_138_admin_invitation_codes.sql',
+    'sql/setup/138_admin_invitation_codes.sql',
     'utf8'
   );
 

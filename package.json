@@ -11,7 +11,7 @@
     "test:unit": "node scripts/run-unit-tests.mjs",
     "deploy:check:supabase": "node scripts/check-supabase-deployment.mjs",
     "deploy:check:rls": "node scripts/check-supabase-anon-rls.mjs",
-    "db:migrations:verify": "node scripts/verify-supabase-migration-source.mjs && node scripts/manage-supabase-migration-checksums.mjs",
+    "db:migrations:verify": "node scripts/verify-supabase-migration-source.mjs && node scripts/manage-supabase-migration-checksums.mjs && node scripts/check-sql-context-budget.mjs",
     "db:migrations:bundle": "node scripts/sync-combined-supabase-setup.mjs",
     "db:local:reset": "supabase db reset",
     "db:baseline:verify": "powershell -ExecutionPolicy Bypass -File scripts/verify-supabase-baseline.ps1",

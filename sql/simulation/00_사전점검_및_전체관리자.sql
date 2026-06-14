@@ -37,7 +37,7 @@ begin
     or to_regclass('public.stations') is null
     or to_regclass('public.app_settings') is null
   then
-    raise exception 'Required setup objects are missing. Run combined_supabase_setup.sql first.';
+    raise exception 'Required schema objects are missing. Apply supabase/migrations first.';
   end if;
 
   if to_regprocedure('public.handle_new_auth_user()') is null
@@ -49,7 +49,7 @@ begin
         and not tgisinternal
     )
   then
-    raise exception 'The latest Auth profile trigger is missing. Run combined_supabase_setup.sql first.';
+    raise exception 'The latest Auth profile trigger is missing. Apply supabase/migrations first.';
   end if;
 end $$;
 

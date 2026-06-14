@@ -294,45 +294,30 @@ async function getCurrentPersonalTicketPage(
 export async function getPersonalTicketPage(
   params: PersonalTicketPageParams
 ): Promise<PersonalTicketPageResult> {
-  if (personalTicketRpcVersion !== 'current') {
+  if (personalTicketRpcVersion === 'current' || personalTicketRpcVersion === null) {
     try {
-      const result = await getLegacyCompatiblePersonalTicketPage(params);
-      personalTicketRpcVersion = 'legacy';
+      const result = await getCurrentPersonalTicketPage(params);
+      personalTicketRpcVersion = 'current';
       return result;
     } catch (error) {
       if (!isMissingPersonalTicketRpcSignature(error as { message?: string })) {
         throw error;
       }
-
-      personalTicketRpcVersion = 'current';
+      personalTicketRpcVersion = 'legacy';
     }
   }
 
   try {
-    return await getCurrentPersonalTicketPage(params);
+    return await getLegacyCompatiblePersonalTicketPage(params);
   } catch (error) {
     if (!isMissingPersonalTicketRpcSignature(error as { message?: string })) {
       throw error;
     }
 
-    personalTicketRpcVersion = 'legacy';
-
-    try {
-      return await getLegacyCompatiblePersonalTicketPage(params);
-    } catch (legacyError) {
-      if (
-        isMissingPersonalTicketRpcSignature(
-          legacyError as { message?: string }
-        )
-      ) {
-        throw new Error(
-          '개인 버스표 페이지 조회 DB 함수가 없습니다. Supabase SQL Editor에서 sql/setup/130_personal_ticket_district_filter.sql을 적용해주세요.',
-          { cause: legacyError }
-        );
-      }
-
-      throw legacyError;
-    }
+    throw new Error(
+      '개인 버스표 페이지 조회 DB 함수가 없습니다. Supabase SQL Editor에서 sql/setup/130_personal_ticket_district_filter.sql을 적용해주세요.',
+      { cause: error }
+    );
   }
 }
 

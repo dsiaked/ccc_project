@@ -4,7 +4,7 @@ import test from 'node:test';
 
 const boardingPage = readFileSync('src/pages/admin/AdminBoardingPage.tsx', 'utf8');
 const migration = readFileSync(
-  'supabase/migrations/20260611000014_184_allow_departed_boarding_corrections.sql',
+  'sql/setup/184_allow_departed_boarding_corrections.sql',
   'utf8'
 );
 

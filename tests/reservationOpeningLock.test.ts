@@ -12,7 +12,7 @@ const deadlinePage = readFileSync(
 );
 const reservationPage = readFileSync('src/pages/ReservationPage.tsx', 'utf8');
 const migration = readFileSync(
-  'supabase/migrations/20260612000008_203_reservation_opening_lock.sql',
+  'sql/setup/203_reservation_opening_lock.sql',
   'utf8'
 );
 

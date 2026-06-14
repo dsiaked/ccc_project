@@ -21,7 +21,7 @@ const archiveSetup = readFileSync(
   'utf8'
 );
 const archiveMigration = readFileSync(
-  'supabase/migrations/20260610230015_154_boarding_exception_archives.sql',
+  'sql/setup/154_boarding_exception_archives.sql',
   'utf8'
 );
 const reasonEditSetup = readFileSync(
@@ -29,7 +29,7 @@ const reasonEditSetup = readFileSync(
   'utf8'
 );
 const reasonEditMigration = readFileSync(
-  'supabase/migrations/20260610230019_155_boarding_exception_reason_edits.sql',
+  'sql/setup/155_boarding_exception_reason_edits.sql',
   'utf8'
 );
 const manualRecordSetup = readFileSync(
@@ -37,7 +37,7 @@ const manualRecordSetup = readFileSync(
   'utf8'
 );
 const manualRecordMigration = readFileSync(
-  'supabase/migrations/20260610230024_160_manual_boarding_exception_records.sql',
+  'sql/setup/160_manual_boarding_exception_records.sql',
   'utf8'
 );
 

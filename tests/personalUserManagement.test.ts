@@ -7,7 +7,7 @@ const setupSql = readFileSync(
   'utf8'
 );
 const migrationSql = readFileSync(
-  'supabase/migrations/20260610230010_149_personal_user_management.sql',
+  'sql/setup/147_personal_user_management.sql',
   'utf8'
 );
 const adminPage = readFileSync(
@@ -20,7 +20,7 @@ const enhancementSetupSql = readFileSync(
   'utf8'
 );
 const enhancementMigrationSql = readFileSync(
-  'supabase/migrations/20260610230012_151_personal_user_management_enhancements.sql',
+  'sql/setup/151_personal_user_management_enhancements.sql',
   'utf8'
 );
 const notificationSection = readFileSync(
@@ -36,7 +36,7 @@ const notificationAuditSetupSql = readFileSync(
   'utf8'
 );
 const notificationAuditMigrationSql = readFileSync(
-  'supabase/migrations/20260610230023_159_personal_notification_audit_reasons.sql',
+  'sql/setup/159_personal_notification_audit_reasons.sql',
   'utf8'
 );
 const adminReservationSetupSql = readFileSync(

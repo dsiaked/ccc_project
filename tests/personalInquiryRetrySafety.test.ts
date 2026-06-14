@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const migration = readFileSync(
-  'supabase/migrations/20260612000001_196_personal_inquiry_retry_idempotency.sql',
+  'sql/setup/196_personal_inquiry_retry_idempotency.sql',
   'utf8'
 );
 

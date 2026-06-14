@@ -4,7 +4,7 @@ import test from 'node:test';
 
 const setupSql = readFileSync('sql/setup/187_personal_inquiries.sql', 'utf8');
 const migrationSql = readFileSync(
-  'supabase/migrations/20260611000023_187_personal_inquiries.sql',
+  'sql/setup/187_personal_inquiries.sql',
   'utf8'
 );
 const enhancementSetupSql = readFileSync(
@@ -12,7 +12,7 @@ const enhancementSetupSql = readFileSync(
   'utf8'
 );
 const enhancementMigrationSql = readFileSync(
-  'supabase/migrations/20260611000024_188_personal_inquiry_workflow_enhancements.sql',
+  'sql/setup/188_personal_inquiry_workflow_enhancements.sql',
   'utf8'
 );
 const realtimeRlsSql = readFileSync(
@@ -24,7 +24,7 @@ const deleteInquirySetupSql = readFileSync(
   'utf8'
 );
 const deleteInquiryMigrationSql = readFileSync(
-  'supabase/migrations/20260612000006_201_global_admin_delete_inquiries.sql',
+  'sql/setup/201_global_admin_delete_inquiries.sql',
   'utf8'
 );
 const userDeleteInquirySetupSql = readFileSync(
@@ -32,7 +32,7 @@ const userDeleteInquirySetupSql = readFileSync(
   'utf8'
 );
 const userDeleteInquiryMigrationSql = readFileSync(
-  'supabase/migrations/20260612000007_202_user_delete_personal_inquiries.sql',
+  'sql/setup/202_user_delete_personal_inquiries.sql',
   'utf8'
 );
 const adminService = readFileSync('src/lib/adminService.ts', 'utf8');

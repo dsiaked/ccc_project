@@ -8,6 +8,7 @@ export interface StationPreference {
 }
 
 export interface ConfirmedTicket {
+  allocationStrategy?: 'preassigned_bus' | 'destination_queue';
   busId?: string;
   busNumber: string;
   seatNumber?: string;

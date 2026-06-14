@@ -11,7 +11,7 @@ const service = readFileSync(
   'utf8'
 );
 const migration = readFileSync(
-  'supabase/migrations/20260611000013_183_block_allocation_cancel_after_departure.sql',
+  'sql/setup/183_block_allocation_cancel_after_departure.sql',
   'utf8'
 );
 

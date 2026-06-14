@@ -129,7 +129,7 @@ test('Kakao SDK timeout removes stale script handlers and element', () => {
 
 test('message search and optimizer result reuse have supporting indexes', () => {
   const migration = readSource(
-    'supabase/migrations/20260610150001_132_performance_lookup_indexes.sql'
+    'sql/setup/132_performance_lookup_indexes.sql'
   );
 
   assert.match(

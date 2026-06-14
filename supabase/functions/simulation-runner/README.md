@@ -5,8 +5,7 @@ It never exposes the Supabase service-role key to the browser.
 
 ## Required setup
 
-1. Apply `sql/setup/58_simulation_runtime.sql` and
-   `sql/setup/60_reset_reservation_data.sql` to the separated test project.
+1. Apply the pending `supabase/migrations` to the separated test project.
 2. Optionally set the shared password for generated accounts:
 
    ```powershell

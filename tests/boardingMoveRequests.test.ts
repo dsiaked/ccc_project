@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const migration = readFileSync(
-  'supabase/migrations/20260610230014_153_boarding_move_requests.sql',
+  'sql/setup/153_boarding_move_requests.sql',
   'utf8'
 );
 const boardingPage = readFileSync('src/pages/admin/AdminBoardingPage.tsx', 'utf8');

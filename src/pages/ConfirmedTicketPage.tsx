@@ -196,6 +196,9 @@ const ConfirmedTicketPage = ({
   }
 
   const ticket = reservation.confirmedTicket;
+  const isDestinationQueueTicket =
+    ticket.allocationStrategy === 'destination_queue';
+  const hasAssignedBoardingBus = Boolean(ticket.busNumber?.trim());
   const preferredStations = reservation.stationPreferences
     .filter((preference) => preference.rank === 1 || preference.rank === 2)
     .sort((a, b) => a.rank - b.rank);
@@ -229,9 +232,16 @@ const ConfirmedTicketPage = ({
     setBoardingError('');
 
     try {
-      const confirmedAt = await submitBoardingCheckInCode(boardingCode);
+      const confirmedAt = await submitBoardingCheckInCode(
+        boardingCode,
+        ticket.allocationStrategy
+      );
+      const refreshedReservation = isDestinationQueueTicket
+        ? await getReservation().catch(() => null)
+        : null;
       setReservation((current) =>
-        current ? { ...current, boardingConfirmedAt: confirmedAt } : current
+        refreshedReservation ??
+        (current ? { ...current, boardingConfirmedAt: confirmedAt } : current)
       );
       setBoardingCode('');
     } catch (error) {
@@ -292,9 +302,19 @@ const ConfirmedTicketPage = ({
           {/* 위쪽 - 호차 정보 */}
           <div className={styles.ticketTop}>
             <div className={styles.busNumberSection}>
-              <p className={styles.label}>호차</p>
-              <p className={styles.busNumber}>{formatBusLabel(ticket.busNumber)}</p>
-              <p className={styles.freeSeatingNotice}>해당 호차 내 자유석입니다</p>
+              <p className={styles.label}>
+                {isDestinationQueueTicket ? '탑승 배정' : '호차'}
+              </p>
+              <p className={styles.busNumber}>
+                {isDestinationQueueTicket && !hasAssignedBoardingBus
+                  ? `${ticket.dropoffStation}행 탑승 대기`
+                  : formatBusLabel(ticket.busNumber)}
+              </p>
+              <p className={styles.freeSeatingNotice}>
+                {isDestinationQueueTicket
+                  ? '탑승 후 좌석은 자유석입니다'
+                  : '해당 호차 내 자유석입니다'}
+              </p>
             </div>
           </div>
 

@@ -56,6 +56,7 @@ const AdminBoardingManagerPage = () => {
   const [messageType, setMessageType] = useState<'error' | 'success'>('error');
   const [pendingRoleAction, setPendingRoleAction] = useState<PendingRoleAction | null>(null);
   const [roleActionDialogError, setRoleActionDialogError] = useState('');
+  const [staffOnlyFilter, setStaffOnlyFilter] = useState(true);
 
   const managers = useMemo(
     () => users.filter((user) => user.isBoardingManager),
@@ -84,10 +85,11 @@ const AdminBoardingManagerPage = () => {
     const requestRevision = ++usersRequestRevisionRef.current;
     setLoading(true);
     try {
-      const allUsersPromise = getBoardingManagerUsers('');
+      // Always fetch all users (without staff filter) to populate existing boarding managers
+      const allUsersPromise = getBoardingManagerUsers('', false);
       const searchedUsersPromise = search.trim()
-        ? getBoardingManagerUsers(search)
-        : allUsersPromise;
+        ? getBoardingManagerUsers(search, staffOnlyFilter)
+        : getBoardingManagerUsers('', staffOnlyFilter);
       const [allUsers, searchedUsers, nextAssignmentOptions] = await Promise.all([
         allUsersPromise,
         searchedUsersPromise,
@@ -115,14 +117,10 @@ const AdminBoardingManagerPage = () => {
   };
 
   useEffect(() => {
-    const initialLoad = window.setTimeout(() => {
-      void loadUsers();
-    }, 0);
-
-    return () => window.clearTimeout(initialLoad);
-    // Initial server synchronization intentionally uses the initial search.
+    setSelectedCandidateIds([]);
+    void loadUsers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [staffOnlyFilter]);
 
   useEffect(() => {
     if (!pendingRoleAction) return;
@@ -538,7 +536,16 @@ const AdminBoardingManagerPage = () => {
               </form>
 
               <div className={styles.candidateToolbar}>
-                <span>지정 가능한 사용자 {candidates.length.toLocaleString()}명</span>
+                <div className={styles.candidateFilterGroup}>
+                  <span>지정 가능한 사용자 {candidates.length.toLocaleString()}명</span>
+                  <button
+                    type="button"
+                    className={`${styles.filterButton} ${staffOnlyFilter ? styles.active : ''}`}
+                    onClick={() => setStaffOnlyFilter((prev) => !prev)}
+                  >
+                    간사만 보기
+                  </button>
+                </div>
                 <button
                   type="button"
                   className={styles.assignSelected}
@@ -573,7 +580,10 @@ const AdminBoardingManagerPage = () => {
                       />
                       <div className={styles.avatar}>{user.name.slice(0, 1)}</div>
                       <div className={styles.userInfo}>
-                        <strong>{user.name}</strong>
+                        <strong>
+                          {user.name}
+                          {user.isStaff && <span className={styles.staffBadge}>간사</span>}
+                        </strong>
                         <p>{getAffiliation(user)}</p>
                         <small>{user.phone || '연락처 없음'} · {user.email || '이메일 없음'}</small>
                       </div>

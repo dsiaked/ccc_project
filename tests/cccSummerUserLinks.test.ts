@@ -7,7 +7,7 @@ const setupSql = readFileSync(
   'utf8'
 );
 const migrationSql = readFileSync(
-  'supabase/migrations/20260610230021_157_ccc_summer_user_links.sql',
+  'sql/setup/157_ccc_summer_user_links.sql',
   'utf8'
 );
 

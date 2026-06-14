@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const migration = readFileSync(
-  'supabase/migrations/20260610190001_136_allow_external_reservations_without_team.sql',
+  'sql/setup/136_allow_external_reservations_without_team.sql',
   'utf8'
 );
 

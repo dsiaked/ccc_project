@@ -12,7 +12,7 @@ test('personal ticket management supports filtering users by district', () => {
     'utf8'
   );
   const migration = readFileSync(
-    'supabase/migrations/20260610130001_130_personal_ticket_district_filter.sql',
+    'sql/setup/130_personal_ticket_district_filter.sql',
     'utf8'
   );
 
@@ -38,7 +38,7 @@ test('personal ticket detailed filters support checkbox multi-selection', () => 
     'utf8'
   );
   const migration = readFileSync(
-    'supabase/migrations/20260610130001_130_personal_ticket_district_filter.sql',
+    'sql/setup/130_personal_ticket_district_filter.sql',
     'utf8'
   );
 

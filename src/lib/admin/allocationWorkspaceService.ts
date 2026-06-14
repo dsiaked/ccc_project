@@ -5,6 +5,10 @@ import type {
 } from '../../types/reservation';
 import { describeAllocationWorkspaceChanges } from './allocationWorkspaceHistory';
 import {
+  convertToDestinationQueueWorkspace,
+  type AllocationStrategy,
+} from './destinationQueueAllocation';
+import {
   createManualAllocationWorkspace as createManualAllocationWorkspaceModel,
   getBelowMinimumBusIds as getBelowMinimumBusIdsModel,
   getFirstChoiceCoverage as getFirstChoiceCoverageModel,
@@ -41,6 +45,7 @@ export interface AllocationWorkspacePassenger {
   remainingSeatStatus?: 'pending_payment' | 'confirmed';
   busId: string | null;
   seatNumber: number | null;
+  assignedDestination?: string;
 }
 
 export interface AllocationWorkspaceSnapshot {
@@ -76,6 +81,11 @@ export interface AllocationWorkspaceVersionSummary {
 export interface AllocationWorkspaceData extends AllocationWorkspaceSnapshot {
   schemaVersion: 1 | 2;
   status: AllocationWorkspaceStatus;
+  allocationStrategy?: AllocationStrategy;
+  commonBoarding?: {
+    departureTime: string;
+    boardingPlace: string;
+  };
   sourceAllocation: Record<string, unknown>;
   manualBusTemplate?: Pick<
     AllocationWorkspaceBus,
@@ -832,6 +842,34 @@ export const saveAllocationWorkspace = async (
   return data as AllocationWorkspaceRow;
 };
 
+export const convertAllocationWorkspaceToDestinationQueue = async (
+  row: AllocationWorkspaceRow
+) => {
+  if (row.allocation_data.status !== 'draft') {
+    throw new Error('배차 초안에서만 배차 방식을 변경할 수 있습니다.');
+  }
+  const {
+    data: { session },
+    error: sessionError,
+  } = await supabase.auth.getSession();
+  if (sessionError || !session) {
+    throw new Error('관리자 로그인이 필요합니다.');
+  }
+
+  const lockResult = await acquireAllocationWorkspaceLock(row.id);
+  if (lockResult.readOnly) {
+    throw new Error('다른 관리자가 이 배차안을 편집 중입니다.');
+  }
+  const lockedRow = lockResult.row;
+  const workspace = convertToDestinationQueueWorkspace(lockedRow.allocation_data);
+  return saveAllocationWorkspace(
+    lockedRow,
+    workspace,
+    session.user.id,
+    '배차 방식을 행선지 대기 배차로 선택했습니다.'
+  );
+};
+
 const prepareWorkspaceForSave = (
   previousWorkspace: AllocationWorkspaceData,
   workspace: AllocationWorkspaceData,
@@ -928,7 +966,8 @@ const throwAllocationRpcError = (error: {
     error.message?.includes('delete_draft_allocation_workspace') ||
     error.message?.includes('remove_cancelled_passenger_from_confirmed_allocations') ||
     error.message?.includes('save_confirmed_allocation_workspace') ||
-    error.message?.includes('cancel_confirmed_allocation_workspace')
+    error.message?.includes('cancel_confirmed_allocation_workspace') ||
+    error.message?.includes('cancel_destination_queue_allocation')
   ) {
     throw new Error(
       '배차 확정 또는 버전 저장 DB 함수가 설치되지 않았습니다. Supabase SQL Editor에서 sql/setup/55_atomic_allocation_confirmation.sql과 sql/setup/64_allocation_workspace_versions.sql을 순서대로 실행해주세요.'
@@ -981,6 +1020,8 @@ const throwAllocationRpcError = (error: {
       '확정 배차는 취소 전까지 수정할 수 없습니다.',
     'Cancel all bus departures before cancelling the confirmed allocation.':
       '출발 완료 호차의 출발 완료를 모두 취소한 뒤 배차 확정을 취소해주세요.',
+    'Departed destination queue buses prevent allocation cancellation.':
+      '이미 출발한 행선지 대기 호차가 있어 배차 확정을 취소할 수 없습니다.',
     'canceling statement due to statement timeout':
       '서버 처리 시간이 초과되었습니다. 잠시 후 다시 시도해주세요.',
     'No-show status is available after bus departure.':
@@ -1081,6 +1122,21 @@ export const confirmAllocationWorkspace = async (
   return data as AllocationWorkspaceRow;
 };
 
+export const confirmDestinationQueueAllocation = async (
+  row: AllocationWorkspaceRow,
+  workspace: AllocationWorkspaceData
+) => {
+  const { data, error } = await supabase
+    .rpc('confirm_destination_queue_allocation', {
+      p_allocation_id: row.id,
+      p_expected_revision: row.revision,
+      p_allocation_data: workspace,
+    })
+    .single();
+  if (error) throwAllocationRpcError(error);
+  return data as AllocationWorkspaceRow;
+};
+
 export const cancelConfirmedWorkspace = async (
   row: AllocationWorkspaceRow,
   workspace: AllocationWorkspaceData,
@@ -1108,8 +1164,12 @@ export const cancelConfirmedWorkspace = async (
     '확정 취소 상태를 저장했습니다.'
   );
   const totals = getWorkspaceTotals(prepared.workspace);
+  const rpcName =
+    workspace.allocationStrategy === 'destination_queue'
+      ? 'cancel_destination_queue_allocation'
+      : 'cancel_confirmed_allocation_workspace_v2';
   const { data, error } = await supabase
-    .rpc('cancel_confirmed_allocation_workspace_v2', {
+    .rpc(rpcName, {
       p_allocation_id: row.id,
       p_expected_revision: row.revision,
       p_allocation_data: prepared.workspace,

@@ -7,7 +7,7 @@ const setupSql = readFileSync(
   'utf8',
 );
 const migrationSql = readFileSync(
-  'supabase/migrations/20260611000007_177_allocation_workspace_version_retention.sql',
+  'sql/setup/177_allocation_workspace_version_retention.sql',
   'utf8',
 );
 

@@ -4,7 +4,7 @@ import test from 'node:test';
 
 const boardingPage = readFileSync('src/pages/admin/AdminBoardingPage.tsx', 'utf8');
 const latestBoardingSnapshotMigration = readFileSync(
-  'supabase/migrations/20260610230013_152_fix_boarding_station_preferences.sql',
+  'sql/setup/152_fix_boarding_station_preferences.sql',
   'utf8'
 );
 

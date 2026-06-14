@@ -15,7 +15,7 @@ full post-deadline settlement rehearsal.
 
 ## Before You Start
 
-1. Run `../setup/combined_supabase_setup.sql`.
+1. Run `supabase db reset` from the repository root.
 2. Sign up the real global admin account in the web app.
 3. Confirm the email literal in `00_사전점검_및_전체관리자.sql`.
    The current value is `admin@gmail.com`.

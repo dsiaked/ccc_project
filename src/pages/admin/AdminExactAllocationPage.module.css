@@ -1469,6 +1469,56 @@ button:disabled {
   border-top: 1px solid #eaecf0;
 }
 
+.allocationStrategy {
+  flex: 0 0 100%;
+  margin: 0;
+  border: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.allocationStrategy legend {
+  grid-column: 1 / -1;
+  margin-bottom: 2px;
+  color: #344054;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.draftCreator .allocationStrategy label {
+  border: 1px solid #d0d5dd;
+  border-radius: 10px;
+  background: #fff;
+  padding: 10px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.draftCreator .allocationStrategy input {
+  margin-top: 3px;
+  padding: 0;
+}
+
+.allocationStrategy span {
+  display: grid;
+  gap: 3px;
+}
+
+.allocationStrategy small {
+  color: #667085;
+  font-weight: 500;
+}
+
+.draftCreator .allocationStrategy .allocationStrategySelected {
+  border-color: #84adff;
+  background: #eff4ff;
+  box-shadow: inset 0 0 0 1px #84adff;
+}
+
 .draftCreator label {
   display: grid;
   flex: 1;

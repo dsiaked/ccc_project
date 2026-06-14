@@ -35,11 +35,13 @@ import {
 } from '../../lib/admin/exactAllocationOptimizationService';
 import { formatExactAllocationErrorMessage } from '../../lib/admin/exactAllocationErrorMessage';
 import {
+  convertAllocationWorkspaceToDestinationQueue,
   createManualAllocationWorkspace,
   getConfirmedAllocationWorkspaceSummaries,
   getDraftAllocationWorkspaceSummaries,
   type AllocationWorkspaceSummary,
 } from '../../lib/admin/allocationWorkspaceService';
+import type { AllocationStrategy } from '../../lib/admin/destinationQueueAllocation';
 import styles from './AdminExactAllocationPage.module.css';
 
 const activeStatuses = new Set(['PENDING', 'RUNNING', 'CANCEL_REQUESTED']);
@@ -235,6 +237,8 @@ const AdminExactAllocationPage = () => {
   const [resumeDetailedBalance, setResumeDetailedBalance] = useState(true);
   const [skippedDetailedPhases, setSkippedDetailedPhases] = useState<string[]>([]);
   const [allocationName, setAllocationName] = useState('');
+  const [allocationStrategy, setAllocationStrategy] =
+    useState<AllocationStrategy>('preassigned_bus');
   const [error, setError] = useState<string | null>(null);
   const [calculationError, setCalculationError] = useState<string | null>(null);
   const [detailedBalanceError, setDetailedBalanceError] = useState<string | null>(
@@ -709,16 +713,44 @@ const AdminExactAllocationPage = () => {
     setCreatingDraft(true);
     setError(null);
     try {
-      const row = await createDraftFromExactAllocationJob(currentJob.id, name);
-      navigate(`/admin/allocations/workspace?id=${row.id}`);
+      const row = await createDraftFromExactAllocationJob(currentJob.id, name).catch(
+        async (createError) => {
+          const existing = await getAllocationWorkspaceForExactJob(currentJob.id);
+          if (!existing) throw createError;
+          return existing;
+        }
+      );
+      const savedRow =
+        allocationStrategy === 'destination_queue' &&
+        row.allocation_data.allocationStrategy !== 'destination_queue'
+          ? await convertAllocationWorkspaceToDestinationQueue(row)
+          : row;
+      navigate(`/admin/allocations/workspace?id=${savedRow.id}`);
     } catch (draftError) {
-      const existing = await getAllocationWorkspaceForExactJob(currentJob.id)
-        .catch(() => null);
-      if (existing) {
-        navigate(`/admin/allocations/workspace?id=${existing.id}`);
-        return;
-      }
       setError(formatError(draftError));
+    } finally {
+      setCreatingDraft(false);
+    }
+  };
+
+  const handleOpenLinkedWorkspace = async () => {
+    if (!currentJob || !linkedWorkspaceId) return;
+    setCreatingDraft(true);
+    setError(null);
+    try {
+      const existing = await getAllocationWorkspaceForExactJob(currentJob.id);
+      if (!existing) {
+        throw new Error('연결된 배차 초안을 찾을 수 없습니다.');
+      }
+      const row =
+        allocationStrategy === 'destination_queue' &&
+        existing.allocation_data.status === 'draft' &&
+        existing.allocation_data.allocationStrategy !== 'destination_queue'
+          ? await convertAllocationWorkspaceToDestinationQueue(existing)
+          : existing;
+      navigate(`/admin/allocations/workspace?id=${row.id}`);
+    } catch (openError) {
+      setError(formatError(openError));
     } finally {
       setCreatingDraft(false);
     }
@@ -1584,15 +1616,25 @@ const AdminExactAllocationPage = () => {
               </div>
             )}
             <div className={styles.draftCreator}>
+              <fieldset className={styles.allocationStrategy}>
+                  <legend>배차 방식</legend>
+                  <label className={allocationStrategy === 'preassigned_bus' ? styles.allocationStrategySelected : undefined}>
+                    <input type="radio" name="allocation-strategy" checked={allocationStrategy === 'preassigned_bus'} onChange={() => setAllocationStrategy('preassigned_bus')} />
+                    <span><strong>기존 호차 배차</strong><small>사전에 호차와 좌석을 확정합니다.</small></span>
+                  </label>
+                  <label className={allocationStrategy === 'destination_queue' ? styles.allocationStrategySelected : undefined}>
+                    <input type="radio" name="allocation-strategy" checked={allocationStrategy === 'destination_queue'} onChange={() => setAllocationStrategy('destination_queue')} />
+                    <span><strong>행선지 대기 배차</strong><small>행선지만 확정하고 탑승 시 44명씩 호차를 배정합니다.</small></span>
+                  </label>
+                </fieldset>
               {linkedWorkspaceId ? (
                 <button
                   className={styles.primary}
                   type="button"
-                  onClick={() =>
-                    navigate(`/admin/allocations/workspace?id=${linkedWorkspaceId}`)
-                  }
+                  onClick={() => void handleOpenLinkedWorkspace()}
+                  disabled={creatingDraft}
                 >
-                  완료된 배차 초안으로 이동
+                  {creatingDraft ? '배차 방식 확인 중...' : '선택한 방식으로 배차 초안 열기'}
                 </button>
               ) : (
                 <>

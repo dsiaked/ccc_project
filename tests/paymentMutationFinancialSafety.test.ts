@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const migration = readFileSync(
-  'supabase/migrations/20260611000029_193_payment_mutation_financial_safety.sql',
+  'sql/setup/193_payment_mutation_financial_safety.sql',
   'utf8'
 );
 

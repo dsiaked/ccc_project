@@ -8,7 +8,7 @@ const setupSql = readFileSync(
   'utf8',
 );
 const migrationSql = readFileSync(
-  'supabase/migrations/20260611000026_190_enable_signup_email_availability_check.sql',
+  'sql/setup/190_enable_signup_email_availability_check.sql',
   'utf8',
 );
 

@@ -8,6 +8,11 @@ $squashedRoot = Join-Path $verificationRoot 'squashed'
 $fullDump = Join-Path $verificationRoot 'full-chain.sql'
 $squashedDump = Join-Path $verificationRoot 'squashed.sql'
 $supabase = Join-Path $repoRoot 'node_modules\@supabase\cli-windows-x64\bin\supabase.exe'
+$checksumManifest = Get-Content `
+  -LiteralPath (Join-Path $repoRoot 'supabase\migration-checksums.json') `
+  -Raw |
+  ConvertFrom-Json
+$baselineVersion = $checksumManifest.immutableThrough
 $excludedServices = 'edge-runtime,gotrue,imgproxy,kong,logflare,mailpit,postgres-meta,postgrest,realtime,storage-api,studio,supavisor,vector'
 $dockerCommand = Get-Command docker -ErrorAction SilentlyContinue
 $dockerCandidates = @(
@@ -22,6 +27,16 @@ if ($migrationFiles.Count -eq 0) {
   throw 'No Supabase migrations found.'
 }
 $lastVersion = $migrationFiles[-1].Name.Substring(0, 14)
+if ($baselineVersion -gt $lastVersion) {
+  throw "Baseline version $baselineVersion is newer than latest migration $lastVersion."
+}
+$baselineInputFiles = @(
+  $migrationFiles | Where-Object { $_.Name.Substring(0, 14) -le $baselineVersion }
+)
+$isAlreadySquashed = (
+  $baselineInputFiles.Count -eq 1 -and
+  $baselineInputFiles[0].Name.Substring(0, 14) -eq $baselineVersion
+)
 
 $resolvedVerificationParent = [System.IO.Path]::GetFullPath(
   [System.IO.Path]::GetDirectoryName($verificationRoot)
@@ -97,9 +112,44 @@ try {
   Invoke-Supabase -Workdir $fullChainRoot -Arguments @(
     'db', 'dump', '--local', '--schema', 'public', '--file', $fullDump
   )
-  Invoke-Supabase -Workdir $fullChainRoot -Arguments @(
-    'migration', 'squash', '--local', '--version', $lastVersion, '--yes'
-  )
+  if ($isAlreadySquashed) {
+    Write-Host "Baseline $baselineVersion is already squashed; verifying chain reproducibility."
+  }
+  else {
+    Invoke-Supabase -Workdir $fullChainRoot -Arguments @(
+      'migration', 'squash', '--local', '--version', $baselineVersion, '--yes'
+    )
+
+    $squashedMigration = Get-ChildItem `
+      -LiteralPath (Join-Path $fullChainRoot 'supabase\migrations') `
+      -Filter "$($baselineVersion)_*.sql"
+    if ($squashedMigration.Count -ne 1) {
+      throw "Expected one baseline migration for $baselineVersion, found $($squashedMigration.Count)."
+    }
+
+    $aclCorrectionMigration = Get-ChildItem `
+      -LiteralPath (Join-Path $fullChainRoot 'supabase\migrations') `
+      -Filter '*_restore_baseline_acl.sql' |
+      Select-Object -First 1
+    if (-not $aclCorrectionMigration) {
+      $aclCorrectionVersion = ([int64]$lastVersion + 1).ToString('00000000000000')
+      $aclCorrectionMigration = New-Item -ItemType File -Path (
+        Join-Path $fullChainRoot "supabase\migrations\$($aclCorrectionVersion)_restore_baseline_acl.sql"
+      )
+    }
+
+    $aclStatements = Get-Content -LiteralPath $fullDump |
+      Where-Object { $_ -match '^(GRANT|REVOKE) ' }
+    $aclCorrection = @(
+      '-- Restore the exact ACL state after objects inherit Supabase defaults.'
+      'REVOKE ALL PRIVILEGES ON SCHEMA public FROM anon, authenticated, service_role;'
+      'REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM anon, authenticated, service_role;'
+      'REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM anon, authenticated, service_role;'
+      'REVOKE ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public FROM anon, authenticated, service_role;'
+      ''
+    ) + $aclStatements
+    Set-Content -LiteralPath $aclCorrectionMigration.FullName -Value $aclCorrection
+  }
 }
 finally {
   Stop-Supabase -Workdir $fullChainRoot

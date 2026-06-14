@@ -23,6 +23,33 @@
   background: #ffffff;
 }
 
+.dashboardLayout {
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  gap: 24px;
+  align-items: start;
+  margin-top: 24px;
+}
+
+.dashboardSidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.dashboardMain {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+@media (max-width: 1024px) {
+  .dashboardLayout {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+}
+
 .globalAdminPanel {
   margin-bottom: 14px;
   padding: 18px;
@@ -563,6 +590,20 @@
   border-color: #fde68a;
   background: #fffbeb;
   color: #92400e;
+  animation: pulseRequired 2s infinite ease-in-out;
+}
+
+@keyframes pulseRequired {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4);
+  }
+  50% {
+    opacity: 0.95;
+    transform: scale(1.03);
+    box-shadow: 0 0 0 4px rgba(245, 158, 11, 0);
+  }
 }
 
 .preparationStatusComplete {
@@ -573,9 +614,9 @@
 
 .paymentAccountFields {
   display: grid;
-  grid-template-columns: minmax(120px, 0.8fr) minmax(200px, 1.4fr) minmax(120px, 0.8fr) auto;
-  align-items: end;
-  gap: 10px;
+  grid-template-columns: 1fr;
+  align-items: stretch;
+  gap: 12px;
 }
 
 .paymentAccountFields label {
@@ -711,6 +752,7 @@
   gap: 0;
 }
 
+.guideStep,
 .guideSection > .guideStep {
   padding: 18px;
   border: 1px solid #dbe3ed;
@@ -720,6 +762,7 @@
   box-shadow: 0 6px 18px rgba(15, 23, 42, 0.05);
 }
 
+.guideStepPreparation,
 .guideSection > .guideStepPreparation {
   border-left-color: #047857;
   background: linear-gradient(135deg, #f0fdf4 0%, #ffffff 42%);
@@ -1026,6 +1069,7 @@
   background: #f1f5f9;
   color: #64748b;
   text-decoration: line-through;
+  cursor: not-allowed;
 }
 
 .paymentRosterStatus:disabled {
@@ -1048,10 +1092,11 @@
 
 .paymentRosterName small {
   flex: 0 0 auto;
-  padding: 2px 5px;
+  padding: 2px 6px;
   border-radius: 999px;
-  background: #fee2e2;
-  color: #b91c1c;
+  border: 1px solid #fcd34d;
+  background: #fef3c7;
+  color: #b45309;
   font-size: 10px;
   font-weight: 900;
 }
@@ -1168,18 +1213,20 @@
 }
 
 .quickPaymentDuplicate {
-  padding: 2px 5px;
+  padding: 2px 6px;
   border-radius: 999px;
-  background: #fee2e2;
-  color: #b91c1c;
+  border: 1px solid #fcd34d;
+  background: #fef3c7;
+  color: #b45309;
   font-size: 10px;
-  font-weight: 700;
+  font-weight: 900;
   line-height: 1.2;
 }
 
 .quickPaymentButtonCompleted .quickPaymentDuplicate {
+  border-color: #fcd34d;
   background: #ffffff;
-  color: #b91c1c;
+  color: #b45309;
 }
 
 .quickPaymentButton:hover:not(:disabled) {
@@ -1205,6 +1252,7 @@
   background: #f1f5f9;
   color: #64748b;
   text-decoration: line-through;
+  cursor: not-allowed;
 }
 
 .quickPaymentButton:disabled {
@@ -1923,12 +1971,15 @@ input[type='checkbox'] {
   }
 
   .quickPaymentButtons {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+    gap: 6px;
   }
 
   .paymentRatioHeader {
-    align-items: stretch;
-    flex-direction: column;
+    flex-direction: row !important;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
   }
 
   .guideSection {
@@ -2114,10 +2165,21 @@ input[type='checkbox'] {
   }
 
   .mobileApplicantIdentity a {
-    width: auto;
-    padding-right: 7px;
-    padding-left: 7px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: #f1f5f9;
+    color: #3b82f6;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    text-decoration: none;
+    border: 1px solid #e2e8f0;
     white-space: nowrap;
+  }
+  .mobileApplicantIdentity a:hover {
+    background: #e2e8f0;
   }
 
   .mobileApplicantDetails {
@@ -2175,17 +2237,17 @@ input[type='checkbox'] {
 
 .transferBoxReported {
   border-color: #bfdbfe;
-  background: #f8fbff;
+  background: linear-gradient(135deg, #f8fbff 0%, #eff6ff 100%);
 }
 
 .transferBoxConfirmed {
   border-color: #86efac;
-  background: #ffffff;
+  background: linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%);
 }
 
 .transferBoxNeedsUpdate {
   border-color: #fed7aa;
-  background: #fffaf3;
+  background: linear-gradient(135deg, #ffffff 0%, #fff7ed 100%);
 }
 
 .transferContent {
@@ -2284,6 +2346,22 @@ input[type='checkbox'] {
   font-size: 16px;
   font-weight: 900;
   overflow-wrap: anywhere;
+}
+
+.transferSummary > div:nth-child(2) {
+  background: #f0fdf4;
+  border-top: 1px solid #bbf7d0;
+  border-bottom: 1px solid #bbf7d0;
+}
+
+.transferSummary > div:nth-child(2) dt {
+  color: #15803d;
+  font-weight: 900;
+}
+
+.transferSummary > div:nth-child(2) strong {
+  color: #166534;
+  font-size: 20px;
 }
 
 .transferWarning {
@@ -2580,6 +2658,22 @@ input[type='checkbox'] {
     border-radius: 10px;
   }
 
+  .transferSummary > div {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .transferSummary dt {
+    font-size: 13px;
+  }
+
+  .transferSummary dd {
+    font-size: 13px;
+    text-align: right;
+  }
+
   .transferActionStack {
     min-width: 0;
   }
@@ -2648,5 +2742,157 @@ input[type='checkbox'] {
 .copyBtn:hover {
   border-color: #94a3b8;
   background: #f1f5f9;
+  color: #1e293b;
+}
+
+.paymentAccountSummary {
+  margin-top: 14px;
+  padding: 12px;
+  border-radius: 8px;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  display: grid;
+  gap: 12px;
+}
+
+.summaryDetails {
+  display: grid;
+  gap: 8px;
+}
+
+.summaryDetails > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+}
+
+.summaryDetails strong {
+  color: #64748b;
+  font-weight: 800;
+}
+
+.summaryDetails span {
+  color: #0f172a;
+  font-weight: 900;
+  font-family: monospace;
+}
+
+.paymentAccountEditButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+}
+
+.paymentAccountEditButton:hover {
+  border-color: #94a3b8;
+  background: #f8fafc;
+  color: #1e293b;
+}
+
+.paymentAccountCancelButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0 16px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+}
+
+.paymentAccountCancelButton:hover {
+  border-color: #94a3b8;
+  background: #f8fafc;
+  color: #1e293b;
+}
+
+.guideStepPreparationCollapsed {
+  padding: 10px 14px !important;
+}
+
+.guideStepHeadingCollapsed {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 10px;
+}
+
+.guideStepNumberSmall {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  border-radius: 5px;
+  background: #047857;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1;
+  box-shadow: 0 2px 4px rgba(4, 120, 87, 0.15);
+}
+
+.guideStepTitleSmall {
+  color: #334155;
+  font-size: 13px;
+  font-weight: 800;
+  flex: 1;
+  line-height: 1.2;
+}
+
+.expandPrepButton,
+.collapsePrepButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+  white-space: nowrap;
+}
+
+.expandPrepButton {
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #475569;
+}
+
+.expandPrepButton:hover {
+  border-color: #94a3b8;
+  background: #f8fafc;
+  color: #1e293b;
+}
+
+.collapsePrepButton {
+  border: 1px solid transparent;
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.collapsePrepButton:hover {
+  background: #e2e8f0;
   color: #1e293b;
 }

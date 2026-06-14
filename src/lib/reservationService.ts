@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import type { ReturnBusReservation } from '../types/reservation';
+import type { ConfirmedTicket, ReturnBusReservation } from '../types/reservation';
 
 /**
  * 신청 정보를 Supabase DB에 저장 (현재 인증된 사용자만 저장 가능)
@@ -92,10 +92,15 @@ export async function getReservationForUser(
   }
 }
 
-export async function submitBoardingCheckInCode(code: string): Promise<string> {
-  const { data, error } = await supabase.rpc('submit_boarding_check_in_code', {
-    p_code: code,
-  });
+export async function submitBoardingCheckInCode(
+  code: string,
+  allocationStrategy?: ConfirmedTicket['allocationStrategy']
+): Promise<string> {
+  const rpcName =
+    allocationStrategy === 'destination_queue'
+      ? 'submit_destination_queue_check_in_code'
+      : 'submit_boarding_check_in_code';
+  const { data, error } = await supabase.rpc(rpcName, { p_code: code });
 
   if (error) throw error;
   if (!data) throw new Error('탑승 체크인 시간을 저장하지 못했습니다.');
@@ -105,9 +110,10 @@ export async function submitBoardingCheckInCode(code: string): Promise<string> {
   const result = data as {
     success?: boolean;
     confirmedAt?: string;
+    ticket?: unknown;
     message?: string;
   };
-  if (!result.success) {
+  if (result.success === false) {
     throw new Error(result.message || 'The check-in code could not be verified.');
   }
   if (!result.confirmedAt) {

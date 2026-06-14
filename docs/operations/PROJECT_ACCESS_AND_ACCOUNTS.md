@@ -196,11 +196,3 @@ Firebase 수동 배포, Cloud Run 구성에는 해당 CLI 또는 각 서비스�
 - Firebase, Supabase, Google Cloud, Kakao, GitHub 각각에 조직 소유 관리자 계정을
   최소 2명 유지하고 개인 단독 소유를 피한다.
 - 운영 배포 및 관리자급 키 접근에는 다중 인증을 적용한다.
-
-## 10. 통합 설치 SQL 유지 원칙
-
-`sql/setup/combined_supabase_setup.sql`은
-`node scripts/sync-combined-supabase-setup.mjs`로 재생성한다. 동기화 스크립트는
-탑승 관리 간사님 역할, 잔여 좌석, 최적화 실행 모드, 작업 리셋을 포함한 후속 운영 패치를
-시간순으로 배치한다. 새 DB 검증 전에는 동기화 스크립트를 실행하고
-`npm test`로 통합 설치 SQL의 필수 역할과 RPC 포함 여부를 확인한다.
