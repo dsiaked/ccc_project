@@ -1,0 +1,542 @@
+from __future__ import annotations
+
+import itertools
+import random
+import unittest
+from collections import Counter
+from dataclasses import replace
+from math import ceil
+from unittest.mock import patch
+
+import exact_optimizer.model as model_module
+from exact_optimizer import (
+    BusConfiguration,
+    OptimizationInput,
+    Passenger,
+    optimize,
+    validate_result,
+)
+from exact_optimizer.model import (
+    PhaseSolveError,
+    _maximum_destination_buses,
+    _maximum_unused_seats,
+    _remaining_phase_seconds,
+    _search_worker_count,
+    _solve_phase,
+)
+from ortools.sat.python import cp_model
+
+
+def passenger(
+    reservation_id: str,
+    first_choice: str,
+    second_choice: str,
+    campus: str = "Campus A",
+    team: str = "Team 1",
+) -> Passenger:
+    return Passenger(
+        reservation_id=reservation_id,
+        campus=campus,
+        team=team,
+        first_choice=first_choice,
+        second_choice=second_choice,
+    )
+
+
+def brute_force_minimum(passengers: tuple[Passenger, ...], capacity: int) -> tuple[int, int]:
+    best: tuple[int, int] | None = None
+    for choices in itertools.product((0, 1), repeat=len(passengers)):
+        counts = Counter(
+            (
+                item.first_choice if choice == 0 else item.second_choice
+            )
+            for item, choice in zip(passengers, choices)
+        )
+        buses = sum(ceil(count / capacity) for count in counts.values())
+        second_choices = sum(choices)
+        candidate = (buses, second_choices)
+        if best is None or candidate < best:
+            best = candidate
+    assert best is not None
+    return best
+
+
+class ExactOptimizerTests(unittest.TestCase):
+    def test_rejects_feasible_phase_as_unproven(self) -> None:
+        class FakeParameters:
+            num_search_workers = 0
+            random_seed = 0
+            max_time_in_seconds = 0.0
+            search_branching = cp_model.AUTOMATIC_SEARCH
+
+        class FakeSolver:
+            parameters = FakeParameters()
+
+            def Solve(self, model: cp_model.CpModel) -> cp_model.CpSolverStatus:
+                return cp_model.FEASIBLE
+
+            def StatusName(self, status: cp_model.CpSolverStatus) -> str:
+                return "FEASIBLE"
+
+        fake_solver = FakeSolver()
+        with patch("exact_optimizer.model.cp_model.CpSolver", return_value=fake_solver):
+            with self.assertRaisesRegex(PhaseSolveError, "FEASIBLE"):
+                _solve_phase(
+                    model=cp_model.CpModel(),
+                    expression=0,
+                    name="detailed_balance",
+                    objectives=[],
+                    progress=None,
+                    cancellation_check=None,
+                    search_workers=1,
+                    max_time_seconds=1,
+                    deadline=model_module.time.monotonic() + 10,
+                )
+        self.assertEqual(
+            fake_solver.parameters.search_branching,
+            cp_model.AUTOMATIC_SEARCH,
+        )
+
+    def test_uses_half_of_available_cpu_cores(self) -> None:
+        with patch("exact_optimizer.model.os.cpu_count", return_value=12):
+            self.assertEqual(_search_worker_count(), 6)
+        with patch("exact_optimizer.model.os.cpu_count", return_value=1):
+            self.assertEqual(_search_worker_count(), 1)
+        with patch("exact_optimizer.model.os.cpu_count", return_value=None):
+            self.assertEqual(_search_worker_count(), 1)
+
+    def test_caps_each_phase_to_the_shared_remaining_deadline(self) -> None:
+        with patch("exact_optimizer.model.time.monotonic", return_value=100.0):
+            self.assertEqual(_remaining_phase_seconds(140.0, "phase"), 40.0)
+            self.assertEqual(
+                _remaining_phase_seconds(140.0, "phase", 30.0),
+                30.0,
+            )
+            with self.assertRaisesRegex(PhaseSolveError, "TIME_LIMIT"):
+                _remaining_phase_seconds(100.0, "phase")
+
+    def test_calculates_global_unused_seat_limit(self) -> None:
+        self.assertEqual(_maximum_unused_seats(2347, 54, 44), 29)
+
+    def test_limits_destination_buses_using_global_unused_seats(self) -> None:
+        self.assertEqual(_maximum_destination_buses(60, 44, 29), 2)
+        self.assertEqual(_maximum_destination_buses(14, 44, 29), 0)
+
+    def test_matches_exhaustive_reference_cases(self) -> None:
+        scenarios = (
+            (
+                passenger("p1", "A", "B"),
+                passenger("p2", "A", "B"),
+                passenger("p3", "B", "A"),
+                passenger("p4", "C", "A"),
+            ),
+            (
+                passenger("p1", "A", "B"),
+                passenger("p2", "B", "C"),
+                passenger("p3", "C", "A"),
+                passenger("p4", "C", "B"),
+                passenger("p5", "A", "C"),
+            ),
+        )
+        for passengers in scenarios:
+            with self.subTest(passengers=len(passengers)):
+                expected = brute_force_minimum(passengers, capacity=3)
+                result = optimize(
+                    OptimizationInput(
+                        passengers=passengers,
+                        bus=BusConfiguration(capacity=3, price=100),
+                    )
+                )
+                self.assertEqual(result.status, "OPTIMAL")
+                self.assertEqual(
+                    (result.total_buses, result.second_choice_count), expected
+                )
+                self.assertEqual(
+                    validate_result(
+                        OptimizationInput(
+                            passengers=passengers,
+                            bus=BusConfiguration(capacity=3, price=100),
+                        ),
+                        result,
+                    ),
+                    [],
+                )
+
+    def test_reports_primary_objectives_separately(self) -> None:
+        reported: list[tuple[str, int | None]] = []
+        result = optimize(
+            OptimizationInput(
+                passengers=(
+                    passenger("p1", "A", "B"),
+                    passenger("p2", "A", "B"),
+                    passenger("p3", "B", "A"),
+                ),
+                bus=BusConfiguration(capacity=3, price=100),
+            ),
+            progress=lambda name, value: reported.append((name, value)),
+        )
+
+        self.assertEqual(
+            [objective.name for objective in result.objectives[:2]],
+            ["total_buses", "second_choice_passengers"],
+        )
+        self.assertEqual(
+            reported,
+            [
+                ("total_buses", result.total_buses),
+                ("second_choice_passengers", result.second_choice_count),
+            ],
+        )
+
+    def test_returns_infeasible_when_maximum_bus_count_is_insufficient(self) -> None:
+        data = OptimizationInput(
+            passengers=tuple(
+                passenger(f"p-{index}", "A", "B") for index in range(7)
+            ),
+            bus=BusConfiguration(
+                capacity=3,
+                price=100,
+                maximum_buses=2,
+            ),
+        )
+
+        result = optimize(data)
+
+        self.assertEqual(result.status, "INFEASIBLE")
+        self.assertEqual(result.diagnostics["maximum_buses"], 2)
+        self.assertEqual(result.diagnostics["minimum_capacity_buses"], 3)
+        self.assertEqual(result.diagnostics["seat_shortage"], 1)
+
+    def test_runs_detailed_balance_phases_only_when_requested(self) -> None:
+        data = OptimizationInput(
+            passengers=tuple(
+                passenger(
+                    f"p-{index}",
+                    "A" if index % 2 == 0 else "B",
+                    "B" if index % 2 == 0 else "A",
+                    campus=f"Campus {index % 3}",
+                    team=f"Team {index % 2}",
+                )
+                for index in range(8)
+            ),
+            bus=BusConfiguration(capacity=4, price=100),
+        )
+        baseline_phases: list[str] = []
+        detailed_phases: list[str] = []
+
+        with patch("exact_optimizer.model._complete_solution_hints") as complete_hints:
+            baseline = optimize(
+                data,
+                progress=lambda name, value: baseline_phases.append(name),
+            )
+            complete_hints.assert_not_called()
+        detailed = optimize(
+            data,
+            progress=lambda name, value: detailed_phases.append(name),
+            detailed_balance=True,
+        )
+
+        self.assertEqual(baseline.status, "OPTIMAL")
+        self.assertEqual(
+            baseline_phases,
+            ["total_buses", "second_choice_passengers"],
+        )
+        self.assertEqual(detailed.status, "OPTIMAL")
+        self.assertEqual(
+            detailed_phases[:2],
+            ["total_buses", "second_choice_passengers"],
+        )
+        self.assertIn("campus_bus_uses", detailed_phases)
+        self.assertIn("team_bus_uses", detailed_phases)
+        self.assertIn("destination_occupancy_imbalance", detailed_phases)
+        self.assertEqual(detailed_phases[-1], "deterministic_tie_break")
+
+    def test_solves_detailed_lexicographic_objectives_as_separate_phases(self) -> None:
+        data = OptimizationInput(
+            passengers=tuple(
+                passenger(
+                    f"p-{index}",
+                    "A" if index % 2 == 0 else "B",
+                    "B" if index % 2 == 0 else "A",
+                    campus=f"Campus {index % 3}",
+                    team=f"Team {index % 2}",
+                )
+                for index in range(8)
+            ),
+            bus=BusConfiguration(capacity=4, price=100),
+        )
+
+        with patch(
+            "exact_optimizer.model._solve_phase",
+            wraps=model_module._solve_phase,
+        ) as solve_phase:
+            result = optimize(data, detailed_balance=True)
+
+        phase_names = [call.kwargs["name"] for call in solve_phase.call_args_list]
+        self.assertEqual(result.status, "OPTIMAL")
+        self.assertIn("campus_bus_uses", phase_names)
+        self.assertIn("campus_distribution_imbalance", phase_names)
+        self.assertIn("destination_occupancy_imbalance", phase_names)
+        self.assertIn("deterministic_tie_break", phase_names)
+        self.assertFalse(any("_and_" in name for name in phase_names))
+
+    def test_skips_selected_detailed_balance_phases(self) -> None:
+        data = OptimizationInput(
+            passengers=tuple(
+                passenger(
+                    f"p-{index}",
+                    "A" if index % 2 == 0 else "B",
+                    "B" if index % 2 == 0 else "A",
+                    campus=f"Campus {index % 3}",
+                    team=f"Team {index % 2}",
+                )
+                for index in range(8)
+            ),
+            bus=BusConfiguration(capacity=4, price=100),
+        )
+        reported: list[tuple[str, int | None]] = []
+
+        result = optimize(
+            data,
+            progress=lambda name, value: reported.append((name, value)),
+            detailed_balance=True,
+            skipped_detailed_phases=frozenset(
+                {"campus_distribution_imbalance", "team_bus_uses"}
+            ),
+        )
+
+        self.assertEqual(result.status, "OPTIMAL")
+        self.assertIn(("campus_distribution_imbalance", None), reported)
+        self.assertIn(("team_bus_uses", None), reported)
+        objective_names = {objective.name for objective in result.objectives}
+        self.assertNotIn("campus_distribution_imbalance", objective_names)
+        self.assertNotIn("team_bus_uses", objective_names)
+        self.assertIn("deterministic_tie_break", objective_names)
+
+    def test_uses_previous_detailed_result_as_solution_hint(self) -> None:
+        data = OptimizationInput(
+            passengers=tuple(
+                passenger(f"p-{index}", "A", "B") for index in range(5)
+            ),
+            bus=BusConfiguration(capacity=3, price=100),
+        )
+        previous = optimize(data, detailed_balance=True)
+
+        with patch(
+            "exact_optimizer.model._add_result_solution_hints",
+            wraps=model_module._add_result_solution_hints,
+        ) as add_result_hints:
+            result = optimize(
+                data,
+                detailed_balance=True,
+                initial_result=previous,
+            )
+
+        self.assertEqual(result.status, "OPTIMAL")
+        add_result_hints.assert_called_once()
+
+    def test_matches_random_exhaustive_reference_cases(self) -> None:
+        random_generator = random.Random(20260607)
+        destinations = ("A", "B", "C")
+
+        for scenario_index in range(20):
+            passenger_count = random_generator.randint(3, 8)
+            capacity = random_generator.randint(2, 4)
+            passengers = tuple(
+                passenger(
+                    f"s{scenario_index}-p{index}",
+                    *random_generator.sample(destinations, 2),
+                    campus=f"Campus {index % 3}",
+                    team=f"Team {index % 2}",
+                )
+                for index in range(passenger_count)
+            )
+            expected = brute_force_minimum(passengers, capacity)
+
+            with self.subTest(
+                scenario=scenario_index,
+                passengers=passenger_count,
+                capacity=capacity,
+            ):
+                result = optimize(
+                    OptimizationInput(
+                        passengers=passengers,
+                        bus=BusConfiguration(capacity=capacity, price=100),
+                    )
+                )
+                self.assertEqual(result.status, "OPTIMAL")
+                self.assertEqual(
+                    (result.total_buses, result.second_choice_count), expected
+                )
+
+    def test_removes_a_first_choice_destination_to_reduce_bus_count(self) -> None:
+        passengers = (
+            passenger("a1", "A", "B"),
+            passenger("a2", "A", "B"),
+            passenger("b1", "B", "A"),
+        )
+        result = optimize(
+            OptimizationInput(
+                passengers=passengers,
+                bus=BusConfiguration(
+                    capacity=3,
+                    price=500,
+                    recommended_minimum_passengers=2,
+                ),
+            )
+        )
+
+        self.assertEqual(result.total_buses, 1)
+        self.assertEqual(result.second_choice_count, 1)
+        self.assertEqual(len(result.warnings), 1)
+        self.assertEqual(result.warnings[0].code, "FIRST_CHOICE_DESTINATION_REMOVED")
+
+    def test_keeps_campus_together_before_team_quality(self) -> None:
+        passengers = tuple(
+            passenger(
+                f"a-{index}",
+                "A",
+                "B",
+                campus="Campus A",
+                team=f"Team {index % 2}",
+            )
+            for index in range(4)
+        ) + tuple(
+            passenger(
+                f"b-{index}",
+                "A",
+                "B",
+                campus="Campus B",
+                team=f"Team {index % 2}",
+            )
+            for index in range(4)
+        )
+        result = optimize(
+            OptimizationInput(
+                passengers=passengers,
+                bus=BusConfiguration(capacity=4, price=100),
+            ),
+            detailed_balance=True,
+        )
+        buses_by_passenger = {
+            assignment.reservation_id: assignment.bus_id
+            for assignment in result.assignments
+        }
+
+        self.assertEqual(result.total_buses, 2)
+        self.assertEqual([bus.label for bus in result.buses], ["1호차", "2호차"])
+        self.assertEqual(
+            len({buses_by_passenger[f"a-{index}"] for index in range(4)}), 1
+        )
+        self.assertEqual(
+            len({buses_by_passenger[f"b-{index}"] for index in range(4)}), 1
+        )
+
+    def test_is_deterministic(self) -> None:
+        data = OptimizationInput(
+            passengers=tuple(
+                passenger(
+                    f"p-{index:02d}",
+                    "A" if index % 2 == 0 else "B",
+                    "B" if index % 2 == 0 else "A",
+                    campus=f"Campus {index % 3}",
+                    team=f"Team {index % 2}",
+                )
+                for index in range(12)
+            ),
+            bus=BusConfiguration(capacity=5, price=100),
+        )
+
+        results = [optimize(data) for _ in range(10)]
+
+        for result in results[1:]:
+            self.assertEqual(results[0], result)
+
+    def test_rejects_invalid_input(self) -> None:
+        result = optimize(
+            OptimizationInput(
+                passengers=(passenger("p1", "A", "A"),),
+                bus=BusConfiguration(capacity=0, price=100),
+            )
+        )
+        self.assertEqual(result.status, "FAILED")
+
+    def test_rejects_empty_passenger_input(self) -> None:
+        result = optimize(
+            OptimizationInput(
+                passengers=(),
+                bus=BusConfiguration(capacity=3, price=100),
+            )
+        )
+
+        self.assertEqual(result.status, "FAILED")
+        self.assertIn("At least one passenger is required.", result.error_message or "")
+
+    def test_returns_failed_when_final_detailed_phase_is_not_proven(self) -> None:
+        data = OptimizationInput(
+            passengers=tuple(
+                passenger(
+                    f"p-{index}",
+                    "A",
+                    "B",
+                    campus=f"Campus {index % 2}",
+                    team=f"Team {index % 3}",
+                )
+                for index in range(8)
+            ),
+            bus=BusConfiguration(capacity=4, price=100),
+        )
+        original_solve_phase = model_module._solve_phase
+
+        def fail_final_phase(**kwargs):
+            if kwargs["name"].startswith("destination_occupancy_imbalance"):
+                raise PhaseSolveError(kwargs["name"], "FEASIBLE")
+            return original_solve_phase(**kwargs)
+
+        with patch("exact_optimizer.model._solve_phase", side_effect=fail_final_phase):
+            result = optimize(data, detailed_balance=True)
+
+        self.assertEqual(result.status, "FAILED")
+        self.assertIn(
+            "destination_occupancy_imbalance",
+            result.error_message or "",
+        )
+
+    def test_rejects_result_with_mismatched_bus_configuration(self) -> None:
+        data = OptimizationInput(
+            passengers=(passenger("p1", "A", "B"),),
+            bus=BusConfiguration(capacity=3, price=100),
+        )
+        result = optimize(data)
+        mismatched_bus = replace(result.buses[0], capacity=4, price=200)
+        mismatched_result = replace(result, buses=(mismatched_bus,))
+
+        errors = validate_result(data, mismatched_result)
+
+        self.assertIn("bus-001: bus capacity does not match the input.", errors)
+        self.assertIn("bus-001: bus price does not match the input.", errors)
+
+    def test_reports_low_occupancy_as_warning(self) -> None:
+        result = optimize(
+            OptimizationInput(
+                passengers=(
+                    passenger("p1", "A", "B"),
+                    passenger("p2", "A", "B"),
+                ),
+                bus=BusConfiguration(
+                    capacity=45,
+                    price=100,
+                    recommended_minimum_passengers=36,
+                ),
+            )
+        )
+
+        self.assertEqual(result.status, "OPTIMAL")
+        self.assertIn(
+            "BELOW_RECOMMENDED_MINIMUM",
+            {warning.code for warning in result.warnings},
+        )
+
+
+if __name__ == "__main__":
+    unittest.main()
