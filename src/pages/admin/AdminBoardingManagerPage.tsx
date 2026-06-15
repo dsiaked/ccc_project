@@ -117,7 +117,8 @@ const AdminBoardingManagerPage = () => {
   };
 
   useEffect(() => {
-    setSelectedCandidateIds([]);
+    // Initial and filter-driven loads intentionally update request state.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadUsers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [staffOnlyFilter]);
@@ -541,7 +542,10 @@ const AdminBoardingManagerPage = () => {
                   <button
                     type="button"
                     className={`${styles.filterButton} ${staffOnlyFilter ? styles.active : ''}`}
-                    onClick={() => setStaffOnlyFilter((prev) => !prev)}
+                    onClick={() => {
+                      setSelectedCandidateIds([]);
+                      setStaffOnlyFilter((prev) => !prev);
+                    }}
                   >
                     간사만 보기
                   </button>

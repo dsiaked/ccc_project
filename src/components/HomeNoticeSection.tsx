@@ -312,14 +312,16 @@ const HomeNoticeSection = () => {
         ) : (
           <div className={styles.noticeList}>
             {visibleNotices.map(({ kind, item }) => {
-              const isPersonal = kind === 'personal';
-              const isCampus = kind === 'campus';
+              const personalItem = kind === 'personal' ? item : null;
+              const campusItem = kind === 'campus' ? item : null;
+              const isPersonal = personalItem !== null;
+              const isCampus = campusItem !== null;
               const opensInquiry =
                 isPersonal &&
-                (item as PersonalNotification).category === 'inquiry';
+                personalItem.category === 'inquiry';
               const isUnread =
-                (isPersonal && ((item as any).unreadCount ?? 0) > 0) ||
-                (isCampus && unreadCampusNoticeIds.has(item.id));
+                ((personalItem?.unreadCount ?? 0) > 0) ||
+                (campusItem !== null && unreadCampusNoticeIds.has(campusItem.id));
               const isActionable = opensInquiry || (isCampus && isUnread);
               const tagLabel = isPersonal
                 ? '개인 알림'
@@ -331,10 +333,10 @@ const HomeNoticeSection = () => {
                 if (
                   opensInquiry
                 ) {
-                  void markPersonalNoticeRead(item as any);
+                  void markPersonalNoticeRead(personalItem);
                   navigate('/inquiries');
-                } else if (isCampus) {
-                  void markCampusNoticeRead(item as CampusRequest);
+                } else if (campusItem) {
+                  void markCampusNoticeRead(campusItem);
                 }
               };
 
@@ -379,20 +381,20 @@ const HomeNoticeSection = () => {
                     <h3>
                       {opensInquiry
                         ? (() => {
-                            const category = item.content.split('\n\n')[0] || '문의';
-                            const unreadSuffix = ((item as any).unreadCount ?? 0) > 1
-                              ? ` (${(item as any).unreadCount})`
+                            const category = personalItem.content.split('\n\n')[0] || '문의';
+                            const unreadSuffix = (personalItem.unreadCount ?? 0) > 1
+                              ? ` (${personalItem.unreadCount})`
                               : '';
                             return `[문의 답변] ${category}${unreadSuffix}`;
                           })()
-                        : isPersonal && ((item as any).unreadCount ?? 0) > 1
-                          ? `${item.title} (${(item as any).unreadCount})`
+                        : personalItem && (personalItem.unreadCount ?? 0) > 1
+                          ? `${personalItem.title} (${personalItem.unreadCount})`
                           : item.title}
                     </h3>
                     {opensInquiry ? (() => {
-                      const parts = item.content.split('\n\n');
+                      const parts = personalItem.content.split('\n\n');
                       if (parts.length >= 3) {
-                        const [_, reply, footerText] = parts;
+                        const [, reply, footerText] = parts;
                         return (
                           <div className={styles.inquiryNotificationContent}>
                             <div className={styles.inquiryReplyBox}>

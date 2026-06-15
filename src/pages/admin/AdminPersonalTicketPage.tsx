@@ -271,7 +271,7 @@ const AdminPersonalTicketPage = () => {
   const [stationLoadError, setStationLoadError] = useState('');
   const [allocationLoadError, setAllocationLoadError] = useState('');
   const [confirmedAllocation, setConfirmedAllocation] = useState<AllocationRow | null>(null);
-  const allocationBuses = (confirmedAllocation?.allocation_data as any)?.buses as any[] | undefined;
+  const allocationBuses = confirmedAllocation?.allocation_data?.buses;
   const [firstStationId, setFirstStationId] = useState('');
   const [secondStationId, setSecondStationId] = useState('');
   const [copiedAccountField, setCopiedAccountField] = useState<
@@ -452,6 +452,8 @@ const AdminPersonalTicketPage = () => {
   }, []);
 
   useEffect(() => {
+    // This mount effect starts the resource loader, which owns its loading state.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadReservationResources();
   }, [loadReservationResources]);
 
@@ -1135,8 +1137,8 @@ const AdminPersonalTicketPage = () => {
     const phoneChanged = phone !== selectedReservation.phone;
     const staffChanged = infoIsStaff !== !!selectedReservation.isStaff;
 
-    let orgChanged = false;
-    let affiliationType: 'seoul' | 'external' = 'seoul';
+    let orgChanged: boolean;
+    let affiliationType: 'seoul' | 'external';
     let campusId: string | null = null;
     let district: string | null = null;
     let campus: string | null = null;

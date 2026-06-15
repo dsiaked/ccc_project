@@ -76,10 +76,11 @@ const DestinationQueueBoardingPanel = ({ initialSnapshot }: Props) => {
   const pendingKeysRef = useRef(new Set<string>());
   const refreshRequestRef = useRef(0);
 
-  useEffect(() => {
+  const selectDestination = (destination: string) => {
     setStatusFilter('unchecked');
     setSearch('');
-  }, [selectedDestination]);
+    setSelectedDestination(destination);
+  };
 
   const refresh = useCallback(async () => {
     const requestId = refreshRequestRef.current + 1;
@@ -510,7 +511,7 @@ const DestinationQueueBoardingPanel = ({ initialSnapshot }: Props) => {
                       ? styles.destinationComplete
                       : ''
               }`}
-              onClick={() => setSelectedDestination(destination.destination)}
+              onClick={() => selectDestination(destination.destination)}
             >
               <strong>{destination.destination}</strong>
               <span>

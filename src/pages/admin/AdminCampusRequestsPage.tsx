@@ -567,13 +567,7 @@ const AdminCampusRequestsPage = () => {
     if (typeFilter !== 'all') chips.push(`유형: ${typeLabelMap[typeFilter]}`);
 
     return chips;
-  }, [
-    globalAdminTab,
-    isGlobalAdmin,
-    searchKeyword,
-    statusFilter,
-    typeFilter,
-  ]);
+  }, [isGlobalAdmin, searchKeyword, typeFilter]);
 
   const hasActiveFilters = activeFilterChips.length > 0;
 
