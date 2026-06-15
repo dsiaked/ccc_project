@@ -272,7 +272,10 @@ const DestinationQueueWorkspaceEditor = ({
                 {destination.passengerCount}명 · 예상 {destination.expectedBusCount}대 ·
                 나머지 {destination.remainderCount}명
               </span>
-              <small>1지망 {destination.firstChoiceCount} · 2지망 {destination.secondChoiceCount}</small>
+              <small>
+                잔여좌석 {destination.remainingSeatCount}석 · 1지망 {destination.firstChoiceCount} ·
+                2지망 {destination.secondChoiceCount}
+              </small>
             </button>
           ))}
         </aside>

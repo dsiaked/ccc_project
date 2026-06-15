@@ -57,6 +57,7 @@ test('destination queue stats use fixed 44-person expected buses', () => {
       secondChoiceCount: 1,
       expectedBusCount: 2,
       remainderCount: 1,
+      remainingSeatCount: 43,
     },
   ]);
 });
@@ -68,6 +69,7 @@ test('destination queue stats expose zero remainder for exact bus multiples', ()
   }));
 
   assert.equal(getDestinationQueueStats(passengers)[0].remainderCount, 0);
+  assert.equal(getDestinationQueueStats(passengers)[0].remainingSeatCount, 0);
 });
 
 test('second-choice assignment excludes duplicate first and second preferences', () => {

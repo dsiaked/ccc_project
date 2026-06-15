@@ -10,6 +10,7 @@ import {
   RefreshCw,
   Save,
   UserRound,
+  UsersRound,
   UserX,
   X,
 } from 'lucide-react';
@@ -57,6 +58,7 @@ const DestinationQueueBoardingPanel = ({ initialSnapshot }: Props) => {
   const [completedBusesOpen, setCompletedBusesOpen] = useState(false);
   const [selectedDeparture, setSelectedDeparture] =
     useState<DestinationQueueDepartureSnapshot | null>(null);
+  const [currentRosterBusId, setCurrentRosterBusId] = useState('');
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
 
@@ -121,6 +123,17 @@ const DestinationQueueBoardingPanel = ({ initialSnapshot }: Props) => {
   );
   const currentBusBoardedCount = currentBus ? getBusBoardedCount(currentBus.id) : 0;
   const currentBusRemainingCount = Math.max(BUS_CAPACITY - currentBusBoardedCount, 0);
+  const currentRosterBus = snapshot.buses.find((bus) => bus.id === currentRosterBusId);
+  const currentRosterPassengers = useMemo(
+    () =>
+      currentRosterBusId
+        ? snapshot.passengers.filter(
+            (passenger) =>
+              passenger.busId === currentRosterBusId && passenger.boardingStatus === 'boarded'
+          )
+        : [],
+    [currentRosterBusId, snapshot.passengers]
+  );
   const completedBuses = (snapshot.departures ?? []).filter(
     (departure) => departure.destination === activeDestination
   );
@@ -308,7 +321,7 @@ const DestinationQueueBoardingPanel = ({ initialSnapshot }: Props) => {
 
   const handleStatusChange = async (
     passenger: DestinationQueueBoardingPassenger,
-    status: 'boarded' | 'no_show',
+    status: BoardingStatus,
     transitionReason = ''
   ) => {
     if (status === 'no_show' && !transitionReason.trim()) {
@@ -405,7 +418,8 @@ const DestinationQueueBoardingPanel = ({ initialSnapshot }: Props) => {
     if (!event.note) return '';
     if (
       event.note === 'destination_queue_check_in_code' ||
-      event.note === 'destination_queue_manager_check_in'
+      event.note === 'destination_queue_manager_check_in' ||
+      event.note === 'destination_queue_manager_return_to_waiting'
     )
       return '';
     if (event.note.startsWith('destination_queue_no_show: ')) {
@@ -540,6 +554,13 @@ const DestinationQueueBoardingPanel = ({ initialSnapshot }: Props) => {
                     <strong>{currentBus.check_in_code}</strong>
                   </div>
                 )}
+                <button
+                  type="button"
+                  className={styles.currentRosterButton}
+                  onClick={() => setCurrentRosterBusId(currentBus.id)}
+                >
+                  <UsersRound size={17} /> 탑승 명단
+                </button>
                 <button
                   type="button"
                   className={styles.depart}
@@ -834,6 +855,70 @@ const DestinationQueueBoardingPanel = ({ initialSnapshot }: Props) => {
         </div>
       )}
 
+      {currentRosterBus && (
+        <div
+          className={styles.departureRosterBackdrop}
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setCurrentRosterBusId('');
+          }}
+        >
+          <section
+            className={styles.departureRosterDialog}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="destination-queue-current-roster-title"
+          >
+            <header>
+              <div>
+                <span>현재 탑승 중인 명단</span>
+                <h2 id="destination-queue-current-roster-title">{currentRosterBus.label}</h2>
+                <p>현재 탑승 확인된 승객 {currentRosterPassengers.length}명</p>
+              </div>
+              <button type="button" onClick={() => setCurrentRosterBusId('')} aria-label="현재 탑승 명단 닫기">
+                <X size={19} />
+              </button>
+            </header>
+            <div className={styles.currentRosterNotice}>
+              <strong>탑승 상태가 변경되면 명단도 자동으로 갱신됩니다.</strong>
+            </div>
+            <div className={styles.departureRosterList}>
+              {currentRosterPassengers.length > 0 ? (
+                currentRosterPassengers.map((passenger) => (
+                  <article key={passenger.reservationId} className={styles.currentRosterPassenger}>
+                    <button
+                      type="button"
+                      className={styles.currentRosterPassengerDetails}
+                      onClick={() => {
+                        setCurrentRosterBusId('');
+                        setSelectedPassengerId(passenger.reservationId);
+                        setSavedNotePassengerId('');
+                        setNoShowReasonPassengerId('');
+                        setActiveDrawerTab('info');
+                      }}
+                    >
+                      <strong>{passenger.name}</strong>
+                      <span>{passenger.campus} · {passenger.team}</span>
+                      <small>{passenger.phone}</small>
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.currentRosterWaitButton}
+                      onClick={() => void handleStatusChange(passenger, 'unchecked')}
+                      disabled={isPending(`status:${passenger.reservationId}`)}
+                    >
+                      <CircleHelp size={14} />
+                      대기로 변경
+                    </button>
+                  </article>
+                ))
+              ) : (
+                <p className={styles.emptyCurrentRoster}>아직 탑승 확인된 승객이 없습니다.</p>
+              )}
+            </div>
+          </section>
+        </div>
+      )}
+
       {selectedPassenger && (
         <div
           className={styles.detailBackdrop}
@@ -1035,6 +1120,24 @@ const DestinationQueueBoardingPanel = ({ initialSnapshot }: Props) => {
                       >
                         <UserX size={16} />
                         미탑승
+                      </button>
+                      <button
+                        type="button"
+                        className={`${styles.waitButton} ${
+                          selectedPassenger.boardingStatus === 'unchecked'
+                            ? styles.detailActionSelected
+                            : ''
+                        }`}
+                        aria-pressed={selectedPassenger.boardingStatus === 'unchecked'}
+                        onClick={() => void handleStatusChange(selectedPassenger, 'unchecked')}
+                        disabled={
+                          selectedPassengerBusDeparted ||
+                          selectedPassenger.boardingStatus === 'unchecked' ||
+                          isPending(`status:${selectedPassenger.reservationId}`)
+                        }
+                      >
+                        <CircleHelp size={16} />
+                        대기
                       </button>
                     </div>
                   </section>

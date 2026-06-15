@@ -1,5 +1,9 @@
 import { supabase } from './supabase';
 import type { ConfirmedTicket, RemainingSeatClaim } from '../types/reservation';
+import {
+  DESTINATION_QUEUE_REMAINING_SEAT_LABEL,
+  isDestinationQueueRemainingSeatId,
+} from './admin/destinationQueueAllocation';
 
 export interface RemainingSeatOption {
   allocationId: string;
@@ -14,6 +18,17 @@ export interface RemainingSeatOption {
   price: number;
   transferAccount: string;
 }
+
+export const formatRemainingSeatBusLabel = (busId: string, busLabel: string) =>
+  isDestinationQueueRemainingSeatId(busId)
+    ? DESTINATION_QUEUE_REMAINING_SEAT_LABEL
+    : busLabel;
+
+export const isDestinationQueueRemainingSeat = (busId: string) =>
+  isDestinationQueueRemainingSeatId(busId);
+
+export const formatRemainingSeatPosition = (busId: string, seatNumber: string) =>
+  isDestinationQueueRemainingSeatId(busId) ? '탑승 시 호차 배정' : `${seatNumber}번`;
 
 interface RemainingSeatRow {
   allocation_id: string;

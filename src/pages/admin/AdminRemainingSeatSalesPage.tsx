@@ -19,10 +19,16 @@ import { getLatestConfirmedBusAllocation } from '../../lib/adminService';
 import {
   cancelRemainingSeatClaim,
   confirmRemainingSeatPayment,
+  formatRemainingSeatBusLabel,
+  formatRemainingSeatPosition,
   getRemainingSeatSalesSettings,
   updateRemainingSeatSalesSettings,
   type RemainingSeatSalesSettings,
 } from '../../lib/remainingSeatService';
+import {
+  getDestinationQueueRemainingSeatId,
+  getDestinationQueueStats,
+} from '../../lib/admin/destinationQueueAllocation';
 import { supabase } from '../../lib/supabase';
 import type { RemainingSeatClaim, ReturnBusReservation } from '../../types/reservation';
 import { formatKoreanDateTime } from '../../utils/dateTime';
@@ -46,8 +52,18 @@ interface AllocationPassenger {
 }
 
 interface AllocationData {
+  allocationStrategy?: 'preassigned_bus' | 'destination_queue';
+  commonBoarding?: {
+    departureTime: string;
+    boardingPlace: string;
+  };
   buses?: AllocationBus[];
-  passengers?: AllocationPassenger[];
+  passengers?: Array<
+    AllocationPassenger & {
+      assignedDestination?: string;
+      preferences?: string[];
+    }
+  >;
 }
 
 interface AllocationRow {
@@ -158,13 +174,42 @@ const AdminRemainingSeatSalesPage = () => {
     };
   }, []);
 
-  const buses = allocation?.allocation_data?.buses ?? [];
   const passengers = allocation?.allocation_data?.passengers ?? [];
+  const destinationQueueStats =
+    allocation?.allocation_data?.allocationStrategy === 'destination_queue'
+      ? getDestinationQueueStats(
+          passengers.map((passenger) => ({
+            assignedDestination: passenger.assignedDestination ?? '',
+            preferences: passenger.preferences ?? [],
+          }))
+        )
+      : [];
+  const buses =
+    allocation?.allocation_data?.allocationStrategy === 'destination_queue'
+      ? destinationQueueStats.map(
+          (destination): AllocationBus => ({
+            id: getDestinationQueueRemainingSeatId(destination.destination),
+            label: '현장 호차 배정',
+            capacity:
+              destination.passengerCount + destination.remainingSeatCount,
+            destination: destination.destination,
+            departureTime:
+              allocation.allocation_data?.commonBoarding?.departureTime ?? '',
+            boardingPlace:
+              allocation.allocation_data?.commonBoarding?.boardingPlace ?? '',
+          })
+        )
+      : allocation?.allocation_data?.buses ?? [];
   const pendingClaims = claims.filter((item) => item.claim.status === 'pending_payment');
   const completedClaims = claims.filter((item) => item.claim.status === 'confirmed');
 
   const busStatuses = buses.map((bus) => {
-    const assigned = passengers.filter((passenger) => passenger.busId === bus.id).length;
+    const assigned =
+      allocation?.allocation_data?.allocationStrategy === 'destination_queue'
+        ? passengers.filter(
+            (passenger) => passenger.assignedDestination === bus.destination
+          ).length
+        : passengers.filter((passenger) => passenger.busId === bus.id).length;
     const pending = pendingClaims.filter((item) => item.claim.busId === bus.id).length;
     const completed = completedClaims.filter((item) => item.claim.busId === bus.id).length;
 
@@ -423,7 +468,7 @@ const AdminRemainingSeatSalesPage = () => {
                     </div>
                   </div>
                   <dl className={styles.claimDetails}>
-                    <div><dt>호차</dt><dd>{formatBusLabel(item.claim.busLabel)}</dd></div>
+                    <div><dt>호차</dt><dd>{formatRemainingSeatBusLabel(item.claim.busId, formatBusLabel(item.claim.busLabel))}</dd></div>
                     <div><dt>행선지</dt><dd>{item.claim.destination}</dd></div>
                     <div><dt>신청 시각</dt><dd>{formatKoreanDateTime(item.claim.requestedAt)}</dd></div>
                     <div><dt>입금 계좌</dt><dd>{item.claim.transferAccount || '설정 필요'}</dd></div>
@@ -475,7 +520,7 @@ const AdminRemainingSeatSalesPage = () => {
                   <div className={styles.busCardHeader}>
                     <div>
                       <Bus size={19} />
-                      <strong>{formatBusLabel(item.bus.label)}</strong>
+                      <strong>{formatRemainingSeatBusLabel(item.bus.id, formatBusLabel(item.bus.label))}</strong>
                       <span>{item.bus.destination}행</span>
                     </div>
                     <button
@@ -522,7 +567,7 @@ const AdminRemainingSeatSalesPage = () => {
                 completedClaims.map((item) => (
                   <div key={item.reservationId}>
                     <strong>{item.name}</strong>
-                    <span>{formatBusLabel(item.claim.busLabel)} · {item.claim.destination}행</span>
+                    <span>{formatRemainingSeatBusLabel(item.claim.busId, formatBusLabel(item.claim.busLabel))} · {item.claim.destination}행</span>
                     <b>{item.claim.amount.toLocaleString()}원</b>
                   </div>
                 ))
@@ -592,8 +637,14 @@ const AdminRemainingSeatSalesPage = () => {
               <div>
                 <dt>확보 좌석</dt>
                 <dd>
-                  {formatBusLabel(pendingPaymentConfirmation.claim.busLabel)} ·{' '}
-                  {pendingPaymentConfirmation.claim.seatNumber}번
+                  {formatRemainingSeatBusLabel(
+                    pendingPaymentConfirmation.claim.busId,
+                    formatBusLabel(pendingPaymentConfirmation.claim.busLabel)
+                  )} ·{' '}
+                  {formatRemainingSeatPosition(
+                    pendingPaymentConfirmation.claim.busId,
+                    pendingPaymentConfirmation.claim.seatNumber
+                  )}
                 </dd>
               </div>
               <div>
@@ -675,8 +726,14 @@ const AdminRemainingSeatSalesPage = () => {
               <div>
                 <dt>확보 좌석</dt>
                 <dd>
-                  {formatBusLabel(pendingClaimCancellation.claim.busLabel)} ·{' '}
-                  {pendingClaimCancellation.claim.seatNumber}번
+                  {formatRemainingSeatBusLabel(
+                    pendingClaimCancellation.claim.busId,
+                    formatBusLabel(pendingClaimCancellation.claim.busLabel)
+                  )} ·{' '}
+                  {formatRemainingSeatPosition(
+                    pendingClaimCancellation.claim.busId,
+                    pendingClaimCancellation.claim.seatNumber
+                  )}
                 </dd>
               </div>
               <div>

@@ -566,7 +566,7 @@ export const startDestinationQueueBus = async (destination: string) => {
 
 export const setDestinationQueuePassengerStatus = async (
   reservationId: string,
-  status: 'boarded' | 'no_show',
+  status: BoardingStatus,
   reason = ''
 ) => {
   const { data, error } = await supabase.rpc('set_destination_queue_passenger_status', {

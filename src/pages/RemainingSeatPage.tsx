@@ -16,7 +16,9 @@ import { getReservationDeadline } from '../lib/reservationDeadlineService';
 import { getReservation } from '../lib/reservationService';
 import {
   claimRemainingSeat,
+  formatRemainingSeatBusLabel,
   getAvailableRemainingSeats,
+  isDestinationQueueRemainingSeat,
   type RemainingSeatOption,
 } from '../lib/remainingSeatService';
 import { supabase } from '../lib/supabase';
@@ -253,7 +255,7 @@ const RemainingSeatPage = () => {
                     <div className={styles.optionTop}>
                       <div>
                         <span>{option.destination}행</span>
-                        <strong>{formatBusLabel(option.busLabel)}</strong>
+                        <strong>{formatRemainingSeatBusLabel(option.busId, formatBusLabel(option.busLabel))}</strong>
                       </div>
                       <b>{option.remainingSeats}석 남음</b>
                     </div>
@@ -265,10 +267,14 @@ const RemainingSeatPage = () => {
 
             <div className={styles.actionBar}>
               <div>
-                <span>선택한 좌석</span>
+                <span>
+                  {selectedOption && isDestinationQueueRemainingSeat(selectedOption.busId)
+                    ? '선택한 행선지'
+                    : '선택한 좌석'}
+                </span>
                 <strong>
                   {selectedOption
-                    ? `${selectedOption.destination}행 ${formatBusLabel(selectedOption.busLabel)}`
+                    ? `${selectedOption.destination}행 ${formatRemainingSeatBusLabel(selectedOption.busId, formatBusLabel(selectedOption.busLabel))}`
                     : '버스를 선택해주세요'}
                 </strong>
                 {commonSeatDetails && (
@@ -363,10 +369,14 @@ const RemainingSeatPage = () => {
 
             <dl className={styles.modalDetails}>
               <div>
-                <dt>선택 좌석</dt>
+                <dt>
+                  {isDestinationQueueRemainingSeat(selectedOption.busId)
+                    ? '선택 행선지'
+                    : '선택 좌석'}
+                </dt>
                 <dd>
                   {selectedOption.destination}행{' '}
-                  {formatBusLabel(selectedOption.busLabel)}
+                  {formatRemainingSeatBusLabel(selectedOption.busId, formatBusLabel(selectedOption.busLabel))}
                 </dd>
               </div>
               <div>

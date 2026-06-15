@@ -21,6 +21,7 @@ export interface ConfirmedTicket {
 }
 
 export interface RemainingSeatClaim {
+  allocationStrategy?: 'preassigned_bus' | 'destination_queue';
   allocationId: string;
   allocationName: string;
   busId: string;

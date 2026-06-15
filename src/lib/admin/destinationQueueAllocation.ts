@@ -1,4 +1,6 @@
 export const DESTINATION_QUEUE_CAPACITY = 44;
+export const DESTINATION_QUEUE_REMAINING_SEAT_PREFIX = 'destination_queue:';
+export const DESTINATION_QUEUE_REMAINING_SEAT_LABEL = '현장 호차 배정';
 
 export type AllocationStrategy = 'preassigned_bus' | 'destination_queue';
 
@@ -46,6 +48,17 @@ interface LegacyWorkspaceBus {
 export const isDestinationQueueWorkspace = (workspace: {
   allocationStrategy?: AllocationStrategy;
 }) => workspace.allocationStrategy === 'destination_queue';
+
+export const getDestinationQueueRemainingSeatId = (destination: string) =>
+  `${DESTINATION_QUEUE_REMAINING_SEAT_PREFIX}${destination.trim()}`;
+
+export const isDestinationQueueRemainingSeatId = (busId: string) =>
+  busId.startsWith(DESTINATION_QUEUE_REMAINING_SEAT_PREFIX);
+
+export const getDestinationQueueRemainingSeatCount = (passengerCount: number) => {
+  const remainder = passengerCount % DESTINATION_QUEUE_CAPACITY;
+  return remainder === 0 ? 0 : DESTINATION_QUEUE_CAPACITY - remainder;
+};
 
 export const isSecondChoiceDestinationAssignment = (
   passenger: Pick<DestinationQueuePassenger, 'assignedDestination' | 'preferences'>
@@ -108,6 +121,7 @@ export const getDestinationQueueStats = (
       secondChoiceCount: number;
       expectedBusCount: number;
       remainderCount: number;
+      remainingSeatCount: number;
     }
   >();
 
@@ -121,6 +135,7 @@ export const getDestinationQueueStats = (
       secondChoiceCount: 0,
       expectedBusCount: 0,
       remainderCount: 0,
+      remainingSeatCount: 0,
     };
     current.passengerCount += 1;
     if (passenger.preferences[0] === destination) current.firstChoiceCount += 1;
@@ -130,6 +145,9 @@ export const getDestinationQueueStats = (
     );
     current.remainderCount =
       current.passengerCount % DESTINATION_QUEUE_CAPACITY;
+    current.remainingSeatCount = getDestinationQueueRemainingSeatCount(
+      current.passengerCount
+    );
     stats.set(destination, current);
   });
 

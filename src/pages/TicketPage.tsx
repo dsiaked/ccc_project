@@ -24,7 +24,11 @@ import {
   type ReservationDeadlineSetting,
 } from '../lib/reservationDeadlineService';
 import { formatKoreanDateTime } from '../utils/dateTime';
-import { cancelRemainingSeatClaim } from '../lib/remainingSeatService';
+import {
+  cancelRemainingSeatClaim,
+  formatRemainingSeatBusLabel,
+  formatRemainingSeatPosition,
+} from '../lib/remainingSeatService';
 import { formatBusLabel } from '../utils/busLabel';
 import ConfirmedTicketPage from './ConfirmedTicketPage';
 
@@ -284,7 +288,10 @@ const TicketPage = () => {
                     <span>선택한 잔여 좌석</span>
                     <h3>
                       {remainingSeatClaim.destination}행 ·{' '}
-                      {formatBusLabel(remainingSeatClaim.busLabel)}
+                      {formatRemainingSeatBusLabel(
+                        remainingSeatClaim.busId,
+                        formatBusLabel(remainingSeatClaim.busLabel)
+                      )}
                     </h3>
                   </div>
                   <span className={styles.pendingBadge}>입금 확인 대기</span>
@@ -496,7 +503,12 @@ const TicketPage = () => {
             <dl className={styles.cancelDialogSummary}>
               <div>
                 <dt>버스</dt>
-                <dd>{formatBusLabel(remainingSeatClaim.busLabel)}</dd>
+                <dd>
+                  {formatRemainingSeatBusLabel(
+                    remainingSeatClaim.busId,
+                    formatBusLabel(remainingSeatClaim.busLabel)
+                  )}
+                </dd>
               </div>
               <div>
                 <dt>도착지</dt>
@@ -504,7 +516,12 @@ const TicketPage = () => {
               </div>
               <div>
                 <dt>좌석</dt>
-                <dd>{remainingSeatClaim.seatNumber}</dd>
+                <dd>
+                  {formatRemainingSeatPosition(
+                    remainingSeatClaim.busId,
+                    remainingSeatClaim.seatNumber
+                  )}
+                </dd>
               </div>
               <div>
                 <dt>입금 안내 금액</dt>
