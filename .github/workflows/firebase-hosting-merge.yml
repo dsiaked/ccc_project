@@ -27,7 +27,7 @@ jobs:
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
-          VITE_KAKAO_JAVASCRIPT_KEY: ${{ secrets.VITE_KAKAO_JAVASCRIPT_KEY }}
+          VITE_KAKAO_JAVASCRIPT_KEY: 293061342121c112289ab4320f6d2245
           VITE_SIMULATION_PROJECT_ID: pjbvxoesgwhbxfsfjliw
           VITE_CCC_SUMMER_BASE_URL: https://ccc-summer.vercel.app
           VITE_CCC_SUMMER_CLIENT_ID: bus-seoul-return
