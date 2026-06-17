@@ -6,6 +6,10 @@ const migration = readFileSync(
   'supabase/migrations/20260617000001_229_external_user_reservation_save.sql',
   'utf8'
 );
+const publicRpcMigration = readFileSync(
+  'supabase/migrations/20260617000003_231_external_user_reservation_public_rpc.sql',
+  'utf8'
+);
 
 test('public reservation save supports external district users without a team', () => {
   assert.match(
@@ -27,5 +31,20 @@ test('public reservation save supports external district users without a team', 
   assert.match(
     migration,
     /case when v_affiliation_type = 'external' then '' else trim\(p_team\) end/i
+  );
+});
+
+test('public reservation RPC delegates to the external-aware save implementation', () => {
+  assert.match(
+    publicRpcMigration,
+    /create or replace function public\.save_user_reservation/i
+  );
+  assert.match(
+    publicRpcMigration,
+    /return public\.save_user_reservation_without_opening_check\(/i
+  );
+  assert.doesNotMatch(
+    publicRpcMigration,
+    /nullif\(trim\(p_team\), ''\) is null/i
   );
 });

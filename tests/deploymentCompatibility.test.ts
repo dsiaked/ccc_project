@@ -10,7 +10,7 @@ const setupSql = readFileSync(
   'utf8'
 );
 const migrationSql = readFileSync(
-  'supabase/migrations/20260617000002_230_external_reservation_compatibility_version.sql',
+  'supabase/migrations/20260617000003_231_external_user_reservation_public_rpc.sql',
   'utf8'
 );
 const checker = readFileSync('scripts/check-supabase-deployment.mjs', 'utf8');
@@ -22,13 +22,13 @@ const mergeWorkflow = readFileSync(
 );
 
 test('deployment compatibility version is exposed without privileged credentials', () => {
-  assert.equal(compatibility.requiredDatabaseVersion, 230);
+  assert.equal(compatibility.requiredDatabaseVersion, 231);
   assert.match(setupSql, /select 186;/);
   assert.match(
     migrationSql,
-    /assert_deployment_compatibility[\s\S]*v_deployed_version constant integer := 230;/i
+    /assert_deployment_compatibility[\s\S]*v_deployed_version constant integer := 231;/i
   );
-  assert.match(migrationSql, /select 230;/);
+  assert.match(migrationSql, /select 231;/);
   assert.match(migrationSql, /revoke all[\s\S]*from public;/);
   assert.match(migrationSql, /grant execute[\s\S]*to anon, authenticated, service_role;/);
   assert.doesNotMatch(checker, /SERVICE_ROLE/);
