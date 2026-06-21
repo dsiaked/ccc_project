@@ -137,7 +137,12 @@ const HomeDeadlineBanner = () => {
         {isBeforeOpening && opensAt ? (
           <p>신청 시작 일시: {formatReservationDeadline(opensAt)}</p>
         ) : (
-          deadlineAt && <p>신청 마감 일시: {formatReservationDeadline(deadlineAt)}</p>
+          deadlineAt && (
+            <>
+              <p>신청 마감 일시: {formatReservationDeadline(deadlineAt)}</p>
+              <p>신청 마감 이후에는 신청을 취소할 수 없습니다.</p>
+            </>
+          )
         )}
       </div>
     </section>

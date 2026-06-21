@@ -1306,6 +1306,33 @@ const CampusAdminPage = () => {
           </button>
 
           {isGuideOpen && (
+            <div className={styles.guideSummary}>
+              <ol className={styles.guideSummarySteps}>
+                <li>
+                  <span>1</span>
+                  <strong>계좌 등록</strong>
+                </li>
+                <li>
+                  <span>2</span>
+                  <strong>입금 확인</strong>
+                </li>
+                <li>
+                  <span>3</span>
+                  <strong>본부 송금</strong>
+                </li>
+              </ol>
+              <button
+                type="button"
+                className={styles.guideCloseButton}
+                onClick={() => setIsGuideOpen(false)}
+              >
+                <ChevronUp size={16} aria-hidden="true" />
+                접기
+              </button>
+            </div>
+          )}
+
+          {isGuideOpen && (
             <div id="campus-payment-guide" className={styles.guideSection}>
               <div
                 className={`${styles.preparationGuide} ${styles.guideStep} ${styles.guideStepPreparation}`}
@@ -1328,8 +1355,8 @@ const CampusAdminPage = () => {
                       <div>
                         <h2>가입 캠퍼스를 확인해주세요</h2>
                         <p>
-                          서울지구 소속이 아니더라도 본인 캠퍼스와 함께 온 친구들은 본인
-                          캠퍼스로 회원가입하도록 안내해주세요.
+                          서울지구 소속이 아닌 친구들도 캠퍼스와 함께 참여한 경우, 함께
+                          온 캠퍼스 소속으로 신청할 수 있도록 안내 부탁드립니다.
                         </p>
                       </div>
                     </div>
@@ -1356,8 +1383,7 @@ const CampusAdminPage = () => {
                         <h2>입금 계좌 등록</h2>
                         <p>
                           신청자가 신청 과정에서 확인하는 캠퍼스 계좌입니다. 신청
-                          접수 전에 등록하고, 접수 중 변경했다면 기존 신청자에게도
-                          별도로 안내해주세요.
+                          접수 전에 등록 부탁드립니다.
                         </p>
                       </div>
                     </div>
@@ -1458,14 +1484,13 @@ const CampusAdminPage = () => {
                     내역을 확인합니다.
                   </li>
                   <li>
-                    신청자가 신청 과정에서 &quot;입금했어요&quot;를 선택했더라도
                     실제 입금 내역을 확인한 뒤 개인 체크박스를 선택합니다.
                   </li>
                   <li>
-                    신청자 목록에 있어 연락했으나 버스를 타지 않기로 했다면,
-                    신청자가 직접 신청을 취소하도록 안내해주세요.
+                    입금하지 않은 신청자에게 입금 확인 연락을 했는데 버스를 타지
+                    않기로 했다면, 신청자가 직접 앱에서 신청을 취소하도록
+                    안내해주세요.
                   </li>
-                  <li>전체가 확인되면 목록 상단 체크박스로 한 번에 처리할 수 있습니다.</li>
                 </ol>
               </div>
               <div className={styles.guideStep}>
@@ -1475,12 +1500,8 @@ const CampusAdminPage = () => {
                 </div>
                 <ol className={styles.guideList}>
                   <li>
-                    신청 마감 이후 활성 신청자 전원의 입금 확인이 끝나면 화면의
+                    신청 마감 이후 신청자 전원의 입금 확인이 끝나면 화면의
                     본부 송금 금액을 안내된 계좌로 송금합니다.
-                  </li>
-                  <li>
-                    본부 송금 계좌가 표시되지 않으면 송금하거나 완료 보고를 남기지
-                    말고 문의 게시판으로 알려주세요.
                   </li>
                   <li>
                     실제 송금을 마친 뒤 아래의 &quot;송금 완료 보고하기&quot;
@@ -1507,34 +1528,6 @@ const CampusAdminPage = () => {
                   </li>
                 </ol>
               </div>
-              <div className={styles.guideStep}>
-                <div className={styles.guideStepHeading}>
-                  <span className={styles.guideStepNumber}>4</span>
-                  <strong>추가 송금</strong>
-                </div>
-                <ol className={styles.guideList}>
-                  <li>
-                    완료 보고 후 추가 신청 등으로 금액이 증가하면 새 신청자의
-                    입금을 먼저 확인합니다.
-                  </li>
-                  <li>
-                    화면에 표시된 증가 금액만 추가 송금하고 &quot;추가 송금 완료
-                    보고하기&quot;를 눌러 다시 보고합니다.
-                  </li>
-                </ol>
-                <span className={styles.guideWarning}>
-                  취소·환불이나 명단 변경은 임의로 처리하지 말고 문의 게시판으로
-                  본부와 먼저 확인해주세요.
-                </span>
-              </div>
-              <button
-                type="button"
-                className={styles.guideCloseButton}
-                onClick={() => setIsGuideOpen(false)}
-              >
-                <ChevronUp size={16} aria-hidden="true" />
-                상세 안내 접기
-              </button>
             </div>
           )}
         </section>

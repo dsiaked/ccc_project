@@ -36,19 +36,18 @@ test('campus preparation items share one checklist card language', () => {
   assert.match(campusPageStyles, /\.preparationStatusRequired\s*\{/);
 });
 
-test('campus payment guide expands the full workflow and account registration form', () => {
-  assert.doesNotMatch(campusPage, /SHOW_DETAILED_PAYMENT_GUIDE/);
+test('campus payment guide shows a three-step summary with the detailed workflow', () => {
+  assert.match(campusPage, /className=\{styles\.guideSummarySteps\}/);
+  assert.match(campusPage, /<strong>계좌 등록<\/strong>/);
+  assert.match(campusPage, /<strong>입금 확인<\/strong>/);
+  assert.match(campusPage, /<strong>본부 송금<\/strong>/);
+  assert.match(campusPage, /className=\{styles\.guideCloseButton\}/);
+  assert.match(campusPage, /onClick=\{\(\) => setIsGuideOpen\(false\)\}/);
   assert.match(
     campusPage,
     /\{isGuideOpen && \(\s*<div id="campus-payment-guide" className=\{styles\.guideSection\}>/
   );
-  assert.match(campusPage, /<span>은행<\/span>/);
-  assert.match(campusPage, /<span>계좌번호<\/span>/);
-  assert.match(campusPage, /<span>예금주<\/span>/);
-  assert.match(campusPage, /onClick=\{\(\) => void handleSavePaymentAccount\(\)\}/);
-  assert.match(campusPage, /입금 받을 계좌 등록/);
-  assert.match(campusPage, /className=\{styles\.guideCloseButton\}/);
-  assert.match(campusPage, /onClick=\{\(\) => setIsGuideOpen\(false\)\}/);
+  assert.doesNotMatch(campusPage, /SHOW_DETAILED_PAYMENT_GUIDE/);
   assert.match(campusPageStyles, /\.guideCloseButton\s*\{/);
 });
 
