@@ -50,6 +50,8 @@
 .completedBusList article span, .completedBusList article small { color: #64748b; font-size: 11px; }
 .completedBusList article > div:last-child { display: flex; gap: 6px; }
 .completedBusList button { display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-height: 34px; padding: 0 10px; border: 1px solid #cbd5e1; border-radius: 7px; background: white; color: #475569; font-weight: 800; cursor: pointer; }
+.completedBusList button.cancelDeparture { border-color: #fecaca; color: #b91c1c; }
+.completedBusList button:disabled { cursor: not-allowed; opacity: .5; }
 .roster { padding: 18px; border: 1px solid #dbe3ee; border-radius: 14px; background: white; }
 .roster header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
 .roster header input { width: min(340px, 100%); min-height: 42px; padding: 0 12px; border: 1px solid #cbd5e1; border-radius: 8px; }
@@ -77,6 +79,11 @@ button:disabled { opacity: .45; cursor: default; }
 .confirmDialog > div { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 16px; }
 .confirmDialog button { min-height: 44px; border: 1px solid #cbd5e1; border-radius: 8px; background: white; color: #475569; font-weight: 900; cursor: pointer; }
 .confirmDialog button.confirmDeparture { display: inline-flex; align-items: center; justify-content: center; gap: 5px; border-color: #b91c1c; background: #b91c1c; color: white; }
+.confirmDialog button.confirmCancellation { display: inline-flex; align-items: center; justify-content: center; gap: 5px; border-color: #b91c1c; background: #b91c1c; color: white; }
+.confirmDialog button:disabled { cursor: not-allowed; opacity: .55; }
+.cancelDepartureReason { display: grid; gap: 7px; margin-top: 14px; color: #334155; font-size: 13px; font-weight: 800; }
+.cancelDepartureReason textarea { width: 100%; min-height: 84px; resize: vertical; padding: 10px 11px; border: 1px solid #cbd5e1; border-radius: 9px; color: #0f172a; font: inherit; font-weight: 500; }
+.cancelDepartureReason textarea:focus { outline: 2px solid #fecaca; border-color: #ef4444; }
 .departureRosterBackdrop { position: fixed; z-index: 1100; inset: 0; display: grid; place-items: center; padding: 16px; background: rgba(15, 23, 42, .56); }
 .departureRosterDialog { display: grid; grid-template-rows: auto auto minmax(0, 1fr); width: min(100%, 680px); max-height: min(88vh, 820px); overflow: hidden; border-radius: 15px; background: #f8fafc; box-shadow: 0 20px 50px rgba(15, 23, 42, .28); }
 .departureRosterDialog > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; padding: 18px; border-bottom: 1px solid #dbe3ee; background: white; }

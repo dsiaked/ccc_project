@@ -15,6 +15,11 @@ const migrationSql = readFileSync(
   'utf8'
 );
 const envExample = readFileSync('.env.example', 'utf8');
+const handoffPage = readFileSync('src/pages/CccSummerHandoffPage.tsx', 'utf8');
+const handoffService = readFileSync(
+  'src/lib/cccSummerHandoffService.ts',
+  'utf8'
+);
 
 test('CCC Summer handoff uses the registered Seoul return bus client', () => {
   assert.match(envExample, /VITE_CCC_SUMMER_CLIENT_ID=bus-seoul-return/);
@@ -62,17 +67,42 @@ test('CCC Summer handoff keeps reusable campus mappings server-controlled', () =
   assert.match(edgeFunction, /requiresCampusSelection: !campus/);
 
   const selectCampusAction = edgeFunction.slice(
-    edgeFunction.indexOf("if (action === 'select-campus')"),
+    edgeFunction.indexOf("if (action === 'select-campus'"),
     edgeFunction.indexOf("if (action !== 'exchange')")
   );
   assert.doesNotMatch(selectCampusAction, /ccc_summer_campus_mappings/);
   assert.match(selectCampusAction, /\.from\('profiles'\)[\s\S]*\.eq\('id', user\.id\)/);
 });
 
+test('CCC Summer handoff supports explicit external-district registration', () => {
+  assert.match(handoffPage, /서울 외 지구/);
+  assert.match(handoffPage, /externalDistrict/);
+  assert.match(handoffPage, /externalCampus/);
+  assert.match(handoffPage, /coordinatorName/);
+  assert.match(handoffPage, /coordinatorPhone/);
+  assert.match(
+    handoffService,
+    /action: 'select-affiliation', \.\.\.selection/
+  );
+
+  const selectAffiliationAction = edgeFunction.slice(
+    edgeFunction.indexOf("if (action === 'select-campus'"),
+    edgeFunction.indexOf("if (action !== 'exchange')")
+  );
+  assert.match(selectAffiliationAction, /affiliationType === 'external'/);
+  assert.match(selectAffiliationAction, /affiliation_type: 'external'/);
+  assert.match(selectAffiliationAction, /coordinator_name: coordinatorName/);
+  assert.match(selectAffiliationAction, /coordinator_phone: coordinatorPhone/);
+  assert.match(
+    selectAffiliationAction,
+    /serviceClient\.auth\.admin\.updateUserById/
+  );
+});
+
 test('CCC Summer handoff exposes every linked CCC field only to its authenticated user', () => {
   const profileAction = edgeFunction.slice(
     edgeFunction.indexOf("if (action === 'profile')"),
-    edgeFunction.indexOf("if (action === 'select-campus')")
+    edgeFunction.indexOf("if (action === 'select-campus'")
   );
 
   assert.match(profileAction, /userClient\.auth\.getUser\(\)/);

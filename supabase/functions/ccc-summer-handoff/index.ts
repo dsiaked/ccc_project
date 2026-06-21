@@ -174,10 +174,26 @@ Deno.serve(async (request) => {
     });
   }
 
-  if (action === 'select-campus') {
+  if (action === 'select-campus' || action === 'select-affiliation') {
     const authorization = request.headers.get('Authorization') ?? '';
+    const affiliationType =
+      action === 'select-affiliation' && body?.affiliationType === 'external'
+        ? 'external'
+        : 'seoul';
     const campusId = asText(body?.campusId);
-    if (!authorization || !campusId) {
+    const externalDistrict = asText(body?.externalDistrict);
+    const externalCampus = asText(body?.externalCampus);
+    const coordinatorName = asText(body?.coordinatorName);
+    const coordinatorPhone = normalizePhone(body?.coordinatorPhone);
+    if (
+      !authorization ||
+      (affiliationType === 'seoul' && !campusId) ||
+      (affiliationType === 'external' &&
+        (!externalDistrict ||
+          !externalCampus ||
+          !coordinatorName ||
+          !coordinatorPhone))
+    ) {
       return json({ error: 'missing_params' }, 400);
     }
 
@@ -193,38 +209,60 @@ Deno.serve(async (request) => {
       return json({ error: 'authentication_required' }, 401);
     }
 
-    const [{ data: link, error: linkError }, { data: campus, error: campusError }] =
-      await Promise.all([
-        serviceClient
-          .from('ccc_summer_user_links')
-          .select('univ_no, univ_name')
-          .eq('user_id', user.id)
-          .maybeSingle(),
-        serviceClient
-          .from('campus_options')
-          .select('district_id, district, team_id, team, campus_id, campus')
-          .eq('campus_id', campusId)
-          .maybeSingle(),
-      ]);
+    const linkRequest = serviceClient
+      .from('ccc_summer_user_links')
+      .select('univ_no, univ_name')
+      .eq('user_id', user.id)
+      .maybeSingle();
+    const campusRequest =
+      affiliationType === 'seoul'
+        ? serviceClient
+            .from('campus_options')
+            .select('district_id, district, team_id, team, campus_id, campus')
+            .eq('campus_id', campusId)
+            .maybeSingle()
+        : Promise.resolve({ data: null, error: null });
+    const [
+      { data: link, error: linkError },
+      { data: campus, error: campusError },
+    ] = await Promise.all([linkRequest, campusRequest]);
 
-    if (linkError || !link || link.univ_no === null) {
+    if (linkError || !link) {
       return json({ error: 'ccc_summer_link_not_found' }, 404);
     }
-    if (campusError || !campus) {
+    if (affiliationType === 'seoul' && (campusError || !campus)) {
       return json({ error: 'invalid_campus' }, 400);
     }
 
     const now = new Date().toISOString();
+    const organization =
+      affiliationType === 'external'
+        ? {
+            district_id: null,
+            district: externalDistrict,
+            team_id: null,
+            team: '',
+            campus_id: null,
+            campus: externalCampus,
+            affiliation_type: 'external',
+            coordinator_name: coordinatorName,
+            coordinator_phone: coordinatorPhone,
+          }
+        : {
+            district_id: campus!.district_id,
+            district: campus!.district,
+            team_id: campus!.team_id,
+            team: campus!.team,
+            campus_id: campus!.campus_id,
+            campus: campus!.campus,
+            affiliation_type: 'seoul',
+            coordinator_name: null,
+            coordinator_phone: null,
+          };
     const { error: profileError } = await serviceClient
       .from('profiles')
       .update({
-        district_id: campus.district_id,
-        district: campus.district,
-        team_id: campus.team_id,
-        team: campus.team,
-        campus_id: campus.campus_id,
-        campus: campus.campus,
-        affiliation_type: 'seoul',
+        ...organization,
         updated_at: now,
       })
       .eq('id', user.id);
@@ -232,7 +270,22 @@ Deno.serve(async (request) => {
       return json({ error: 'profile_update_failed' }, 500);
     }
 
-    return json({ campus, requiresCampusSelection: false });
+    const { error: authUpdateError } =
+      await serviceClient.auth.admin.updateUserById(user.id, {
+        user_metadata: {
+          ...(user.user_metadata ?? {}),
+          ...organization,
+        },
+      });
+    if (authUpdateError) {
+      return json({ error: 'account_update_failed' }, 500);
+    }
+
+    return json({
+      campus,
+      affiliationType,
+      requiresCampusSelection: false,
+    });
   }
 
   if (action !== 'exchange') {

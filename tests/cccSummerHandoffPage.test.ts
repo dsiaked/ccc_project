@@ -45,6 +45,7 @@ test('CCC Summer callback supports manual campus mapping before returning home',
   assert.match(page, /getDistrictOptions/);
   assert.match(page, /getTeamOptions/);
   assert.match(page, /getCampusOptions/);
-  assert.match(page, /selectCccSummerCampus\(campusId\)/);
+  assert.match(page, /selectCccSummerAffiliation/);
+  assert.match(page, /\? \{ affiliationType, campusId \}/);
   assert.match(page, /navigate\('\/'/);
 });

@@ -2293,6 +2293,7 @@ const LegacyAdminBoardingPage = () => {
 };
 
 const AdminBoardingPage = () => {
+  const { adminRole } = useAdminAuth();
   const [destinationQueueSnapshot, setDestinationQueueSnapshot] =
     useState<DestinationQueueBoardingSnapshot | null>(null);
   const [checkingMode, setCheckingMode] = useState(true);
@@ -2325,7 +2326,10 @@ const AdminBoardingPage = () => {
     return (
       <div className={styles.pageContainer}>
         <AdminHeader />
-        <DestinationQueueBoardingPanel initialSnapshot={destinationQueueSnapshot} />
+        <DestinationQueueBoardingPanel
+          initialSnapshot={destinationQueueSnapshot}
+          isGlobalAdmin={adminRole?.role === 'global_admin'}
+        />
       </div>
     );
   }

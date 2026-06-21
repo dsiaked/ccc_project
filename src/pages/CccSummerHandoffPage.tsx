@@ -3,7 +3,7 @@ import { AlertCircle, BusFront, CheckCircle2 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   exchangeCccSummerCode,
-  selectCccSummerCampus,
+  selectCccSummerAffiliation,
   type CccSummerProfile,
 } from '../lib/cccSummerHandoffService';
 import {
@@ -46,6 +46,12 @@ const CccSummerHandoffPage = () => {
   const [districtId, setDistrictId] = useState('');
   const [teamId, setTeamId] = useState('');
   const [campusId, setCampusId] = useState('');
+  const [affiliationType, setAffiliationType] =
+    useState<'seoul' | 'external'>('seoul');
+  const [externalDistrict, setExternalDistrict] = useState('');
+  const [externalCampus, setExternalCampus] = useState('');
+  const [coordinatorName, setCoordinatorName] = useState('');
+  const [coordinatorPhone, setCoordinatorPhone] = useState('');
 
   useEffect(() => {
     let active = true;
@@ -62,6 +68,8 @@ const CccSummerHandoffPage = () => {
         if (!active) return;
 
         setProfile(result.profile);
+        setExternalDistrict(result.profile.branchName);
+        setExternalCampus(result.profile.univName);
         if (!result.requiresCampusSelection) {
           navigate('/', { replace: true });
           return;
@@ -134,12 +142,33 @@ const CccSummerHandoffPage = () => {
 
   const handleCampusSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!campusId || status === 'saving') return;
+    if (status === 'saving') return;
+    if (
+      (affiliationType === 'seoul' && !campusId) ||
+      (affiliationType === 'external' &&
+        (!externalDistrict.trim() ||
+          !externalCampus.trim() ||
+          !coordinatorName.trim() ||
+          !coordinatorPhone.trim()))
+    ) {
+      setError('서울 외 지구 소속과 담당 간사 정보를 모두 입력해주세요.');
+      return;
+    }
 
     setStatus('saving');
     setError('');
     try {
-      await selectCccSummerCampus(campusId);
+      await selectCccSummerAffiliation(
+        affiliationType === 'seoul'
+          ? { affiliationType, campusId }
+          : {
+              affiliationType,
+              externalDistrict: externalDistrict.trim(),
+              externalCampus: externalCampus.trim(),
+              coordinatorName: coordinatorName.trim(),
+              coordinatorPhone: coordinatorPhone.trim(),
+            }
+      );
       navigate('/', { replace: true });
     } catch (selectionError) {
       setError(
@@ -183,7 +212,30 @@ const CccSummerHandoffPage = () => {
       </p>
 
       <form className={styles.form} onSubmit={handleCampusSubmit}>
-        <label>
+        <div className={styles.affiliationModes} role="group" aria-label="소속 유형">
+          <button
+            type="button"
+            className={affiliationType === 'seoul' ? styles.activeMode : ''}
+            onClick={() => {
+              setAffiliationType('seoul');
+              setError('');
+            }}
+          >
+            서울지구 캠퍼스
+          </button>
+          <button
+            type="button"
+            className={affiliationType === 'external' ? styles.activeMode : ''}
+            onClick={() => {
+              setAffiliationType('external');
+              setError('');
+            }}
+          >
+            서울 외 지구
+          </button>
+        </div>
+
+        {affiliationType === 'seoul' && <label>
           지구
           <select value={districtId} onChange={handleDistrictChange}>
             <option value="">지구 선택</option>
@@ -191,8 +243,8 @@ const CccSummerHandoffPage = () => {
               <option key={district.id} value={district.id}>{district.name}</option>
             ))}
           </select>
-        </label>
-        <label>
+        </label>}
+        {affiliationType === 'seoul' && <label>
           팀
           <select
             value={teamId}
@@ -204,8 +256,8 @@ const CccSummerHandoffPage = () => {
               <option key={team.id} value={team.id}>{team.name}</option>
             ))}
           </select>
-        </label>
-        <label>
+        </label>}
+        {affiliationType === 'seoul' && <label>
           캠퍼스
           <select
             value={campusId}
@@ -217,10 +269,63 @@ const CccSummerHandoffPage = () => {
               <option key={campus.id} value={campus.id}>{campus.name}</option>
             ))}
           </select>
-        </label>
+        </label>}
+
+        {affiliationType === 'external' && (
+          <>
+            <label>
+              지구명
+              <input
+                value={externalDistrict}
+                onChange={(event) => setExternalDistrict(event.target.value)}
+                placeholder="예: 부산지구"
+                required
+              />
+            </label>
+            <label>
+              학교·캠퍼스명
+              <input
+                value={externalCampus}
+                onChange={(event) => setExternalCampus(event.target.value)}
+                placeholder="예: 부산대학교"
+                required
+              />
+            </label>
+            <label>
+              담당 간사 이름
+              <input
+                value={coordinatorName}
+                onChange={(event) => setCoordinatorName(event.target.value)}
+                placeholder="담당 간사 이름"
+                required
+              />
+            </label>
+            <label>
+              담당 간사 연락처
+              <input
+                value={coordinatorPhone}
+                onChange={(event) => setCoordinatorPhone(event.target.value)}
+                placeholder="010-0000-0000"
+                inputMode="tel"
+                required
+              />
+            </label>
+          </>
+        )}
 
         {error && <div className={styles.inlineError}><AlertCircle size={18} />{error}</div>}
-        <button type="submit" disabled={!campusId || status === 'saving'}>
+        <button
+          type="submit"
+          disabled={
+            status === 'saving' ||
+            (affiliationType === 'seoul'
+              ? !campusId
+              : !externalDistrict.trim() ||
+                !externalCampus.trim() ||
+                !coordinatorName.trim() ||
+                !coordinatorPhone.trim())
+          }
+        >
           {status === 'saving' ? '저장 중...' : '확인하고 예약하러 가기'}
         </button>
       </form>

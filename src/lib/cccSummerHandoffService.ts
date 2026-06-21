@@ -82,9 +82,24 @@ export const exchangeCccSummerCode = (code: string, redirectUri: string) => {
   return request;
 };
 
-export const selectCccSummerCampus = async (campusId: string) => {
+export type CccSummerAffiliationSelection =
+  | {
+      affiliationType: 'seoul';
+      campusId: string;
+    }
+  | {
+      affiliationType: 'external';
+      externalDistrict: string;
+      externalCampus: string;
+      coordinatorName: string;
+      coordinatorPhone: string;
+    };
+
+export const selectCccSummerAffiliation = async (
+  selection: CccSummerAffiliationSelection
+) => {
   const { data, error } = await supabase.functions.invoke('ccc-summer-handoff', {
-    body: { action: 'select-campus', campusId },
+    body: { action: 'select-affiliation', ...selection },
   });
 
   if (error || data?.requiresCampusSelection !== false) {

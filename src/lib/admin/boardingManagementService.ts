@@ -585,3 +585,23 @@ export const departDestinationQueueBus = async (busId: string) => {
   if (error) throw new Error(error.message);
   return data as DestinationQueueBoardingBus;
 };
+
+export const cancelDestinationQueueDeparture = async (
+  busId: string,
+  reason: string
+) => {
+  const { data, error } = await supabase.rpc(
+    'cancel_destination_queue_departure',
+    {
+      p_bus_id: busId,
+      p_reason: reason,
+    }
+  );
+  if (error) throw new Error(error.message);
+  return data as {
+    busId: string;
+    status: 'open' | 'full';
+    boardedCount: number;
+    checkInCode?: string | null;
+  };
+};

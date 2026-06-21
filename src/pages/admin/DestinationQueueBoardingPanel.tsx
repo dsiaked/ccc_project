@@ -8,6 +8,7 @@ import {
   LogOut,
   Phone,
   RefreshCw,
+  RotateCcw,
   Save,
   UserRound,
   UsersRound,
@@ -16,6 +17,7 @@ import {
 } from 'lucide-react';
 
 import {
+  cancelDestinationQueueDeparture,
   departDestinationQueueBus,
   getDestinationQueueBoardingSnapshot,
   setDestinationQueuePassengerStatus,
@@ -34,6 +36,7 @@ import styles from './DestinationQueueBoardingPanel.module.css';
 
 interface Props {
   initialSnapshot: DestinationQueueBoardingSnapshot;
+  isGlobalAdmin: boolean;
 }
 
 const statusLabels: Record<BoardingStatus, string> = {
@@ -44,7 +47,10 @@ const statusLabels: Record<BoardingStatus, string> = {
 
 const BUS_CAPACITY = 44;
 
-const DestinationQueueBoardingPanel = ({ initialSnapshot }: Props) => {
+const DestinationQueueBoardingPanel = ({
+  initialSnapshot,
+  isGlobalAdmin,
+}: Props) => {
   const [snapshot, setSnapshot] = useState(initialSnapshot);
   const [selectedDestination, setSelectedDestination] = useState(
     initialSnapshot.destinations[0]?.destination ?? ''
@@ -58,6 +64,10 @@ const DestinationQueueBoardingPanel = ({ initialSnapshot }: Props) => {
   const [completedBusesOpen, setCompletedBusesOpen] = useState(false);
   const [selectedDeparture, setSelectedDeparture] =
     useState<DestinationQueueDepartureSnapshot | null>(null);
+  const [departureCancellation, setDepartureCancellation] =
+    useState<DestinationQueueDepartureSnapshot | null>(null);
+  const [departureCancellationReason, setDepartureCancellationReason] =
+    useState('');
   const [currentRosterBusId, setCurrentRosterBusId] = useState('');
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
@@ -137,6 +147,15 @@ const DestinationQueueBoardingPanel = ({ initialSnapshot }: Props) => {
   );
   const completedBuses = (snapshot.departures ?? []).filter(
     (departure) => departure.destination === activeDestination
+  );
+  const canCancelDeparture = useCallback(
+    (departure: DestinationQueueDepartureSnapshot) =>
+      !snapshot.buses.some(
+        (bus) =>
+          bus.destination === departure.destination &&
+          bus.sequence_number > departure.sequenceNumber
+      ),
+    [snapshot.buses]
   );
   const normalizedSearch = search.trim().toLocaleLowerCase('ko');
   const matchingPassengers = useMemo(
@@ -650,6 +669,27 @@ const DestinationQueueBoardingPanel = ({ initialSnapshot }: Props) => {
                         <button type="button" onClick={() => downloadDepartureRoster(departure)}>
                           <Download size={14} /> CSV
                         </button>
+                        {isGlobalAdmin && (
+                          <button
+                            type="button"
+                            className={styles.cancelDeparture}
+                            disabled={
+                              isPending(`cancel-departure:${departure.busId}`) ||
+                              !canCancelDeparture(departure)
+                            }
+                            title={
+                              canCancelDeparture(departure)
+                                ? '실수로 처리한 출발을 취소합니다.'
+                                : '이후 차수 버스를 먼저 취소해야 합니다.'
+                            }
+                            onClick={() => {
+                              setDepartureCancellationReason('');
+                              setDepartureCancellation(departure);
+                            }}
+                          >
+                            <RotateCcw size={14} /> 출발 취소
+                          </button>
+                        )}
                       </div>
                     </article>
                   ))}
@@ -808,6 +848,81 @@ const DestinationQueueBoardingPanel = ({ initialSnapshot }: Props) => {
               </button>
             </div>
           </section>
+        </div>
+      )}
+
+      {departureCancellation && (
+        <div
+          className={styles.confirmBackdrop}
+          onMouseDown={(event) => {
+            if (
+              event.target === event.currentTarget &&
+              !isPending(`cancel-departure:${departureCancellation.busId}`)
+            ) {
+              setDepartureCancellation(null);
+            }
+          }}
+        >
+          <form
+            className={styles.confirmDialog}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="destination-queue-cancel-departure-title"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const departure = departureCancellation;
+              const reason = departureCancellationReason.trim();
+              if (!reason) return;
+              setDepartureCancellation(null);
+              void runAction(
+                `cancel-departure:${departure.busId}`,
+                () =>
+                  cancelDestinationQueueDeparture(
+                    departure.busId,
+                    reason
+                  ),
+                `${departure.label} 출발 취소를 완료했습니다.`
+              );
+            }}
+          >
+            <span>전체관리자 전용</span>
+            <h2 id="destination-queue-cancel-departure-title">
+              {departureCancellation.label} 출발을 취소할까요?
+            </h2>
+            <p>
+              출발 당시 명단 스냅샷은 삭제되고, 기존 탑승 기록은 유지됩니다.
+              정원이 남아 있으면 새 탑승 코드로 다시 운영 상태가 됩니다.
+            </p>
+            <label className={styles.cancelDepartureReason}>
+              <span>취소 사유</span>
+              <textarea
+                value={departureCancellationReason}
+                onChange={(event) =>
+                  setDepartureCancellationReason(event.target.value)
+                }
+                maxLength={500}
+                rows={3}
+                placeholder="예: 실제 차량이 아직 출발하지 않아 명단을 다시 확인"
+                autoFocus
+                required
+              />
+            </label>
+            <div>
+              <button
+                type="button"
+                onClick={() => setDepartureCancellation(null)}
+              >
+                유지
+              </button>
+              <button
+                type="submit"
+                className={styles.confirmCancellation}
+                disabled={!departureCancellationReason.trim()}
+              >
+                <RotateCcw size={16} /> 사유 기록 · 출발 취소
+              </button>
+            </div>
+          </form>
         </div>
       )}
 
