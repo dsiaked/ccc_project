@@ -36,6 +36,10 @@ interface Profile {
 interface ProfileFormErrors {
   name: string;
   phone: string;
+  district: string;
+  campus: string;
+  coordinatorName: string;
+  coordinatorPhone: string;
 }
 
 const formatPhone = (value: string) => {
@@ -51,12 +55,20 @@ const displayValue = (value: string | number | null) =>
 const defaultFieldErrors = (): ProfileFormErrors => ({
   name: '',
   phone: '',
+  district: '',
+  campus: '',
+  coordinatorName: '',
+  coordinatorPhone: '',
 });
 
 const ProfilePage = () => {
   const navigate = useNavigate();
   const nameInputRef = useRef<HTMLInputElement>(null);
   const phoneInputRef = useRef<HTMLInputElement>(null);
+  const districtInputRef = useRef<HTMLInputElement>(null);
+  const campusInputRef = useRef<HTMLInputElement>(null);
+  const coordinatorNameInputRef = useRef<HTMLInputElement>(null);
+  const coordinatorPhoneInputRef = useRef<HTMLInputElement>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [cccSummerProfile, setCccSummerProfile] =
     useState<CccSummerLinkedProfile | null>(null);
@@ -64,6 +76,10 @@ const ProfilePage = () => {
   const [cccSummerError, setCccSummerError] = useState('');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [district, setDistrict] = useState('');
+  const [campus, setCampus] = useState('');
+  const [coordinatorName, setCoordinatorName] = useState('');
+  const [coordinatorPhone, setCoordinatorPhone] = useState('');
   const [loading, setLoading] = useState(true);
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [loadError, setLoadError] = useState('');
@@ -135,6 +151,10 @@ const ProfilePage = () => {
         setProfile(loadedProfile);
         setName(loadedProfile.name ?? '');
         setPhone(loadedProfile.phone ?? '');
+        setDistrict(loadedProfile.district ?? '');
+        setCampus(loadedProfile.campus ?? '');
+        setCoordinatorName(loadedProfile.coordinator_name ?? '');
+        setCoordinatorPhone(formatPhone(loadedProfile.coordinator_phone ?? ''));
 
         if (loadedProfile.account_source === 'ccc_summer') {
           void loadCccSummerProfile();
@@ -167,10 +187,18 @@ const ProfilePage = () => {
     return () => window.clearTimeout(timeoutId);
   }, [success]);
 
+  const isExternal = profile?.affiliation_type === 'external';
   const hasChanges = Boolean(
     profile &&
       (name.trim() !== profile.name.trim() ||
-        formatPhone(phone) !== formatPhone(profile.phone))
+        formatPhone(phone) !== formatPhone(profile.phone) ||
+        (isExternal &&
+          (district.trim() !== profile.district.trim() ||
+            campus.trim() !== profile.campus.trim() ||
+            coordinatorName.trim() !==
+              (profile.coordinator_name ?? '').trim() ||
+            formatPhone(coordinatorPhone) !==
+              formatPhone(profile.coordinator_phone ?? ''))))
   );
 
   const handleSubmit = async (event: FormEvent) => {
@@ -179,11 +207,27 @@ const ProfilePage = () => {
 
     const normalizedName = name.trim();
     const normalizedPhone = formatPhone(phone);
+    const normalizedDistrict = district.trim();
+    const normalizedCampus = campus.trim();
+    const normalizedCoordinatorName = coordinatorName.trim();
+    const normalizedCoordinatorPhone = formatPhone(coordinatorPhone);
     const nextFieldErrors: ProfileFormErrors = {
       name: normalizedName ? '' : '이름을 입력해주세요.',
       phone: /^010-\d{4}-\d{4}$/.test(normalizedPhone)
         ? ''
         : '연락처를 010-0000-0000 형식으로 입력해주세요.',
+      district:
+        !isExternal || normalizedDistrict ? '' : '소속 지구를 입력해주세요.',
+      campus:
+        !isExternal || normalizedCampus ? '' : '소속 캠퍼스를 입력해주세요.',
+      coordinatorName:
+        !isExternal || normalizedCoordinatorName
+          ? ''
+          : '담당 간사 이름을 입력해주세요.',
+      coordinatorPhone:
+        !isExternal || /^010-\d{4}-\d{4}$/.test(normalizedCoordinatorPhone)
+          ? ''
+          : '담당 간사 연락처를 010-0000-0000 형식으로 입력해주세요.',
     };
 
     setFieldErrors(nextFieldErrors);
@@ -200,6 +244,26 @@ const ProfilePage = () => {
       return;
     }
 
+    if (nextFieldErrors.district) {
+      districtInputRef.current?.focus();
+      return;
+    }
+
+    if (nextFieldErrors.campus) {
+      campusInputRef.current?.focus();
+      return;
+    }
+
+    if (nextFieldErrors.coordinatorName) {
+      coordinatorNameInputRef.current?.focus();
+      return;
+    }
+
+    if (nextFieldErrors.coordinatorPhone) {
+      coordinatorPhoneInputRef.current?.focus();
+      return;
+    }
+
     setSaving(true);
     try {
       const {
@@ -211,9 +275,20 @@ const ProfilePage = () => {
         throw userError ?? new Error('authentication_required');
       }
 
+      const profileUpdates = isExternal
+        ? {
+            name: normalizedName,
+            phone: normalizedPhone,
+            district: normalizedDistrict,
+            campus: normalizedCampus,
+            coordinator_name: normalizedCoordinatorName,
+            coordinator_phone: normalizedCoordinatorPhone,
+          }
+        : { name: normalizedName, phone: normalizedPhone };
+
       const { error: profileError } = await supabase
         .from('profiles')
-        .update({ name: normalizedName, phone: normalizedPhone })
+        .update(profileUpdates)
         .eq('id', user.id);
 
       if (profileError) throw profileError;
@@ -228,11 +303,20 @@ const ProfilePage = () => {
 
       setProfile((current) =>
         current
-          ? { ...current, name: normalizedName, phone: normalizedPhone }
+          ? {
+              ...current,
+              ...profileUpdates,
+            }
           : current
       );
       setName(normalizedName);
       setPhone(normalizedPhone);
+      if (isExternal) {
+        setDistrict(normalizedDistrict);
+        setCampus(normalizedCampus);
+        setCoordinatorName(normalizedCoordinatorName);
+        setCoordinatorPhone(normalizedCoordinatorPhone);
+      }
       setSuccess('프로필이 저장되었습니다.');
       setIsEditing(false);
     } catch (saveError) {
@@ -250,6 +334,10 @@ const ProfilePage = () => {
 
     setName(profile.name ?? '');
     setPhone(profile.phone ?? '');
+    setDistrict(profile.district ?? '');
+    setCampus(profile.campus ?? '');
+    setCoordinatorName(profile.coordinator_name ?? '');
+    setCoordinatorPhone(formatPhone(profile.coordinator_phone ?? ''));
     setFieldErrors(defaultFieldErrors());
     setFormError('');
     setIsEditing(false);
@@ -361,6 +449,142 @@ const ProfilePage = () => {
                       </p>
                     )}
                   </label>
+                  {isExternal && (
+                    <>
+                      <label className={styles.field} htmlFor="profile-district">
+                        소속 지구
+                        <input
+                          ref={districtInputRef}
+                          id="profile-district"
+                          value={district}
+                          onChange={(event) => {
+                            setDistrict(event.target.value);
+                            setFieldErrors((current) => ({
+                              ...current,
+                              district: '',
+                            }));
+                            setSuccess('');
+                          }}
+                          maxLength={50}
+                          aria-invalid={Boolean(fieldErrors.district)}
+                          aria-describedby={
+                            fieldErrors.district
+                              ? 'profile-district-error'
+                              : undefined
+                          }
+                        />
+                        {fieldErrors.district && (
+                          <p
+                            className={styles.fieldError}
+                            id="profile-district-error"
+                          >
+                            {fieldErrors.district}
+                          </p>
+                        )}
+                      </label>
+                      <label className={styles.field} htmlFor="profile-campus">
+                        소속 캠퍼스
+                        <input
+                          ref={campusInputRef}
+                          id="profile-campus"
+                          value={campus}
+                          onChange={(event) => {
+                            setCampus(event.target.value);
+                            setFieldErrors((current) => ({
+                              ...current,
+                              campus: '',
+                            }));
+                            setSuccess('');
+                          }}
+                          maxLength={100}
+                          aria-invalid={Boolean(fieldErrors.campus)}
+                          aria-describedby={
+                            fieldErrors.campus
+                              ? 'profile-campus-error'
+                              : undefined
+                          }
+                        />
+                        {fieldErrors.campus && (
+                          <p
+                            className={styles.fieldError}
+                            id="profile-campus-error"
+                          >
+                            {fieldErrors.campus}
+                          </p>
+                        )}
+                      </label>
+                      <label
+                        className={styles.field}
+                        htmlFor="profile-coordinator-name"
+                      >
+                        담당 간사 이름
+                        <input
+                          ref={coordinatorNameInputRef}
+                          id="profile-coordinator-name"
+                          value={coordinatorName}
+                          onChange={(event) => {
+                            setCoordinatorName(event.target.value);
+                            setFieldErrors((current) => ({
+                              ...current,
+                              coordinatorName: '',
+                            }));
+                            setSuccess('');
+                          }}
+                          maxLength={50}
+                          aria-invalid={Boolean(fieldErrors.coordinatorName)}
+                          aria-describedby={
+                            fieldErrors.coordinatorName
+                              ? 'profile-coordinator-name-error'
+                              : undefined
+                          }
+                        />
+                        {fieldErrors.coordinatorName && (
+                          <p
+                            className={styles.fieldError}
+                            id="profile-coordinator-name-error"
+                          >
+                            {fieldErrors.coordinatorName}
+                          </p>
+                        )}
+                      </label>
+                      <label
+                        className={styles.field}
+                        htmlFor="profile-coordinator-phone"
+                      >
+                        담당 간사 연락처
+                        <input
+                          ref={coordinatorPhoneInputRef}
+                          id="profile-coordinator-phone"
+                          value={coordinatorPhone}
+                          onChange={(event) => {
+                            setCoordinatorPhone(formatPhone(event.target.value));
+                            setFieldErrors((current) => ({
+                              ...current,
+                              coordinatorPhone: '',
+                            }));
+                            setSuccess('');
+                          }}
+                          inputMode="tel"
+                          autoComplete="tel"
+                          maxLength={13}
+                          aria-invalid={Boolean(fieldErrors.coordinatorPhone)}
+                          aria-describedby={
+                            fieldErrors.coordinatorPhone
+                              ? 'profile-coordinator-phone-error'
+                              : undefined
+                          }
+                        />
+                        {fieldErrors.coordinatorPhone && (
+                          <p
+                            className={styles.fieldError}
+                            id="profile-coordinator-phone-error"
+                          >
+                            {fieldErrors.coordinatorPhone}
+                          </p>
+                        )}
+                      </label>
+                    </>
+                  )}
                 </>
               ) : (
                 <>

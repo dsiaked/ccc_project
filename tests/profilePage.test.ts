@@ -26,17 +26,28 @@ test('profile page keeps authenticated users on the page when session lookup fai
   );
 });
 
-test('profile page loads the authenticated profile and limits edits to basic information', () => {
+test('profile page loads the authenticated profile and keeps Seoul affiliation read-only', () => {
   assert.match(page, /\.from\('profiles'\)/);
-  assert.match(
-    page,
-    /\.update\(\{ name: normalizedName, phone: normalizedPhone \}\)/
-  );
+  assert.match(page, /: \{ name: normalizedName, phone: normalizedPhone \}/);
   assert.match(
     page,
     /<span>소속<\/span>/
   );
   assert.doesNotMatch(page, /\.update\(\{[\s\S]*campus_id/);
+});
+
+test('external users can edit their affiliation and coordinator information', () => {
+  assert.match(page, /const isExternal = profile\?\.affiliation_type === 'external'/);
+  assert.match(page, /htmlFor="profile-district"/);
+  assert.match(page, /htmlFor="profile-campus"/);
+  assert.match(page, /htmlFor="profile-coordinator-name"/);
+  assert.match(page, /htmlFor="profile-coordinator-phone"/);
+  assert.match(page, /district: normalizedDistrict/);
+  assert.match(page, /campus: normalizedCampus/);
+  assert.match(page, /coordinator_name: normalizedCoordinatorName/);
+  assert.match(page, /coordinator_phone: normalizedCoordinatorPhone/);
+  assert.match(page, /districtInputRef\.current\?\.focus\(\)/);
+  assert.match(page, /coordinatorPhoneInputRef\.current\?\.focus\(\)/);
 });
 
 test('profile page attaches validation errors to the edited fields', () => {
