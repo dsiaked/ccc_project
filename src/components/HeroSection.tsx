@@ -1,6 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 // 버스 신청 → 배차 확정 → 탑승권 확인
-import { AlertCircle, ArrowRight, CheckCircle2, Clock, Clock3, Ticket } from 'lucide-react';
+import {
+  AlertCircle,
+  ArrowRight,
+  CheckCircle2,
+  Clock,
+  Clock3,
+  Copy,
+  Ticket,
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import {
@@ -25,6 +33,18 @@ const HeroSection = () => {
   const [loadError, setLoadError] = useState('');
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [loginRequiredPath, setLoginRequiredPath] = useState<string | null>(null);
+  const [boardingPlaceCopyStatus, setBoardingPlaceCopyStatus] =
+    useState<'idle' | 'copied' | 'error'>('idle');
+  const copyStatusTimerRef = useRef<number | null>(null);
+
+  useEffect(
+    () => () => {
+      if (copyStatusTimerRef.current !== null) {
+        window.clearTimeout(copyStatusTimerRef.current);
+      }
+    },
+    []
+  );
 
   useEffect(() => {
     let isMounted = true;
@@ -76,6 +96,7 @@ const HeroSection = () => {
   }, [opensAt]);
 
   const isConfirmed = reservation?.status === 'confirmed';
+  const boardingPlace = reservation?.confirmedTicket?.boardingPlace?.trim() ?? '';
   const isBeforeOpening = Boolean(
     opensAt && new Date(opensAt).getTime() > nowMs
   );
@@ -144,6 +165,26 @@ const HeroSection = () => {
                 path: '/reservation',
               };
   const StatusIcon = content.icon;
+
+  const handleCopyBoardingPlace = async () => {
+    if (!boardingPlace) return;
+
+    try {
+      await navigator.clipboard.writeText(boardingPlace);
+      setBoardingPlaceCopyStatus('copied');
+    } catch (error) {
+      console.error('탑승 장소 복사 실패:', error);
+      setBoardingPlaceCopyStatus('error');
+    }
+
+    if (copyStatusTimerRef.current !== null) {
+      window.clearTimeout(copyStatusTimerRef.current);
+    }
+    copyStatusTimerRef.current = window.setTimeout(() => {
+      setBoardingPlaceCopyStatus('idle');
+      copyStatusTimerRef.current = null;
+    }, 1800);
+  };
 
   const remainingSeatClaim = reservation?.remainingSeatClaim;
   let progressTitle = '';
@@ -263,6 +304,36 @@ const HeroSection = () => {
               </div>
             </div>
           </div>
+
+          {isLoggedIn && !isLoading && !loadError && isConfirmed && boardingPlace && (
+            <section
+              className={styles.boardingPlaceCard}
+              aria-labelledby="home-boarding-place-title"
+            >
+              <div>
+                <span>배차 완료 · 탑승 장소</span>
+                <strong id="home-boarding-place-title">{boardingPlace}</strong>
+                <small>
+                  {boardingPlaceCopyStatus === 'error'
+                    ? '복사하지 못했습니다. 잠시 후 다시 시도해주세요.'
+                    : '버튼을 누르면 탑승 장소가 클립보드에 복사됩니다.'}
+                </small>
+              </div>
+              <button
+                type="button"
+                className={styles.boardingPlaceCopyButton}
+                onClick={() => void handleCopyBoardingPlace()}
+                aria-live="polite"
+              >
+                {boardingPlaceCopyStatus === 'copied' ? (
+                  <CheckCircle2 size={17} />
+                ) : (
+                  <Copy size={17} />
+                )}
+                {boardingPlaceCopyStatus === 'copied' ? '복사 완료' : '탑승 장소 복사'}
+              </button>
+            </section>
+          )}
 
           {isLoggedIn && !isLoading && !loadError && !isConfirmed && progressSteps.length > 0 && (
             <section className={styles.progressSection} aria-labelledby="home-progress-title">

@@ -157,6 +157,70 @@
   outline-offset: 3px;
 }
 
+.boardingPlaceCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-top: 14px;
+  padding: 17px 18px;
+  border: 1px solid #bfdbfe;
+  border-radius: 18px;
+  background: #eff6ff;
+  box-shadow: 0 10px 28px -18px rgba(37, 99, 235, 0.5);
+}
+
+.boardingPlaceCard > div {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.boardingPlaceCard span {
+  color: #2563eb;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.boardingPlaceCard strong {
+  color: #0f172a;
+  font-size: 17px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.boardingPlaceCard small {
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.boardingPlaceCopyButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  gap: 6px;
+  min-height: 42px;
+  padding: 0 14px;
+  border: 1px solid #2563eb;
+  border-radius: 10px;
+  background: #2563eb;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.boardingPlaceCopyButton:hover {
+  background: #1d4ed8;
+}
+
+.boardingPlaceCopyButton:focus-visible {
+  outline: 3px solid #93c5fd;
+  outline-offset: 3px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .card,
   .ctaButton {
@@ -189,6 +253,17 @@
   }
 
   .ctaButton {
+    width: 100%;
+  }
+
+  .boardingPlaceCard {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
+    padding: 15px;
+  }
+
+  .boardingPlaceCopyButton {
     width: 100%;
   }
 }
