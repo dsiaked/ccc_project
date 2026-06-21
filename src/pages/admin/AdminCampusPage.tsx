@@ -95,7 +95,6 @@ interface CampusAdminScope {
 type ApplicantPaymentFilter = 'all' | 'pending' | 'completed' | 'refunded';
 
 const APPLICANT_PAGE_SIZE = 10;
-const SHOW_DETAILED_PAYMENT_GUIDE = false;
 
 const getScopeKey = (scope: CampusAdminScope) =>
   [scope.district, scope.team, scope.campus].join('\0');
@@ -1307,33 +1306,6 @@ const CampusAdminPage = () => {
           </button>
 
           {isGuideOpen && (
-            <div id="campus-payment-guide" className={styles.guideSummary}>
-              <ol className={styles.guideSummarySteps}>
-                <li>
-                  <span>1</span>
-                  <strong>계좌 등록</strong>
-                </li>
-                <li>
-                  <span>2</span>
-                  <strong>입금 확인</strong>
-                </li>
-                <li>
-                  <span>3</span>
-                  <strong>본부 송금</strong>
-                </li>
-              </ol>
-              <button
-                type="button"
-                className={styles.guideCloseButton}
-                onClick={() => setIsGuideOpen(false)}
-              >
-                <ChevronUp size={16} aria-hidden="true" />
-                접기
-              </button>
-            </div>
-          )}
-
-          {SHOW_DETAILED_PAYMENT_GUIDE && (
             <div id="campus-payment-guide" className={styles.guideSection}>
               <div
                 className={`${styles.preparationGuide} ${styles.guideStep} ${styles.guideStepPreparation}`}
@@ -1555,6 +1527,14 @@ const CampusAdminPage = () => {
                   본부와 먼저 확인해주세요.
                 </span>
               </div>
+              <button
+                type="button"
+                className={styles.guideCloseButton}
+                onClick={() => setIsGuideOpen(false)}
+              >
+                <ChevronUp size={16} aria-hidden="true" />
+                상세 안내 접기
+              </button>
             </div>
           )}
         </section>
