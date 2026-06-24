@@ -78,6 +78,9 @@ const AdminToolsPage = lazy(() => import('../pages/admin/AdminToolsPage'));
 const AdminInvitationCodesPage = lazy(
   () => import('../pages/admin/AdminInvitationCodesPage')
 );
+const AdminFirstChoiceDestinationStatsPage = lazy(
+  () => import('../pages/admin/AdminFirstChoiceDestinationStatsPage')
+);
 
 const globalAdminOnly = ['global_admin'] as const satisfies readonly AdminRoleType[];
 const campusAdminOnly = ['campus_admin'] as const satisfies readonly AdminRoleType[];
@@ -193,6 +196,13 @@ const canonicalAdminRoutes = [
   {
     path: 'system/invitation-codes',
     element: adminRoute(<AdminInvitationCodesPage />, globalAdminOnly),
+  },
+  {
+    path: 'system/first-choice-destinations',
+    element: adminRoute(
+      <AdminFirstChoiceDestinationStatsPage />,
+      globalAdminOnly
+    ),
   },
   {
     path: 'settings/participation-targets',
@@ -337,6 +347,11 @@ const legacyAdminRoutes = [
   {
     path: 'invitation-codes',
     to: '/admin/system/invitation-codes',
+    roles: globalAdminOnly,
+  },
+  {
+    path: 'first-choice-destinations',
+    to: '/admin/system/first-choice-destinations',
     roles: globalAdminOnly,
   },
 ] as const;
