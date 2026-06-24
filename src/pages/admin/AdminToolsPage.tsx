@@ -72,6 +72,11 @@ const toolGroups: ToolGroup[] = [
         icon: FlaskConical,
       },
       {
+        title: '1지망 행선지 현황',
+        path: '/admin/system/first-choice-destinations',
+        icon: ListTree,
+      },
+      {
         title: '운영 종료 점검',
         path: '/admin/system/closeout',
         icon: ClipboardCheck,
