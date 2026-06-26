@@ -51,10 +51,14 @@ test('live Firebase deployment checks Supabase compatibility before deploy', () 
   assert.match(packageJson, /"deploy:check:supabase":\s*"node scripts\/check-supabase-deployment\.mjs"/);
 
   const checkIndex = mergeWorkflow.indexOf('npm run deploy:check:supabase');
-  const deployIndex = mergeWorkflow.indexOf('FirebaseExtended/action-hosting-deploy@v0');
+  const deployIndex = mergeWorkflow.indexOf(
+    'npx firebase-tools deploy --only hosting --project cccbus-99680 --non-interactive'
+  );
 
   assert.notEqual(checkIndex, -1, 'Missing Supabase deployment compatibility check.');
-  assert.notEqual(deployIndex, -1, 'Missing Firebase live deployment action.');
+  assert.notEqual(deployIndex, -1, 'Missing Firebase live deployment command.');
+  assert.match(mergeWorkflow, /FIREBASE_SERVICE_ACCOUNT_CCCBUS_99680/);
+  assert.match(mergeWorkflow, /GOOGLE_APPLICATION_CREDENTIALS/);
   assert.ok(checkIndex < deployIndex, 'Supabase compatibility must be checked before Firebase deploy.');
 });
 
@@ -62,7 +66,9 @@ test('live Firebase deployment updates the AI report Edge Function before hostin
   const functionDeployIndex = mergeWorkflow.indexOf(
     'supabase functions deploy ai-operations-report'
   );
-  const deployIndex = mergeWorkflow.indexOf('FirebaseExtended/action-hosting-deploy@v0');
+  const deployIndex = mergeWorkflow.indexOf(
+    'npx firebase-tools deploy --only hosting --project cccbus-99680 --non-interactive'
+  );
 
   assert.match(mergeWorkflow, /SUPABASE_ACCESS_TOKEN: \$\{\{ secrets\.SUPABASE_ACCESS_TOKEN \}\}/);
   assert.match(mergeWorkflow, /if: \$\{\{ env\.SUPABASE_ACCESS_TOKEN != '' \}\}/);
