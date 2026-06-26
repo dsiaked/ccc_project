@@ -1598,6 +1598,9 @@ const LegacyAdminBoardingPage = () => {
                           {passenger.passengerKind === 'walk_in' && (
                             <span className={styles.walkInBadge}>현장 추가</span>
                           )}
+                          {passenger.accountSource === 'admin_created' && (
+                            <span className={styles.adminCreatedBadge}>관리자 생성</span>
+                          )}
                           <span className={styles.statusBadge}>
                             {passenger.boardingStatus === 'boarded' && <CheckCircle2 size={10} style={{ marginRight: 3, verticalAlign: -1 }} />}
                             {passenger.boardingStatus === 'unchecked' && <CircleHelp size={10} style={{ marginRight: 3, verticalAlign: -1 }} />}
@@ -1727,7 +1730,12 @@ const LegacyAdminBoardingPage = () => {
             <header className={styles.detailHeader}>
               <div>
                 <span>탑승자 상세</span>
-                <h2 id="boarding-passenger-detail-title">{selectedPassenger.name}</h2>
+                <h2 id="boarding-passenger-detail-title">
+                  {selectedPassenger.name}
+                  {selectedPassenger.accountSource === 'admin_created' && (
+                    <span className={styles.adminCreatedBadge}>관리자 생성</span>
+                  )}
+                </h2>
                 <p>{selectedPassenger.campus} · {selectedPassenger.district} · {selectedPassenger.team}</p>
               </div>
               <button type="button" onClick={closePassengerDetails} aria-label="상세보기 닫기">

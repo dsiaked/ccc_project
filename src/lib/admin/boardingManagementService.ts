@@ -37,6 +37,7 @@ export interface BoardingPassenger {
   fieldExceptionReason?: string | null;
   boardingNoteUpdatedAt?: string | null;
   boardingNoteUpdatedByName?: string | null;
+  accountSource?: 'self_signup' | 'admin_created' | 'ccc_summer';
   updatedAt?: string | null;
   updatedByName?: string | null;
 }
@@ -481,6 +482,7 @@ export interface DestinationQueueBoardingPassenger {
   boardingNote?: string | null;
   boardingNoteUpdatedAt?: string | null;
   boardingNoteUpdatedByName?: string | null;
+  accountSource?: 'self_signup' | 'admin_created' | 'ccc_summer';
   updatedAt?: string | null;
   updatedByName?: string | null;
   stationPreferences?: string[];

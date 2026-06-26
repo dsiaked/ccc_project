@@ -40,3 +40,26 @@ test('admin user creation records failed rollback without leaking details', () =
   );
   assert.match(adminUserManager, /if \(rollbackError\)/);
 });
+
+test('admin user creation keeps external affiliation metadata synchronized', () => {
+  const adminUserManager = readFunction('admin-user-manager');
+  const externalBranch = adminUserManager.slice(
+    adminUserManager.indexOf("if (organizationMode === 'external')"),
+    adminUserManager.indexOf('} else {', adminUserManager.indexOf("if (organizationMode === 'external')"))
+  );
+
+  assert.match(externalBranch, /district_id: null/);
+  assert.match(externalBranch, /district,/);
+  assert.match(externalBranch, /team_id: null/);
+  assert.match(externalBranch, /team: ''/);
+  assert.match(externalBranch, /campus_id: null/);
+  assert.match(externalBranch, /campus: campusName/);
+  assert.match(externalBranch, /affiliation_type: 'external'/);
+  assert.match(externalBranch, /coordinator_name: coordinatorName \|\| null/);
+  assert.match(externalBranch, /coordinator_phone: coordinatorPhone \|\| null/);
+
+  assert.match(
+    adminUserManager,
+    /serviceClient\.auth\.admin\.updateUserById\(created\.user\.id,[\s\S]*user_metadata: metadata/
+  );
+});

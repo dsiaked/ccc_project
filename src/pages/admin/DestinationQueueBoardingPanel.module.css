@@ -61,6 +61,7 @@
 .passenger strong { color: #172554; }
 .passenger span, .passenger small { color: #64748b; font-size: 11px; }
 .passenger em { color: #1d4ed8; font-size: 11px; font-style: normal; font-weight: 900; }
+.adminCreatedBadge { width: fit-content; padding: 3px 6px; border: 1px solid #fed7aa; border-radius: 999px; background: #fff7ed; color: #c2410c !important; font-size: 10px !important; font-weight: 900; }
 .passenger > span { width: fit-content; padding: 4px 7px; border-radius: 999px; font-weight: 900; }
 .passenger > span.boarded { background: #dcfce7; color: #166534; }
 .passenger > span.unchecked { background: #fef3c7; color: #92400e; }
@@ -118,6 +119,7 @@ button:disabled { opacity: .45; cursor: default; }
 .detailHeader { position: sticky; z-index: 2; top: 0; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 22px 22px 18px; border-bottom: 1px solid #dbe3ee; background: rgba(255, 255, 255, .96); backdrop-filter: blur(10px); text-align: left; }
 .detailHeader span { color: #2563eb; font-size: 12px; font-weight: 900; }
 .detailHeader h2 { margin: 4px 0; color: #172554; font-size: 25px; }
+.detailHeader h2 { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
 .detailHeader p { margin: 0; color: #64748b; font-size: 13px; }
 .detailHeader button { display: grid; flex: 0 0 auto; place-content: center; width: 44px; height: 44px; border: 1px solid #cbd5e1; border-radius: 999px; background: white; color: #475569; cursor: pointer; }
 
