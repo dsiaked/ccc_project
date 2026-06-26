@@ -48,12 +48,18 @@ def brute_force_minimum(passengers: tuple[Passenger, ...], capacity: int) -> tup
     for choices in itertools.product((0, 1), repeat=len(passengers)):
         counts = Counter(
             (
-                item.first_choice if choice == 0 else item.second_choice
+                item.first_choice
+                if choice == 0 or item.first_choice == item.second_choice
+                else item.second_choice
             )
             for item, choice in zip(passengers, choices)
         )
         buses = sum(ceil(count / capacity) for count in counts.values())
-        second_choices = sum(choices)
+        second_choices = sum(
+            choice
+            for item, choice in zip(passengers, choices)
+            if item.first_choice != item.second_choice
+        )
         candidate = (buses, second_choices)
         if best is None or candidate < best:
             best = candidate
@@ -62,6 +68,31 @@ def brute_force_minimum(passengers: tuple[Passenger, ...], capacity: int) -> tup
 
 
 class ExactOptimizerTests(unittest.TestCase):
+    def test_single_destination_passengers_are_fixed_to_that_destination(self) -> None:
+        data = OptimizationInput(
+            passengers=(
+                passenger("remaining-1", "A", "A"),
+                passenger("regular-1", "B", "A"),
+            ),
+            bus=BusConfiguration(
+                capacity=2,
+                price=100,
+                recommended_minimum_passengers=1,
+            ),
+        )
+
+        result = optimize(data)
+
+        self.assertEqual(validate_result(data, result), [])
+        self.assertEqual(result.status, "OPTIMAL")
+        remaining_assignment = next(
+            assignment
+            for assignment in result.assignments
+            if assignment.reservation_id == "remaining-1"
+        )
+        self.assertEqual(remaining_assignment.destination, "A")
+        self.assertEqual(remaining_assignment.preference_rank, 1)
+
     def test_rejects_feasible_phase_as_unproven(self) -> None:
         class FakeParameters:
             num_search_workers = 0

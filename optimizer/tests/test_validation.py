@@ -84,7 +84,18 @@ class InputValidationTests(unittest.TestCase):
         self.assertIn(": campus is required.", errors)
         self.assertIn(": team is required.", errors)
         self.assertIn(": first and second choices are required.", errors)
-        self.assertIn("duplicate: first and second choices must differ.", errors)
+
+    def test_allows_single_destination_passengers(self) -> None:
+        data = OptimizationInput(
+            passengers=(passenger("remaining-seat", "A", "A"),),
+            bus=BusConfiguration(
+                capacity=1,
+                price=100,
+                recommended_minimum_passengers=1,
+            ),
+        )
+
+        self.assertEqual(validate_input(data), [])
 
 
 class ResultValidationTests(unittest.TestCase):

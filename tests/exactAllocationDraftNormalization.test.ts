@@ -18,6 +18,10 @@ test('allocation optimization includes remaining-seat claims in reservation norm
   );
   assert.match(
     migration,
+    /'schema_version', 1,/
+  );
+  assert.match(
+    migration,
     /active\.remaining_claim ->> 'destination'/
   );
   assert.match(

@@ -182,7 +182,7 @@ begin
   end if;
 
   v_snapshot := jsonb_build_object(
-    'schema_version', 2,
+    'schema_version', 1,
     'bus', v_config,
     'passengers', v_passengers,
     'active_reservation_count', v_active_reservation_count,

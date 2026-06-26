@@ -227,6 +227,11 @@ def _solve_primary_objectives(
 
     for pair_index, (pair, count) in enumerate(sorted(preference_pair_counts.items())):
         first, second = pair
+        if first == second:
+            assigned_count = model.NewIntVar(0, count, f"pair_{pair_index}_fixed")
+            model.Add(assigned_count == count)
+            assigned_by_pair_and_destination[(pair, first)] = assigned_count
+            continue
         first_count = model.NewIntVar(0, count, f"pair_{pair_index}_first")
         second_count = model.NewIntVar(0, count, f"pair_{pair_index}_second")
         model.Add(first_count + second_count == count)
@@ -311,6 +316,7 @@ def _solve_primary_objectives(
     second_choices_expression = _sum(
         assigned_by_pair_and_destination[(pair, pair[1])]
         for pair in preference_pair_counts
+        if pair[0] != pair[1]
     )
     model.Add(second_choices_expression >= _sum(required_second_choices))
 
@@ -788,7 +794,8 @@ def optimize(
         _, _, first_choice, second_choice = cohort
         cohort_size = len(passenger_indexes)
         cohort_variables = []
-        for destination in (first_choice, second_choice):
+        destinations = (first_choice,) if first_choice == second_choice else (first_choice, second_choice)
+        for destination in destinations:
             for slot in slots_by_destination[destination]:
                 variable = model.NewIntVar(
                     0,
@@ -799,7 +806,7 @@ def optimize(
                 assignment_slot_keys_by_cohort[cohort_index].append(slot.key)
                 assignment_variables_by_slot[slot.key].append(variable)
                 cohort_variables.append(variable)
-                if destination == second_choice:
+                if first_choice != second_choice and destination == second_choice:
                     second_choice_variables.append(variable)
                 model.Add(variable <= cohort_size * active[slot.key])
         model.Add(_sum(cohort_variables) == cohort_size)
