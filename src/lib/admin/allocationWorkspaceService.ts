@@ -202,12 +202,46 @@ export const isRemainingSeatPassenger = (
   isRemainingSeatPassengerModel(passenger);
 
 const getPreferences = (row: ReservationRow) => {
-  const saved = row.data?.stationPreferences ?? row.station_preferences ?? [];
+  const saved = (row.data?.stationPreferences ??
+    row.station_preferences ??
+    []) as unknown[];
 
   return saved
-    .filter((preference) => preference.rank === 1 || preference.rank === 2)
+    .map((preference, index) => {
+      if (typeof preference === 'string') {
+        return {
+          rank: index === 0 ? 1 : index === 1 ? 2 : null,
+          name: preference,
+        };
+      }
+      if (
+        !preference ||
+        typeof preference !== 'object' ||
+        !('rank' in preference) ||
+        !('station' in preference)
+      ) {
+        return { rank: null, name: null };
+      }
+      const station =
+        preference.station && typeof preference.station === 'object'
+          ? preference.station
+          : null;
+      return {
+        rank: preference.rank,
+        name:
+          station && 'name' in station && typeof station.name === 'string'
+            ? station.name
+            : null,
+      };
+    })
+    .filter(
+      (preference): preference is { rank: 1 | 2; name: string } =>
+        (preference.rank === 1 || preference.rank === 2) &&
+        typeof preference.name === 'string' &&
+        preference.name.trim().length > 0
+    )
     .sort((a, b) => a.rank - b.rank)
-    .map((preference) => preference.station.name);
+    .map((preference) => preference.name);
 };
 
 const getRemainingSeatStatus = (
