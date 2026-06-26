@@ -58,9 +58,11 @@ jobs:
           npx supabase functions deploy ai-operations-report --project-ref qdpfccuqeumguhishifu
           npx supabase functions deploy allocation-optimizer-launcher --project-ref qdpfccuqeumguhishifu
           npx supabase functions deploy ccc-summer-handoff --project-ref qdpfccuqeumguhishifu
-      - uses: FirebaseExtended/action-hosting-deploy@v0
-        with:
-          repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_CCCBUS_99680 }}
-          channelId: live
-          projectId: cccbus-99680
+      - name: Deploy Firebase Hosting
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_CCCBUS_99680 }}
+        run: |
+          test -n "$FIREBASE_SERVICE_ACCOUNT"
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-service-account.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/firebase-service-account.json"
+          npx firebase-tools deploy --only hosting --project cccbus-99680 --non-interactive
