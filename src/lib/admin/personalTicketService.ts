@@ -43,6 +43,10 @@ export interface PersonalTicketItem {
   hasReservation: boolean;
   adminRoles: PersonalTicketAdminRole[];
   isStaff: boolean;
+  affiliationType: 'seoul' | 'external';
+  coordinatorName: string | null;
+  coordinatorPhone: string | null;
+  accountSource: 'self_signup' | 'admin_created' | 'ccc_summer';
 }
 
 export interface PersonalTicketSummary {
@@ -103,6 +107,10 @@ type PersonalTicketRpcItem = {
   has_reservation: boolean;
   admin_roles: PersonalTicketAdminRole[] | null;
   is_staff: boolean | null;
+  affiliation_type?: 'seoul' | 'external' | null;
+  coordinator_name?: string | null;
+  coordinator_phone?: string | null;
+  account_source?: 'self_signup' | 'admin_created' | 'ccc_summer' | null;
 };
 
 type PersonalTicketRpcResponse = {
@@ -156,6 +164,13 @@ const mapItem = (row: PersonalTicketRpcItem): PersonalTicketItem => ({
   hasReservation: row.has_reservation,
   adminRoles: row.admin_roles ?? [],
   isStaff: row.is_staff ?? false,
+  affiliationType:
+    row.affiliation_type ??
+    (row.raw_data?.affiliationType === 'external' ? 'external' : 'seoul'),
+  coordinatorName: row.coordinator_name ?? row.raw_data?.coordinatorName ?? null,
+  coordinatorPhone:
+    row.coordinator_phone ?? row.raw_data?.coordinatorPhone ?? null,
+  accountSource: row.account_source ?? 'self_signup',
 });
 
 const mapSummary = (

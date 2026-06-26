@@ -219,6 +219,14 @@ const getStationNameByRank = (
   reservation.stationPreferences.find((preference) => preference.rank === rank)
     ?.station?.name || '';
 
+const getReservationAffiliationType = (
+  reservation: ReservationItem | null
+): 'seoul' | 'external' =>
+  reservation?.affiliationType ??
+  (reservation?.rawData?.affiliationType === 'external'
+    ? 'external'
+    : 'seoul');
+
 const toggleFilterValue = <T extends string>(values: T[], value: T) =>
   values.includes(value)
     ? values.filter((current) => current !== value)
@@ -483,13 +491,13 @@ const AdminPersonalTicketPage = () => {
     if (orgMode === 'registered') {
       const orgChanged =
         roleCampusName !== (selectedReservation.campus || '') ||
-        selectedReservation.rawData?.affiliationType !== 'seoul';
+        getReservationAffiliationType(selectedReservation) !== 'seoul';
       return nameChanged || phoneChanged || orgChanged || staffChanged;
     } else {
       const dbDistrict = selectedReservation.district || '';
       const dbCampus = selectedReservation.campus || '';
-      const dbCoordName = selectedReservation.rawData?.coordinatorName || '';
-      const dbCoordPhone = selectedReservation.rawData?.coordinatorPhone || '';
+      const dbCoordName = selectedReservation.coordinatorName || '';
+      const dbCoordPhone = selectedReservation.coordinatorPhone || '';
       
       const cleanedCoordPhone = coordinatorPhone.replace(/[^0-9]/g, '');
       const cleanedDbCoordPhone = dbCoordPhone.replace(/[^0-9]/g, '');
@@ -499,7 +507,7 @@ const AdminPersonalTicketPage = () => {
         externalCampus.trim() !== dbCampus ||
         coordinatorName.trim() !== dbCoordName ||
         cleanedCoordPhone !== cleanedDbCoordPhone ||
-        selectedReservation.rawData?.affiliationType !== 'external';
+        getReservationAffiliationType(selectedReservation) !== 'external';
       return nameChanged || phoneChanged || orgChanged || staffChanged;
     }
   }, [
@@ -558,13 +566,14 @@ const AdminPersonalTicketPage = () => {
         return;
       }
 
-      const isExternal = selectedReservation.rawData?.affiliationType === 'external';
+      const isExternal =
+        getReservationAffiliationType(selectedReservation) === 'external';
       if (isExternal) {
         setOrgMode('external');
         setExternalDistrict(selectedReservation.district || '');
         setExternalCampus(selectedReservation.campus || '');
-        setCoordinatorName(selectedReservation.rawData?.coordinatorName || '');
-        setCoordinatorPhone(selectedReservation.rawData?.coordinatorPhone || '');
+        setCoordinatorName(selectedReservation.coordinatorName || '');
+        setCoordinatorPhone(selectedReservation.coordinatorPhone || '');
         setRoleDistrictId('');
         setRoleDistrictName('');
         setRoleTeamId('');
@@ -1149,7 +1158,7 @@ const AdminPersonalTicketPage = () => {
       affiliationType = 'seoul';
       orgChanged =
         roleCampusName !== (selectedReservation.campus || '') ||
-        selectedReservation.rawData?.affiliationType !== 'seoul';
+        getReservationAffiliationType(selectedReservation) !== 'seoul';
 
       if (orgChanged) {
         if (!roleDistrictId || !roleTeamId || !roleCampusId) {
@@ -1162,8 +1171,8 @@ const AdminPersonalTicketPage = () => {
       affiliationType = 'external';
       const dbDistrict = selectedReservation.district || '';
       const dbCampus = selectedReservation.campus || '';
-      const dbCoordName = selectedReservation.rawData?.coordinatorName || '';
-      const dbCoordPhone = selectedReservation.rawData?.coordinatorPhone || '';
+      const dbCoordName = selectedReservation.coordinatorName || '';
+      const dbCoordPhone = selectedReservation.coordinatorPhone || '';
       
       const cleanedCoordPhone = coordinatorPhone.replace(/[^0-9]/g, '');
       const cleanedDbCoordPhone = dbCoordPhone.replace(/[^0-9]/g, '');
@@ -1173,7 +1182,7 @@ const AdminPersonalTicketPage = () => {
         externalCampus.trim() !== dbCampus ||
         coordinatorName.trim() !== dbCoordName ||
         cleanedCoordPhone !== cleanedDbCoordPhone ||
-        selectedReservation.rawData?.affiliationType !== 'external';
+        getReservationAffiliationType(selectedReservation) !== 'external';
 
       if (orgChanged) {
         const districtTrim = externalDistrict.trim();
@@ -1473,7 +1482,8 @@ const AdminPersonalTicketPage = () => {
       return;
     }
 
-    const isExternal = selectedReservation.rawData?.affiliationType === 'external';
+    const isExternal =
+      getReservationAffiliationType(selectedReservation) === 'external';
     if (isExternal) {
       if (!selectedReservation.district || !selectedReservation.campus) {
         alert('사용자의 소속(지구, 캠퍼스)이 설정되어 있지 않습니다. [요약·정보] 탭에서 소속 정보를 먼저 등록해 주세요.');
@@ -1525,7 +1535,16 @@ const AdminPersonalTicketPage = () => {
         team: isExternal ? '' : selectedReservation.team,
         campus: selectedReservation.campus,
         stationPreferences,
-        data: selectedReservation.rawData || {},
+        data: {
+          ...(selectedReservation.rawData || {}),
+          affiliationType: isExternal ? 'external' : 'seoul',
+          coordinatorName: isExternal
+            ? selectedReservation.coordinatorName
+            : undefined,
+          coordinatorPhone: isExternal
+            ? selectedReservation.coordinatorPhone
+            : undefined,
+        },
         reason,
       });
 
@@ -2074,7 +2093,7 @@ const AdminPersonalTicketPage = () => {
                           role.role === 'campus_admin'
                       );
                       const isExternal =
-                        reservation.rawData?.affiliationType === 'external';
+                        getReservationAffiliationType(reservation) === 'external';
 
                       return (
                         <tr
@@ -2116,6 +2135,11 @@ const AdminPersonalTicketPage = () => {
                           <span>{reservation.phone || '-'}</span>
                           {reservation.isStaff && (
                             <span className={`${styles.adminBadge} ${styles.adminStaff}`}>스태프</span>
+                          )}
+                          {reservation.accountSource === 'admin_created' && (
+                            <span className={`${styles.adminBadge} ${styles.adminCreated}`}>
+                              관리자 생성
+                            </span>
                           )}
                           {isExternal && (
                             <span className={styles.adminBadge}>서울 외 지구 참가자</span>
@@ -2259,6 +2283,11 @@ const AdminPersonalTicketPage = () => {
                   <div>
                     <h2>
                       {selectedReservation.name}
+                      {selectedReservation.accountSource === 'admin_created' && (
+                        <span className={`${styles.adminBadge} ${styles.adminCreated}`}>
+                          관리자 생성
+                        </span>
+                      )}
                       {selectedReservation.isStaff && (
                         <span className={`${styles.adminBadge} ${styles.adminStaff}`} style={{ marginLeft: 8, fontSize: '11px', verticalAlign: 'middle' }}>
                           스태프
@@ -2266,16 +2295,16 @@ const AdminPersonalTicketPage = () => {
                       )}
                     </h2>
                     <p>
-                      {selectedReservation.rawData?.affiliationType === 'external'
+                      {getReservationAffiliationType(selectedReservation) === 'external'
                         ? `${selectedReservation.district} / ${selectedReservation.campus}`
                         : `${selectedReservation.team} / ${selectedReservation.campus}`}
                     </p>
-                    {selectedReservation.rawData?.affiliationType ===
+                    {getReservationAffiliationType(selectedReservation) ===
                       'external' && (
                       <p>
                         담당 간사{' '}
-                        {selectedReservation.rawData.coordinatorName || '-'} ·{' '}
-                        {selectedReservation.rawData.coordinatorPhone || '-'}
+                        {selectedReservation.coordinatorName || '-'} ·{' '}
+                        {selectedReservation.coordinatorPhone || '-'}
                       </p>
                     )}
                   </div>

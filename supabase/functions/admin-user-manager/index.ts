@@ -197,5 +197,24 @@ Deno.serve(async (request) => {
     return json({ error: '프로필 저장에 실패했습니다.' }, 500);
   }
 
+  const { error: authUpdateError } =
+    await serviceClient.auth.admin.updateUserById(created.user.id, {
+      user_metadata: metadata,
+    });
+
+  if (authUpdateError) {
+    const { error: rollbackError } = await serviceClient.auth.admin.deleteUser(
+      created.user.id,
+    );
+    console.error(
+      'Failed to synchronize administered user metadata:',
+      authUpdateError,
+    );
+    if (rollbackError) {
+      console.error('Failed to roll back an administered user:', rollbackError);
+    }
+    return json({ error: '프로필 저장에 실패했습니다.' }, 500);
+  }
+
   return json({ userId: created.user.id, email });
 });

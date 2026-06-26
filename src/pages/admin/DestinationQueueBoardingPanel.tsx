@@ -738,6 +738,9 @@ const DestinationQueueBoardingPanel = ({
                 <article key={passenger.reservationId} className={styles.passenger}>
                   <div>
                     <strong>{passenger.name}</strong>
+                    {passenger.accountSource === 'admin_created' && (
+                      <span className={styles.adminCreatedBadge}>관리자 생성</span>
+                    )}
                     <span>{passenger.campus} · {passenger.team}</span>
                     <small>{passenger.phone}</small>
                     {passenger.busNumber && <em>{passenger.busNumber}</em>}
@@ -1051,7 +1054,12 @@ const DestinationQueueBoardingPanel = ({
             <header className={styles.detailHeader}>
               <div>
                 <span>탑승자 상세</span>
-                <h2 id="boarding-passenger-detail-title">{selectedPassenger.name}</h2>
+                <h2 id="boarding-passenger-detail-title">
+                  {selectedPassenger.name}
+                  {selectedPassenger.accountSource === 'admin_created' && (
+                    <span className={styles.adminCreatedBadge}>관리자 생성</span>
+                  )}
+                </h2>
                 <p>
                   {selectedPassenger.campus}
                   {selectedPassenger.district ? ` · ${selectedPassenger.district}` : ''}

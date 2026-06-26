@@ -693,6 +693,12 @@
   color: #065f46;
 }
 
+.adminCreated {
+  border: 1px solid #fed7aa;
+  background: #fff7ed;
+  color: #c2410c;
+}
+
 .adminGlobal {
   background: #fef3c7;
   color: #92400e;
@@ -723,6 +729,10 @@
 }
 
 .editorHeader h2 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
   margin: 0;
   color: #101828;
   font-size: 19px;

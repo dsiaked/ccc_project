@@ -55,6 +55,14 @@ const externalReservationMigrationSql = readFileSync(
   'supabase/migrations/20260613000003_206_allow_external_organization_update.sql',
   'utf8'
 );
+const profileAffiliationMigrationSql = readFileSync(
+  'supabase/migrations/20260626000002_236_personal_user_profile_affiliation.sql',
+  'utf8'
+);
+const personalTicketService = readFileSync(
+  'src/lib/admin/personalTicketService.ts',
+  'utf8'
+);
 
 test('personal user management setup SQL matches its migration', () => {
   assert.equal(migrationSql.replaceAll('\r\n', '\n'), setupSql.replaceAll('\r\n', '\n'));
@@ -151,6 +159,20 @@ test('admin reservation save supports explicit external affiliation', () => {
   );
   assert.match(externalReservationSetupSql, /coordinatorName/);
   assert.match(externalReservationSetupSql, /coordinatorPhone/);
+});
+
+test('personal user affiliation saves independently from bus reservations', () => {
+  assert.match(profileAffiliationMigrationSql, /profile\.affiliation_type/i);
+  assert.match(profileAffiliationMigrationSql, /profile\.coordinator_name/i);
+  assert.match(profileAffiliationMigrationSql, /'affiliation_type', row\.affiliation_type/i);
+  assert.match(personalTicketService, /affiliationType:/);
+  assert.match(personalTicketService, /coordinatorName:/);
+  assert.match(adminPage, /getReservationAffiliationType\(selectedReservation\)/);
+  assert.match(adminPage, /selectedReservation\.coordinatorName/);
+  assert.doesNotMatch(
+    adminPage,
+    /const isExternal = selectedReservation\.rawData\?\.affiliationType === 'external'/
+  );
 });
 
 test('personal user page exposes retryable station loading and copyable account fields', () => {
