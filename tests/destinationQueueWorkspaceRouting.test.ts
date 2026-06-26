@@ -78,3 +78,18 @@ test('confirmed destination queue workspaces expose safe allocation cancellation
     /require_confirmed_destination_queue_allocation[\s\S]*for key share[\s\S]*before insert on public\.destination_queue_buses/
   );
 });
+
+test('destination queue editor supports unassigned manual assignment and deletion', () => {
+  assert.match(
+    destinationQueueEditor,
+    /UNASSIGNED_DESTINATION[\s\S]*unassignedCount[\s\S]*미배정[\s\S]*setSelectedDestination\(UNASSIGNED_DESTINATION\)/
+  );
+  assert.match(
+    destinationQueueEditor,
+    /clearVisibleAssignments[\s\S]*assignedDestination: ''[\s\S]*현재 명단 배정 삭제/
+  );
+  assert.match(
+    destinationQueueEditor,
+    /<option value="">미배정<\/option>[\s\S]*<UserMinus size=\{14\} \/> 배정 삭제/
+  );
+});

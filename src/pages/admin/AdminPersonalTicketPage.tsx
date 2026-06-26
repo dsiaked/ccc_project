@@ -109,8 +109,17 @@ interface AllocationBus {
 }
 
 interface AllocationData {
+  allocationStrategy?: 'preassigned_bus' | 'destination_queue';
+  commonBoarding?: {
+    departureTime?: string;
+    boardingPlace?: string;
+  };
   buses?: AllocationBus[];
-  passengers?: Array<{ reservationId: string; busId: string | null }>;
+  passengers?: Array<{
+    reservationId: string;
+    busId: string | null;
+    assignedDestination?: string;
+  }>;
 }
 
 interface AllocationRow {
@@ -237,10 +246,12 @@ const ticketToDraft = (
   reservation?: ReservationItem
 ): TicketDraft => {
   const firstStationName = reservation ? getFirstStationName(reservation) : '';
+  const isDestinationQueueTicket = ticket?.allocationStrategy === 'destination_queue';
 
   return {
     busNumber:
-      ticket?.busNumber ?? (firstStationName ? `${firstStationName} - 1호차` : ''),
+      ticket?.busNumber ??
+      (isDestinationQueueTicket ? '' : firstStationName ? `${firstStationName} - 1호차` : ''),
     seatNumber: ticket?.seatNumber ?? '',
     departureTime: ticket?.departureTime ?? '',
     boardingPlace: ticket?.boardingPlace ?? '',
@@ -481,6 +492,35 @@ const AdminPersonalTicketPage = () => {
       ) ?? null,
     [reservations, selectedReservationId]
   );
+  const isDestinationQueueAllocation =
+    confirmedAllocation?.allocation_data?.allocationStrategy === 'destination_queue';
+  const selectedDestinationQueuePassenger =
+    isDestinationQueueAllocation && selectedReservation?.dbId
+      ? confirmedAllocation?.allocation_data?.passengers?.find(
+          (passenger) => passenger.reservationId === selectedReservation.dbId
+        )
+      : undefined;
+
+  useEffect(() => {
+    if (!isDestinationQueueAllocation || !selectedReservation) return;
+    const commonBoarding = confirmedAllocation?.allocation_data?.commonBoarding;
+    const assignedDestination =
+      selectedDestinationQueuePassenger?.assignedDestination?.trim() || '';
+
+    setDraft((current) => ({
+      ...current,
+      busNumber: '',
+      seatNumber: '',
+      departureTime: current.departureTime || commonBoarding?.departureTime || '',
+      boardingPlace: current.boardingPlace || commonBoarding?.boardingPlace || '',
+      dropoffStation: current.dropoffStation || assignedDestination,
+    }));
+  }, [
+    confirmedAllocation,
+    isDestinationQueueAllocation,
+    selectedDestinationQueuePassenger,
+    selectedReservation,
+  ]);
 
   const hasPendingInfoChanges = useMemo(() => {
     if (!selectedReservation) return false;
@@ -960,19 +1000,37 @@ const AdminPersonalTicketPage = () => {
     }
 
     const busNumber = draft.busNumber.trim();
-    const departureTime = draft.departureTime.trim();
-    const boardingPlace = draft.boardingPlace.trim();
+    const departureTime =
+      draft.departureTime.trim() ||
+      (isDestinationQueueAllocation
+        ? confirmedAllocation?.allocation_data?.commonBoarding?.departureTime?.trim() ?? ''
+        : '');
+    const boardingPlace =
+      draft.boardingPlace.trim() ||
+      (isDestinationQueueAllocation
+        ? confirmedAllocation?.allocation_data?.commonBoarding?.boardingPlace?.trim() ?? ''
+        : '');
     const dropoffStation =
-      draft.dropoffStation.trim() || getFirstStationName(selectedReservation);
+      draft.dropoffStation.trim() ||
+      selectedDestinationQueuePassenger?.assignedDestination?.trim() ||
+      getFirstStationName(selectedReservation);
     const seatNumber = draft.seatNumber.trim();
 
-    if (!busNumber || !seatNumber) {
+    if (isDestinationQueueAllocation) {
+      if (!dropoffStation) {
+        alert('행선지 대기 배차는 확정 행선지를 입력해주세요.');
+        return;
+      }
+    } else if (!busNumber || !seatNumber) {
       alert('확정 배차안의 호차와 좌석번호를 입력해주세요.');
       return;
     }
 
     const confirmedTicket: ConfirmedTicket = {
-      busNumber,
+      allocationStrategy: isDestinationQueueAllocation
+        ? 'destination_queue'
+        : 'preassigned_bus',
+      busNumber: isDestinationQueueAllocation ? '' : busNumber,
       departureTime,
       boardingPlace,
       dropoffStation,
@@ -983,7 +1041,9 @@ const AdminPersonalTicketPage = () => {
 
     const managerNote = draft.managerNote.trim();
 
-    confirmedTicket.seatNumber = seatNumber;
+    if (!isDestinationQueueAllocation) {
+      confirmedTicket.seatNumber = seatNumber;
+    }
 
     if (managerNote) {
       confirmedTicket.managerNote = managerNote;
@@ -2969,7 +3029,9 @@ const AdminPersonalTicketPage = () => {
                 <div className={styles.formGrid}>
                   <div className={styles.field}>
                     <label>호차</label>
-                    {allocationBuses && allocationBuses.length > 0 ? (
+                    {isDestinationQueueAllocation ? (
+                      <input value="행선지 대기 배차" disabled />
+                    ) : allocationBuses && allocationBuses.length > 0 ? (
                       <select
                         value={draft.busNumber}
                         onChange={(event) => {
@@ -3006,10 +3068,11 @@ const AdminPersonalTicketPage = () => {
                   <div className={styles.field}>
                     <label>좌석번호</label>
                     <input
-                      value={draft.seatNumber}
+                      value={isDestinationQueueAllocation ? '좌석 미지정' : draft.seatNumber}
                       onChange={(event) =>
                         updateDraft('seatNumber', event.target.value)
                       }
+                      disabled={isDestinationQueueAllocation}
                       placeholder="예: 12A"
                     />
                   </div>

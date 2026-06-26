@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { AlertTriangle, Bus, CheckCircle2, MapPin, RotateCcw, Save, Users, X } from 'lucide-react';
+import { AlertTriangle, Bus, CheckCircle2, MapPin, RotateCcw, Save, Trash2, UserMinus, Users, X } from 'lucide-react';
 
 import {
   getDestinationQueueStats,
@@ -15,6 +15,8 @@ import {
 } from '../../lib/admin/allocationWorkspaceService';
 import { supabase } from '../../lib/supabase';
 import styles from './DestinationQueueWorkspaceEditor.module.css';
+
+const UNASSIGNED_DESTINATION = '__unassigned_destination__';
 
 interface Props {
   row: AllocationWorkspaceRow;
@@ -50,13 +52,30 @@ const DestinationQueueWorkspaceEditor = ({
     [workspace.passengers]
   );
   const destinationOptions = useMemo(
-    () => [...new Set(workspace.passengers.flatMap((passenger) => passenger.preferences))],
+    () => [
+      ...new Set(
+        workspace.passengers.flatMap((passenger) => [
+          ...passenger.preferences,
+          passenger.assignedDestination ?? '',
+        ]).filter((destination) => destination.trim())
+      ),
+    ],
     [workspace.passengers]
   );
-  const effectiveDestination = selectedDestination || stats[0]?.destination || '';
+  const unassignedCount = workspace.passengers.filter(
+    (passenger) => !(passenger.assignedDestination ?? '').trim()
+  ).length;
+  const effectiveDestination =
+    selectedDestination || (unassignedCount > 0 ? UNASSIGNED_DESTINATION : stats[0]?.destination || '');
+  const isUnassignedView = effectiveDestination === UNASSIGNED_DESTINATION;
   const normalizedSearch = search.trim().toLocaleLowerCase('ko');
   const visiblePassengers = workspace.passengers.filter((passenger) => {
-    if ((passenger.assignedDestination ?? '') !== effectiveDestination) return false;
+    const assignedDestination = passenger.assignedDestination ?? '';
+    if (isUnassignedView) {
+      if (assignedDestination.trim()) return false;
+    } else if (assignedDestination !== effectiveDestination) {
+      return false;
+    }
     if (
       assignmentFilter === 'second_choice' &&
       !isSecondChoiceDestinationAssignment({
@@ -85,6 +104,20 @@ const DestinationQueueWorkspaceEditor = ({
     (total, destination) => total + destination.expectedBusCount,
     0
   );
+  const clearVisibleAssignments = () => {
+    if (readOnly || !visiblePassengers.length || isUnassignedView) return;
+    const visibleIds = new Set(visiblePassengers.map((passenger) => passenger.reservationId));
+    updateWorkspace({
+      ...workspace,
+      passengers: workspace.passengers.map((passenger) =>
+        visibleIds.has(passenger.reservationId)
+          ? { ...passenger, assignedDestination: '' }
+          : passenger
+      ),
+    });
+    setSelectedDestination(UNASSIGNED_DESTINATION);
+    setAssignmentFilter('all');
+  };
 
   const updateWorkspace = (next: AllocationWorkspaceData) => {
     setWorkspace(next);
@@ -215,7 +248,7 @@ const DestinationQueueWorkspaceEditor = ({
         <article><Users size={19} /><strong>{workspace.passengers.length}명</strong><span>확정 인원</span></article>
         <article><Bus size={19} /><strong>{expectedBusCount}대</strong><span>예상 버스</span></article>
         <article><CheckCircle2 size={19} /><strong>{firstChoiceCoverage}%</strong><span>1지망 배정</span></article>
-        <article><MapPin size={19} /><strong>{stats.length}곳</strong><span>운영 행선지</span></article>
+        <article><MapPin size={19} /><strong>{unassignedCount}명</strong><span>미배정</span></article>
       </section>
 
       <section className={styles.commonBoarding}>
@@ -260,6 +293,20 @@ const DestinationQueueWorkspaceEditor = ({
       <div className={styles.workspace}>
         <aside>
           <h2>행선지</h2>
+          {unassignedCount > 0 && (
+            <button
+              type="button"
+              className={isUnassignedView ? styles.selected : undefined}
+              onClick={() => {
+                setSelectedDestination(UNASSIGNED_DESTINATION);
+                setAssignmentFilter('all');
+              }}
+            >
+              <strong>미배정</strong>
+              <span>{unassignedCount}명 · 행선지 수동 배정 필요</span>
+              <small>확정 전에 특정 행선지를 선택해주세요.</small>
+            </button>
+          )}
           {stats.map((destination) => (
             <button
               type="button"
@@ -281,8 +328,9 @@ const DestinationQueueWorkspaceEditor = ({
         </aside>
         <section className={styles.roster}>
           <div className={styles.rosterHeader}>
-            <div><h2>{effectiveDestination}행 확정 명단</h2><span>{visiblePassengers.length}명 표시</span></div>
+            <div><h2>{isUnassignedView ? '미배정 명단' : `${effectiveDestination}행 확정 명단`}</h2><span>{visiblePassengers.length}명 표시</span></div>
             <div className={styles.rosterControls}>
+              {!isUnassignedView && (
               <div className={styles.assignmentFilters} aria-label="배정 지망 필터">
                 <button
                   type="button"
@@ -299,6 +347,17 @@ const DestinationQueueWorkspaceEditor = ({
                   2지망 배정
                 </button>
               </div>
+              )}
+              {!readOnly && !isUnassignedView && (
+                <button
+                  type="button"
+                  className={styles.clearAssignmentsButton}
+                  onClick={clearVisibleAssignments}
+                  disabled={!visiblePassengers.length}
+                >
+                  <Trash2 size={15} /> 현재 명단 배정 삭제
+                </button>
+              )}
               <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="이름, 연락처, 캠퍼스 검색" />
             </div>
           </div>
@@ -338,8 +397,27 @@ const DestinationQueueWorkspaceEditor = ({
                           })
                         }
                       >
+                        <option value="">미배정</option>
                         {destinationOptions.map((destination) => <option key={destination}>{destination}</option>)}
                       </select>
+                      {!readOnly && (passenger.assignedDestination ?? '').trim() && (
+                        <button
+                          type="button"
+                          className={styles.unassignButton}
+                          onClick={() =>
+                            updateWorkspace({
+                              ...workspace,
+                              passengers: workspace.passengers.map((item) =>
+                                item.reservationId === passenger.reservationId
+                                  ? { ...item, assignedDestination: '' }
+                                  : item
+                              ),
+                            })
+                          }
+                        >
+                          <UserMinus size={14} /> 배정 삭제
+                        </button>
+                      )}
                     </td>
                   </tr>
                   );
